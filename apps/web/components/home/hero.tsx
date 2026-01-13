@@ -8,7 +8,7 @@ export function Hero() {
   return (
     <div className="relative z-10 flex min-h-[70vh] flex-col items-center justify-center px-4">
       <div className="flex w-full max-w-3xl flex-col items-center">
-        <h1 className="mb-5 text-center text-xl font-bold leading-[1.1] tracking-tight text-white md:text-3xl lg:text-6xl">
+        <h1 className="mb-5 text-center font-bold leading-[1.1] tracking-tight text-white text-4xl lg:text-6xl">
           Ask Edward to ship <br/>
             <FlipWords className="italic" words={words} />
           web apps.
