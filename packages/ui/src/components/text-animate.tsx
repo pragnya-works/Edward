@@ -184,6 +184,16 @@ const defaultItemAnimationVariants: Record<
           filter: { duration: 0.3 },
         },
       },
+      exit: {
+        opacity: 0,
+        filter: "blur(10px)",
+        y: -20,
+        transition: {
+          y: { duration: 0.3 },
+          opacity: { duration: 0.4 },
+          filter: { duration: 0.3 },
+        },
+      },
     },
   },
   slideUp: {
@@ -336,6 +346,8 @@ const TextAnimateBase = ({
       break
   }
 
+  const staggerChildren = segments.length > 0 ? duration / segments.length : 0
+
   const finalVariants = variants
     ? {
         container: {
@@ -345,13 +357,13 @@ const TextAnimateBase = ({
             transition: {
               opacity: { duration: 0.01, delay },
               delayChildren: delay,
-              staggerChildren: duration / segments.length,
+              staggerChildren,
             },
           },
           exit: {
             opacity: 0,
             transition: {
-              staggerChildren: duration / segments.length,
+              staggerChildren,
               staggerDirection: -1,
             },
           },
@@ -366,13 +378,13 @@ const TextAnimateBase = ({
               ...defaultItemAnimationVariants[animation].container.show,
               transition: {
                 delayChildren: delay,
-                staggerChildren: duration / segments.length,
+                staggerChildren,
               },
             },
             exit: {
               ...defaultItemAnimationVariants[animation].container.exit,
               transition: {
-                staggerChildren: duration / segments.length,
+                staggerChildren,
                 staggerDirection: -1,
               },
             },
