@@ -9,6 +9,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@workspace/ui/components/tooltip"
+import { useIsMobile } from "@workspace/ui/hooks/useMobile"
 
 const SUGGESTIONS = [
   "Build a high-fidelity SaaS landing page with Bento grid layouts and subtle Framer Motion reveals",
@@ -21,6 +22,7 @@ const SUGGESTIONS = [
 export default function Promptbar() {
   const [inputValue, setInputValue] = useState("");
   const [suggestionIndex, setSuggestionIndex] = useState(0);
+  const isMobile = useIsMobile()
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -48,7 +50,7 @@ export default function Promptbar() {
             placeholder=""
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
-            className="min-h-[120px] resize-none border-0 bg-transparent p-4 text-base text-white placeholder:text-gray-500 focus-visible:ring-0 focus-visible:ring-offset-0 relative z-10"
+            className="min-h-[100px] md:min-h-[120px] resize-none border-0 bg-transparent p-4 text-base text-white placeholder:text-gray-500 focus-visible:ring-0 focus-visible:ring-offset-0 relative z-10"
           />
         </div>
         <div className="flex items-center justify-between px-6 py-4 bg-input/30">
@@ -66,13 +68,17 @@ export default function Promptbar() {
               <p>Attach images</p>
             </TooltipContent>
           </Tooltip>
-
-          <Button
+          {isMobile ? <Button
+            size="icon"
+            className="rounded-full"
+          >
+            <ArrowRight className="h-3.5 w-3.5" />
+          </Button> : <Button
             className="shrink-0 rounded-full px-5 py-2 text-sm font-medium shadow-sm"
           >
             Build now
-            <ArrowRight className="ml-1 h-3.5 w-3.5" />
-          </Button>
+            <ArrowRight className="md:ml-1 h-3.5 w-3.5" />
+          </Button>}
         </div>
       </div>
     </Card>
