@@ -8,8 +8,13 @@ import {
 import Link from "next/link";
 import { IconBrandGithubFilled } from "@tabler/icons-react";
 import { signIn } from "@/lib/auth-client";
+import { Avatar, AvatarFallback, AvatarImage } from "@workspace/ui/components/avatar"
+import { Skeleton } from "@workspace/ui/components/skeleton";
+import { useSession } from "@/lib/auth-client";
 
 export default function Navbar() {
+  const { data: session, isPending } = useSession();
+
   return (
     <ResizableNavbar className="top-4">
       <NavBody className="mt-2">
@@ -19,10 +24,19 @@ export default function Navbar() {
         >
           <span className="font-semibold text-black dark:text-white text-xl">Edward.</span>
         </Link>
-        <NavbarButton variant="primary" onClick={signIn} className="flex justify-between">
-          <IconBrandGithubFilled className="mr-2 h-5 w-5 text-black" />
-          Login
-        </NavbarButton>
+        {isPending ? (
+          <Skeleton className="h-8 w-8 rounded-full" />
+        ) : session?.user ? (
+          <Avatar>
+            <AvatarImage src={session.user.image || ""} />
+            <AvatarFallback></AvatarFallback>
+          </Avatar>
+        ) : (
+          <NavbarButton variant="primary" onClick={signIn} className="flex justify-between">
+            <IconBrandGithubFilled className="mr-2 h-5 w-5 text-black" />
+            Login
+          </NavbarButton>
+        )}
       </NavBody>
     </ResizableNavbar>
   );

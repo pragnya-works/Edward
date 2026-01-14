@@ -10,6 +10,13 @@ import {
   TooltipTrigger,
 } from "@workspace/ui/components/tooltip"
 import { useIsMobile } from "@workspace/ui/hooks/useMobile"
+import { LoginModal } from "@workspace/ui/components/loginModal";
+
+interface PromptbarProps {
+  isAuthenticated?: boolean;
+  onSignIn?: () => void | Promise<void>;
+  onProtectedAction?: () => void | Promise<void>;
+}
 
 const SUGGESTIONS = [
   "Build a high-fidelity SaaS landing page with Bento grid layouts and subtle Framer Motion reveals",
@@ -19,10 +26,15 @@ const SUGGESTIONS = [
   "Develop a glassmorphic data visualization dashboard using Recharts and interactive filters"
 ];
 
-export default function Promptbar() {
+export default function Promptbar({
+  isAuthenticated = false,
+  onSignIn,
+  onProtectedAction
+}: PromptbarProps) {
   const [inputValue, setInputValue] = useState("");
   const [suggestionIndex, setSuggestionIndex] = useState(0);
-  const isMobile = useIsMobile()
+  const [showLoginModal, setShowLoginModal] = useState(false);
+  const isMobile = useIsMobile();
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -30,6 +42,16 @@ export default function Promptbar() {
     }, 4000);
     return () => clearInterval(interval);
   }, []);
+
+  const handleProtectedAction = () => {
+    if (!isAuthenticated) {
+      setShowLoginModal(true);
+    } else {
+      if (onProtectedAction) {
+        onProtectedAction();
+      }
+    }
+  };
 
   return (
     <Card className="w-full rounded-2xl border-white/10 backdrop-blur-md shadow-xl py-0">
@@ -60,6 +82,7 @@ export default function Promptbar() {
                 variant="ghost"
                 size="icon"
                 className="h-9 w-9 shrink-0 rounded-full p-0 bg-input/80"
+                onClick={handleProtectedAction}
               >
                 <PaperclipIcon className="h-4 w-4 text-white" />
               </Button>
@@ -71,16 +94,25 @@ export default function Promptbar() {
           {isMobile ? <Button
             size="icon"
             className="rounded-full"
+            onClick={handleProtectedAction}
           >
             <ArrowRight className="h-3.5 w-3.5" />
           </Button> : <Button
             className="shrink-0 rounded-full px-5 py-2 text-sm font-medium shadow-sm"
+            onClick={handleProtectedAction}
           >
             Build now
             <ArrowRight className="md:ml-1 h-3.5 w-3.5" />
           </Button>}
         </div>
       </div>
+      {showLoginModal && (
+        <LoginModal
+          isOpen={showLoginModal}
+          onClose={() => setShowLoginModal(false)}
+          onSignIn={onSignIn}
+        />
+      )}
     </Card>
   );
 }

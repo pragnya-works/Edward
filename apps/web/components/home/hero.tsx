@@ -1,6 +1,6 @@
 "use client"
 
-import Promptbar from "@workspace/ui/components/ui/promptbar"
+import AuthenticatedPromptbar from "@/components/authenticatedPromptbar"
 import { FlipWords } from "@workspace/ui/components/ui/flip-words";
 
 export function Hero() {
@@ -16,7 +16,7 @@ export function Hero() {
         <p className="mb-12 text-center text-lg leading-normal text-gray-200 md:text-xl">
           Create stunning apps & websites by chatting with Edward.
         </p>
-        <Promptbar />
+        <AuthenticatedPromptbar />
       </div>
     </div>
   )
