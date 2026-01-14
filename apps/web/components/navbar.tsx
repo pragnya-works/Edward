@@ -6,7 +6,8 @@ import {
   NavbarButton,
 } from "./ui/resizable-navbar";
 import Link from "next/link";
-import { IconBrandGithub } from "@tabler/icons-react";
+import { IconBrandGithubFilled } from "@tabler/icons-react";
+import { signIn } from "@/lib/auth-client";
 
 export default function Navbar() {
   return (
@@ -18,8 +19,8 @@ export default function Navbar() {
         >
           <span className="font-semibold text-black dark:text-white text-xl">Edward.</span>
         </Link>
-        <NavbarButton variant="primary" href="https://github.com/login" className="flex justify-between">
-          <IconBrandGithub className="mr-2 h-5 w-5 text-black" />
+        <NavbarButton variant="primary" onClick={signIn} className="flex justify-between">
+          <IconBrandGithubFilled className="mr-2 h-5 w-5 text-black" />
           Login
         </NavbarButton>
       </NavBody>
