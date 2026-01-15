@@ -54,7 +54,7 @@ export default function Promptbar({
   };
 
   return (
-    <Card className="w-full rounded-2xl border-white/10 backdrop-blur-md shadow-xl py-0">
+    <Card className="w-full rounded-2xl border-white/25 backdrop-blur-md shadow-xl py-0">
       <div className="flex flex-col relative">
         <div className="relative">
           {inputValue === "" && (

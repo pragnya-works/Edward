@@ -8,9 +8,9 @@ import {
 import Link from "next/link";
 import { IconBrandGithubFilled } from "@tabler/icons-react";
 import { signIn } from "@/lib/auth-client";
-import { Avatar, AvatarFallback, AvatarImage } from "@workspace/ui/components/avatar"
 import { Skeleton } from "@workspace/ui/components/skeleton";
 import { useSession } from "@/lib/auth-client";
+import UserProfile from "./userProfile";
 
 export default function Navbar() {
   const { data: session, isPending } = useSession();
@@ -27,10 +27,7 @@ export default function Navbar() {
         {isPending ? (
           <Skeleton className="h-8 w-8 rounded-full" />
         ) : session?.user ? (
-          <Avatar>
-            <AvatarImage src={session.user.image || ""} />
-            <AvatarFallback></AvatarFallback>
-          </Avatar>
+          <UserProfile />
         ) : (
           <NavbarButton variant="primary" onClick={signIn} className="flex justify-between">
             <IconBrandGithubFilled className="mr-2 h-5 w-5 text-black" />
