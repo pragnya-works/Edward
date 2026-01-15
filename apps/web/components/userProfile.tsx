@@ -41,7 +41,7 @@ export default function UserProfile() {
           </Avatar>
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent className="w-56" align="start" forceMount>
+      <DropdownMenuContent className="w-56" align="end" forceMount>
         <div className="flex flex-col space-y-1.5 p-2">
           <p className="text-sm font-medium">{user.name || "User"}</p>
           <p className="text-xs text-muted-foreground truncate max-w-[150px]">{user.email}</p>
