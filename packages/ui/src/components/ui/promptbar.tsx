@@ -3,7 +3,7 @@ import { Button } from "@workspace/ui/components/button";
 import { Card } from "@workspace/ui/components/card";
 import { Textarea } from "@workspace/ui/components/textarea";
 import { useState, useEffect } from "react";
-import { TextAnimate } from "@workspace/ui/components/text-animate";
+import { TextAnimate } from "@workspace/ui/components/textAnimate";
 import {
   Tooltip,
   TooltipContent,

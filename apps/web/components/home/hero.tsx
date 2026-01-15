@@ -1,7 +1,7 @@
 "use client"
 
 import AuthenticatedPromptbar from "@/components/authenticatedPromptbar"
-import { FlipWords } from "@workspace/ui/components/ui/flip-words";
+import { FlipWords } from "@workspace/ui/components/ui/flipWords";
 
 export function Hero() {
   const words = ["better", "modern", "minimalist", "awesome", "simple"]

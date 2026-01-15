@@ -6,6 +6,6 @@
       "@workspace/ui/*": ["./src/*"]
     }
   },
-  "include": [".", "src/components/ui/resizable-navbar.tsx"],
+  "include": [".", "src/components/ui/resizableNavbar.tsx"],
   "exclude": ["node_modules", "dist"]
 }

@@ -4,7 +4,7 @@ import {
   Navbar as ResizableNavbar,
   NavBody,
   NavbarButton,
-} from "./ui/resizable-navbar";
+} from "./ui/resizableNavbar";
 import Link from "next/link";
 import { IconBrandGithubFilled } from "@tabler/icons-react";
 import { signIn } from "@/lib/auth-client";
