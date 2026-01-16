@@ -2,7 +2,7 @@
 
 import { useSession } from "@/lib/auth-client";
 import { SidebarProvider, SidebarInset } from "@workspace/ui/components/sidebar";
-import { AppSidebar } from "@workspace/ui/components/appSidebar";
+import { AppSidebar } from "@workspace/ui/components/ui/appSidebar";
 import Link from "next/link";
 import { ReactNode } from "react";
 

@@ -1,28 +1,36 @@
 {
   "name": "api",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "Edward API Server",
+  "main": "dist/entry.js",
   "type": "module",
   "scripts": {
-    "dev": "nodemon --exec ts-node --loader ts-node/esm index.ts",
-    "start": "node dist/index.js",
+    "dev": "tsx watch entry.ts",
+    "start": "node dist/entry.js",
     "build": "tsc",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "clean": "rm -rf dist"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "packageManager": "pnpm@10.4.1",
   "dependencies": {
-    "express": "^5.2.1"
+    "@workspace/auth": "workspace:^",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
+    "express": "^5.2.1",
+    "uuid": "^13.0.0",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
+    "@types/cookie-parser": "^1.4.10",
+    "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/node": "^25.0.7",
-    "nodemon": "^3.1.11",
-    "ts-node": "^10.9.2",
-    "ts-node-dev": "^2.0.0",
+    "tsx": "^4.19.2",
     "typescript": "5.7.3"
   }
 }

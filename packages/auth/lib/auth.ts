@@ -1,13 +1,9 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
-import { db } from "./db";
+import { db } from "./db.js";
 
-function getEnvVariable(name: string): string {
-  const value = process.env[name];
-  if (!value) {
-    throw new Error(`Missing required environment variable: ${name}`);
-  }
-  return value;
+function getEnvVariable(name: string): string | undefined {
+  return process.env[name];
 }
 
 export const auth = betterAuth({
@@ -16,8 +12,8 @@ export const auth = betterAuth({
     }),
     socialProviders: {
         github: {
-          clientId: getEnvVariable("GITHUB_CLIENT_ID"),
-          clientSecret: getEnvVariable("GITHUB_CLIENT_SECRET"),
+          clientId: getEnvVariable("GITHUB_CLIENT_ID") || "",
+          clientSecret: getEnvVariable("GITHUB_CLIENT_SECRET") || "",
         },
       },
 });
