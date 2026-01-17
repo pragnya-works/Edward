@@ -16,6 +16,7 @@
     "@react-three/fiber": "^9.5.0",
     "@shadergradient/react": "^2.4.20",
     "@tabler/icons-react": "^3.36.1",
+    "@tanstack/react-query": "^5.90.18",
     "@workspace/auth": "workspace:^",
     "@workspace/ui": "workspace:*",
     "better-auth": "^1.4.12",

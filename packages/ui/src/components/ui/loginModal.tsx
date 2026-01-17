@@ -29,7 +29,11 @@ export function LoginModal({ isOpen, onClose, onSignIn }: LoginModalProps) {
           </DialogDescription>
         </DialogHeader>
         <DialogFooter className="sm:justify-center">
-          <Button onClick={handleLogin} className="w-full sm:w-auto">
+          <Button
+            type="button"
+            onClick={handleLogin}
+            className="w-full sm:w-auto"
+          >
             Sign in with GitHub
           </Button>
         </DialogFooter>

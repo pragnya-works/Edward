@@ -15,6 +15,13 @@
       "when": 1768376746138,
       "tag": "0001_reflective_onslaught",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1768628381918,
+      "tag": "0002_crazy_talkback",
+      "breakpoints": true
     }
   ]
 }
