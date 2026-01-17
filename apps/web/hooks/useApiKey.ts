@@ -1,67 +1,97 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import axios from "axios";
 import { useSession } from "@/lib/auth-client";
-import { encryptApiKey } from "@workspace/ui/lib/encryption";
-import { Provider, API_KEY_REGEX } from "@workspace/ui/constants/apiKey.constants";
+import { 
+  Provider, 
+  API_KEY_REGEX, 
+  API_KEY_VALIDATION_ERROR 
+} from "@workspace/ui/constants/apiKey.constants";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL;
-const axiosInstance = axios.create({ baseURL: API_BASE_URL });
+
+interface ApiKeyResponse {
+  message: string;
+  data: {
+    hasApiKey: boolean;
+    apiKey?: string;
+    userId: string;
+  };
+}
 
 export function useApiKey() {
   const { data: session } = useSession();
   const userId = session?.user?.id;
-
+  const queryClient = useQueryClient();
   const [error, setError] = useState("");
-  const [hasApiKey, setHasApiKey] = useState<boolean | null>(null);
-  const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    if (!userId) {
-      setHasApiKey(null);
-      return;
-    }
-
-    const controller = new AbortController();
-    let isMounted = true;
-
-    async function getApiKeyStatus() {
-      setLoading(true);
-      try {
-        const { data } = await axiosInstance.get("/api-key", {
-          signal: controller.signal,
-          withCredentials: true,
-        });
-
-        if (isMounted) {
-          setHasApiKey(data?.data?.hasApiKey ?? false);
-        }
-      } catch {
-        if (isMounted) {
-          setHasApiKey(false);
-        }
-      } finally {
-        if (isMounted) {
-          setLoading(false);
-        }
+  const { data, isLoading } = useQuery({
+    queryKey: ["apiKey", userId],
+    queryFn: async () => {
+      if (!userId) return null;
+      const res = await fetch(`${API_BASE_URL}/api-key`, {
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+      });
+      if (!res.ok) {
+        throw new Error("Failed to fetch API key");
       }
-    }
+      return (await res.json()) as ApiKeyResponse;
+    },
+    enabled: !!userId,
+    retry: false,
+  });
 
-    getApiKeyStatus();
+  const mutation = useMutation({
+    mutationFn: async ({
+      apiKey,
+      method,
+    }: {
+      apiKey: string;
+      method: "POST" | "PUT";
+    }) => {
+      const res = await fetch(`${API_BASE_URL}/api-key`, {
+        method,
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ apiKey }),
+        credentials: "include",
+      });
 
-    return () => {
-      isMounted = false;
-      controller.abort();
-    };
-  }, [userId]);
+      if (!res.ok) {
+        throw new Error("Failed to save API key");
+      }
+      return res.json();
+    },
+    onSuccess: (responseData, variables) => {
+      queryClient.setQueryData(["apiKey", userId], (old: ApiKeyResponse | undefined) => {
+        if (!old) return old;
+        return {
+          ...old,
+          data: {
+            ...old.data,
+            hasApiKey: true,
+            apiKey: variables.apiKey,
+          }
+        };
+      });
+      queryClient.invalidateQueries({ queryKey: ["apiKey", userId] });
+    },
+    onError: () => {
+      setError("Failed to save API key. Please try again.");
+    },
+  });
 
-  async function validateAndSaveApiKey(
+  const validateAndSaveApiKey = async (
     apiKey: string,
     onValidate: (key: string) => void,
     onClose: () => void,
     provider: Provider = Provider.OPENAI
-  ): Promise<boolean> {
+  ): Promise<boolean> => {
     if (!userId) {
       setError("User not authenticated");
       return false;
@@ -70,50 +100,35 @@ export function useApiKey() {
     const trimmedKey = apiKey.trim();
     if (!trimmedKey) {
       setError(
-        `Please enter your ${
-          provider === Provider.OPENAI ? "OpenAI" : "Gemini"
-        } API key`
+        `Please enter your ${provider === Provider.OPENAI ? "OpenAI" : "Gemini"} API key`
       );
       return false;
     }
 
     if (!API_KEY_REGEX[provider].test(trimmedKey)) {
-      setError(
-        provider === Provider.OPENAI
-          ? "Invalid OpenAI API key format"
-          : "Invalid Gemini API key format"
-      );
+      setError(API_KEY_VALIDATION_ERROR[provider]);
       return false;
     }
 
     try {
-      const encryptedKey = await encryptApiKey(trimmedKey);
-
-      await axiosInstance.post(
-        "/api-key",
-        { apiKey: encryptedKey },
-        {
-          headers: { "X-User-Id": userId },
-          withCredentials: true,
-        }
-      );
-
+      const method = data?.data?.hasApiKey ? "PUT" : "POST";
+      await mutation.mutateAsync({ apiKey: trimmedKey, method });
+      
       setError("");
-      setHasApiKey(true);
       onValidate(trimmedKey);
       onClose();
       return true;
     } catch {
-      setError("Failed to save API key. Please try again.");
       return false;
     }
-  }
+  };
 
   return {
-    error,
+    error: error || (mutation.error ? "Failed to save API key" : ""),
     validateAndSaveApiKey,
-    hasApiKey,
-    isLoading: loading,
+    hasApiKey: data?.data?.hasApiKey ?? null,
+    apiKey: data?.data?.apiKey || null,
+    isLoading,
     userId,
   };
 }

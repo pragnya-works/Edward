@@ -11,6 +11,7 @@ import {
   DeleteApiKeyResponse,
   ErrorResponse,
 } from '../schemas/apiKey.schema.js';
+import { encrypt, decrypt } from '../utils/encryption.js';
 
 const sendError = (res: Response, status: number, error: string): void => {
   res.status(status).json({
@@ -64,12 +65,20 @@ export const getApiKey = async (
       return;
     }
 
+    let decryptedKey: string | undefined;
+    try {
+      decryptedKey = decrypt(userData.apiKey);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.warn(`[getApiKey] Warning: Failed to decrypt API key for user ${userData.id}: ${errorMessage}.`);
+    }
+
     res.status(200).json({
       message: 'API key retrieved successfully',
       data: {
-        hasApiKey: true,
+        hasApiKey: !!userData.apiKey,
+        apiKey: decryptedKey,
         userId: userData.id,
-        apiKey: userData.apiKey,
         createdAt: userData.createdAt,
         updatedAt: userData.updatedAt,
       },
@@ -105,9 +114,10 @@ export const createApiKey = async (
       return;
     }
 
+    const encryptedApiKey = encrypt(body.apiKey);
     const [updatedUser] = await db
       .update(user)
-      .set({ apiKey: body.apiKey })
+      .set({ apiKey: encryptedApiKey })
       .where(eq(user.id, userData.id))
       .returning();
 
@@ -148,10 +158,12 @@ export const updateApiKey = async (
       return;
     }
 
+    const encryptedApiKey = encrypt(body.apiKey);
+
     const [updatedUser] = await db
       .update(user)
       .set({
-        apiKey: body.apiKey,
+        apiKey: encryptedApiKey,
         updatedAt: new Date(),
       })
       .where(eq(user.id, userData.id))
@@ -206,4 +218,14 @@ export const deleteApiKey = async (
     console.error('deleteApiKey error:', error);
     sendError(res, 500, 'Internal server error');
   }
+};
+
+export const useApiKeyForRequest = async (userId: string) => {
+  const userData = await getUserFromSession(userId);
+  if (!userData?.apiKey) {
+    throw new Error('API key not found');
+  }
+  
+  const decryptedApiKey = decrypt(userData.apiKey);
+  return decryptedApiKey;
 };

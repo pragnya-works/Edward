@@ -1,9 +1,22 @@
 "use client"
 
-import * as React from "react"
+import { useState, type ReactNode } from "react"
 import { ThemeProvider as NextThemesProvider } from "next-themes"
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 
-export function Providers({ children }: { children: React.ReactNode }) {
+function makeQueryClient() {
+  return new QueryClient({
+    defaultOptions: {
+      queries: {
+        staleTime: 60 * 1000,
+      },
+    },
+  })
+}
+
+export function Providers({ children }: { children: ReactNode }) {
+  const [queryClient] = useState(makeQueryClient)
+
   return (
     <NextThemesProvider
       attribute="class"
@@ -12,7 +25,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
       disableTransitionOnChange
       enableColorScheme
     >
-      {children}
+      <QueryClientProvider client={queryClient}>
+        {children}
+      </QueryClientProvider>
     </NextThemesProvider>
   )
 }

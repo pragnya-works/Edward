@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, type KeyboardEvent } from "react";
 import { Button } from "@workspace/ui/components/button";
 import {
   Dialog,
@@ -34,7 +34,22 @@ interface BYOKProps {
     provider: Provider
   ) => Promise<boolean>;
   error?: string;
+  initialApiKey?: string;
+  initialProvider?: Provider;
 }
+
+const PROVIDERS_CONFIG = [
+  {
+    id: Provider.OPENAI,
+    label: "OpenAI",
+    icon: OpenAI,
+  },
+  {
+    id: Provider.GEMINI,
+    label: "Gemini",
+    icon: Gemini,
+  },
+];
 
 export function BYOK({
   isOpen = false,
@@ -42,16 +57,26 @@ export function BYOK({
   onValidate,
   onSaveApiKey,
   error: externalError = "",
+  initialApiKey = "",
+  initialProvider = Provider.OPENAI,
 }: BYOKProps) {
-  const [apiKey, setApiKey] = useState("");
+  const [apiKey, setApiKey] = useState(initialApiKey);
   const [selectedProvider, setSelectedProvider] = useState<Provider>(
-    Provider.OPENAI
+    initialProvider
   );
   const [localError, setLocalError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
   const error = externalError || localError;
+
+  useEffect(() => {
+    if (isOpen) {
+      setApiKey(initialApiKey);
+      setSelectedProvider(initialProvider);
+      setLocalError("");
+    }
+  }, [isOpen, initialApiKey, initialProvider]);
 
   function validateApiKey(key: string, provider: Provider): boolean {
     if (!key.trim()) return false;
@@ -78,7 +103,7 @@ export function BYOK({
     }
   }
 
-  function handleKeyDown(e: React.KeyboardEvent) {
+  function handleKeyDown(e: KeyboardEvent) {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSubmit();
@@ -86,8 +111,8 @@ export function BYOK({
   }
 
   function handleTabChange(value: string) {
-    setSelectedProvider(value as Provider);
-    setApiKey("");
+    const newProvider = value as Provider;
+    setSelectedProvider(newProvider);
     setLocalError("");
   }
 
@@ -99,7 +124,9 @@ export function BYOK({
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Add Your API Key</DialogTitle>
+          <DialogTitle>
+            {initialApiKey ? "Manage Your API Key" : "Add Your API Key"}
+          </DialogTitle>
           <DialogDescription>
             Select a provider and enter your API key to continue. Your key is
             stored securely on our servers.
@@ -108,42 +135,28 @@ export function BYOK({
 
         <Tabs value={selectedProvider} onValueChange={handleTabChange}>
           <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value={Provider.OPENAI} className="gap-2">
-              <OpenAI className="h-4 w-4" />
-              <span>OpenAI</span>
-            </TabsTrigger>
-
-            <TabsTrigger value={Provider.GEMINI} className="gap-2">
-              <Gemini className="h-4 w-4" />
-              <span>Gemini</span>
-            </TabsTrigger>
+            {PROVIDERS_CONFIG.map(({ id, label, icon: Icon }) => (
+              <TabsTrigger key={id} value={id} className="gap-2">
+                <Icon className="h-4 w-4" />
+                <span>{label}</span>
+              </TabsTrigger>
+            ))}
           </TabsList>
 
-          <TabsContent value={Provider.OPENAI} className="mt-4">
-            <ApiKeyInput
-              provider={Provider.OPENAI}
-              apiKey={apiKey}
-              showPassword={showPassword}
-              isSubmitting={isSubmitting}
-              error={error}
-              onChange={setApiKey}
-              onToggleVisibility={togglePasswordVisibility}
-              onKeyDown={handleKeyDown}
-            />
-          </TabsContent>
-
-          <TabsContent value={Provider.GEMINI} className="mt-4">
-            <ApiKeyInput
-              provider={Provider.GEMINI}
-              apiKey={apiKey}
-              showPassword={showPassword}
-              isSubmitting={isSubmitting}
-              error={error}
-              onChange={setApiKey}
-              onToggleVisibility={togglePasswordVisibility}
-              onKeyDown={handleKeyDown}
-            />
-          </TabsContent>
+          {PROVIDERS_CONFIG.map(({ id }) => (
+            <TabsContent key={id} value={id} className="mt-4">
+              <ApiKeyInput
+                provider={id}
+                apiKey={apiKey}
+                showPassword={showPassword}
+                isSubmitting={isSubmitting}
+                error={error}
+                onChange={setApiKey}
+                onToggleVisibility={togglePasswordVisibility}
+                onKeyDown={handleKeyDown}
+              />
+            </TabsContent>
+          ))}
         </Tabs>
 
         <DialogFooter>
