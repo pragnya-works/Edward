@@ -17,12 +17,15 @@ import { useRouter } from "next/navigation";
 import { BYOK } from "@workspace/ui/components/ui/byok";
 import { useApiKey } from "@/hooks/useApiKey";
 import { Provider, API_KEY_REGEX } from "@workspace/ui/constants/apiKey.constants";
+import { AnimatedThemeToggler, type AnimatedThemeTogglerHandle } from "@workspace/ui/components/animated-theme-toggler"
+import { useRef } from "react";
 
 export default function UserProfile() {
   const router = useRouter();
   const { data: session } = useSession();
   const { apiKey, validateAndSaveApiKey, error } = useApiKey();
   const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState(false);
+  const themeTogglerRef = useRef<AnimatedThemeTogglerHandle>(null);
 
   if (!session?.user) {
     return null;
@@ -70,6 +73,13 @@ export default function UserProfile() {
             <Key className="mr-2 h-4 w-4" />
             <span>Manage API Keys</span>
           </DropdownMenuItem>
+          <DropdownMenuItem onSelect={(e) => {
+            e.preventDefault();
+            themeTogglerRef.current?.toggleTheme();
+          }}>
+            <AnimatedThemeToggler ref={themeTogglerRef} />
+            <span className="ml-2">Change theme</span>
+          </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem onSelect={handleSignOut}>
             <LogOut className="mr-2 h-4 w-4" />
@@ -81,7 +91,7 @@ export default function UserProfile() {
       <BYOK
         isOpen={isApiKeyModalOpen}
         onClose={() => setIsApiKeyModalOpen(false)}
-        onValidate={() => {}}
+        onValidate={() => { }}
         onSaveApiKey={validateAndSaveApiKey}
         initialApiKey={apiKey || ""}
         initialProvider={initialProvider}
