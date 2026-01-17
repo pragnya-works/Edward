@@ -31,8 +31,12 @@ export default function UserProfile() {
   const user = session.user;
 
   const handleSignOut = async () => {
-    await signOut();
-    router.push("/");
+    try {
+      await signOut();
+      router.push("/");
+    } catch (error) {
+      console.error("Failed to sign out:", error);
+    }
   };
 
   const getProviderFromKey = (key: string): Provider => {

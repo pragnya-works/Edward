@@ -1,6 +1,6 @@
 import type { SVGProps } from "react";
 
-const OpenAI = ({ fill = "#00000", ...props }: SVGProps<SVGSVGElement> & { fill?: string }) => (
+const OpenAI = ({ fill = "#000000", ...props }: SVGProps<SVGSVGElement> & { fill?: string }) => (
   <svg {...(props as any)} preserveAspectRatio="xMidYMid" viewBox="0 0 256 260">
     <path
       fill={fill}

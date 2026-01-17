@@ -50,6 +50,7 @@ export function ApiKeyInput({
           />
 
           <Button
+            type="button"
             variant="ghost"
             size="sm"
             className="absolute inset-y-0 right-0 h-full px-3 rounded-l-none hover:bg-transparent"

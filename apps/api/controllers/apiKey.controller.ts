@@ -1,6 +1,6 @@
 import type { Response } from 'express';
 import { ZodError } from 'zod';
-import { db, user, eq, session } from '@workspace/auth';
+import { db, user, eq } from '@workspace/auth';
 import type { AuthenticatedRequest } from '../middleware/auth.js';
 import {
   CreateApiKeyRequestSchema,
@@ -31,7 +31,7 @@ const sendValidationError = (res: Response, errors: ZodError): void => {
   });
 };
 
-const getUserFromSession = async (sessionId: string) => {
+const getUser = async (userId: string) => {
   const [result] = await db
     .select({
       id: user.id,
@@ -39,9 +39,8 @@ const getUserFromSession = async (sessionId: string) => {
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
     })
-    .from(session)
-    .innerJoin(user, eq(session.userId, user.id))
-    .where(eq(session.id, sessionId))
+    .from(user)
+    .where(eq(user.id, userId))
     .limit(1);
 
   return result;
@@ -53,12 +52,12 @@ export const getApiKey = async (
 ): Promise<void> => {
   try {
 
-    if (!req.sessionId) {
+    if (!req.userId) {
       sendError(res, 401, 'Unauthorized');
       return;
     }
 
-    const userData = await getUserFromSession(req.sessionId);
+    const userData = await getUser(req.userId);
 
     if (!userData?.apiKey) {
       sendError(res, 404, 'API key not found');
@@ -96,13 +95,13 @@ export const createApiKey = async (
   res: Response<CreateApiKeyResponse | ErrorResponse>
 ): Promise<void> => {
   try {
-    if (!req.sessionId) {
+    if (!req.userId) {
       sendError(res, 401, 'Unauthorized');
       return;
     }
 
     const { body } = CreateApiKeyRequestSchema.parse(req);
-    const userData = await getUserFromSession(req.sessionId);
+    const userData = await getUser(req.userId);
 
     if (!userData) {
       sendError(res, 404, 'User not found');
@@ -145,13 +144,13 @@ export const updateApiKey = async (
   res: Response<UpdateApiKeyResponse | ErrorResponse>
 ): Promise<void> => {
   try {
-    if (!req.sessionId) {
+    if (!req.userId) {
       sendError(res, 401, 'Unauthorized');
       return;
     }
 
     const { body } = UpdateApiKeyRequestSchema.parse(req);
-    const userData = await getUserFromSession(req.sessionId);
+    const userData = await getUser(req.userId);
 
     if (!userData) {
       sendError(res, 404, 'User not found');
@@ -193,12 +192,12 @@ export const deleteApiKey = async (
   res: Response<DeleteApiKeyResponse | ErrorResponse>
 ): Promise<void> => {
   try {
-    if (!req.sessionId) {
+    if (!req.userId) {
       sendError(res, 401, 'Unauthorized');
       return;
     }
 
-    const userData = await getUserFromSession(req.sessionId);
+    const userData = await getUser(req.userId);
 
     if (!userData) {
       sendError(res, 404, 'User not found');
@@ -221,7 +220,7 @@ export const deleteApiKey = async (
 };
 
 export const useApiKeyForRequest = async (userId: string) => {
-  const userData = await getUserFromSession(userId);
+  const userData = await getUser(userId);
   if (!userData?.apiKey) {
     throw new Error('API key not found');
   }

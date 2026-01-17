@@ -75,6 +75,9 @@ export function BYOK({
       setApiKey(initialApiKey);
       setSelectedProvider(initialProvider);
       setLocalError("");
+    } else {
+      setApiKey("");
+      setLocalError("");
     }
   }, [isOpen, initialApiKey, initialProvider]);
 
@@ -160,7 +163,12 @@ export function BYOK({
         </Tabs>
 
         <DialogFooter>
-          <Button variant="outline" onClick={onClose} disabled={isSubmitting}>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onClose}
+            disabled={isSubmitting}
+          >
             Cancel
           </Button>
 

@@ -12,14 +12,22 @@ if (!PORT) {
   throw new Error('EDWARD_API_PORT is not defined');
 }
 
-const NODE_ENV = process.env.NODE_ENV ?? 'development';
+enum Environment {
+  Development = 'development',
+  Production = 'production',
+  Test = 'test',
+}
+
+const env = (process.env.NODE_ENV as Environment) || Environment.Development;
+const isDev = env === Environment.Development;
+const isProd = env === Environment.Production;
 
 const CORS_ORIGINS = process.env.CORS_ORIGIN
   ? process.env.CORS_ORIGIN.split(',').map(o => o.trim())
   : [];
 
 app.use(cors({
-  origin: CORS_ORIGINS.length ? CORS_ORIGINS : true,
+  origin: CORS_ORIGINS.length ? CORS_ORIGINS : isDev,
   credentials: true,
 }));
 
@@ -27,7 +35,7 @@ app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-if (NODE_ENV !== 'production') {
+if (!isProd) {
   app.use((req, res, next) => {
     const start = Date.now();
     res.on('finish', () => {
@@ -42,7 +50,7 @@ if (NODE_ENV !== 'production') {
 app.get('/health', (_req, res) => {
   res.status(200).json({
     status: 'ok',
-    environment: NODE_ENV,
+    environment: env,
     timestamp: new Date().toISOString(),
   });
 });
@@ -57,7 +65,7 @@ app.use((_req, res) => {
 app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
   console.error(err);
   res.status(500).json({
-    error: NODE_ENV === 'production' ? 'Internal Server Error' : err.message,
+    error: isProd ? 'Internal Server Error' : err.message,
   });
 });
 

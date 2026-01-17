@@ -55,8 +55,8 @@ export default function Promptbar({
   const handleProtectedAction = useCallback(() => {
     if (!isAuthenticated) {
       setShowLoginModal(true);
-    } else if (hasApiKey === false && !isApiKeyLoading) {
-      setShowBYOK(true);
+    } else if (hasApiKey !== true) {
+      if (!isApiKeyLoading) setShowBYOK(true);
     } else {
       onProtectedAction?.();
     }
@@ -71,6 +71,7 @@ export default function Promptbar({
 
   const ActionButton = isMobile ? (
     <Button 
+      type="button"
       size="icon" 
       className="rounded-full" 
       onClick={handleProtectedAction}
@@ -80,6 +81,7 @@ export default function Promptbar({
     </Button>
   ) : (
     <Button 
+      type="button"
       className="shrink-0 rounded-full px-5 py-2 text-sm font-medium shadow-sm" 
       onClick={handleProtectedAction}
     >
@@ -114,6 +116,7 @@ export default function Promptbar({
           <Tooltip>
             <TooltipTrigger asChild>
               <Button 
+                type="button"
                 variant="ghost" 
                 size="icon" 
                 className="h-9 w-9 shrink-0 rounded-full p-0 bg-input/80" 

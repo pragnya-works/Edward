@@ -19,9 +19,6 @@ export const validateRequest = (schema: ZodSchema) =>
         return;
       }
 
-      res.status(400).json({
-        error: 'Invalid request',
-        timestamp: new Date().toISOString(),
-      });
+      next(error);
     }
   };

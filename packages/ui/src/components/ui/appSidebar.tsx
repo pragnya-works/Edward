@@ -40,12 +40,14 @@ interface AppSidebarProps {
     LinkComponent?: React.ComponentType<{ href: string; children: React.ReactNode; className?: string }>;
 }
 
+const DefaultLink = ({ href, children, className }: { href: string; children: React.ReactNode; className?: string }) => (
+    <a href={href} className={className}>
+        {children}
+    </a>
+);
+
 export function AppSidebar({ LinkComponent }: AppSidebarProps = {}) {
-    const Link = LinkComponent || (({ href, children, className }: { href: string; children: React.ReactNode; className?: string }) => (
-        <a href={href} className={className}>
-            {children}
-        </a>
-    ));
+    const Link = LinkComponent || DefaultLink;
 
     return (
         <Sidebar collapsible="icon">
