@@ -123,7 +123,7 @@ export const createApiKey = async (
     res.status(201).json({
       message: 'API key created successfully',
       data: {
-        apiKey: updatedUser.apiKey!,
+        apiKey: body.apiKey,
         userId: updatedUser.id,
       },
       timestamp: new Date().toISOString(),
@@ -171,7 +171,7 @@ export const updateApiKey = async (
     res.status(200).json({
       message: 'API key updated successfully',
       data: {
-        apiKey: updatedUser.apiKey!,
+        apiKey: body.apiKey,
         userId: updatedUser.id,
       },
       timestamp: new Date().toISOString(),

@@ -21,7 +21,7 @@ import { Provider, API_KEY_REGEX } from "@workspace/ui/constants/apiKey.constant
 export default function UserProfile() {
   const router = useRouter();
   const { data: session } = useSession();
-  const { apiKey, validateAndSaveApiKey } = useApiKey();
+  const { apiKey, validateAndSaveApiKey, error } = useApiKey();
   const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState(false);
 
   if (!session?.user) {
@@ -85,6 +85,7 @@ export default function UserProfile() {
         onSaveApiKey={validateAndSaveApiKey}
         initialApiKey={apiKey || ""}
         initialProvider={initialProvider}
+        error={error}
       />
     </>
   );
