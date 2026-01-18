@@ -1,13 +1,9 @@
 "use client";
 import { cn } from "@workspace/ui/lib/utils";
 import Link from "next/link";
-import {
-  motion,
-  useScroll,
-  useMotionValueEvent,
-} from "motion/react";
+import { motion, useScroll, useMotionValueEvent } from "motion/react";
 
-import React, { useRef, useState } from "react";
+import React, { createContext, useContext, useRef, useState } from "react";
 
 interface NavbarProps {
   children: React.ReactNode;
@@ -15,10 +11,25 @@ interface NavbarProps {
 }
 
 interface NavBodyProps {
-  children: React.ReactNode;
+  children:
+    | React.ReactNode
+    | ((props: { visible: boolean }) => React.ReactNode);
   className?: string;
-  visible?: boolean;
 }
+
+interface NavbarContextType {
+  visible: boolean;
+}
+
+const NavbarContext = createContext<NavbarContextType | undefined>(undefined);
+
+const useNavbarContext = () => {
+  const context = useContext(NavbarContext);
+  if (!context) {
+    throw new Error("useNavbarContext must be used within a Navbar");
+  }
+  return context;
+};
 
 export const Navbar = ({ children, className }: NavbarProps) => {
   const ref = useRef<HTMLDivElement>(null);
@@ -37,23 +48,20 @@ export const Navbar = ({ children, className }: NavbarProps) => {
   });
 
   return (
-    <motion.div
-      ref={ref}
-      className={cn("sticky inset-x-0 top-20 z-40 w-full", className)}
-    >
-      {React.Children.map(children, (child) =>
-        React.isValidElement(child)
-          ? React.cloneElement(
-              child as React.ReactElement<{ visible?: boolean }>,
-              { visible },
-            )
-          : child,
-      )}
-    </motion.div>
+    <NavbarContext.Provider value={{ visible }}>
+      <motion.div
+        ref={ref}
+        className={cn("sticky inset-x-0 top-20 z-40 w-full", className)}
+      >
+        {children}
+      </motion.div>
+    </NavbarContext.Provider>
   );
 };
 
-export const NavBody = ({ children, className, visible }: NavBodyProps) => {
+export const NavBody = ({ children, className }: NavBodyProps) => {
+  const { visible } = useNavbarContext();
+
   return (
     <motion.div
       animate={{
@@ -75,7 +83,9 @@ export const NavBody = ({ children, className, visible }: NavBodyProps) => {
         className,
       )}
     >
-      {children}
+      {typeof children === "function"
+        ? children({ visible: !!visible })
+        : children}
     </motion.div>
   );
 };

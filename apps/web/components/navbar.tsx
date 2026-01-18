@@ -14,6 +14,7 @@ import { useSession } from "@/lib/auth-client";
 import UserProfile from "./userProfile";
 import { useState } from "react";
 import { SidebarTrigger } from "@workspace/ui/components/sidebar";
+import { AnimatePresence, motion } from "motion/react";
 
 export default function Navbar() {
   const { data: session, isPending } = useSession();
@@ -29,43 +30,68 @@ export default function Navbar() {
   };
 
   if (session?.user) {
-    return <div className="w-full bg-sidebar p-4 flex justify-between">
-      <SidebarTrigger />
-      <UserProfile />
-    </div>
+    return (
+      <div className="w-full bg-sidebar p-4 flex justify-between">
+        <SidebarTrigger />
+        <UserProfile />
+      </div>
+    );
   }
 
   return (
     <ResizableNavbar className="top-4">
       <NavBody className="mt-2">
-        <Link
-          href="/"
-          className="relative z-20 mr-4 flex items-center space-x-2 px-2 py-1 text-sm font-normal text-black"
-        >
-          <span className="font-semibold text-black dark:text-white text-xl">
-            Edward.
-          </span>
-        </Link>
-        {isPending ? (
-          <Skeleton className="h-8 w-8 rounded-full" />
-        ) : (
-          <NavbarButton
-            variant="primary"
-            onClick={handleSignIn}
-            disabled={isLoading}
-            className="flex justify-between"
-          >
-            {isLoading ? (
-              <>
-                <LoaderIcon className="mr-2 h-5 w-5 animate-spin text-gray-500" />
-              </>
+        {({ visible }: { visible: boolean }) => (
+          <>
+            <Link
+              href="/"
+              className="relative z-20 mr-4 flex items-center space-x-2 px-2 py-1 text-sm font-normal text-black"
+            >
+              <span className="font-semibold text-black dark:text-white text-xl">
+                Edward.
+              </span>
+            </Link>
+            <AnimatePresence>
+              {visible && (
+                <motion.div
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -10 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  <Link
+                    href="/changelog"
+                    className="relative z-20 mr-4 flex items-center space-x-2 px-2 py-1 text-sm font-normal text-black"
+                  >
+                    <span className="text-black dark:text-white hover:text-gray-600 transition-colors">
+                      Changelog
+                    </span>
+                  </Link>
+                </motion.div>
+              )}
+            </AnimatePresence>
+            {isPending ? (
+              <Skeleton className="h-8 w-8 rounded-full" />
             ) : (
-              <>
-                <IconBrandGithubFilled className="mr-2 h-5 w-5 text-black" />
-              </>
+              <NavbarButton
+                variant="primary"
+                onClick={handleSignIn}
+                disabled={isLoading}
+                className="flex justify-between rounded-2xl"
+              >
+                {isLoading ? (
+                  <>
+                    <LoaderIcon className="mr-2 h-5 w-5 animate-spin text-gray-500" />
+                  </>
+                ) : (
+                  <>
+                    <IconBrandGithubFilled className="mr-2 h-5 w-5 text-black" />
+                  </>
+                )}
+                Log in
+              </NavbarButton>
             )}
-            Log in
-          </NavbarButton>
+          </>
         )}
       </NavBody>
     </ResizableNavbar>
