@@ -19,6 +19,7 @@
     "@tabler/icons-react": "^3.36.1",
     "@tanstack/react-query": "^5.90.18",
     "@workspace/auth": "workspace:^",
+    "@workspace/shared/constants": "workspace:^",
     "@workspace/ui": "workspace:*",
     "better-auth": "^1.4.12",
     "lucide-react": "^0.475.0",

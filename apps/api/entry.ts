@@ -5,7 +5,7 @@ import cookieParser from 'cookie-parser';
 import { createApiKeyRouter } from './routes/apiKey.routes.js';
 import { createChatRouter } from './routes/chat.routes.js';
 import { authMiddleware } from './middleware/auth.js';
-import { Environment, logger } from '@workspace/logger';
+import { Environment, logger } from './utils/logger.js';
 
 const app = express();
 

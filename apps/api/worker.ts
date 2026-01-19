@@ -1,35 +1,34 @@
 import 'dotenv/config';
-import { SQSClient, ReceiveMessageCommand, DeleteMessageCommand } from '@aws-sdk/client-sqs';
-import { db, message, MessageRole } from '@workspace/auth';
-import { nanoid } from 'nanoid';
-import { ChatJobPayloadSchema, type ChatJobPayload } from './services/queue.service.js';
-import { logger } from '@workspace/logger';
+import { ReceiveMessageCommand, DeleteMessageCommand, Message } from '@aws-sdk/client-sqs';
+import { ChatJobPayloadSchema } from './services/queue.service.js';
+import { processChatMessage } from './services/chat.service.js';
+import { logger } from './utils/logger.js';
+import { sqsClient, QUEUE_URL } from './lib/sqs.js';
 
-const sqsClient = new SQSClient({
-  region: process.env.AWS_REGION || 'us-east-1',
-});
+let isShuttingDown = false;
+let activeJobs = 0;
 
-const QUEUE_URL = process.env.SQS_QUEUE_URL;
+async function handleMessage(msg: Message) {
+  if (!msg.Body || !msg.ReceiptHandle) return;
 
-async function processMessage(payload: ChatJobPayload) {
-  logger.info(`[Worker] Processing message for chat ${payload.chatId} from user ${payload.userId}`);
+  activeJobs++;
+  try {
+    const body = JSON.parse(msg.Body);
+    const payload = ChatJobPayloadSchema.parse(body);
 
-  // TODO: Integrate with actual LLM here.
-  const aiResponseContent = `Echo: ${payload.content}. (Processed by worker)`;
+    await processChatMessage(payload);
 
-  const assistantMessageId = nanoid(32);
+    await sqsClient.send(new DeleteMessageCommand({
+      QueueUrl: QUEUE_URL,
+      ReceiptHandle: msg.ReceiptHandle!,
+    }));
 
-  await db.insert(message).values({
-    id: assistantMessageId,
-    chatId: payload.chatId,
-    userId: payload.userId,
-    role: MessageRole.Assistant,
-    content: aiResponseContent,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  });
-
-  logger.info(`[Worker] Saved assistant response ${assistantMessageId}`);
+    logger.info(`[Worker] Message deleted from queue`);
+  } catch (err) {
+    logger.error(err, '[Worker] Error handling message');
+  } finally {
+    activeJobs--;
+  }
 }
 
 async function pollQueue() {
@@ -40,11 +39,11 @@ async function pollQueue() {
 
   logger.info('[Worker] Starting polling...');
 
-  while (true) {
+  while (!isShuttingDown) {
     try {
       const command = new ReceiveMessageCommand({
         QueueUrl: QUEUE_URL,
-        MaxNumberOfMessages: 1,
+        MaxNumberOfMessages: 5,
         WaitTimeSeconds: 20,
         AttributeNames: ['All'],
       });
@@ -52,32 +51,36 @@ async function pollQueue() {
       const response = await sqsClient.send(command);
 
       if (response.Messages && response.Messages.length > 0) {
-        for (const msg of response.Messages) {
-          if (!msg.Body || !msg.ReceiptHandle) continue;
-
-          try {
-            const body = JSON.parse(msg.Body);
-            const payload = ChatJobPayloadSchema.parse(body);
-
-            await processMessage(payload);
-
-            await sqsClient.send(new DeleteMessageCommand({
-              QueueUrl: QUEUE_URL,
-              ReceiptHandle: msg.ReceiptHandle,
-            }));
-
-            logger.info(`[Worker] Message deleted from queue`);
-
-          } catch (err) {
-            logger.error(err, '[Worker] Error processing message');
-          }
-        }
+        await Promise.all(response.Messages.map(handleMessage));
       }
     } catch (error) {
-      logger.error(error, '[Worker] Polling error');
-      await new Promise(resolve => setTimeout(resolve, 5000));
+      if (!isShuttingDown) {
+        logger.error(error, '[Worker] Polling error');
+        await new Promise(resolve => setTimeout(resolve, 5000));
+      }
     }
   }
 }
+
+async function gracefulShutdown() {
+  if (isShuttingDown) return;
+  isShuttingDown = true;
+  logger.info('[Worker] Shutting down... Waiting for active jobs to finish.');
+
+  const shutdownStart = Date.now();
+  while (activeJobs > 0) {
+    if (Date.now() - shutdownStart > 30000) {
+       logger.warn('[Worker] Timeout reached. Forcing exit.');
+       break;
+    }
+    await new Promise(resolve => setTimeout(resolve, 100));
+  }
+
+  logger.info('[Worker] Shutdown complete.');
+  process.exit(0);
+}
+
+process.on('SIGINT', gracefulShutdown);
+process.on('SIGTERM', gracefulShutdown);
 
 pollQueue();

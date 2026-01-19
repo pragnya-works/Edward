@@ -1,11 +1,11 @@
 "use client";
 
 import { useSession } from "@/lib/auth-client";
-import { 
-  Provider, 
-  API_KEY_REGEX, 
-  API_KEY_VALIDATION_ERROR 
-} from "@workspace/ui/constants/apiKey.constants";
+import {
+  Provider,
+  API_KEY_REGEX,
+  API_KEY_VALIDATION_ERROR
+} from "@workspace/shared/constants";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
@@ -113,7 +113,7 @@ export function useApiKey() {
     try {
       const method = data?.data?.hasApiKey ? "PUT" : "POST";
       await mutation.mutateAsync({ apiKey: trimmedKey, method });
-      
+
       setError("");
       onValidate(trimmedKey);
       onClose();

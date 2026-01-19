@@ -20,7 +20,7 @@ import {
   Provider,
   API_KEY_REGEX,
   API_KEY_VALIDATION_ERROR,
-} from "@workspace/ui/constants/apiKey.constants";
+} from "@workspace/shared/constants";
 import { ApiKeyInput } from "@workspace/ui/components/ui/apiKeyInput";
 
 interface BYOKProps {

@@ -9,7 +9,7 @@ import {
 import { enqueueChatJob } from '../services/queue.service.js';
 import { z } from 'zod';
 import { nanoid } from 'nanoid';
-import { logger } from '@workspace/logger';
+import { logger } from '../utils/logger.js';
 
 function sendError(res: Response, status: number, error: string): void {
   res.status(status).json({
@@ -62,7 +62,7 @@ export async function sendMessage(
     const { chatId } = params;
 
     const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-    
+
     const [messageCountResult] = await db
       .select({ value: count() })
       .from(message)

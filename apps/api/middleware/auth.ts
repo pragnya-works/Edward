@@ -1,6 +1,6 @@
 import type { Request, Response, NextFunction } from 'express';
 import { auth } from '@workspace/auth';
-import { logger } from '@workspace/logger';
+import { logger } from '../utils/logger.js';
 
 export interface AuthenticatedRequest extends Request {
   userId?: string;

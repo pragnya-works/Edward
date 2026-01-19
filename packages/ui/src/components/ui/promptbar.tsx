@@ -8,7 +8,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@workspace/ui/component
 import { useIsMobile } from "@workspace/ui/hooks/useMobile";
 import { LoginModal } from "@workspace/ui/components/ui/loginModal";
 import { BYOK } from "@workspace/ui/components/ui/byok";
-import { Provider } from "@workspace/ui/constants/apiKey.constants.js";
+import { Provider } from "@workspace/shared/constants";
 
 const SUGGESTIONS: string[] = [
   "Build a high-fidelity SaaS landing page with Bento grid layouts and subtle Framer Motion reveals",
@@ -70,19 +70,19 @@ export default function Promptbar({
   }, [isAuthenticated, hasApiKey, isApiKeyLoading]);
 
   const ActionButton = isMobile ? (
-    <Button 
+    <Button
       type="button"
-      size="icon" 
-      className="rounded-full" 
+      size="icon"
+      className="rounded-full"
       onClick={handleProtectedAction}
       aria-label="Build now"
     >
       <ArrowRight className="h-3.5 w-3.5" />
     </Button>
   ) : (
-    <Button 
+    <Button
       type="button"
-      className="shrink-0 rounded-full px-5 py-2 text-sm font-medium shadow-sm" 
+      className="shrink-0 rounded-full px-5 py-2 text-sm font-medium shadow-sm"
       onClick={handleProtectedAction}
     >
       Build now
@@ -115,11 +115,11 @@ export default function Promptbar({
         <div className="flex items-center justify-between px-6 py-4 bg-input/30">
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button 
+              <Button
                 type="button"
-                variant="ghost" 
-                size="icon" 
-                className="h-9 w-9 shrink-0 rounded-full p-0 bg-input/80" 
+                variant="ghost"
+                size="icon"
+                className="h-9 w-9 shrink-0 rounded-full p-0 bg-input/80"
                 onClick={handleProtectedAction}
                 aria-label="Attach images"
               >

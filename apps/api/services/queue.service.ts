@@ -1,12 +1,7 @@
-import { SQSClient, SendMessageCommand } from '@aws-sdk/client-sqs';
+import { SendMessageCommand } from '@aws-sdk/client-sqs';
 import { z } from 'zod';
-import { logger } from '@workspace/logger';
-
-const sqsClient = new SQSClient({
-  region: process.env.AWS_REGION || 'us-east-1',
-});
-
-const QUEUE_URL = process.env.SQS_QUEUE_URL;
+import { logger } from '../utils/logger.js';
+import { sqsClient, QUEUE_URL } from '../lib/sqs.js';
 
 export const ChatJobPayloadSchema = z.object({
   chatId: z.string(),

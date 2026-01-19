@@ -6,7 +6,7 @@ import {
   Provider,
   API_KEY_LABEL,
   API_KEY_PLACEHOLDER,
-} from "@workspace/ui/constants/apiKey.constants";
+} from "@workspace/shared/constants";
 
 interface ApiKeyInputProps {
   provider: Provider;

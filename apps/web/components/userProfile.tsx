@@ -16,7 +16,7 @@ import { LogOut, Key } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { BYOK } from "@workspace/ui/components/ui/byok";
 import { useApiKey } from "@/hooks/useApiKey";
-import { Provider, API_KEY_REGEX } from "@workspace/ui/constants/apiKey.constants";
+import { Provider, API_KEY_REGEX } from "@workspace/shared/constants";
 import { AnimatedThemeToggler, type AnimatedThemeTogglerHandle } from "@workspace/ui/components/animated-theme-toggler"
 import { useRef } from "react";
 

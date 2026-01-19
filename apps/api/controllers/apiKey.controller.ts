@@ -12,7 +12,7 @@ import {
 } from '../schemas/apiKey.schema.js';
 import { encrypt, decrypt } from '../utils/encryption.js';
 import { z } from 'zod';
-import { logger } from '@workspace/logger';
+import { logger } from '../utils/logger.js';
 
 const sendError = (res: Response, status: number, error: string): void => {
   res.status(status).json({
@@ -186,7 +186,7 @@ export const useApiKeyForRequest = async (userId: string) => {
   if (!userData?.apiKey) {
     throw new Error('API key not found');
   }
-  
+
   const decryptedApiKey = decrypt(userData.apiKey);
   return decryptedApiKey;
 };
