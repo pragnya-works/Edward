@@ -39,3 +39,10 @@ export const authMiddleware = async (
     });
   }
 };
+
+export const getAuthenticatedUserId = (req: AuthenticatedRequest): string => {
+  if (!req.userId) {
+    throw new Error("Context Error: req.userId is missing. Ensure 'authMiddleware' is applied to this route.");
+  }
+  return req.userId;
+};
