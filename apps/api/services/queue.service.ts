@@ -1,5 +1,6 @@
 import { SQSClient, SendMessageCommand } from '@aws-sdk/client-sqs';
 import { z } from 'zod';
+import { logger } from '@workspace/logger';
 
 const sqsClient = new SQSClient({
   region: process.env.AWS_REGION || 'us-east-1',
@@ -18,7 +19,7 @@ export type ChatJobPayload = z.infer<typeof ChatJobPayloadSchema>;
 
 export async function enqueueChatJob(payload: ChatJobPayload): Promise<void> {
   if (!QUEUE_URL) {
-    console.error('SQS_QUEUE_URL is not defined');
+    logger.error('SQS_QUEUE_URL is not defined');
     return;
   }
 
@@ -33,9 +34,9 @@ export async function enqueueChatJob(payload: ChatJobPayload): Promise<void> {
 
   try {
     await sqsClient.send(command);
-    console.log(`[Queue] Job enqueued for user ${validatedPayload.userId}, chat ${validatedPayload.chatId}`);
+    logger.info(`[Queue] Job enqueued for user ${validatedPayload.userId}, chat ${validatedPayload.chatId}`);
   } catch (error) {
-    console.error('[Queue] Failed to enqueue job:', error);
+    logger.error(error, '[Queue] Failed to enqueue job');
     throw new Error('Failed to enqueue message for processing');
   }
 }

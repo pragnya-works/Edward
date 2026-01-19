@@ -5,18 +5,13 @@ import cookieParser from 'cookie-parser';
 import { createApiKeyRouter } from './routes/apiKey.routes.js';
 import { createChatRouter } from './routes/chat.routes.js';
 import { authMiddleware } from './middleware/auth.js';
+import { Environment, logger } from '@workspace/logger';
 
 const app = express();
 
 const PORT = Number(process.env.EDWARD_API_PORT);
 if (!PORT) {
   throw new Error('EDWARD_API_PORT is not defined');
-}
-
-enum Environment {
-  Development = 'development',
-  Production = 'production',
-  Test = 'test',
 }
 
 const env = (process.env.NODE_ENV as Environment) || Environment.Development;
@@ -40,7 +35,7 @@ if (!isProd) {
   app.use((req, res, next) => {
     const start = Date.now();
     res.on('finish', () => {
-      console.log(
+      logger.info(
         `${req.method} ${req.originalUrl} ${res.statusCode} ${Date.now() - start}ms`
       );
     });
@@ -65,18 +60,18 @@ app.use((_req, res) => {
 });
 
 app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
-  console.error(err);
+  logger.error(err);
   res.status(500).json({
     error: isProd ? 'Internal Server Error' : err.message,
   });
 });
 
 const server = app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  logger.info(`Server running on port ${PORT}`);
 });
 
 const shutdown = () => {
-  console.log('Shutting down server');
+  logger.info('Shutting down server');
   server.close(() => process.exit(0));
 };
 

@@ -3,6 +3,7 @@ import { SQSClient, ReceiveMessageCommand, DeleteMessageCommand } from '@aws-sdk
 import { db, message, MessageRole } from '@workspace/auth';
 import { nanoid } from 'nanoid';
 import { ChatJobPayloadSchema, type ChatJobPayload } from './services/queue.service.js';
+import { logger } from '@workspace/logger';
 
 const sqsClient = new SQSClient({
   region: process.env.AWS_REGION || 'us-east-1',
@@ -11,7 +12,7 @@ const sqsClient = new SQSClient({
 const QUEUE_URL = process.env.SQS_QUEUE_URL;
 
 async function processMessage(payload: ChatJobPayload) {
-  console.log(`[Worker] Processing message for chat ${payload.chatId} from user ${payload.userId}`);
+  logger.info(`[Worker] Processing message for chat ${payload.chatId} from user ${payload.userId}`);
 
   // TODO: Integrate with actual LLM here.
   const aiResponseContent = `Echo: ${payload.content}. (Processed by worker)`;
@@ -28,16 +29,16 @@ async function processMessage(payload: ChatJobPayload) {
     updatedAt: new Date(),
   });
 
-  console.log(`[Worker] Saved assistant response ${assistantMessageId}`);
+  logger.info(`[Worker] Saved assistant response ${assistantMessageId}`);
 }
 
 async function pollQueue() {
   if (!QUEUE_URL) {
-    console.error('SQS_QUEUE_URL is not defined');
+    logger.error('SQS_QUEUE_URL is not defined');
     return;
   }
 
-  console.log('[Worker] Starting polling...');
+  logger.info('[Worker] Starting polling...');
 
   while (true) {
     try {
@@ -65,15 +66,15 @@ async function pollQueue() {
               ReceiptHandle: msg.ReceiptHandle,
             }));
 
-            console.log(`[Worker] Message deleted from queue`);
+            logger.info(`[Worker] Message deleted from queue`);
 
           } catch (err) {
-            console.error('[Worker] Error processing message:', err);
+            logger.error(err, '[Worker] Error processing message');
           }
         }
       }
     } catch (error) {
-      console.error('[Worker] Polling error:', error);
+      logger.error(error, '[Worker] Polling error');
       await new Promise(resolve => setTimeout(resolve, 5000));
     }
   }

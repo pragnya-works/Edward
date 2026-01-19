@@ -9,6 +9,7 @@ import {
 import { enqueueChatJob } from '../services/queue.service.js';
 import { z } from 'zod';
 import { nanoid } from 'nanoid';
+import { logger } from '@workspace/logger';
 
 function sendError(res: Response, status: number, error: string): void {
   res.status(status).json({
@@ -45,7 +46,7 @@ export async function createChat(
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
-    console.error('createChat error:', error);
+    logger.error(error, 'createChat error');
     sendError(res, 500, 'Internal server error');
   }
 }
@@ -124,7 +125,7 @@ export async function sendMessage(
     });
 
   } catch (error) {
-    console.error('sendMessage error:', error);
+    logger.error(error, 'sendMessage error');
     sendError(res, 500, 'Internal server error');
   }
 }
@@ -169,7 +170,7 @@ export async function getChatHistory(
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
-    console.error('getChatHistory error:', error);
+    logger.error(error, 'getChatHistory error');
     sendError(res, 500, 'Internal server error');
   }
 }

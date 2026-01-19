@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction } from 'express';
 import { auth } from '@workspace/auth';
+import { logger } from '@workspace/logger';
 
 export interface AuthenticatedRequest extends Request {
   userId?: string;
@@ -32,7 +33,7 @@ export const authMiddleware = async (
     req.sessionId = sessionData.session.id;
     next();
   } catch (error) {
-    console.error('authMiddleware error:', error);
+    logger.error(error, 'authMiddleware error');
     res.status(401).json({
       error: 'Unauthorized',
       timestamp: new Date().toISOString(),

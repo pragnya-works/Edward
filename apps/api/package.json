@@ -20,6 +20,7 @@
   "dependencies": {
     "@aws-sdk/client-sqs": "^3.971.0",
     "@workspace/auth": "workspace:^",
+    "@workspace/logger": "workspace:^",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",

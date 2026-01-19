@@ -12,6 +12,7 @@ import {
 } from '../schemas/apiKey.schema.js';
 import { encrypt, decrypt } from '../utils/encryption.js';
 import { z } from 'zod';
+import { logger } from '@workspace/logger';
 
 const sendError = (res: Response, status: number, error: string): void => {
   res.status(status).json({
@@ -53,7 +54,7 @@ export const getApiKey = async (
       decryptedKey = decrypt(userData.apiKey);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      console.warn(`[getApiKey] Failed to decrypt API key for user ${userData.id}: ${errorMessage}`);
+      logger.warn(`[getApiKey] Failed to decrypt API key for user ${userData.id}: ${errorMessage}`);
     }
 
     res.status(200).json({
@@ -68,7 +69,7 @@ export const getApiKey = async (
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
-    console.error('getApiKey error:', error);
+    logger.error(error, 'getApiKey error');
     sendError(res, 500, 'Internal server error');
   }
 };
@@ -108,7 +109,7 @@ export const createApiKey = async (
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
-    console.error('createApiKey error:', error);
+    logger.error(error, 'createApiKey error');
     sendError(res, 500, 'Internal server error');
   }
 };
@@ -147,7 +148,7 @@ export const updateApiKey = async (
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
-    console.error('updateApiKey error:', error);
+    logger.error(error, 'updateApiKey error');
     sendError(res, 500, 'Internal server error');
   }
 };
@@ -175,7 +176,7 @@ export const deleteApiKey = async (
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
-    console.error('deleteApiKey error:', error);
+    logger.error(error, 'deleteApiKey error');
     sendError(res, 500, 'Internal server error');
   }
 };
