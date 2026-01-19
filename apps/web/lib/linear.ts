@@ -37,6 +37,9 @@ export async function getLinearIssues(): Promise<FetchIssuesResult> {
       first: 50,
       orderBy: PaginationOrderBy.UpdatedAt,
       filter: {
+        project: {
+          name: { eq: "Edward" },
+        },
         state: {
           type: { neq: "completed" },
         },
