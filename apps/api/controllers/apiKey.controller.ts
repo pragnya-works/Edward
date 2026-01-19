@@ -1,7 +1,6 @@
 import type { Response } from 'express';
-import { ZodError } from 'zod';
 import { db, user, eq } from '@workspace/auth';
-import type { AuthenticatedRequest } from '../middleware/auth.js';
+import { type AuthenticatedRequest, getAuthenticatedUserId } from '../middleware/auth.js';
 import {
   CreateApiKeyRequestSchema,
   UpdateApiKeyRequestSchema,
@@ -12,21 +11,11 @@ import {
   ErrorResponse,
 } from '../schemas/apiKey.schema.js';
 import { encrypt, decrypt } from '../utils/encryption.js';
+import { z } from 'zod';
 
 const sendError = (res: Response, status: number, error: string): void => {
   res.status(status).json({
     error,
-    timestamp: new Date().toISOString(),
-  });
-};
-
-const sendValidationError = (res: Response, errors: ZodError): void => {
-  res.status(400).json({
-    error: 'Validation failed',
-    details: errors.errors.map(e => ({
-      path: e.path,
-      message: e.message,
-    })),
     timestamp: new Date().toISOString(),
   });
 };
@@ -51,13 +40,8 @@ export const getApiKey = async (
   res: Response<GetApiKeyResponse | ErrorResponse>
 ): Promise<void> => {
   try {
-
-    if (!req.userId) {
-      sendError(res, 401, 'Unauthorized');
-      return;
-    }
-
-    const userData = await getUser(req.userId);
+    const userId = getAuthenticatedUserId(req);
+    const userData = await getUser(userId);
 
     if (!userData?.apiKey) {
       sendError(res, 404, 'API key not found');
@@ -69,7 +53,7 @@ export const getApiKey = async (
       decryptedKey = decrypt(userData.apiKey);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      console.warn(`[getApiKey] Warning: Failed to decrypt API key for user ${userData.id}: ${errorMessage}.`);
+      console.warn(`[getApiKey] Failed to decrypt API key for user ${userData.id}: ${errorMessage}`);
     }
 
     res.status(200).json({
@@ -89,19 +73,14 @@ export const getApiKey = async (
   }
 };
 
-
 export const createApiKey = async (
   req: AuthenticatedRequest,
   res: Response<CreateApiKeyResponse | ErrorResponse>
 ): Promise<void> => {
   try {
-    if (!req.userId) {
-      sendError(res, 401, 'Unauthorized');
-      return;
-    }
-
-    const { body } = CreateApiKeyRequestSchema.parse(req);
-    const userData = await getUser(req.userId);
+    const userId = getAuthenticatedUserId(req);
+    const { body } = req as z.infer<typeof CreateApiKeyRequestSchema>;
+    const userData = await getUser(userId);
 
     if (!userData) {
       sendError(res, 404, 'User not found');
@@ -129,28 +108,19 @@ export const createApiKey = async (
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
-    if (error instanceof ZodError) {
-      sendValidationError(res, error);
-      return;
-    }
     console.error('createApiKey error:', error);
     sendError(res, 500, 'Internal server error');
   }
 };
-
 
 export const updateApiKey = async (
   req: AuthenticatedRequest,
   res: Response<UpdateApiKeyResponse | ErrorResponse>
 ): Promise<void> => {
   try {
-    if (!req.userId) {
-      sendError(res, 401, 'Unauthorized');
-      return;
-    }
-
-    const { body } = UpdateApiKeyRequestSchema.parse(req);
-    const userData = await getUser(req.userId);
+    const userId = getAuthenticatedUserId(req);
+    const { body } = req as z.infer<typeof UpdateApiKeyRequestSchema>;
+    const userData = await getUser(userId);
 
     if (!userData) {
       sendError(res, 404, 'User not found');
@@ -177,27 +147,18 @@ export const updateApiKey = async (
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
-    if (error instanceof ZodError) {
-      sendValidationError(res, error);
-      return;
-    }
     console.error('updateApiKey error:', error);
     sendError(res, 500, 'Internal server error');
   }
 };
-
 
 export const deleteApiKey = async (
   req: AuthenticatedRequest,
   res: Response<DeleteApiKeyResponse | ErrorResponse>
 ): Promise<void> => {
   try {
-    if (!req.userId) {
-      sendError(res, 401, 'Unauthorized');
-      return;
-    }
-
-    const userData = await getUser(req.userId);
+    const userId = getAuthenticatedUserId(req);
+    const userData = await getUser(userId);
 
     if (!userData) {
       sendError(res, 404, 'User not found');
