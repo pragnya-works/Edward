@@ -6,6 +6,13 @@ export const inviteStatusEnum = pgEnum("invite_status", ["pending", "accepted", 
 export const attachmentTypeEnum = pgEnum("attachment_type", ["image", "pdf", "figma"]);
 export const messageRoleEnum = pgEnum("message_role", ["system", "user", "assistant", "data"]);
 
+export enum MessageRole {
+  System = "system",
+  User = "user",
+  Assistant = "assistant",
+  Data = "data",
+}
+
 export const user = pgTable("user", {
 	id: text("id").primaryKey(),
 	name: text("name").notNull(),

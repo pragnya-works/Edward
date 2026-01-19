@@ -3,6 +3,7 @@ import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import { createApiKeyRouter } from './routes/apiKey.routes.js';
+import { createChatRouter } from './routes/chat.routes.js';
 import { authMiddleware } from './middleware/auth.js';
 
 const app = express();
@@ -57,6 +58,7 @@ app.get('/health', (_req, res) => {
 
 app.use(authMiddleware);
 app.use('/api-key', createApiKeyRouter());
+app.use('/chat', createChatRouter());
 
 app.use((_req, res) => {
   res.status(404).json({ error: 'Not Found' });

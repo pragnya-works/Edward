@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch entry.ts",
+    "worker": "tsx watch worker.ts",
     "start": "node dist/entry.js",
     "build": "tsc",
     "typecheck": "tsc --noEmit",
@@ -17,12 +18,13 @@
   "license": "ISC",
   "packageManager": "pnpm@10.4.1",
   "dependencies": {
+    "@aws-sdk/client-sqs": "^3.971.0",
     "@workspace/auth": "workspace:^",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
-    "uuid": "^13.0.0",
+    "nanoid": "^5.1.6",
     "zod": "^3.25.76"
   },
   "devDependencies": {
