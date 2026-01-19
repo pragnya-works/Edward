@@ -1,6 +1,6 @@
 export function ChangelogHeader() {
   return (
-    <div className="mb-12 flex flex-col items-start gap-4 text-center md:tems-center">
+    <div className="mb-12 flex flex-col items-start gap-4 text-center md:items-center">
       <h1 className="text-3xl font-bold tracking-tight md:text-5xl">
         Changelog
       </h1>
