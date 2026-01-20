@@ -1,8 +1,13 @@
 "use client";
 import { cn } from "@workspace/ui/lib/utils";
 import Link from "next/link";
-import { motion, useScroll, useMotionValueEvent } from "motion/react";
-
+import {
+  motion,
+  useScroll,
+  useMotionValueEvent,
+  AnimatePresence,
+} from "motion/react";
+import { Menu, X } from "lucide-react";
 import React, { createContext, useContext, useRef, useState } from "react";
 
 interface NavbarProps {
@@ -78,15 +83,161 @@ export const NavBody = ({ children, className }: NavBodyProps) => {
         damping: 50,
       }}
       className={cn(
-        "relative z-[60] mx-auto flex w-full max-w-7xl flex-row items-center justify-between self-start rounded-full bg-transparent px-4 py-2 dark:bg-transparent",
+        "relative z-[60] mx-auto hidden md:flex w-full max-w-7xl flex-row items-center justify-between self-start rounded-full bg-transparent px-4 py-2 dark:bg-transparent",
         visible && "bg-white/80 dark:bg-neutral-950/80",
         className,
       )}
     >
-      {typeof children === "function"
-        ? children({ visible: !!visible })
-        : children}
+      {typeof children === "function" ? children({ visible }) : children}
     </motion.div>
+  );
+};
+
+export const MobileNav = ({
+  children,
+  className,
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) => {
+  const { visible } = useNavbarContext();
+
+  return (
+    <motion.div
+      animate={{
+        backdropFilter: visible ? "blur(10px)" : "none",
+        boxShadow: visible
+          ? "0 0 24px rgba(34, 42, 53, 0.06), 0 1px 1px rgba(0, 0, 0, 0.05), 0 0 0 1px rgba(34, 42, 53, 0.04), 0 0 4px rgba(34, 42, 53, 0.08), 0 16px 68px rgba(47, 48, 55, 0.05), 0 1px 0 rgba(255, 255, 255, 0.1) inset"
+          : "none",
+        width: visible ? "90%" : "100%",
+        y: visible ? 20 : 0,
+        borderRadius: visible ? "24px" : "0px",
+      }}
+      transition={{
+        type: "spring",
+        stiffness: 200,
+        damping: 50,
+      }}
+      className={cn(
+        "relative z-[60] mx-auto flex w-full md:hidden flex-col self-start bg-transparent px-4 py-2 dark:bg-transparent",
+        visible && "bg-white/80 dark:bg-neutral-950/80",
+        className,
+      )}
+    >
+      {children}
+    </motion.div>
+  );
+};
+
+export const MobileNavHeader = ({
+  children,
+  className,
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) => {
+  return (
+    <div className={cn("flex items-center justify-between w-full", className)}>
+      {children}
+    </div>
+  );
+};
+
+export const MobileNavToggle = ({
+  isOpen,
+  onClick,
+  className,
+}: {
+  isOpen: boolean;
+  onClick: () => void;
+  className?: string;
+}) => {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "flex h-10 w-10 items-center justify-center rounded-md text-black dark:text-white hover:bg-neutral-100 dark:hover:bg-neutral-800 focus:outline-none",
+        className,
+      )}
+    >
+      {isOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+    </button>
+  );
+};
+
+export const MobileNavMenu = ({
+  isOpen,
+  children,
+  className,
+}: {
+  isOpen: boolean;
+  children: React.ReactNode;
+  className?: string;
+}) => {
+  return (
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div
+          initial={{ height: 0, opacity: 0 }}
+          animate={{ height: "auto", opacity: 1 }}
+          exit={{ height: 0, opacity: 0 }}
+          transition={{ duration: 0.3 }}
+          className={cn(
+            "overflow-hidden pt-4 pb-4 flex flex-col gap-4",
+            className,
+          )}
+        >
+          {children}
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+};
+
+export const NavbarLogo = ({
+  className,
+  children,
+}: {
+  className?: string;
+  children?: React.ReactNode;
+}) => {
+  return (
+    <Link
+      href="/"
+      className={cn(
+        "relative z-20 flex items-center space-x-2 text-sm font-normal text-black",
+        className,
+      )}
+    >
+      {children || (
+        <span className="font-semibold text-black dark:text-white text-xl">
+          Edward.
+        </span>
+      )}
+    </Link>
+  );
+};
+
+export const NavItems = ({
+  items,
+  className,
+}: {
+  items: { name: string; link: string }[];
+  className?: string;
+}) => {
+  return (
+    <div className={cn("flex items-center gap-4", className)}>
+      {items.map((item, idx) => (
+        <Link
+          key={idx}
+          href={item.link}
+          className="relative text-neutral-600 dark:text-neutral-300 hover:text-black dark:hover:text-white transition-colors"
+        >
+          {item.name}
+        </Link>
+      ))}
+    </div>
   );
 };
 
@@ -112,7 +263,7 @@ export const NavbarButton = ({
   | React.ComponentPropsWithoutRef<"button">
 )) => {
   const baseStyles =
-    "px-4 py-2 rounded-md bg-white button bg-white text-black text-sm font-bold relative cursor-pointer hover:-translate-y-0.5 transition duration-200 inline-block text-center";
+    "px-4 py-2 rounded-md bg-white button bg-white text-black text-sm font-bold relative cursor-pointer hover:-translate-y-0.5 transition duration-200 inline-flex items-center justify-center text-center";
 
   const variantStyles: Record<NavbarButtonVariant, string> = {
     primary:
