@@ -119,7 +119,7 @@ export const MobileNav = ({
         damping: 50,
       }}
       className={cn(
-        "relative z-[60] mx-auto flex w-full md:hidden flex-col self-start bg-transparent px-4 py-2 dark:bg-transparent",
+        "relative z-[60] mx-auto flex w-full md:hidden flex-col self-start bg-transparent px-4 py-2",
         visible && "bg-background/80",
         className,
       )}

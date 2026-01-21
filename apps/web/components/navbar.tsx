@@ -78,7 +78,7 @@ export default function Navbar() {
                   variant="primary"
                   onClick={handleSignIn}
                   disabled={isLoading}
-                  className="flex justify-between rounded-2xl"
+                  className="flex justify-between rounded-full"
                 >
                   {isLoading ? (
                     <>
