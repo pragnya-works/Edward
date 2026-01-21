@@ -4,7 +4,7 @@ import { Button } from "@workspace/ui/components/button";
 import { Card } from "@workspace/ui/components/card";
 import { Textarea } from "@workspace/ui/components/textarea";
 import { TextAnimate } from "@workspace/ui/components/textAnimate";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@workspace/ui/components/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipPositioner } from "@workspace/ui/components/tooltip";
 import { useIsMobile } from "@workspace/ui/hooks/useMobile";
 import { LoginModal } from "@workspace/ui/components/ui/loginModal";
 import { BYOK } from "@workspace/ui/components/ui/byok";
@@ -114,19 +114,23 @@ export default function Promptbar({
         </div>
         <div className="flex items-center justify-between px-6 py-4 bg-input/30">
           <Tooltip>
-            <TooltipTrigger asChild>
-              <Button 
-                type="button"
-                variant="ghost" 
-                size="icon" 
-                className="h-9 w-9 shrink-0 rounded-full p-0 bg-input/80" 
-                onClick={handleProtectedAction}
-                aria-label="Attach images"
-              >
-                <PaperclipIcon className="h-4 w-4 text-white" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Attach images</TooltipContent>
+            <TooltipTrigger 
+              render={
+                <Button 
+                  type="button"
+                  variant="ghost" 
+                  size="icon" 
+                  className="h-9 w-9 shrink-0 rounded-full p-0 bg-input/80" 
+                  onClick={handleProtectedAction}
+                  aria-label="Attach images"
+                >
+                  <PaperclipIcon className="h-4 w-4 text-white" />
+                </Button>
+              }
+            />
+            <TooltipPositioner side="top" align="center">
+              <TooltipContent>Attach images</TooltipContent>
+            </TooltipPositioner>
           </Tooltip>
           {ActionButton}
         </div>

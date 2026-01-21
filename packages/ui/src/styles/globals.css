@@ -116,8 +116,8 @@
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
   --animate-shiny-text: shiny-text 8s infinite;
-  --animate-accordion-down: accordion-down 0.2s ease-out;
-  --animate-accordion-up: accordion-up 0.2s ease-out;
+  --animate-accordion-collapse: accordion-collapse 0.2s ease-out;
+  --animate-accordion-expand: accordion-expand 0.2s ease-out;
 
   @keyframes shiny-text {
     0%, 90%, 100% {
@@ -128,21 +128,21 @@
     }
   }
 
-  @keyframes accordion-down {
+  @keyframes accordion-collapse {
     from {
-      height: 0;
+      height: var(--accordion-panel-height, auto);
     }
     to {
-      height: var(--radix-accordion-content-height);
+      height: 0;
     }
   }
 
-  @keyframes accordion-up {
+  @keyframes accordion-expand {
     from {
-      height: var(--radix-accordion-content-height);
+      height: 0;
     }
     to {
-      height: 0;
+      height: var(--accordion-panel-height, auto);
     }
   }
 }

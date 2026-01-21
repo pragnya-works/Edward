@@ -11,6 +11,7 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  DropdownMenuPositioner,
 } from "@workspace/ui/components/ui/dropdown-menu";
 import { LogOut, Key } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -53,39 +54,39 @@ export default function UserProfile() {
   return (
     <>
       <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="ghost" className="relative h-8 w-8 rounded-full">
-            <Avatar className="h-8 w-8">
-              <AvatarImage src={user.image || ""} alt={user.name || "User profile"} />
-              <AvatarFallback>
-                {user.name?.charAt(0)?.toUpperCase() || user.email?.charAt(0)?.toUpperCase()}
-              </AvatarFallback>
-            </Avatar>
-          </Button>
+        <DropdownMenuTrigger render={<Button variant="ghost" className="relative h-8 w-8 rounded-full" />}>
+          <Avatar className="h-8 w-8">
+            <AvatarImage src={user.image || ""} alt={user.name || "User profile"} />
+            <AvatarFallback>
+              {user.name?.charAt(0)?.toUpperCase() || user.email?.charAt(0)?.toUpperCase()}
+            </AvatarFallback>
+          </Avatar>
         </DropdownMenuTrigger>
-        <DropdownMenuContent className="w-56" align="end" forceMount>
-          <div className="flex flex-col space-y-1.5 p-2">
-            <p className="text-sm font-medium">{user.name || "User"}</p>
-            <p className="text-xs text-muted-foreground truncate max-w-[150px]">{user.email}</p>
-          </div>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem onSelect={() => setIsApiKeyModalOpen(true)}>
-            <Key className="mr-2 h-4 w-4" />
-            <span>Manage API Keys</span>
-          </DropdownMenuItem>
-          <DropdownMenuItem onSelect={(e) => {
-            e.preventDefault();
-            themeTogglerRef.current?.toggleTheme();
-          }}>
-            <AnimatedThemeToggler ref={themeTogglerRef} />
-            <span className="ml-2">Change theme</span>
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem onSelect={handleSignOut}>
-            <LogOut className="mr-2 h-4 w-4" />
-            <span>Sign out</span>
-          </DropdownMenuItem>
-        </DropdownMenuContent>
+        <DropdownMenuPositioner side="bottom" align="end">
+          <DropdownMenuContent className="w-56">
+            <div className="flex flex-col space-y-1.5 p-2">
+              <p className="text-sm font-medium">{user.name || "User"}</p>
+              <p className="text-xs text-muted-foreground truncate max-w-[150px]">{user.email}</p>
+            </div>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => setIsApiKeyModalOpen(true)}>
+              <Key className="mr-2 h-4 w-4" />
+              <span>Manage API Keys</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={(e) => {
+              e.preventDefault();
+              themeTogglerRef.current?.toggleTheme();
+            }}>
+              <AnimatedThemeToggler ref={themeTogglerRef} />
+              <span className="ml-2">Change theme</span>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={handleSignOut}>
+              <LogOut className="mr-2 h-4 w-4" />
+              <span>Sign out</span>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenuPositioner>
       </DropdownMenu>
 
       <BYOK

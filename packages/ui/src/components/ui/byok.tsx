@@ -162,10 +162,12 @@ export function BYOK({
           ))}
         </Tabs>
 
-        <DialogFooter>
+        <DialogFooter className="flex flex-row gap-2 sm:gap-2!">
           <Button
             type="button"
             variant="outline"
+            size="lg"
+            className="flex-1 text-foreground/70"
             onClick={onClose}
             disabled={isSubmitting}
           >
@@ -173,6 +175,8 @@ export function BYOK({
           </Button>
 
           <Button
+            size="lg"
+            className="flex-1"
             onClick={handleSubmit}
             disabled={
               !apiKey.trim() ||

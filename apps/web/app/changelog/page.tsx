@@ -46,7 +46,7 @@ export default async function ChangelogPage() {
               No changelog items found yet. Check back soon!
             </div>
           ) : (
-            <Accordion type="multiple" defaultValue={sortedLabels} className="w-full space-y-4">
+            <Accordion multiple defaultValue={sortedLabels} className="w-full space-y-4">
               {sortedLabels.map((label) => (
                 <AccordionItem key={label} value={label} className="border-none">
                   <AccordionTrigger className="hover:no-underline py-2">

@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Slot } from "@radix-ui/react-slot"
+import { Slot } from "@workspace/ui/lib/slot"
 import { cva, type VariantProps } from "class-variance-authority"
 import { PanelLeftIcon } from "lucide-react"
 
@@ -23,6 +23,7 @@ import {
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
+  TooltipPositioner,
 } from "@workspace/ui/components/tooltip"
 
 const SIDEBAR_COOKIE_NAME = "sidebar_state"
@@ -128,7 +129,7 @@ function SidebarProvider({
 
   return (
     <SidebarContext.Provider value={contextValue}>
-      <TooltipProvider delayDuration={0}>
+      <TooltipProvider delay={0}>
         <div
           data-slot="sidebar-wrapper"
           style={
@@ -534,13 +535,13 @@ function SidebarMenuButton({
 
   return (
     <Tooltip>
-      <TooltipTrigger asChild>{button}</TooltipTrigger>
-      <TooltipContent
-        side="right"
-        align="center"
-        hidden={state !== "collapsed" || isMobile}
-        {...tooltip}
-      />
+      <TooltipTrigger render={button} />
+      <TooltipPositioner side="right" align="center">
+        <TooltipContent
+          hidden={state !== "collapsed" || isMobile}
+          {...tooltip}
+        />
+      </TooltipPositioner>
     </Tooltip>
   )
 }
