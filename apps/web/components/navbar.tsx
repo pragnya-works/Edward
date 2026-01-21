@@ -62,9 +62,9 @@ export default function Navbar() {
                   >
                     <Link
                       href="/changelog"
-                      className="relative z-20 mr-4 flex items-center space-x-2 px-2 py-1 text-sm font-normal text-black"
+                      className="relative z-20 mr-4 flex items-center space-x-2 px-2 py-1 text-sm font-normal text-foreground"
                     >
-                      <span className="text-black dark:text-white hover:text-gray-600 transition-colors">
+                      <span className="text-foreground hover:text-muted-foreground transition-colors">
                         Changelog
                       </span>
                     </Link>
@@ -82,11 +82,11 @@ export default function Navbar() {
                 >
                   {isLoading ? (
                     <>
-                      <LoaderIcon className="mr-2 h-5 w-5 animate-spin text-gray-500" />
+                      <LoaderIcon className="mr-2 h-5 w-5 animate-spin text-muted-foreground" />
                     </>
                   ) : (
                     <>
-                      <IconBrandGithubFilled className="mr-2 h-5 w-5 text-black" />
+                      <IconBrandGithubFilled className="mr-2 h-5 w-5 text-primary-foreground" />
                     </>
                   )}
                   Log in
@@ -100,7 +100,7 @@ export default function Navbar() {
       <MobileNav
         className={
           isMobileMenuOpen
-            ? "bg-white/80 dark:bg-neutral-950/80 backdrop-blur-md rounded-2xl"
+            ? "bg-background/80 backdrop-blur-md rounded-2xl"
             : ""
         }
       >
