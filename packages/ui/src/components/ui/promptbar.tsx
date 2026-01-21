@@ -4,7 +4,7 @@ import { Button } from "@workspace/ui/components/button";
 import { Card } from "@workspace/ui/components/card";
 import { Textarea } from "@workspace/ui/components/textarea";
 import { TextAnimate } from "@workspace/ui/components/textAnimate";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@workspace/ui/components/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipPositioner } from "@workspace/ui/components/tooltip";
 import { useIsMobile } from "@workspace/ui/hooks/useMobile";
 import { LoginModal } from "@workspace/ui/components/ui/loginModal";
 import { BYOK } from "@workspace/ui/components/ui/byok";
@@ -70,19 +70,19 @@ export default function Promptbar({
   }, [isAuthenticated, hasApiKey, isApiKeyLoading]);
 
   const ActionButton = isMobile ? (
-    <Button 
+    <Button
       type="button"
-      size="icon" 
-      className="rounded-full" 
+      size="icon"
+      className="rounded-full"
       onClick={handleProtectedAction}
       aria-label="Build now"
     >
       <ArrowRight className="h-3.5 w-3.5" />
     </Button>
   ) : (
-    <Button 
+    <Button
       type="button"
-      className="shrink-0 rounded-full px-5 py-2 text-sm font-medium shadow-sm" 
+      className="shrink-0 rounded-full px-5 py-2 text-sm font-medium shadow-sm"
       onClick={handleProtectedAction}
     >
       Build now
@@ -91,7 +91,7 @@ export default function Promptbar({
   );
 
   return (
-    <Card className="w-full rounded-2xl border-white/25 backdrop-blur-md shadow-xl py-0">
+    <Card className="w-full rounded-2xl border-border bg-card/50 backdrop-blur-md shadow-xl py-0">
       <div className="flex flex-col relative">
         <div className="relative">
           {!inputValue && (
@@ -109,24 +109,28 @@ export default function Promptbar({
             placeholder=""
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
-            className="min-h-[100px] md:min-h-[120px] resize-none border-0 bg-transparent p-4 text-base text-white placeholder:text-gray-500 focus-visible:ring-0 focus-visible:ring-offset-0 relative z-10"
+            className="min-h-[100px] md:min-h-[120px] resize-none border-0 bg-transparent p-4 text-base text-foreground placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0 relative z-10"
           />
         </div>
         <div className="flex items-center justify-between px-6 py-4 bg-input/30">
           <Tooltip>
-            <TooltipTrigger asChild>
-              <Button 
-                type="button"
-                variant="ghost" 
-                size="icon" 
-                className="h-9 w-9 shrink-0 rounded-full p-0 bg-input/80" 
-                onClick={handleProtectedAction}
-                aria-label="Attach images"
-              >
-                <PaperclipIcon className="h-4 w-4 text-white" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Attach images</TooltipContent>
+            <TooltipTrigger
+              render={
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-9 w-9 shrink-0 rounded-full p-0 bg-input/80"
+                  onClick={handleProtectedAction}
+                  aria-label="Attach images"
+                >
+                  <PaperclipIcon className="h-4 w-4 text-foreground" />
+                </Button>
+              }
+            />
+            <TooltipPositioner side="top" align="center">
+              <TooltipContent>Attach images</TooltipContent>
+            </TooltipPositioner>
           </Tooltip>
           {ActionButton}
         </div>

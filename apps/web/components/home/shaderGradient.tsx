@@ -6,7 +6,7 @@ export function ShaderGradientBackground() {
   return (
     <div className="fixed top-0 min-h-screen w-full overflow-hidden">
       <div
-        className="absolute top-0 left-0 right-0 h-[300px] z-1 pointer-events-none bg-gradient-to-t from-transparent to-black/60"
+        className="absolute top-0 left-0 right-0 h-[300px] z-1 pointer-events-none bg-gradient-to-t from-transparent to-white/60 dark:to-black/60"
       />
       <div className="absolute inset-0 -z-10">
         <div className="w-full h-screen -z-10 pointer-events-none">
@@ -29,7 +29,7 @@ export function ShaderGradientBackground() {
       </div>
 
       <div
-        className="absolute bottom-0 left-0 right-0 h-[300px] z-10 pointer-events-none bg-gradient-to-b from-transparent to-black"
+        className="absolute bottom-0 left-0 right-0 h-[300px] z-10 pointer-events-none bg-gradient-to-b from-transparent to-white dark:to-black"
       />
     </div>
   )
