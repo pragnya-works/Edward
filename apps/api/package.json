@@ -23,7 +23,7 @@
     "@langchain/google-genai": "^2.1.10",
     "@langchain/openai": "^1.2.2",
     "@workspace/auth": "workspace:^",
-    "@workspace/shared/constants": "workspace:^",
+    "@workspace/shared": "workspace:^",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
