@@ -91,7 +91,7 @@ export default function Promptbar({
   );
 
   return (
-    <Card className="w-full rounded-2xl border-border bg-card/50 backdrop-blur-md shadow-xl py-0">
+    <Card className="w-full rounded-2xl border-border bg-card/80 backdrop-blur-md shadow-xl py-0">
       <div className="flex flex-col relative">
         <div className="relative">
           {!inputValue && (
@@ -109,7 +109,7 @@ export default function Promptbar({
             placeholder=""
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
-            className="min-h-[100px] md:min-h-[120px] resize-none border-0 bg-transparent p-4 text-base text-foreground placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0 relative z-10"
+            className="min-h-25 md:min-h-30 resize-none border-0 bg-transparent p-4 text-base text-foreground placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0 relative z-10"
           />
         </div>
         <div className="flex items-center justify-between px-6 py-4 bg-input/30">

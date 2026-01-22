@@ -1,10 +1,12 @@
 "use client";
 
 import { useSession } from "@/lib/auth-client";
-import { SidebarProvider, SidebarInset } from "@workspace/ui/components/sidebar";
 import { AppSidebar } from "@workspace/ui/components/ui/appSidebar";
-import Link from "next/link";
-import { ReactNode } from "react";
+import { SidebarProvider } from "@workspace/ui/components/sidebar";
+import { cn } from "@workspace/ui/lib/utils";
+import { ReactNode, useState } from "react";
+import UserProfile from "../userProfile";
+import { LoaderIcon } from "lucide-react";
 
 interface ConditionalSidebarLayoutProps {
   children: ReactNode;
@@ -12,25 +14,33 @@ interface ConditionalSidebarLayoutProps {
 
 export default function ConditionalSidebarLayout({ children }: ConditionalSidebarLayoutProps) {
   const { data: session, isPending } = useSession();
+  const [open, setOpen] = useState(false);
 
   if (isPending) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        <LoaderIcon className="h-8 w-8 animate-spin text-primary/70" />
       </div>
     );
   }
 
   if (session?.user) {
     return (
-      <SidebarProvider>
-        <div className="flex min-h-screen w-full">
-          <AppSidebar LinkComponent={Link} />
-          <SidebarInset>
-            <main className="flex flex-1 flex-col">
+      <SidebarProvider open={open} setOpen={setOpen} animate={true}>
+        <div
+          className={cn(
+            "rounded-md flex flex-col md:flex-row bg-gray-100 dark:bg-neutral-800 w-full flex-1 mx-auto border border-neutral-200 dark:border-neutral-700 overflow-hidden",
+            "h-screen" 
+          )}
+        >
+          <AppSidebar open={open} setOpen={setOpen}>
+            <UserProfile />
+          </AppSidebar>
+          <div className="flex flex-1">
+            <div className="p-2 md:p-10 rounded-tl-2xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 flex flex-col gap-2 flex-1 w-full h-full overflow-y-auto">
               {children}
-            </main>
-          </SidebarInset>
+            </div>
+          </div>
         </div>
       </SidebarProvider>
     );

@@ -16,9 +16,7 @@ import { IconBrandGithubFilled } from "@tabler/icons-react";
 import { signIn } from "@/lib/auth-client";
 import { Skeleton } from "@workspace/ui/components/skeleton";
 import { useSession } from "@/lib/auth-client";
-import UserProfile from "./userProfile";
 import { useState } from "react";
-import { SidebarTrigger } from "@workspace/ui/components/sidebar";
 import { AnimatePresence, motion } from "motion/react";
 
 export default function Navbar() {
@@ -36,12 +34,7 @@ export default function Navbar() {
   };
 
   if (session?.user) {
-    return (
-      <div className="w-full bg-sidebar p-4 flex justify-between">
-        <SidebarTrigger />
-        <UserProfile />
-      </div>
-    );
+    return null;
   }
 
   return (
@@ -78,7 +71,7 @@ export default function Navbar() {
                   variant="primary"
                   onClick={handleSignIn}
                   disabled={isLoading}
-                  className="flex justify-between rounded-2xl"
+                  className="flex justify-between rounded-full"
                 >
                   {isLoading ? (
                     <>
