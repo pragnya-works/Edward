@@ -17,8 +17,8 @@ interface NavbarProps {
 
 interface NavBodyProps {
   children:
-    | React.ReactNode
-    | ((props: { visible: boolean }) => React.ReactNode);
+  | React.ReactNode
+  | ((props: { visible: boolean }) => React.ReactNode);
   className?: string;
 }
 
@@ -83,8 +83,8 @@ export const NavBody = ({ children, className }: NavBodyProps) => {
         damping: 50,
       }}
       className={cn(
-        "relative z-[60] mx-auto hidden md:flex w-full max-w-7xl flex-row items-center justify-between self-start rounded-full bg-transparent px-4 py-2 dark:bg-transparent",
-        visible && "bg-white/80 dark:bg-neutral-950/80",
+        "relative z-60 mx-auto hidden md:flex w-full max-w-7xl flex-row items-center justify-between self-start rounded-full bg-transparent px-4 py-2 dark:bg-transparent",
+        visible && "bg-background/80",
         className,
       )}
     >
@@ -119,8 +119,8 @@ export const MobileNav = ({
         damping: 50,
       }}
       className={cn(
-        "relative z-[60] mx-auto flex w-full md:hidden flex-col self-start bg-transparent px-4 py-2 dark:bg-transparent",
-        visible && "bg-white/80 dark:bg-neutral-950/80",
+        "relative z-60 mx-auto flex w-full md:hidden flex-col self-start bg-transparent px-4 py-2",
+        visible && "bg-background/80",
         className,
       )}
     >
@@ -157,7 +157,7 @@ export const MobileNavToggle = ({
       type="button"
       onClick={onClick}
       className={cn(
-        "flex h-10 w-10 items-center justify-center rounded-md text-black dark:text-white hover:bg-neutral-100 dark:hover:bg-neutral-800 focus:outline-none",
+        "flex h-10 w-10 items-center justify-center rounded-md text-foreground hover:bg-accent focus:outline-none",
         className,
       )}
     >
@@ -206,12 +206,12 @@ export const NavbarLogo = ({
     <Link
       href="/"
       className={cn(
-        "relative z-20 flex items-center space-x-2 text-sm font-normal text-black",
+        "relative z-20 flex items-center space-x-2 text-sm font-normal text-foreground",
         className,
       )}
     >
       {children || (
-        <span className="font-semibold text-black dark:text-white text-xl">
+        <span className="font-semibold text-foreground text-xl">
           Edward.
         </span>
       )}
@@ -232,7 +232,7 @@ export const NavItems = ({
         <Link
           key={idx}
           href={item.link}
-          className="relative text-neutral-600 dark:text-neutral-300 hover:text-black dark:hover:text-white transition-colors"
+          className="relative text-muted-foreground hover:text-foreground transition-colors"
         >
           {item.name}
         </Link>
@@ -263,13 +263,13 @@ export const NavbarButton = ({
   | React.ComponentPropsWithoutRef<"button">
 )) => {
   const baseStyles =
-    "px-4 py-2 rounded-md bg-white button bg-white text-black text-sm font-bold relative cursor-pointer hover:-translate-y-0.5 transition duration-200 inline-flex items-center justify-center text-center";
+    "px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm font-bold relative cursor-pointer hover:-translate-y-0.5 transition duration-200 inline-flex items-center justify-center text-center";
 
   const variantStyles: Record<NavbarButtonVariant, string> = {
     primary:
       "shadow-[0_0_24px_rgba(34,_42,_53,_0.06),_0_1px_1px_rgba(0,_0,_0,_0.05),_0_0_0_1px_rgba(34,_42,_53,_0.04),_0_0_4px_rgba(34,_42,_53,_0.08),_0_16px_68px_rgba(47,_48,_55,_0.05),_0_1px_0_rgba(255,_255,_255,_0.1)_inset]",
-    secondary: "bg-transparent shadow-none dark:text-white",
-    dark: "bg-black text-white shadow-[0_0_24px_rgba(34,_42,_53,_0.06),_0_1px_1px_rgba(0,_0,_0,_0.05),_0_0_0_1px_rgba(34,_42,_53,_0.04),_0_0_4px_rgba(34,_42,_53,_0.08),_0_16px_68px_rgba(47,_48,_55,_0.05),_0_1px_0_rgba(255,_255,_255,_0.1)_inset]",
+    secondary: "bg-transparent shadow-none text-foreground",
+    dark: "bg-foreground text-background shadow-lg",
     gradient:
       "bg-gradient-to-b from-blue-500 to-blue-700 text-white shadow-[0px_2px_0px_0px_rgba(255,255,255,0.3)_inset]",
   };

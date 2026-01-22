@@ -10,7 +10,7 @@ export function IssueCard({ issue }: { issue: ChangelogIssue }) {
   const dateToUse = issue.completedAt || issue.updatedAt;
 
   return (
-    <Card className="group overflow-hidden border-border/50 transition-all hover:bg-muted/50 hover:border-border hover:shadow-sm">
+    <Card className="group overflow-hidden border-border/50 transition-all bg-card/50 hover:bg-muted/50 hover:border-border hover:shadow-sm">
       <CardHeader className="flex flex-row items-start justify-between gap-4 p-6">
         <div className="space-y-3 flex-1">
           <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">

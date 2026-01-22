@@ -6,6 +6,6 @@
       "@workspace/ui/*": ["./src/*"]
     }
   },
-  "include": [".", "src/components/ui/resizableNavbar.tsx", "src/hooks/useApiKey.ts"],
+  "include": ["src"],
   "exclude": ["node_modules", "dist"]
 }

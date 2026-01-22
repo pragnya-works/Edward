@@ -8,6 +8,11 @@
     "lint": "turbo lint",
     "format": "prettier --write \"**/*.{ts,tsx,md}\""
   },
+  "pnpm": {
+    "overrides": {
+      "csstype": "^3.2.3"
+    }
+  },
   "devDependencies": {
     "@workspace/eslint-config": "workspace:*",
     "@workspace/typescript-config": "workspace:*",
