@@ -1,7 +1,8 @@
 import { ChatOpenAI } from "@langchain/openai";
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
-import { HumanMessage } from "@langchain/core/messages";
+import { HumanMessage, SystemMessage } from "@langchain/core/messages";
 import { Provider, API_KEY_REGEX } from '@workspace/shared/constants';
+import { SYSTEM_PROMPT } from "./system-prompt.js";
 
 export async function generateResponse(apiKey: string, content: string): Promise<string> {
   let llm;
@@ -21,6 +22,7 @@ export async function generateResponse(apiKey: string, content: string): Promise
   }
 
   const response = await llm.invoke([
+    new SystemMessage({ content: SYSTEM_PROMPT }),
     new HumanMessage({ content }),
   ]);
 

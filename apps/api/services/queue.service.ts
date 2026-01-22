@@ -1,7 +1,7 @@
-import { SendMessageCommand } from '@aws-sdk/client-sqs';
+import { Queue } from 'bullmq';
 import { z } from 'zod';
 import { logger } from '../utils/logger.js';
-import { sqsClient, QUEUE_URL } from '../lib/sqs.js';
+import { connection, QUEUE_NAME } from '../lib/queue.js';
 
 export const ChatJobPayloadSchema = z.object({
   chatId: z.string(),
@@ -12,23 +12,23 @@ export const ChatJobPayloadSchema = z.object({
 
 export type ChatJobPayload = z.infer<typeof ChatJobPayloadSchema>;
 
-export async function enqueueChatJob(payload: ChatJobPayload): Promise<void> {
-  if (!QUEUE_URL) {
-    logger.error('SQS_QUEUE_URL is not defined');
-    return;
-  }
+const chatQueue = new Queue<ChatJobPayload>(QUEUE_NAME, {
+  connection,
+});
 
+export async function enqueueChatJob(payload: ChatJobPayload): Promise<void> {
   const validatedPayload = ChatJobPayloadSchema.parse(payload);
 
-  const command = new SendMessageCommand({
-    QueueUrl: QUEUE_URL,
-    MessageBody: JSON.stringify(validatedPayload),
-    MessageGroupId: validatedPayload.userId,
-    MessageDeduplicationId: validatedPayload.messageId,
-  });
-
   try {
-    await sqsClient.send(command);
+    await chatQueue.add(
+      'process-chat-message', 
+      validatedPayload,
+      {
+        jobId: validatedPayload.messageId,
+        removeOnComplete: true,
+        removeOnFail: false, 
+      }
+    );
     logger.info(`[Queue] Job enqueued for user ${validatedPayload.userId}, chat ${validatedPayload.chatId}`);
   } catch (error) {
     logger.error(error, '[Queue] Failed to enqueue job');
