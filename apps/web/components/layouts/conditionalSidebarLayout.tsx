@@ -12,7 +12,9 @@ interface ConditionalSidebarLayoutProps {
   children: ReactNode;
 }
 
-export default function ConditionalSidebarLayout({ children }: ConditionalSidebarLayoutProps) {
+export default function ConditionalSidebarLayout({
+  children,
+}: ConditionalSidebarLayoutProps) {
   const { data: session, isPending } = useSession();
   const [open, setOpen] = useState(false);
 
@@ -30,7 +32,7 @@ export default function ConditionalSidebarLayout({ children }: ConditionalSideba
         <div
           className={cn(
             "rounded-md flex flex-col md:flex-row bg-gray-100 dark:bg-neutral-800 w-full flex-1 mx-auto border border-neutral-200 dark:border-neutral-700 overflow-hidden",
-            "h-screen" 
+            "h-screen"
           )}
         >
           <AppSidebar open={open} setOpen={setOpen}>
@@ -47,3 +49,4 @@ export default function ConditionalSidebarLayout({ children }: ConditionalSideba
   }
   return <div>{children}</div>;
 }
+

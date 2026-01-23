@@ -143,8 +143,8 @@ const FasterText = memo(({ shadowColor }: { shadowColor: string }) => {
                     }
                 }}
             >
-                <LineShadowText 
-                    className="italic transition-all duration-300 group-hover:text-primary group-hover:brightness-125" 
+                <LineShadowText
+                    className="italic transition-all duration-300 group-hover:text-primary group-hover:brightness-125"
                     shadowColor={shadowColor}
                 >
                     faster
@@ -152,10 +152,10 @@ const FasterText = memo(({ shadowColor }: { shadowColor: string }) => {
                 <motion.div
                     variants={{
                         initial: { opacity: 0, scale: 0.8 },
-                        active: { 
+                        active: {
                             opacity: [0, 0.3, 0.15],
                             scale: [0.8, 1.2, 1],
-                            transition: { 
+                            transition: {
                                 opacity: { duration: 0.2 },
                                 scale: { duration: 1.5, repeat: Infinity, ease: "easeInOut" }
                             }
@@ -168,7 +168,7 @@ const FasterText = memo(({ shadowColor }: { shadowColor: string }) => {
             <motion.div
                 variants={{
                     initial: { width: "0%", opacity: 0 },
-                    active: { 
+                    active: {
                         width: ["0%", "100%", "90%"],
                         opacity: [0, 0.8, 0.6],
                         transition: { duration: 0.3, ease: "circOut" }
@@ -184,16 +184,15 @@ FasterText.displayName = "FasterText";
 
 export function Features() {
     return (
-        <section className="relative w-full pt-32 pb-32 px-4 overflow-hidden">
-            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-[800px] bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.03)_0%,transparent_70%)] pointer-events-none" />
+        <section className="relative w-full py-14 md:py-32 px-4 overflow-hidden">
 
             <div className="mx-auto max-w-6xl relative z-10">
                 <div className="my-20 flex flex-col items-center justify-center text-center">
-                    <h2 className="mb-6 text-4xl font-bold tracking-tight text-foreground sm:text-5xl">
+                    <h2 className="mb-6 text-3xl font-bold tracking-tight text-foreground md:text-4xl lg:text-5xl">
                         Everything you need to ship{" "}
                         <FasterText shadowColor="var(--foreground)" />
                     </h2>
-                    <p className="max-w-2xl text-lg text-muted-foreground leading-relaxed">
+                    <p className="max-w-2xl text-base text-muted-foreground leading-relaxed md:text-lg">
                         Edward streamlines the entire development journey, seamlessly transforming your vision into functional, interactive applications.
                     </p>
                 </div>

@@ -11,15 +11,14 @@ import { useSession } from "@/lib/auth-client"
 import { AnimatePresence, motion } from "motion/react"
 
 export default function Home() {
+  const { data: session, isPending } = useSession();
 
-  const { data: session, isPending } = useSession()
-
-  if (isPending) return null
+  if (isPending) return null;
 
   return (
     <div className="flex flex-col min-h-screen">
       <TopFade />
-      {!session?.user ? <ShaderGradientBackground /> : null}
+      {!session?.user && <ShaderGradientBackground />}
       <main className="flex-1">
         <Hero />
         <AnimatePresence mode="wait">
@@ -31,11 +30,13 @@ export default function Home() {
               transition={{ duration: 0.5, delay: 0.2 }}
               className="relative -mt-48"
             >
-              <div 
-                className="absolute inset-0 bg-background pointer-events-none" 
+              <div
+                className="absolute inset-0 bg-background pointer-events-none"
                 style={{
-                    maskImage: 'linear-gradient(to bottom, transparent, black 400px, black)',
-                    WebkitMaskImage: 'linear-gradient(to bottom, transparent, black 400px, black)'
+                  maskImage:
+                    "linear-gradient(to bottom, transparent, black 400px, black)",
+                  WebkitMaskImage:
+                    "linear-gradient(to bottom, transparent, black 400px, black)",
                 }}
               />
               <div className="relative z-10">
@@ -48,5 +49,5 @@ export default function Home() {
         </AnimatePresence>
       </main>
     </div>
-  )
+  );
 }

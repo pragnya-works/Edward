@@ -1,10 +1,10 @@
 "use client";
 
 import { useSession } from "@/lib/auth-client";
-import { 
-  Provider, 
-  API_KEY_REGEX, 
-  API_KEY_VALIDATION_ERROR 
+import {
+  Provider,
+  API_KEY_REGEX,
+  API_KEY_VALIDATION_ERROR
 } from "@workspace/ui/constants/apiKey.constants";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
@@ -28,7 +28,7 @@ export function useApiKey() {
 
   const { data, isLoading } = useQuery({
     queryKey: ["apiKey", userId],
-    queryFn: async () => {
+    queryFn: async function () {
       if (!userId) return null;
       const res = await fetch(`${API_BASE_URL}/api-key`, {
         headers: {
@@ -46,13 +46,13 @@ export function useApiKey() {
   });
 
   const mutation = useMutation({
-    mutationFn: async ({
+    mutationFn: async function ({
       apiKey,
       method,
     }: {
       apiKey: string;
       method: "POST" | "PUT";
-    }) => {
+    }) {
       const res = await fetch(`${API_BASE_URL}/api-key`, {
         method,
         headers: {
@@ -67,8 +67,8 @@ export function useApiKey() {
       }
       return res.json();
     },
-    onSuccess: (responseData, variables) => {
-      queryClient.setQueryData(["apiKey", userId], (old: ApiKeyResponse | undefined) => {
+    onSuccess: function (responseData, variables) {
+      queryClient.setQueryData(["apiKey", userId], function (old: ApiKeyResponse | undefined) {
         if (!old) return old;
         return {
           ...old,
@@ -81,7 +81,7 @@ export function useApiKey() {
       });
       queryClient.invalidateQueries({ queryKey: ["apiKey", userId] });
     },
-    onError: () => {
+    onError: function () {
       setError("Failed to save API key. Please try again.");
     },
   });
@@ -113,7 +113,7 @@ export function useApiKey() {
     try {
       const method = data?.data?.hasApiKey ? "PUT" : "POST";
       await mutation.mutateAsync({ apiKey: trimmedKey, method });
-      
+
       setError("");
       onValidate(trimmedKey);
       onClose();

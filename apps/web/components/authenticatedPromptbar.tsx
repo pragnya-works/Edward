@@ -8,14 +8,18 @@ interface AuthenticatedPromptbarProps {
   onProtectedAction?: () => void | Promise<void>;
 }
 
-export default function AuthenticatedPromptbar({ onProtectedAction }: AuthenticatedPromptbarProps) {
+export default function AuthenticatedPromptbar({
+  onProtectedAction,
+}: AuthenticatedPromptbarProps) {
   const { data: session } = useSession();
   const { hasApiKey, isLoading, error, validateAndSaveApiKey } = useApiKey();
 
   return (
     <Promptbar
       isAuthenticated={!!session?.user}
-      onSignIn={() => signIn()}
+      onSignIn={function () {
+        signIn();
+      }}
       onProtectedAction={onProtectedAction}
       hasApiKey={hasApiKey}
       isApiKeyLoading={isLoading}
