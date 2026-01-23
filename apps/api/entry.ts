@@ -8,6 +8,7 @@ import { apiKeyRouter } from './routes/apiKey.routes.js';
 import { chatRouter } from './routes/chat.routes.js';
 import { authMiddleware } from './middleware/auth.js';
 import { Environment, createLogger } from './utils/logger.js';
+import { HttpStatus, HttpMethod, ERROR_MESSAGES } from './utils/constants.js';
 
 const logger = createLogger('API');
 
@@ -23,7 +24,7 @@ const isDev = env === Environment.Development;
 const isProd = env === Environment.Production;
 
 const CORS_ORIGINS = process.env.CORS_ORIGIN
-  ? process.env.CORS_ORIGIN.split(',').map(o => o.trim())
+  ? process.env.CORS_ORIGIN.split(',').map(function trim(o) { return o.trim(); })
   : [];
 
 app.use(helmet({
@@ -38,6 +39,7 @@ app.use(helmet({
       styleSrc: ["'self'", "'unsafe-inline'"],
       scriptSrc: ["'self'"],
       imgSrc: ["'self'", "data:", "https:"],
+      connectSrc: ["'self'", "https:"],
     }
   },
   frameguard: { action: 'deny' },
@@ -46,7 +48,7 @@ app.use(helmet({
 }));
 
 if (isProd) {
-  app.use((req, res, next) => {
+  app.use(function forceHttps(req: Request, res: Response, next: NextFunction) {
     if (req.header('x-forwarded-proto') !== 'https') {
       res.redirect(301, `https://${req.header('host')}${req.url}`);
     } else {
@@ -56,7 +58,7 @@ if (isProd) {
 }
 
 app.use(cors({
-  origin: (origin, callback) => {
+  origin: function checkOrigin(origin, callback) {
     if (isDev) {
       callback(null, true);
     } else {
@@ -68,7 +70,7 @@ app.use(cors({
     }
   },
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  methods: [HttpMethod.GET, HttpMethod.POST, HttpMethod.PUT, HttpMethod.DELETE, HttpMethod.PATCH],
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 
@@ -77,9 +79,9 @@ app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
 if (!isProd) {
-  app.use((req, res, next) => {
+  app.use(function requestLogger(req: Request, res: Response, next: NextFunction) {
     const start = Date.now();
-    res.on('finish', () => {
+    res.on('finish', function logRequest() {
       logger.info(
         `${req.method} ${req.originalUrl} ${res.statusCode} ${Date.now() - start}ms`
       );
@@ -88,8 +90,8 @@ if (!isProd) {
   });
 }
 
-app.get('/health', (_req, res) => {
-  res.status(200).json({
+app.get('/health', function healthCheck(_req: Request, res: Response) {
+  res.status(HttpStatus.OK).json({
     status: 'ok',
     environment: env,
     timestamp: new Date().toISOString(),
@@ -115,25 +117,29 @@ const chatLimiter = rateLimit({
 app.use('/api-key', apiKeyLimiter, authMiddleware, apiKeyRouter);
 app.use('/chat', chatLimiter, authMiddleware, chatRouter);
 
-app.use((_req, res) => {
-  res.status(404).json({ error: 'Not Found' });
-});
-
-app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
-  logger.error(err);
-  res.status(500).json({
-    error: isProd ? 'Internal Server Error' : err.message,
+app.use(function notFoundHandler(_req: Request, res: Response) {
+  res.status(HttpStatus.NOT_FOUND).json({
+    error: ERROR_MESSAGES.NOT_FOUND,
+    timestamp: new Date().toISOString(),
   });
 });
 
-const server = app.listen(PORT, () => {
+app.use(function errorHandler(err: Error, _req: Request, res: Response, _next: NextFunction) {
+  logger.error(err);
+  res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
+    error: isProd ? ERROR_MESSAGES.INTERNAL_SERVER_ERROR : err.message,
+    timestamp: new Date().toISOString(),
+  });
+});
+
+const server = app.listen(PORT, function onListen() {
   logger.info(`Server running on port ${PORT}`);
 });
 
-const shutdown = () => {
+function shutdown() {
   logger.info('Shutting down server');
-  server.close(() => process.exit(0));
-};
+  server.close(function onClose() { process.exit(0); });
+}
 
 process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);

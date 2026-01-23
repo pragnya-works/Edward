@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import { Worker } from 'bullmq';
+import { Worker, Job } from 'bullmq';
 import { ChatJobPayloadSchema, ChatJobPayload } from './services/queue.service.js';
 import { processChatMessage } from './services/chat.service.js';
 import { createLogger } from './utils/logger.js';
@@ -9,7 +9,7 @@ const logger = createLogger('WORKER');
 
 const worker = new Worker<ChatJobPayload>(
   QUEUE_NAME,
-  async (job) => {
+  async function (job: Job<ChatJobPayload>) {
     const payload = ChatJobPayloadSchema.parse(job.data);
     await processChatMessage(payload);
   },
@@ -19,11 +19,11 @@ const worker = new Worker<ChatJobPayload>(
   }
 );
 
-worker.on('completed', (job) => {
+worker.on('completed', function (job) {
   logger.info(`[Worker] Job ${job.id} completed`);
 });
 
-worker.on('failed', (job, err) => {
+worker.on('failed', function (job, err) {
   logger.error(err, `[Worker] Job ${job?.id} failed`);
 });
 
