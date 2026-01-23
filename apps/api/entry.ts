@@ -2,10 +2,14 @@ import 'dotenv/config';
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
-import { createApiKeyRouter } from './routes/apiKey.routes.js';
-import { createChatRouter } from './routes/chat.routes.js';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
+import { apiKeyRouter } from './routes/apiKey.routes.js';
+import { chatRouter } from './routes/chat.routes.js';
 import { authMiddleware } from './middleware/auth.js';
-import { Environment, logger } from './utils/logger.js';
+import { Environment, createLogger } from './utils/logger.js';
+
+const logger = createLogger('API');
 
 const app = express();
 
@@ -22,14 +26,55 @@ const CORS_ORIGINS = process.env.CORS_ORIGIN
   ? process.env.CORS_ORIGIN.split(',').map(o => o.trim())
   : [];
 
+app.use(helmet({
+  hsts: {
+    maxAge: 31536000,
+    includeSubDomains: true,
+    preload: true
+  },
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      scriptSrc: ["'self'"],
+      imgSrc: ["'self'", "data:", "https:"],
+    }
+  },
+  frameguard: { action: 'deny' },
+  noSniff: true,
+  xssFilter: true,
+}));
+
+if (isProd) {
+  app.use((req, res, next) => {
+    if (req.header('x-forwarded-proto') !== 'https') {
+      res.redirect(301, `https://${req.header('host')}${req.url}`);
+    } else {
+      next();
+    }
+  });
+}
+
 app.use(cors({
-  origin: CORS_ORIGINS.length ? CORS_ORIGINS : isDev,
+  origin: (origin, callback) => {
+    if (isDev) {
+      callback(null, true);
+    } else {
+      if (!origin || CORS_ORIGINS.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
+    }
+  },
   credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 
 app.use(cookieParser());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
 if (!isProd) {
   app.use((req, res, next) => {
@@ -51,9 +96,24 @@ app.get('/health', (_req, res) => {
   });
 });
 
-app.use(authMiddleware);
-app.use('/api-key', createApiKeyRouter());
-app.use('/chat', createChatRouter());
+const apiKeyLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  message: 'Too many API key requests, please try again later',
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const chatLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 30,
+  message: 'Too many requests, please slow down',
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+app.use('/api-key', apiKeyLimiter, authMiddleware, apiKeyRouter);
+app.use('/chat', chatLimiter, authMiddleware, chatRouter);
 
 app.use((_req, res) => {
   res.status(404).json({ error: 'Not Found' });

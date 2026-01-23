@@ -45,23 +45,36 @@ export const getApiKey = async (
     const userData = await getUser(userId);
 
     if (!userData?.apiKey) {
-      sendError(res, 404, 'API key not found');
+      logger.info(`[API Key] Access attempt - No key found for user: ${userId}`);
+      res.status(200).json({
+        message: 'No API key found',
+        data: {
+          hasApiKey: false,
+          userId: userData?.id || userId,
+          createdAt: userData?.createdAt,
+          updatedAt: userData?.updatedAt,
+        },
+        timestamp: new Date().toISOString(),
+      });
       return;
     }
 
-    let decryptedKey: string | undefined;
+    let keyPreview: string | undefined;
     try {
-      decryptedKey = decrypt(userData.apiKey);
+      const decryptedKey = decrypt(userData.apiKey);
+      keyPreview = `${decryptedKey.slice(0, 7)}...${decryptedKey.slice(-4)}`;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      logger.warn(`[getApiKey] Failed to decrypt API key for user ${userData.id}: ${errorMessage}`);
+      logger.error(`[API Key] Decryption failed for user ${userData.id}: ${errorMessage}`);
     }
 
+    logger.info(`[API Key] Retrieved for user: ${userId}`);
+
     res.status(200).json({
-      message: 'API key retrieved successfully',
+      message: 'API key status retrieved successfully',
       data: {
-        hasApiKey: !!userData.apiKey,
-        apiKey: decryptedKey,
+        hasApiKey: true,
+        keyPreview,
         userId: userData.id,
         createdAt: userData.createdAt,
         updatedAt: userData.updatedAt,
@@ -89,6 +102,7 @@ export const createApiKey = async (
     }
 
     if (userData.apiKey) {
+      logger.warn(`[API Key] Creation attempt failed - Key already exists for user: ${userId}`);
       sendError(res, 409, 'API key already exists');
       return;
     }
@@ -100,11 +114,13 @@ export const createApiKey = async (
       .where(eq(user.id, userData.id))
       .returning();
 
+    logger.info(`[API Key] Created for user: ${userId}`);
+
     res.status(201).json({
       message: 'API key created successfully',
       data: {
-        apiKey: body.apiKey,
         userId: updatedUser.id,
+        keyPreview: `${body.apiKey.slice(0, 7)}...${body.apiKey.slice(-4)}`,
       },
       timestamp: new Date().toISOString(),
     });
@@ -139,11 +155,13 @@ export const updateApiKey = async (
       .where(eq(user.id, userData.id))
       .returning();
 
+    logger.info(`[API Key] Updated for user: ${userId}`);
+
     res.status(200).json({
       message: 'API key updated successfully',
       data: {
-        apiKey: body.apiKey,
         userId: updatedUser.id,
+        keyPreview: `${body.apiKey.slice(0, 7)}...${body.apiKey.slice(-4)}`,
       },
       timestamp: new Date().toISOString(),
     });
@@ -170,6 +188,8 @@ export const deleteApiKey = async (
       .update(user)
       .set({ apiKey: null, updatedAt: new Date() })
       .where(eq(user.id, userData.id));
+
+    logger.info(`[API Key] Deleted for user: ${userId}`);
 
     res.status(200).json({
       message: 'API key deleted successfully',

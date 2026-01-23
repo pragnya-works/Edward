@@ -9,9 +9,11 @@ export enum Environment {
 const env = (process.env.NODE_ENV as Environment) || Environment.Development;
 const isProduction = env === Environment.Production;
 
-export const logger = pino({
-  transport: !isProduction
-    ? {
+export const createLogger = (processName?: string) => {
+  return pino({
+    level: isProduction ? 'info' : 'debug',
+    transport: !isProduction
+      ? {
         target: "pino-pretty",
         options: {
           colorize: true,
@@ -19,10 +21,14 @@ export const logger = pino({
           translateTime: "SYS:standard",
         },
       }
-    : undefined,
-  base: {
-    env,
-  },
-});
+      : undefined,
+    base: {
+      env,
+      ...(processName && { process: processName }),
+    },
+  });
+};
+
+export const logger = createLogger();
 
 export type Logger = typeof logger;

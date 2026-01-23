@@ -7,7 +7,7 @@ import {
   API_KEY_VALIDATION_ERROR
 } from "@workspace/shared/constants";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useState, useCallback, useRef } from "react";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL;
 
@@ -15,8 +15,18 @@ interface ApiKeyResponse {
   message: string;
   data: {
     hasApiKey: boolean;
-    apiKey?: string;
+    keyPreview?: string;
     userId: string;
+    createdAt?: string;
+    updatedAt?: string;
+  };
+}
+
+interface ApiKeySaveResponse {
+  message: string;
+  data: {
+    userId: string;
+    keyPreview: string;
   };
 }
 
@@ -25,9 +35,11 @@ export function useApiKey() {
   const userId = session?.user?.id;
   const queryClient = useQueryClient();
   const [error, setError] = useState("");
+  const [temporaryKey, setTemporaryKey] = useState<string | null>(null);
+  const clearTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const { data, isLoading } = useQuery({
-    queryKey: ["apiKey", userId],
+    queryKey: ["apiKeyStatus", userId],
     queryFn: async () => {
       if (!userId) return null;
       const res = await fetch(`${API_BASE_URL}/api-key`, {
@@ -36,13 +48,18 @@ export function useApiKey() {
         },
         credentials: "include",
       });
+
       if (!res.ok) {
-        throw new Error("Failed to fetch API key");
+        if (res.status === 404 || res.status === 200) {
+          return await res.json() as ApiKeyResponse;
+        }
+        throw new Error("Failed to fetch API key status");
       }
       return (await res.json()) as ApiKeyResponse;
     },
     enabled: !!userId,
     retry: false,
+    staleTime: 5 * 60 * 1000,
   });
 
   const mutation = useMutation({
@@ -63,28 +80,45 @@ export function useApiKey() {
       });
 
       if (!res.ok) {
-        throw new Error("Failed to save API key");
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || "Failed to save API key");
       }
-      return res.json();
+      return res.json() as Promise<ApiKeySaveResponse>;
     },
-    onSuccess: (responseData, variables) => {
-      queryClient.setQueryData(["apiKey", userId], (old: ApiKeyResponse | undefined) => {
-        if (!old) return old;
+    onSuccess: (responseData) => {
+      queryClient.setQueryData(["apiKeyStatus", userId], (old: ApiKeyResponse | undefined) => {
+        if (!old) {
+          return {
+            message: responseData.message,
+            data: {
+              hasApiKey: true,
+              keyPreview: responseData.data.keyPreview,
+              userId: responseData.data.userId,
+            }
+          };
+        }
         return {
           ...old,
           data: {
             ...old.data,
             hasApiKey: true,
-            apiKey: variables.apiKey,
+            keyPreview: responseData.data.keyPreview,
           }
         };
       });
-      queryClient.invalidateQueries({ queryKey: ["apiKey", userId] });
+      queryClient.invalidateQueries({ queryKey: ["apiKeyStatus", userId] });
     },
-    onError: () => {
-      setError("Failed to save API key. Please try again.");
+    onError: (err: Error) => {
+      setError(err.message || "Failed to save API key. Please try again.");
     },
   });
+
+  const clearTemporaryKey = useCallback(() => {
+    if (clearTimeoutRef.current) {
+      clearTimeout(clearTimeoutRef.current);
+    }
+    setTemporaryKey(null);
+  }, []);
 
   const validateAndSaveApiKey = async (
     apiKey: string,
@@ -114,6 +148,15 @@ export function useApiKey() {
       const method = data?.data?.hasApiKey ? "PUT" : "POST";
       await mutation.mutateAsync({ apiKey: trimmedKey, method });
 
+      setTemporaryKey(trimmedKey);
+
+      if (clearTimeoutRef.current) {
+        clearTimeout(clearTimeoutRef.current);
+      }
+      clearTimeoutRef.current = setTimeout(() => {
+        setTemporaryKey(null);
+      }, 10000);
+
       setError("");
       onValidate(trimmedKey);
       onClose();
@@ -127,8 +170,11 @@ export function useApiKey() {
     error: error || (mutation.error ? "Failed to save API key" : ""),
     validateAndSaveApiKey,
     hasApiKey: data?.data?.hasApiKey ?? null,
-    apiKey: data?.data?.apiKey || null,
+    keyPreview: data?.data?.keyPreview || null,
+    temporaryKey,
+    clearTemporaryKey,
     isLoading,
+    isSaving: mutation.isPending,
     userId,
   };
 }

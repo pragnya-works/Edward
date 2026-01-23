@@ -36,6 +36,8 @@ interface BYOKProps {
   error?: string;
   initialApiKey?: string;
   initialProvider?: Provider;
+  keyPreview?: string | null;
+  hasExistingKey?: boolean;
 }
 
 const PROVIDERS_CONFIG = [
@@ -43,11 +45,13 @@ const PROVIDERS_CONFIG = [
     id: Provider.OPENAI,
     label: "OpenAI",
     icon: OpenAI,
+    description: "Use GPT-4, GPT-3.5, and other OpenAI models",
   },
   {
     id: Provider.GEMINI,
     label: "Gemini",
     icon: Gemini,
+    description: "Use Google's Gemini Pro and Flash models",
   },
 ];
 
@@ -59,6 +63,8 @@ export function BYOK({
   error: externalError = "",
   initialApiKey = "",
   initialProvider = Provider.OPENAI,
+  keyPreview = null,
+  hasExistingKey = false,
 }: BYOKProps) {
   const [apiKey, setApiKey] = useState(initialApiKey);
   const [selectedProvider, setSelectedProvider] = useState<Provider>(
@@ -67,6 +73,7 @@ export function BYOK({
   const [localError, setLocalError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [showSuccess, setShowSuccess] = useState(false);
 
   const error = externalError || localError;
 
@@ -75,9 +82,11 @@ export function BYOK({
       setApiKey(initialApiKey);
       setSelectedProvider(initialProvider);
       setLocalError("");
+      setShowSuccess(false);
     } else {
       setApiKey("");
       setLocalError("");
+      setShowSuccess(false);
     }
   }, [isOpen, initialApiKey, initialProvider]);
 
@@ -98,7 +107,10 @@ export function BYOK({
     setLocalError("");
 
     try {
-      await onSaveApiKey(apiKey, onValidate, onClose, selectedProvider);
+      const success = await onSaveApiKey(apiKey, onValidate, onClose, selectedProvider);
+      if (success) {
+        setShowSuccess(true);
+      }
     } catch {
       setLocalError("Failed to save API key. Please try again.");
     } finally {
@@ -123,18 +135,54 @@ export function BYOK({
     setShowPassword((prev) => !prev);
   }
 
+  const selectedProviderConfig = PROVIDERS_CONFIG.find(
+    (p) => p.id === selectedProvider
+  );
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>
-            {initialApiKey ? "Manage Your API Key" : "Add Your API Key"}
+            {hasExistingKey ? "Manage Your API Key" : "Add Your API Key"}
           </DialogTitle>
-          <DialogDescription>
-            Select a provider and enter your API key to continue. Your key is
-            stored securely on our servers.
+          <DialogDescription className="space-y-2">
+            <span className="block">
+              {hasExistingKey
+                ? "Update your API key to continue using the service."
+                : "Select a provider and enter your API key to get started."}
+            </span>
+            <span className="block text-xs text-muted-foreground">
+              🔒 Your key is encrypted and stored securely. We never log or expose your full key.
+            </span>
           </DialogDescription>
         </DialogHeader>
+
+        {hasExistingKey && keyPreview && (
+          <div className="rounded-lg border border-border bg-muted/30 p-3">
+            <div className="flex items-center justify-between">
+              <div className="space-y-1">
+                <p className="text-xs font-medium text-muted-foreground">Current Key</p>
+                <p className="font-mono text-sm">{keyPreview}</p>
+              </div>
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-green-500/10">
+                <svg
+                  className="h-4 w-4 text-green-500"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M5 13l4 4L19 7"
+                  />
+                </svg>
+              </div>
+            </div>
+          </div>
+        )}
 
         <Tabs value={selectedProvider} onValueChange={handleTabChange}>
           <TabsList className="grid w-full grid-cols-2">
@@ -146,8 +194,9 @@ export function BYOK({
             ))}
           </TabsList>
 
-          {PROVIDERS_CONFIG.map(({ id }) => (
-            <TabsContent key={id} value={id} className="mt-4">
+          {PROVIDERS_CONFIG.map(({ id, description }) => (
+            <TabsContent key={id} value={id} className="mt-4 space-y-3">
+              <p className="text-xs text-muted-foreground">{description}</p>
               <ApiKeyInput
                 provider={id}
                 apiKey={apiKey}
@@ -161,6 +210,14 @@ export function BYOK({
             </TabsContent>
           ))}
         </Tabs>
+
+        {showSuccess && (
+          <div className="rounded-lg border border-green-500/20 bg-green-500/10 p-3">
+            <p className="text-sm text-green-600 dark:text-green-400">
+              ✓ API key saved successfully!
+            </p>
+          </div>
+        )}
 
         <DialogFooter className="flex flex-row gap-2 sm:gap-2!">
           <Button
@@ -184,7 +241,32 @@ export function BYOK({
               !validateApiKey(apiKey, selectedProvider)
             }
           >
-            {isSubmitting ? "Saving..." : "Continue"}
+            {isSubmitting ? (
+              <>
+                <svg
+                  className="mr-2 h-4 w-4 animate-spin"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                >
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                  />
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                  />
+                </svg>
+                Saving...
+              </>
+            ) : (
+              "Continue"
+            )}
           </Button>
         </DialogFooter>
       </DialogContent>

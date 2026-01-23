@@ -2,8 +2,10 @@ import 'dotenv/config';
 import { Worker } from 'bullmq';
 import { ChatJobPayloadSchema, ChatJobPayload } from './services/queue.service.js';
 import { processChatMessage } from './services/chat.service.js';
-import { logger } from './utils/logger.js';
+import { createLogger } from './utils/logger.js';
 import { connection, QUEUE_NAME } from './lib/queue.js';
+
+const logger = createLogger('WORKER');
 
 const worker = new Worker<ChatJobPayload>(
   QUEUE_NAME,
