@@ -24,15 +24,15 @@ export default async function ChangelogPage() {
   const { categorizedIssues, sortedLabels } = groupAndSortIssues(issues);
 
   return (
-    <div className="container mx-auto max-w-4xl py-12 px-4 md:px-6">
+    <div className="container mx-auto max-w-4xl py-24 md:py-12 px-4 md:px-8">
       <ChangelogHeader />
 
       {error ? (
         <Card className="border-destructive/50 bg-destructive/5">
-          <CardContent className="flex flex-col items-center justify-center p-8 text-center">
+          <CardContent className="flex flex-col items-center justify-center p-8 text-center text-sm md:text-base">
             <AlertCircle className="mb-4 h-10 w-10 text-destructive" />
             <h3 className="text-lg font-semibold text-destructive">Unable to Load Issues</h3>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-muted-foreground">
               {error === "Missing LINEAR_API_KEY environment variable"
                 ? "Please configure the LINEAR_API_KEY environment variable."
                 : "There was an error connecting to Linear."}
@@ -42,7 +42,7 @@ export default async function ChangelogPage() {
       ) : (
         <div className="space-y-6">
           {issues.length === 0 ? (
-            <div className="text-center text-muted-foreground py-12">
+            <div className="text-center text-muted-foreground py-12 text-sm md:text-base">
               No changelog items found yet. Check back soon!
             </div>
           ) : (
@@ -52,8 +52,8 @@ export default async function ChangelogPage() {
                   <AccordionTrigger className="hover:no-underline py-2">
                     <div className="flex items-center gap-2">
                       <Tag className="h-4 w-4 text-primary" />
-                      <span className="text-lg font-semibold capitalize">{label}</span>
-                      <Badge variant="secondary" className="ml-2 font-mono text-xs">
+                      <span className="text-base md:text-lg font-semibold capitalize">{label}</span>
+                      <Badge variant="secondary" className="ml-2 font-mono text-[10px] md:text-xs">
                         {categorizedIssues[label]?.length}
                       </Badge>
                     </div>

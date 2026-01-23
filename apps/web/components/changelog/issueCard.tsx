@@ -11,11 +11,11 @@ export function IssueCard({ issue }: { issue: ChangelogIssue }) {
 
   return (
     <Card className="group overflow-hidden border-border/50 transition-all bg-card/50 hover:bg-muted/50 hover:border-border hover:shadow-sm">
-      <CardHeader className="flex flex-row items-start justify-between gap-4 p-6">
+      <CardHeader className="flex flex-row items-start justify-between gap-4 p-4 md:p-6">
         <div className="space-y-3 flex-1">
-          <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-            <span className="font-mono text-xs">{issue.identifier}</span>
-            <span>•</span>
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs md:text-sm text-muted-foreground">
+            <span className="font-mono">{issue.identifier}</span>
+            <span className="hidden sm:inline">•</span>
             <div className="flex items-center gap-1">
               <Calendar className="h-3 w-3" />
               <time dateTime={dateToUse.toISOString()}>
@@ -28,22 +28,22 @@ export function IssueCard({ issue }: { issue: ChangelogIssue }) {
             </div>
             {issue.priority > 0 && (
               <>
-                <span>•</span>
+                <span className="hidden sm:inline">•</span>
                 <PriorityBadge priority={issue.priority} label={issue.priorityLabel} />
               </>
             )}
           </div>
-          
-          <CardTitle className="text-xl font-semibold leading-snug tracking-tight group-hover:text-primary transition-colors">
+
+          <CardTitle className="text-lg md:text-xl font-semibold leading-tight tracking-tight group-hover:text-primary transition-colors">
             {issue.title}
           </CardTitle>
 
           {issue.labels.length > 1 && (
-            <div className="flex flex-wrap gap-1.5 pt-1">
+            <div className="flex flex-wrap gap-1 pt-1">
               {issue.labels.slice(1).map((label) => (
-                <Badge 
-                  key={label.name} 
-                  variant="outline" 
+                <Badge
+                  key={label.name}
+                  variant="outline"
                   className="px-1.5 py-0 text-[10px] opacity-70 capitalize"
                   style={{
                     borderColor: `${label.color}40`,
@@ -57,7 +57,7 @@ export function IssueCard({ issue }: { issue: ChangelogIssue }) {
             </div>
           )}
         </div>
-        <div className="flex flex-col items-end gap-2">
+        <div className="flex shrink-0 flex-col items-end pt-1">
           <StatusBadge
             name={issue.state.name}
             color={issue.state.color}

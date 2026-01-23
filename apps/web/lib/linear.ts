@@ -26,7 +26,7 @@ export interface FetchIssuesResult {
 
 export async function getLinearIssues(): Promise<FetchIssuesResult> {
   const apiKey = process.env.LINEAR_API_KEY;
-  
+
   if (!apiKey) {
     return { issues: [], error: "Missing LINEAR_API_KEY environment variable" };
   }
@@ -83,7 +83,10 @@ export async function getLinearIssues(): Promise<FetchIssuesResult> {
   }
 }
 
-export function groupAndSortIssues(issues: ChangelogIssue[]) {
+export function groupAndSortIssues(issues: ChangelogIssue[]): {
+  categorizedIssues: Record<string, ChangelogIssue[]>;
+  sortedLabels: string[]
+} {
   const categorizedIssues = issues.reduce((acc, issue) => {
     const label = issue.labels[0]?.name || "General";
     if (!acc[label]) {
@@ -99,7 +102,7 @@ export function groupAndSortIssues(issues: ChangelogIssue[]) {
     return a.localeCompare(b);
   });
 
-  sortedLabels.forEach(label => {
+  sortedLabels.forEach((label) => {
     categorizedIssues[label]?.sort((a, b) => {
       const pA = a.priority === 0 ? 10 : a.priority;
       const pB = b.priority === 0 ? 10 : b.priority;
@@ -112,3 +115,4 @@ export function groupAndSortIssues(issues: ChangelogIssue[]) {
 
   return { categorizedIssues, sortedLabels };
 }
+

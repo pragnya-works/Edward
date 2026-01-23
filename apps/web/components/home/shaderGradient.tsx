@@ -83,9 +83,6 @@ export function ShaderGradientBackground() {
         }}
       />
 
-      <div className="absolute top-0 inset-x-0 h-[30vh] z-[10] bg-gradient-to-b from-background via-background/60 to-transparent" />
-      <div className="absolute bottom-0 inset-x-0 h-[40vh] z-[10] bg-gradient-to-t from-background via-background to-transparent" />
-
       <div className="absolute inset-0 z-[5]">
         <AnimatePresence mode="wait">
           <Suspense fallback={null}>

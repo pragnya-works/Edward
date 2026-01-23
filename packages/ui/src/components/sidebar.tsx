@@ -1,6 +1,6 @@
 "use client";
 import { cn } from "@workspace/ui/lib/utils";
-import React, { useState, createContext, useContext } from "react";
+import { useState, createContext, useContext, useEffect, useMemo } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { IconMenu2, IconX } from "@tabler/icons-react";
 
@@ -42,8 +42,21 @@ export const SidebarProvider = ({
   const open = openProp !== undefined ? openProp : openState;
   const setOpen = setOpenProp !== undefined ? setOpenProp : setOpenState;
 
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key === "b") {
+        event.preventDefault();
+        setOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [setOpen]);
+
+  const value = useMemo(() => ({ open, setOpen, animate }), [open, setOpen, animate]);
+
   return (
-    <SidebarContext.Provider value={{ open, setOpen, animate }}>
+    <SidebarContext.Provider value={value}>
       {children}
     </SidebarContext.Provider>
   );
@@ -85,7 +98,7 @@ export const DesktopSidebar = ({
   return (
     <motion.div
       className={cn(
-        "h-full px-4 py-4 hidden  md:flex md:flex-col bg-neutral-100 dark:bg-neutral-800 w-75 shrink-0",
+        "h-full px-4 py-4 hidden  md:flex md:flex-col bg-neutral-100 dark:bg-neutral-800 w-75 shrink-0 relative",
         className
       )}
       animate={{
@@ -159,19 +172,24 @@ export const SidebarLink = ({
     <a
       href={link.href}
       className={cn(
-        "flex items-center justify-start gap-2  group/sidebar py-2",
+        "flex items-center gap-2 group/sidebar py-2 px-1 rounded-md transition-colors hover:bg-neutral-200 dark:hover:bg-neutral-700/50",
+        !open && "justify-center",
         className
       )}
       {...props}
     >
-      {link.icon}
+      <div className="flex items-center justify-center w-6 h-6 shrink-0">
+        {link.icon}
+      </div>
 
       <motion.span
         animate={{
           display: animate ? (open ? "inline-block" : "none") : "inline-block",
           opacity: animate ? (open ? 1 : 0) : 1,
+          x: open ? 0 : -10,
         }}
-        className="text-neutral-700 dark:text-neutral-200 group-hover/sidebar:translate-x-1 transition duration-150 whitespace-pre inline-block p-0! m-0!"
+        transition={{ duration: 0.2 }}
+        className="text-neutral-700 dark:text-neutral-200 group-hover/sidebar:translate-x-1 transition-transform duration-150 whitespace-pre inline-block p-0! m-0! text-sm font-medium"
       >
         {link.label}
       </motion.span>

@@ -37,20 +37,20 @@ export default function UserProfile() {
 
   const user = session.user;
 
-  const handleSignOut = async () => {
+  async function handleSignOut() {
     try {
       await signOut();
       router.push("/");
     } catch (error) {
       console.error("Failed to sign out:", error);
     }
-  };
+  }
 
-  const getProviderFromKey = (key: string): Provider => {
+  function getProviderFromKey(key: string): Provider {
     if (API_KEY_REGEX[Provider.OPENAI].test(key)) return Provider.OPENAI;
     if (API_KEY_REGEX[Provider.GEMINI].test(key)) return Provider.GEMINI;
     return Provider.OPENAI;
-  };
+  }
 
   const initialProvider = apiKey ? getProviderFromKey(apiKey) : Provider.OPENAI;
 

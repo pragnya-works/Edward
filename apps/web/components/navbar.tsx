@@ -91,6 +91,8 @@ export default function Navbar() {
       </NavBody>
 
       <MobileNav
+        isOpen={isMobileMenuOpen}
+        onClose={() => setIsMobileMenuOpen(false)}
         className={
           isMobileMenuOpen
             ? "bg-background/80 backdrop-blur-md rounded-2xl"
