@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import { initSandboxService } from './services/sandbox.service.js';
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
@@ -132,8 +133,9 @@ app.use(function errorHandler(err: Error, _req: Request, res: Response, _next: N
   });
 });
 
-const server = app.listen(PORT, function onListen() {
+const server = app.listen(PORT, async function onListen() {
   logger.info(`Server running on port ${PORT}`);
+  await initSandboxService();
 });
 
 function shutdown() {

@@ -13,6 +13,7 @@ import { createStreamParser } from '../lib/llm/parser.js';
 import { getDecryptedApiKey } from '../services/apiKey.service.js';
 import { HttpStatus, ERROR_MESSAGES } from '../utils/constants.js';
 import { sendError as sendStandardError, sendSuccess } from '../utils/response.js';
+import { provisionSandbox, writeSandboxFile, cleanupSandbox, prepareSandboxFile, flushSandbox } from '../services/sandbox.service.js';
 
 const DAILY_MESSAGE_LIMIT = 10;
 
@@ -22,7 +23,7 @@ function sendError(res: Response, status: HttpStatus, error: string): void {
     res.end();
     return;
   }
-  
+
   sendStandardError(res, status, error);
 }
 
@@ -94,8 +95,6 @@ export async function unifiedSendMessage(
         createdAt: now,
         updatedAt: now,
       });
-
-      logger.info(`[Chat] Created: ${chatId}`);
     } else {
       const [existing] = await db
         .select({ userId: chat.userId })
@@ -126,13 +125,11 @@ export async function unifiedSendMessage(
       createdAt: now,
       updatedAt: now,
     });
-    
-    logger.info(`[Message] User: ${userMessageId} → ${chatId}`);
 
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
-    
+
     res.write(`data: ${JSON.stringify({
       type: ParserEventType.META,
       chatId,
@@ -143,22 +140,107 @@ export async function unifiedSendMessage(
 
     const parser = createStreamParser();
     let fullRawResponse = '';
+    let currentSandboxId: string | undefined;
+    let currentFilePath: string | undefined;
 
     try {
       const stream = streamResponse(decryptedApiKey, body.content);
-      
+
       for await (const chunk of stream) {
         fullRawResponse += chunk;
         const events = parser.process(chunk);
-        
+
         for (const event of events) {
+          try {
+            switch (event.type) {
+              case ParserEventType.SANDBOX_START:
+                if (currentSandboxId) {
+                  await cleanupSandbox(currentSandboxId).catch((err) =>
+                    logger.error(err, `Failed to cleanup previous sandbox: ${currentSandboxId}`)
+                  );
+                }
+                currentSandboxId = await provisionSandbox();
+                break;
+
+              case ParserEventType.FILE_START:
+                if (!currentSandboxId) {
+                  logger.error('[Chat] FILE_START received without active sandbox');
+                  res.write(`data: ${JSON.stringify({ type: ParserEventType.ERROR, message: 'No active sandbox for file operation' })}\n\n`);
+                  break;
+                }
+                currentFilePath = event.path;
+                await prepareSandboxFile(currentSandboxId, currentFilePath);
+                break;
+
+              case ParserEventType.FILE_CONTENT:
+                if (!currentSandboxId) {
+                  logger.error('[Chat] FILE_CONTENT received without active sandbox');
+                  break;
+                }
+                if (!currentFilePath) {
+                  logger.error('[Chat] FILE_CONTENT received without active file');
+                  break;
+                }
+                await writeSandboxFile(currentSandboxId, currentFilePath, event.content);
+                break;
+
+              case ParserEventType.FILE_END:
+                currentFilePath = undefined;
+                break;
+            }
+          } catch (sandboxError) {
+            logger.error(sandboxError, 'Sandbox operation failed during streaming');
+            res.write(`data: ${JSON.stringify({
+              type: ParserEventType.ERROR,
+              message: 'Sandbox execution failed'
+            })}\n\n`);
+          }
+
           res.write(`data: ${JSON.stringify(event)}\n\n`);
         }
       }
 
       const finalEvents = parser.flush();
       for (const event of finalEvents) {
+        try {
+          switch (event.type) {
+            case ParserEventType.FILE_START:
+              if (!currentSandboxId) {
+                logger.error('[Chat] FILE_START in flush without active sandbox');
+                break;
+              }
+              currentFilePath = event.path;
+              await prepareSandboxFile(currentSandboxId, currentFilePath);
+              break;
+
+            case ParserEventType.FILE_CONTENT:
+              if (currentSandboxId && currentFilePath) {
+                await writeSandboxFile(currentSandboxId, currentFilePath, event.content);
+              }
+              break;
+
+            case ParserEventType.FILE_END:
+              currentFilePath = undefined;
+              break;
+
+            case ParserEventType.SANDBOX_END:
+              if (currentSandboxId) {
+                await flushSandbox(currentSandboxId).catch((err) =>
+                  logger.error(err, `Flush failed during SANDBOX_END: ${currentSandboxId}`)
+                );
+              }
+              break;
+          }
+        } catch (sandboxError) {
+          logger.error(sandboxError, 'Final sandbox operation failed');
+        }
         res.write(`data: ${JSON.stringify(event)}\n\n`);
+      }
+
+      if (currentSandboxId) {
+        await flushSandbox(currentSandboxId).catch((err) =>
+          logger.error(err, `Final flush failed for sandbox: ${currentSandboxId}`)
+        );
       }
 
       await db.insert(message).values({
@@ -170,17 +252,27 @@ export async function unifiedSendMessage(
         createdAt: new Date(),
         updatedAt: new Date(),
       });
-      
-      logger.info(`[Message] Assistant: ${assistantMessageId} saved.`);
-      
       res.write('data: [DONE]\n\n');
       res.end();
 
     } catch (streamError) {
+      if (currentSandboxId) {
+        await cleanupSandbox(currentSandboxId).catch((err) =>
+          logger.error(err, `Cleanup failed after stream error: ${currentSandboxId}`)
+        );
+      }
+
       logger.error(streamError, 'Streaming error');
-      res.write(`data: ${JSON.stringify({ type: ParserEventType.ERROR, message: 'Stream processing failed' })}\n\n`);
+
+      if (!res.headersSent) {
+        res.write(`data: ${JSON.stringify({
+          type: ParserEventType.ERROR,
+          message: 'Stream processing failed'
+        })}\n\n`);
+      }
+
       res.end();
-      
+
       try {
         await db.insert(message).values({
           id: assistantMessageId,

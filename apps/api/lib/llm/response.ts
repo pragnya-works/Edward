@@ -8,55 +8,83 @@ import { createLogger } from "../../utils/logger.js";
 const logger = createLogger('LLM');
 
 function createLLM(apiKey: string) {
+  if (!apiKey || typeof apiKey !== 'string') {
+    throw new Error('Invalid API key provided to LLM factory');
+  }
+
   if (API_KEY_REGEX[Provider.OPENAI].test(apiKey)) {
+    const modelName = process.env.OPENAI_MODEL;
+    if (!modelName) {
+      throw new Error('OPENAI_MODEL environment variable is not configured');
+    }
     return new ChatOpenAI({
       apiKey,
-      modelName: process.env.OPENAI_MODEL,
+      modelName,
     });
   } else if (API_KEY_REGEX[Provider.GEMINI].test(apiKey)) {
+    const model = process.env.GEMINI_MODEL;
+    if (!model) {
+      throw new Error('GEMINI_MODEL environment variable is not configured');
+    }
     return new ChatGoogleGenerativeAI({
       apiKey,
-      model: process.env.GEMINI_MODEL as string,
+      model,
     });
   } else {
-    throw new Error('Unrecognized API key format');
+    throw new Error('Unrecognized API key format. Please provide a valid OpenAI or Gemini API key.');
   }
 }
 
 export async function* streamResponse(apiKey: string, content: string): AsyncGenerator<string> {
-  const llm = createLLM(apiKey);
-  
-  logger.info('🚀 Starting LLM stream...');
-  
-  const stream = await llm.stream([
-    new SystemMessage({ content: SYSTEM_PROMPT }),
-    new HumanMessage({ content }),
-  ]);
-
-  for await (const chunk of stream) {
-    const chunkContent = chunk.content as string;
-    if (chunkContent) {
-      yield chunkContent;
-    }
+  if (!apiKey || typeof apiKey !== 'string' || apiKey.trim().length === 0) {
+    throw new Error('Invalid API key: API key must be a non-empty string');
   }
 
-  logger.info('✅ Stream complete');
+  if (!content || typeof content !== 'string' || content.trim().length === 0) {
+    throw new Error('Invalid content: Content must be a non-empty string');
+  }
+
+  const llm = createLLM(apiKey);
+
+  try {
+    const stream = await llm.stream([
+      new SystemMessage({ content: SYSTEM_PROMPT }),
+      new HumanMessage({ content }),
+    ]);
+
+    for await (const chunk of stream) {
+      const chunkContent = chunk.content as string;
+      if (chunkContent) {
+        yield chunkContent;
+      }
+    }
+  } catch (error) {
+    logger.error(error, 'LLM streaming failed');
+    throw error;
+  }
 }
 
 export async function generateResponse(apiKey: string, content: string): Promise<string> {
-  const llm = createLLM(apiKey);
-  
-  logger.info(`🚀 Generating response for: "${content.substring(0, 100)}${content.length > 100 ? '...' : ''}"`);
-  
-  const response = await llm.invoke([
-    new SystemMessage({ content: SYSTEM_PROMPT }),
-    new HumanMessage({ content }),
-  ]);
+  if (!apiKey || typeof apiKey !== 'string' || apiKey.trim().length === 0) {
+    throw new Error('Invalid API key: API key must be a non-empty string');
+  }
 
-  const fullResponse = response.content as string;
-  
-  logger.info(`✅ Response generated: ${fullResponse.length} characters`);
-  
-  return fullResponse;
+  if (!content || typeof content !== 'string' || content.trim().length === 0) {
+    throw new Error('Invalid content: Content must be a non-empty string');
+  }
+
+  const llm = createLLM(apiKey);
+
+  try {
+    const response = await llm.invoke([
+      new SystemMessage({ content: SYSTEM_PROMPT }),
+      new HumanMessage({ content }),
+    ]);
+
+    return response.content as string;
+  } catch (error) {
+    logger.error(error, 'LLM response generation failed');
+    throw error;
+  }
 }
 

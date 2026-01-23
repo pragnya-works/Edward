@@ -10,205 +10,190 @@ const TAGS = {
   FILE_END: '</file>',
 } as const;
 
-/**
- * A state-machine parser that processes LLM streams byte-by-byte.
- * It extracts structured data from custom tags like <Thinking>, <edward_sandbox>, and <file>.
- * Includes lookahead buffering to handle split tags and path sanitization for security.
- */
+const LOOKAHEAD_LIMIT = 256;
+const MAX_BUFFER_SIZE = 1024 * 10;
+
 export function createStreamParser() {
   let state: StreamState = StreamState.TEXT;
   let buffer: string = '';
-  const bufferSize = 1024; // 1KB lookahead
 
-  function containsPartialTag(str: string): boolean {
-    const lastLt = str.lastIndexOf('<');
-    if (lastLt === -1) return false;
-    const afterLt = str.slice(lastLt);
-    return afterLt.indexOf('>') === -1;
+  function handleState(events: ParserEvent[]): void {
+    switch (state) {
+      case StreamState.TEXT:
+        handleTextState(events);
+        break;
+      case StreamState.THINKING:
+        handleThinkingState(events);
+        break;
+      case StreamState.SANDBOX:
+        handleSandboxState(events);
+        break;
+      case StreamState.FILE:
+        handleFileState(events);
+        break;
+    }
   }
 
   function handleTextState(events: ParserEvent[]): void {
-    const thinkingStart = buffer.indexOf(TAGS.THINKING_START);
-    const sandboxStart = buffer.indexOf(TAGS.SANDBOX_START);
+    const thinkingIdx = buffer.indexOf(TAGS.THINKING_START);
+    const sandboxIdx = buffer.indexOf(TAGS.SANDBOX_START);
 
-    let nextTagIndex = -1;
-    let nextState: StreamState | null = null;
+    const nextTagIdx = thinkingIdx !== -1 && (sandboxIdx === -1 || thinkingIdx < sandboxIdx)
+      ? thinkingIdx
+      : sandboxIdx !== -1 ? sandboxIdx : -1;
 
-    if (thinkingStart !== -1 && (sandboxStart === -1 || thinkingStart < sandboxStart)) {
-      nextTagIndex = thinkingStart;
-      nextState = StreamState.THINKING;
-    } else if (sandboxStart !== -1) {
-      nextTagIndex = sandboxStart;
-      nextState = StreamState.SANDBOX;
-    }
-
-    if (nextTagIndex !== -1) {
-      if (nextTagIndex > 0) {
-        events.push({ type: ParserEventType.TEXT, content: buffer.slice(0, nextTagIndex) });
+    if (nextTagIdx !== -1) {
+      if (nextTagIdx > 0) {
+        const textContent = buffer.slice(0, nextTagIdx);
+        if (textContent) {
+          events.push({ type: ParserEventType.TEXT, content: textContent });
+        }
       }
-      
-      buffer = buffer.slice(nextTagIndex);
+      buffer = buffer.slice(nextTagIdx);
 
-      if (nextState === StreamState.THINKING) {
+      if (buffer.startsWith(TAGS.THINKING_START)) {
         buffer = buffer.slice(TAGS.THINKING_START.length);
         state = StreamState.THINKING;
         events.push({ type: ParserEventType.THINKING_START });
-      } else if (nextState === StreamState.SANDBOX) {
-        const tagEnd = buffer.indexOf('>');
-        if (tagEnd !== -1) {
-          const tagContent = buffer.slice(0, tagEnd + 1);
-          const projectMatch = tagContent.match(/project="([^"]*)"/);
-          const baseMatch = tagContent.match(/base="([^"]*)"/);
-          
-          state = StreamState.SANDBOX;
+      } else if (buffer.startsWith(TAGS.SANDBOX_START)) {
+        const closeIdx = buffer.indexOf('>');
+        if (closeIdx !== -1) {
+          const tag = buffer.slice(0, closeIdx + 1);
+          const projectMatch = tag.match(/project="([^"]*)"/)?.[1];
+          const baseMatch = tag.match(/base="([^"]*)"/)?.[1];
+
           events.push({
             type: ParserEventType.SANDBOX_START,
-            project: projectMatch ? projectMatch[1] : undefined,
-            base: baseMatch ? baseMatch[1] : undefined
+            project: projectMatch,
+            base: baseMatch
           });
-          
-          buffer = buffer.slice(tagEnd + 1);
+          buffer = buffer.slice(closeIdx + 1);
+          state = StreamState.SANDBOX;
         }
       }
     } else {
-      const lastLt = buffer.lastIndexOf('<');
-      if (lastLt !== -1 && buffer.length - lastLt < 50) {
-         if (lastLt > 0) {
-             events.push({ type: ParserEventType.TEXT, content: buffer.slice(0, lastLt) });
-             buffer = buffer.slice(lastLt);
-         }
-         return; 
-      }
-
-      events.push({ type: ParserEventType.TEXT, content: buffer });
-      buffer = '';
+      flushSafeContent(events, ParserEventType.TEXT);
     }
   }
 
   function handleThinkingState(events: ParserEvent[]): void {
-    const endTag = TAGS.THINKING_END;
-    const endIdx = buffer.indexOf(endTag);
-
+    const endIdx = buffer.indexOf(TAGS.THINKING_END);
     if (endIdx !== -1) {
       if (endIdx > 0) {
-        events.push({ type: ParserEventType.THINKING_CONTENT, content: buffer.slice(0, endIdx) });
+        const thinkingContent = buffer.slice(0, endIdx);
+        if (thinkingContent) {
+          events.push({ type: ParserEventType.THINKING_CONTENT, content: thinkingContent });
+        }
       }
-      buffer = buffer.slice(endIdx + endTag.length);
+      buffer = buffer.slice(endIdx + TAGS.THINKING_END.length);
       state = StreamState.TEXT;
       events.push({ type: ParserEventType.THINKING_END });
     } else {
-      const lastLt = buffer.lastIndexOf('<');
-      if (lastLt !== -1 && buffer.length - lastLt < endTag.length) {
-        if (lastLt > 0) {
-            events.push({ type: ParserEventType.THINKING_CONTENT, content: buffer.slice(0, lastLt) });
-            buffer = buffer.slice(lastLt);
-        }
-        return;
-      }
-      
-      events.push({ type: ParserEventType.THINKING_CONTENT, content: buffer });
-      buffer = '';
+      flushSafeContent(events, ParserEventType.THINKING_CONTENT);
     }
   }
 
   function handleSandboxState(events: ParserEvent[]): void {
-    const fileStart = buffer.indexOf(TAGS.FILE_START);
-    const sandboxEnd = buffer.indexOf(TAGS.SANDBOX_END);
+    const fileIdx = buffer.indexOf(TAGS.FILE_START);
+    const endIdx = buffer.indexOf(TAGS.SANDBOX_END);
 
-    let nextTagIndex = -1;
-    let nextState: StreamState | null = null;
-    let isEnd = false;
+    if (fileIdx !== -1 && (endIdx === -1 || fileIdx < endIdx)) {
+      const closeIdx = buffer.indexOf('>', fileIdx);
+      if (closeIdx !== -1) {
+        const tag = buffer.slice(fileIdx, closeIdx + 1);
+        const rawPath = tag.match(/path="([^"]*)"/)?.[1];
 
-    if (fileStart !== -1 && (sandboxEnd === -1 || fileStart < sandboxEnd)) {
-      nextTagIndex = fileStart;
-      nextState = StreamState.FILE;
-    } else if (sandboxEnd !== -1) {
-      nextTagIndex = sandboxEnd;
-      isEnd = true;
-    }
-
-    if (nextTagIndex !== -1) {
-      buffer = buffer.slice(nextTagIndex);
-
-      if (isEnd) {
-        buffer = buffer.slice(TAGS.SANDBOX_END.length);
-        state = StreamState.TEXT;
-        events.push({ type: ParserEventType.SANDBOX_END });
-      } else if (nextState === StreamState.FILE) {
-        const tagEnd = buffer.indexOf('>');
-        if (tagEnd !== -1) {
-          const tagContent = buffer.slice(0, tagEnd + 1);
-          const pathMatch = tagContent.match(/path="([^"]*)"/);
-          
-          if (pathMatch) {
-            const rawPath = pathMatch[1] as string;
-            const normalizedPath = path.posix.normalize(rawPath).replace(/^(\.\.{1,2}(\/|\\|$))+/, '');
-            
-            state = StreamState.FILE;
+        if (rawPath && rawPath.trim()) {
+          const normalizedPath = path.posix.normalize(rawPath).replace(/^(\.\.{1,2}(\/|\\|$))+/, '');
+          if (normalizedPath) {
             events.push({ type: ParserEventType.FILE_START, path: normalizedPath });
+            state = StreamState.FILE;
           } else {
-             events.push({ type: ParserEventType.ERROR, message: 'Invalid file tag: missing path' });
+            events.push({ type: ParserEventType.ERROR, message: `Invalid file path after normalization: ${rawPath}` });
           }
-          buffer = buffer.slice(tagEnd + 1);
+        } else {
+          events.push({ type: ParserEventType.ERROR, message: 'Invalid file tag: missing or empty path' });
         }
+        buffer = buffer.slice(closeIdx + 1);
       }
+    } else if (endIdx !== -1) {
+      buffer = buffer.slice(endIdx + TAGS.SANDBOX_END.length);
+      state = StreamState.TEXT;
+      events.push({ type: ParserEventType.SANDBOX_END });
     } else {
       const lastLt = buffer.lastIndexOf('<');
-       if (lastLt === -1 && buffer.length > bufferSize) {
-           buffer = ''; 
-       }
+      if (lastLt === -1 && buffer.length > LOOKAHEAD_LIMIT) {
+        buffer = '';
+      }
     }
   }
 
   function handleFileState(events: ParserEvent[]): void {
-    const endTag = TAGS.FILE_END;
-    const endIdx = buffer.indexOf(endTag);
-
+    const endIdx = buffer.indexOf(TAGS.FILE_END);
     if (endIdx !== -1) {
       if (endIdx > 0) {
-        events.push({ type: ParserEventType.FILE_CONTENT, content: buffer.slice(0, endIdx) });
+        const fileContent = buffer.slice(0, endIdx);
+        if (fileContent) {
+          events.push({ type: ParserEventType.FILE_CONTENT, content: fileContent });
+        }
       }
-      buffer = buffer.slice(endIdx + endTag.length);
+      buffer = buffer.slice(endIdx + TAGS.FILE_END.length);
       state = StreamState.SANDBOX;
       events.push({ type: ParserEventType.FILE_END });
     } else {
-      const lastLt = buffer.lastIndexOf('<');
-      if (lastLt !== -1 && buffer.length - lastLt < endTag.length) {
-         if (lastLt > 0) {
-             events.push({ type: ParserEventType.FILE_CONTENT, content: buffer.slice(0, lastLt) });
-             buffer = buffer.slice(lastLt);
-         }
-         return;
+      flushSafeContent(events, ParserEventType.FILE_CONTENT);
+    }
+  }
+
+  function flushSafeContent(
+    events: ParserEvent[],
+    type: ParserEventType.TEXT | ParserEventType.THINKING_CONTENT | ParserEventType.FILE_CONTENT
+  ): void {
+    const lastLt = buffer.lastIndexOf('<');
+    if (lastLt !== -1 && buffer.length - lastLt < LOOKAHEAD_LIMIT) {
+      if (lastLt > 0) {
+        const content = buffer.slice(0, lastLt);
+        events.push({ type, content } as ParserEvent);
+        buffer = buffer.slice(lastLt);
       }
-      
-      events.push({ type: ParserEventType.FILE_CONTENT, content: buffer });
+    } else {
+      if (buffer.length > 0) {
+        events.push({ type, content: buffer } as ParserEvent);
+      }
       buffer = '';
     }
   }
 
   function process(chunk: string): ParserEvent[] {
+    if (!chunk || typeof chunk !== 'string') {
+      return [];
+    }
+
     buffer += chunk;
+
+    if (buffer.length > MAX_BUFFER_SIZE) {
+      const excess = buffer.length - MAX_BUFFER_SIZE;
+      buffer = buffer.slice(excess);
+    }
+
     const events: ParserEvent[] = [];
+    let prevLen = -1;
+    let iterations = 0;
+    const maxIterations = 1000;
 
-    let loopGuard = 0;
-    const maxIterations = (buffer.length + 1) * 2;
+    while (buffer.length > 0 && buffer.length !== prevLen && iterations < maxIterations) {
+      prevLen = buffer.length;
+      handleState(events);
+      iterations++;
+    }
 
-    while (buffer.length > 0 && loopGuard < maxIterations) {
-      loopGuard++;
-      
-      if (state === StreamState.TEXT) {
-        handleTextState(events);
-      } else if (state === StreamState.THINKING) {
-        handleThinkingState(events);
-      } else if (state === StreamState.SANDBOX) {
-        handleSandboxState(events);
-      } else if (state === StreamState.FILE) {
-        handleFileState(events);
-      }
-      
-      if (buffer.length < bufferSize && !containsPartialTag(buffer)) {
-         break;
-      }
+    if (iterations >= maxIterations) {
+      events.push({
+        type: ParserEventType.ERROR,
+        message: 'Parser exceeded maximum iterations - possible infinite loop detected'
+      });
+      buffer = '';
+      state = StreamState.TEXT;
     }
 
     return events;
@@ -217,28 +202,13 @@ export function createStreamParser() {
   function flush(): ParserEvent[] {
     const events: ParserEvent[] = [];
     if (buffer.length > 0) {
-      if (state === StreamState.TEXT) {
-        events.push({ type: ParserEventType.TEXT, content: buffer });
-      } else if (state === StreamState.THINKING) {
-        events.push({ type: ParserEventType.THINKING_CONTENT, content: buffer });
-        events.push({ type: ParserEventType.THINKING_END });
-      } else if (state === StreamState.FILE) {
-        events.push({ type: ParserEventType.FILE_CONTENT, content: buffer });
-        events.push({ type: ParserEventType.FILE_END });
-        events.push({ type: ParserEventType.SANDBOX_END });
-      } else if (state === StreamState.SANDBOX) {
-        events.push({ type: ParserEventType.SANDBOX_END });
+      switch (state) {
+        case StreamState.TEXT: events.push({ type: ParserEventType.TEXT, content: buffer }); break;
+        case StreamState.THINKING: events.push({ type: ParserEventType.THINKING_CONTENT, content: buffer }, { type: ParserEventType.THINKING_END }); break;
+        case StreamState.FILE: events.push({ type: ParserEventType.FILE_CONTENT, content: buffer }, { type: ParserEventType.FILE_END }, { type: ParserEventType.SANDBOX_END }); break;
+        case StreamState.SANDBOX: events.push({ type: ParserEventType.SANDBOX_END }); break;
       }
       buffer = '';
-    } else {
-       if (state === StreamState.THINKING) {
-          events.push({ type: ParserEventType.THINKING_END });
-       } else if (state === StreamState.FILE) {
-          events.push({ type: ParserEventType.FILE_END });
-          events.push({ type: ParserEventType.SANDBOX_END });
-       } else if (state === StreamState.SANDBOX) {
-          events.push({ type: ParserEventType.SANDBOX_END });
-       }
     }
     state = StreamState.TEXT;
     return events;
