@@ -4,6 +4,7 @@ import { HumanMessage, SystemMessage } from "@langchain/core/messages";
 import { Provider, API_KEY_REGEX } from '@workspace/shared/constants';
 import { SYSTEM_PROMPT } from "./system-prompt.js";
 import { createLogger } from "../../utils/logger.js";
+import { ensureError } from "../../utils/error.js";
 
 const logger = createLogger('LLM');
 
@@ -35,7 +36,7 @@ function createLLM(apiKey: string) {
   }
 }
 
-export async function* streamResponse(apiKey: string, content: string): AsyncGenerator<string> {
+export async function* streamResponse(apiKey: string, content: string, signal?: AbortSignal): AsyncGenerator<string> {
   if (!apiKey || typeof apiKey !== 'string' || apiKey.trim().length === 0) {
     throw new Error('Invalid API key: API key must be a non-empty string');
   }
@@ -50,17 +51,23 @@ export async function* streamResponse(apiKey: string, content: string): AsyncGen
     const stream = await llm.stream([
       new SystemMessage({ content: SYSTEM_PROMPT }),
       new HumanMessage({ content }),
-    ]);
+    ], { signal });
 
     for await (const chunk of stream) {
+      if (signal?.aborted) break;
       const chunkContent = chunk.content as string;
       if (chunkContent) {
         yield chunkContent;
       }
     }
-  } catch (error) {
-    logger.error(error, 'LLM streaming failed');
-    throw error;
+  } catch (error: unknown) {
+    const err = ensureError(error);
+    if (err.name === 'AbortError' || signal?.aborted) {
+      logger.info('LLM stream aborted by client');
+      return;
+    }
+    logger.error(err, 'LLM streaming failed');
+    throw err;
   }
 }
 
@@ -83,8 +90,7 @@ export async function generateResponse(apiKey: string, content: string): Promise
 
     return response.content as string;
   } catch (error) {
-    logger.error(error, 'LLM response generation failed');
+    logger.error(ensureError(error), 'LLM response generation failed');
     throw error;
   }
 }
-

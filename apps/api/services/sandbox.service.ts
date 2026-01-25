@@ -3,6 +3,7 @@ import path from 'path';
 import { Writable } from 'stream';
 import { logger } from '../utils/logger.js';
 import { nanoid } from 'nanoid';
+import tar from 'tar-stream';
 
 const docker = new Docker();
 
@@ -284,20 +285,22 @@ export async function flushSandbox(sandboxId: string): Promise<void> {
 
     try {
       const container = docker.getContainer(sandbox.containerId);
+      const pack = tar.pack();
 
       for (const [filePath, content] of currentBuffer.entries()) {
         if (!content) continue;
-
-        const fullPath = path.posix.join(CONTAINER_WORKDIR, filePath);
-        const dirPath = path.posix.dirname(fullPath);
-
-        const base64Content = Buffer.from(content).toString('base64');
-        const cmd = `mkdir -p ${shEscape(dirPath)} && echo "${base64Content}" | base64 -d >> ${shEscape(fullPath)}`;
-
-        await execCommand(container, ['sh', '-c', cmd]);
+        pack.entry({ name: filePath }, content);
       }
+
+      pack.finalize();
+
+      await container.putArchive(pack as NodeJS.ReadableStream, {
+        path: CONTAINER_WORKDIR,
+      });
+
+      logger.info(`[Sandbox] Flushed ${currentBuffer.size} files to ${sandboxId}`);
     } catch (error) {
-      logger.error(error, `[Sandbox] Flush failed for ${sandboxId}`);
+      logger.error(error as Error, `[Sandbox] Flush failed for ${sandboxId}`);
       throw error;
     }
   })();
@@ -324,15 +327,48 @@ export async function cleanupSandbox(sandboxId: string): Promise<void> {
 
   await flushSandbox(sandboxId).catch(() => {});
 
-  const container = docker.getContainer(sandbox.containerId);
-  await container.stop({ t: 5 }).catch(() => {});
-  await container.remove({ force: true }).catch(() => {});
+  try {
+    const container = docker.getContainer(sandbox.containerId);
+    await container.stop({ t: 5 }).catch(() => {});
+    await container.remove({ force: true }).catch(() => {});
+  } catch (error) {
+    logger.error(error as Error, `[Sandbox] Container removal failed: ${sandbox.containerId}`);
+  }
 
   activeSandboxes.delete(sandboxId);
+  const buffer = writeBuffers.get(sandboxId);
+  if (buffer) buffer.clear();
   writeBuffers.delete(sandboxId);
   writeTimers.delete(sandboxId);
   pendingFlushes.delete(sandboxId);
 
   refillPool().catch(() => {});
+}
+
+export async function shutdownSandboxService(): Promise<void> {
+  logger.info('[Sandbox] Internal shutdown: cleaning up all containers...');
+  
+  const activeIds = Array.from(activeSandboxes.keys());
+  await Promise.allSettled(activeIds.map(cleanupSandbox));
+
+  // Cleanup pool
+  while (freeSlots.length > 0) {
+    const containerId = freeSlots.shift();
+    if (containerId) {
+      await docker.getContainer(containerId).remove({ force: true }).catch(() => {});
+    }
+  }
+
+  // Final sweep for any labeled containers missed
+  try {
+    const containers = await docker.listContainers({ all: true });
+    for (const info of containers) {
+      if (info.Labels?.[SANDBOX_LABEL] === 'true') {
+        await docker.getContainer(info.Id).remove({ force: true }).catch(() => {});
+      }
+    }
+  } catch (error) {
+    logger.error(error, '[Sandbox] Final sweep cleanup failed');
+  }
 }
 

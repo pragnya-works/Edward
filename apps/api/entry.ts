@@ -1,19 +1,25 @@
 import 'dotenv/config';
-import { initSandboxService } from './services/sandbox.service.js';
+import { initSandboxService, shutdownSandboxService } from './services/sandbox.service.js';
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
+import { RedisStore } from 'rate-limit-redis';
+import { redis } from './lib/redis.js';
 import { apiKeyRouter } from './routes/apiKey.routes.js';
 import { chatRouter } from './routes/chat.routes.js';
 import { authMiddleware } from './middleware/auth.js';
 import { Environment, createLogger } from './utils/logger.js';
 import { HttpStatus, HttpMethod, ERROR_MESSAGES } from './utils/constants.js';
+import { ensureError } from './utils/error.js';
+import { sendError } from './utils/response.js';
 
 const logger = createLogger('API');
 
 const app = express();
+
+app.set('trust proxy', 1);
 
 const PORT = Number(process.env.EDWARD_API_PORT);
 if (!PORT) {
@@ -91,6 +97,45 @@ if (!isProd) {
   });
 }
 
+const apiKeyLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (_req, res) => {
+    sendError(res, HttpStatus.TOO_MANY_REQUESTS, 'Too many API key requests, please try again in 15 minutes');
+  },
+  store: new RedisStore({
+    sendCommand: async (...args: string[]) => {
+      const command = args[0];
+      if (!command) throw new Error('Redis command is missing');
+      return (await redis.call(command, ...args.slice(1))) as string | number | boolean;
+    },
+    prefix: 'rl:api-key:',
+  }),
+});
+
+const chatLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (_req, res) => {
+    sendError(res, HttpStatus.TOO_MANY_REQUESTS, 'Chat burst limit reached. Please wait a minute.');
+  },
+  store: new RedisStore({
+    sendCommand: async (...args: string[]) => {
+      const command = args[0];
+      if (!command) throw new Error('Redis command is missing');
+      return (await redis.call(command, ...args.slice(1))) as string | number | boolean;
+    },
+    prefix: 'rl:chat:',
+  }),
+});
+
+app.use('/api-key', apiKeyLimiter, authMiddleware, apiKeyRouter);
+app.use('/chat', chatLimiter, authMiddleware, chatRouter);
+
 app.get('/health', function healthCheck(_req: Request, res: Response) {
   res.status(HttpStatus.OK).json({
     status: 'ok',
@@ -99,25 +144,6 @@ app.get('/health', function healthCheck(_req: Request, res: Response) {
   });
 });
 
-const apiKeyLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 20,
-  message: 'Too many API key requests, please try again later',
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-
-const chatLimiter = rateLimit({
-  windowMs: 60 * 1000,
-  max: 30,
-  message: 'Too many requests, please slow down',
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-
-app.use('/api-key', apiKeyLimiter, authMiddleware, apiKeyRouter);
-app.use('/chat', chatLimiter, authMiddleware, chatRouter);
-
 app.use(function notFoundHandler(_req: Request, res: Response) {
   res.status(HttpStatus.NOT_FOUND).json({
     error: ERROR_MESSAGES.NOT_FOUND,
@@ -125,23 +151,65 @@ app.use(function notFoundHandler(_req: Request, res: Response) {
   });
 });
 
-app.use(function errorHandler(err: Error, _req: Request, res: Response, _next: NextFunction) {
-  logger.error(err);
+app.use(function errorHandler(err: unknown, _req: Request, res: Response, _next: NextFunction) {
+  const error = ensureError(err);
+  logger.error(error);
   res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
-    error: isProd ? ERROR_MESSAGES.INTERNAL_SERVER_ERROR : err.message,
+    error: isProd ? ERROR_MESSAGES.INTERNAL_SERVER_ERROR : error.message,
     timestamp: new Date().toISOString(),
   });
 });
 
 const server = app.listen(PORT, async function onListen() {
   logger.info(`Server running on port ${PORT}`);
-  await initSandboxService();
+  try {
+    await initSandboxService();
+  } catch (err) {
+    logger.error(ensureError(err), "Failed to initialize sandbox service");
+    process.exit(1);
+  }
 });
 
-function shutdown() {
-  logger.info('Shutting down server');
-  server.close(function onClose() { process.exit(0); });
+let isShuttingDown = false;
+
+async function shutdown(signal: string) {
+  if (isShuttingDown) return;
+  isShuttingDown = true;
+  
+  logger.info(`Received ${signal}. Starting graceful shutdown...`);
+
+  server.close(async function onClose() {
+    logger.info("HTTP server closed.");
+    
+    try {
+      await shutdownSandboxService();
+      logger.info("Sandbox service cleaned up.");
+      
+      await redis.quit();
+      logger.info("Redis connection closed.");
+      
+      process.exit(0);
+    } catch (err) {
+      logger.error(ensureError(err), "Error during shutdown cleanup");
+      process.exit(1);
+    }
+  });
+
+  setTimeout(() => {
+    logger.error("Could not close connections in time, forcefully shutting down");
+    process.exit(1);
+  }, 10000);
 }
 
-process.on('SIGINT', shutdown);
-process.on('SIGTERM', shutdown);
+process.on('SIGINT', () => shutdown('SIGINT'));
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+
+process.on('uncaughtException', (error) => {
+  logger.fatal(error, 'Uncaught Exception');
+  shutdown('uncaughtException');
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  logger.fatal({ reason, promise }, 'Unhandled Rejection');
+  shutdown('unhandledRejection');
+});

@@ -14,6 +14,7 @@ import { getDecryptedApiKey } from '../services/apiKey.service.js';
 import { HttpStatus, ERROR_MESSAGES } from '../utils/constants.js';
 import { sendError as sendStandardError, sendSuccess } from '../utils/response.js';
 import { provisionSandbox, writeSandboxFile, cleanupSandbox, prepareSandboxFile, flushSandbox } from '../services/sandbox.service.js';
+import { ensureError } from '../utils/error.js';
 
 const DAILY_MESSAGE_LIMIT = 10;
 
@@ -67,8 +68,8 @@ export async function unifiedSendMessage(
     let decryptedApiKey: string;
     try {
       decryptedApiKey = await getDecryptedApiKey(userId);
-    } catch (err: unknown) {
-      const error = err as Error;
+    } catch (err) {
+      const error = ensureError(err);
       if (error.message === 'API key not found') {
         sendError(res, HttpStatus.BAD_REQUEST, 'No API key found. Please configure your settings.');
       } else {
@@ -143,10 +144,18 @@ export async function unifiedSendMessage(
     let currentSandboxId: string | undefined;
     let currentFilePath: string | undefined;
 
+    const abortController = new AbortController();
+    req.on('close', () => {
+      logger.info(`[Chat] Connection closed by client: ${chatId}`);
+      abortController.abort();
+    });
+
     try {
-      const stream = streamResponse(decryptedApiKey, body.content);
+      const stream = streamResponse(decryptedApiKey, body.content, abortController.signal);
 
       for await (const chunk of stream) {
+        if (abortController.signal.aborted) break;
+
         fullRawResponse += chunk;
         const events = parser.process(chunk);
 
@@ -156,7 +165,7 @@ export async function unifiedSendMessage(
               case ParserEventType.SANDBOX_START:
                 if (currentSandboxId) {
                   await cleanupSandbox(currentSandboxId).catch((err) =>
-                    logger.error(err, `Failed to cleanup previous sandbox: ${currentSandboxId}`)
+                    logger.error(ensureError(err), `Failed to cleanup previous sandbox: ${currentSandboxId}`)
                   );
                 }
                 currentSandboxId = await provisionSandbox();
@@ -189,7 +198,7 @@ export async function unifiedSendMessage(
                 break;
             }
           } catch (sandboxError) {
-            logger.error(sandboxError, 'Sandbox operation failed during streaming');
+            logger.error(ensureError(sandboxError), 'Sandbox operation failed during streaming');
             res.write(`data: ${JSON.stringify({
               type: ParserEventType.ERROR,
               message: 'Sandbox execution failed'
@@ -198,6 +207,11 @@ export async function unifiedSendMessage(
 
           res.write(`data: ${JSON.stringify(event)}\n\n`);
         }
+      }
+
+      if (abortController.signal.aborted) {
+        res.end();
+        return;
       }
 
       const finalEvents = parser.flush();
@@ -226,20 +240,20 @@ export async function unifiedSendMessage(
             case ParserEventType.SANDBOX_END:
               if (currentSandboxId) {
                 await flushSandbox(currentSandboxId).catch((err) =>
-                  logger.error(err, `Flush failed during SANDBOX_END: ${currentSandboxId}`)
+                  logger.error(ensureError(err), `Flush failed during SANDBOX_END: ${currentSandboxId}`)
                 );
               }
               break;
           }
         } catch (sandboxError) {
-          logger.error(sandboxError, 'Final sandbox operation failed');
+          logger.error(ensureError(sandboxError), 'Final sandbox operation failed');
         }
         res.write(`data: ${JSON.stringify(event)}\n\n`);
       }
 
       if (currentSandboxId) {
         await flushSandbox(currentSandboxId).catch((err) =>
-          logger.error(err, `Final flush failed for sandbox: ${currentSandboxId}`)
+          logger.error(ensureError(err), `Final flush failed for sandbox: ${currentSandboxId}`)
         );
       }
 
@@ -256,13 +270,14 @@ export async function unifiedSendMessage(
       res.end();
 
     } catch (streamError) {
+      const error = ensureError(streamError);
       if (currentSandboxId) {
         await cleanupSandbox(currentSandboxId).catch((err) =>
-          logger.error(err, `Cleanup failed after stream error: ${currentSandboxId}`)
+          logger.error(ensureError(err), `Cleanup failed after stream error: ${currentSandboxId}`)
         );
       }
 
-      logger.error(streamError, 'Streaming error');
+      logger.error(error, 'Streaming error');
 
       if (!res.headersSent) {
         res.write(`data: ${JSON.stringify({
@@ -279,17 +294,17 @@ export async function unifiedSendMessage(
           chatId,
           userId,
           role: MessageRole.Assistant,
-          content: fullRawResponse || `Error: ${(streamError as Error).message}`,
+          content: fullRawResponse || `Error: ${error.message}`,
           createdAt: new Date(),
           updatedAt: new Date(),
         });
       } catch (dbError) {
-        logger.error(dbError, 'Failed to save error message to database');
+        logger.error(ensureError(dbError), 'Failed to save error message to database');
       }
     }
 
   } catch (error) {
-    logger.error(error, 'unifiedSendMessage error');
+    logger.error(ensureError(error), 'unifiedSendMessage error');
     sendError(res, HttpStatus.INTERNAL_SERVER_ERROR, ERROR_MESSAGES.INTERNAL_SERVER_ERROR);
   }
 }
@@ -337,7 +352,7 @@ export async function getChatHistory(
       messages,
     });
   } catch (error) {
-    logger.error(error, 'getChatHistory error');
+    logger.error(ensureError(error), 'getChatHistory error');
     sendError(res, HttpStatus.INTERNAL_SERVER_ERROR, ERROR_MESSAGES.INTERNAL_SERVER_ERROR);
   }
 }
