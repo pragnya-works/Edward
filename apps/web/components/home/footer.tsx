@@ -5,7 +5,7 @@ export function Footer() {
         <footer className="relative z-10 py-16 px-4">
             <div className="mx-auto max-w-6xl grid grid-cols-1 md:grid-cols-4 gap-12 md:gap-8">
                 <div className="md:col-span-2 space-y-4">
-                    <span className="text-2xl font-bold tracking-tighter">Edward</span>
+                    <span className="text-2xl font-bold tracking-tighter">Edward.</span>
                     <p className="text-muted-foreground max-w-xs text-sm leading-relaxed">
                         The AI-powered web application builder for the next generation of developers.
                         Build, ship, and scale with ease.

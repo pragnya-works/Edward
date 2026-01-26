@@ -17,7 +17,6 @@ import { LogOut, Key } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { BYOK } from "@workspace/ui/components/ui/byok";
 import { useApiKey } from "@/hooks/useApiKey";
-import { Provider, API_KEY_REGEX } from "@workspace/shared/constants";
 import { AnimatedThemeToggler, type AnimatedThemeTogglerHandle } from "@workspace/ui/components/animated-theme-toggler"
 import { useRef } from "react";
 import { useSidebar } from "@workspace/ui/components/sidebar";
@@ -37,7 +36,7 @@ export default function UserProfile() {
 
   const user = session.user;
 
-  const handleSignOut = async () => {
+  async function handleSignOut() {
     try {
       await signOut();
       router.push("/");

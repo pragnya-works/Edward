@@ -1,7 +1,15 @@
 "use client";
 import { SidebarBody, SidebarLink, SidebarTrigger, useSidebar } from "@workspace/ui/components/sidebar";
 import { motion } from "motion/react";
-import { Home, ScrollText, PanelLeft } from "lucide-react";
+import { Home, ScrollText, ChevronRight } from "lucide-react";
+import { cn } from "@workspace/ui/lib/utils";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipPositioner,
+  TooltipTrigger,
+} from "@workspace/ui/components/tooltip";
+import { useState, useEffect } from "react";
 
 interface AppSidebarProps {
   open?: boolean;
@@ -29,13 +37,10 @@ export function AppSidebar({ children }: AppSidebarProps) {
 
   return (
     <SidebarBody className="justify-between gap-10">
+      <ToggleHandle />
       <div className="flex flex-col flex-1 overflow-y-auto overflow-x-hidden">
         <div className="flex flex-col gap-2 mb-8">
-          <div className="flex items-center justify-between">
-            <Logo />
-            <OpenTrigger />
-          </div>
-          <ClosedTrigger />
+          <Logo />
         </div>
         <div className="flex flex-col gap-2">
           {links.map((link, idx) => (
@@ -43,30 +48,46 @@ export function AppSidebar({ children }: AppSidebarProps) {
           ))}
         </div>
       </div>
-      <div>
+      <div className="flex flex-col gap-2">
         {children}
       </div>
     </SidebarBody>
   );
 }
 
-const OpenTrigger = () => {
+const ToggleHandle = () => {
   const { open } = useSidebar();
-  if (!open) return null;
-  return (
-    <SidebarTrigger className="hidden md:flex">
-      <PanelLeft className="text-neutral-700 dark:text-neutral-200 h-5 w-5 shrink-0" />
-    </SidebarTrigger>
-  );
-};
+  const [isMac, setIsMac] = useState(false);
 
-const ClosedTrigger = () => {
-  const { open } = useSidebar();
-  if (open) return null;
+  useEffect(() => {
+    setIsMac(navigator.platform.toUpperCase().indexOf("MAC") >= 0);
+  }, []);
+
   return (
-    <SidebarTrigger className="mx-auto mt-2 hidden md:block">
-      <PanelLeft className="text-neutral-700 dark:text-neutral-200 h-5 w-5 shrink-0" />
-    </SidebarTrigger>
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <SidebarTrigger
+            className={cn(
+              "absolute -right-3 top-10 z-50 hidden md:flex h-6 w-6 items-center justify-center rounded-full border border-neutral-200 bg-white dark:border-neutral-700 dark:bg-neutral-800 shadow-sm transition-all hover:scale-110",
+              open && "rotate-180"
+            )}
+          >
+            <ChevronRight className="h-3 w-3 text-neutral-500 dark:text-neutral-400" />
+          </SidebarTrigger>
+        }
+      />
+      <TooltipPositioner side="right">
+        <TooltipContent>
+          <div className="flex items-center gap-2">
+            <span>{open ? "Collapse" : "Expand"} Sidebar</span>
+            <kbd className="pointer-events-none inline-flex h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground opacity-100">
+              <span className="text-xs">{isMac ? "⌘" : "Ctrl"}</span>B
+            </kbd>
+          </div>
+        </TooltipContent>
+      </TooltipPositioner>
+    </Tooltip>
   );
 };
 

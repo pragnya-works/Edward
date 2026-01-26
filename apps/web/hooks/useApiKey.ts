@@ -39,8 +39,8 @@ export function useApiKey() {
   const clearTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const { data, isLoading } = useQuery({
-    queryKey: ["apiKeyStatus", userId],
-    queryFn: async () => {
+    queryKey: ["apiKey", userId],
+    queryFn: async function () {
       if (!userId) return null;
       const res = await fetch(`${API_BASE_URL}/api-key`, {
         headers: {
@@ -63,13 +63,13 @@ export function useApiKey() {
   });
 
   const mutation = useMutation({
-    mutationFn: async ({
+    mutationFn: async function ({
       apiKey,
       method,
     }: {
       apiKey: string;
       method: "POST" | "PUT";
-    }) => {
+    }) {
       const res = await fetch(`${API_BASE_URL}/api-key`, {
         method,
         headers: {
@@ -85,18 +85,9 @@ export function useApiKey() {
       }
       return res.json() as Promise<ApiKeySaveResponse>;
     },
-    onSuccess: (responseData) => {
-      queryClient.setQueryData(["apiKeyStatus", userId], (old: ApiKeyResponse | undefined) => {
-        if (!old) {
-          return {
-            message: responseData.message,
-            data: {
-              hasApiKey: true,
-              keyPreview: responseData.data.keyPreview,
-              userId: responseData.data.userId,
-            }
-          };
-        }
+    onSuccess: function (responseData, variables) {
+      queryClient.setQueryData(["apiKey", userId], function (old: ApiKeyResponse | undefined) {
+        if (!old) return old;
         return {
           ...old,
           data: {
@@ -108,8 +99,8 @@ export function useApiKey() {
       });
       queryClient.invalidateQueries({ queryKey: ["apiKeyStatus", userId] });
     },
-    onError: (err: Error) => {
-      setError(err.message || "Failed to save API key. Please try again.");
+    onError: function () {
+      setError("Failed to save API key. Please try again.");
     },
   });
 
@@ -147,15 +138,6 @@ export function useApiKey() {
     try {
       const method = data?.data?.hasApiKey ? "PUT" : "POST";
       await mutation.mutateAsync({ apiKey: trimmedKey, method });
-
-      setTemporaryKey(trimmedKey);
-
-      if (clearTimeoutRef.current) {
-        clearTimeout(clearTimeoutRef.current);
-      }
-      clearTimeoutRef.current = setTimeout(() => {
-        setTemporaryKey(null);
-      }, 10000);
 
       setError("");
       onValidate(trimmedKey);

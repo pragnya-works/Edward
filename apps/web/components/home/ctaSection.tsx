@@ -31,12 +31,12 @@ export function CTASection() {
                             <ArrowRight className="ml-1 size-3.5 transition-transform duration-300 ease-in-out group-hover/badge:translate-x-0.5" />
                         </AnimatedShinyText>
                     </div>
-                    <h2 className="mb-6 text-4xl font-bold tracking-tight sm:text-5xl">Ready to ship your <br /> next big thing?</h2>
+                    <h2 className="mb-6 text-3xl font-bold tracking-tight md:text-5xl">Ready to ship your <br /> next big thing?</h2>
                     <p className="mb-10 text-lg text-muted-foreground max-w-xl mx-auto">
                         Experience the fastest way to build and deploy modern web applications with Edward&apos;s AI-driven workflow.
                     </p>
                     <div className="flex flex-col sm:flex-row justify-center gap-4">
-                        <Button size="lg" className="bg-primary text-primary-foreground hover:bg-primary/90 h-12 px-8 text-base">
+                        <Button size="lg" className="bg-primary rounded-full text-primary-foreground hover:bg-primary/90 h-12 px-8 text-base">
                             Get Started for Free
                         </Button>
                     </div>

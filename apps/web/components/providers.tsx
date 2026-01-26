@@ -11,11 +11,11 @@ function makeQueryClient() {
         staleTime: 60 * 1000,
       },
     },
-  })
+  });
 }
 
 export function Providers({ children }: { children: ReactNode }) {
-  const [queryClient] = useState(makeQueryClient)
+  const [queryClient] = useState(makeQueryClient);
 
   return (
     <NextThemesProvider
@@ -25,9 +25,8 @@ export function Providers({ children }: { children: ReactNode }) {
       disableTransitionOnChange
       enableColorScheme
     >
-      <QueryClientProvider client={queryClient}>
-        {children}
-      </QueryClientProvider>
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
     </NextThemesProvider>
-  )
+  );
 }
+
