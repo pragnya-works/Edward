@@ -1,7 +1,8 @@
 import Docker from 'dockerode';
 import tar from 'tar-stream';
 import { Writable } from 'stream';
-import { ExecResult, FileInfo } from './types.sandbox.js';
+import { ExecResult } from './types.sandbox.js';
+import path from 'path';
 
 const docker = new Docker();
 const PREWARM_IMAGE = 'node:20-slim';
@@ -9,7 +10,6 @@ export const CONTAINER_WORKDIR = '/home/node/edward';
 export const SANDBOX_LABEL = 'com.edward.sandbox';
 const EXEC_TIMEOUT_MS = 10000;
 const MAX_EXEC_OUTPUT = 10 * 1024 * 1024;
-const MAX_FILE_SIZE = 20 * 1024 * 1024;
 
 export async function ensureContainerRunning(container: Docker.Container): Promise<void> {
     const info = await container.inspect();
@@ -91,8 +91,12 @@ export async function packFiles(files: Record<string, string>): Promise<NodeJS.R
     try {
         const pack = tar.pack();
 
-        for (const [path, content] of Object.entries(files)) {
-            pack.entry({ name: path }, content);
+        for (const [filePath, content] of Object.entries(files)) {
+            const normalizedPath = path.posix.normalize(filePath);
+            if (normalizedPath.startsWith('..') || path.posix.isAbsolute(normalizedPath)) {
+                throw new Error(`Security Error: Invalid file path '${filePath}' detected.`);
+            }
+            pack.entry({ name: normalizedPath }, content);
         }
 
         pack.finalize();
@@ -171,38 +175,4 @@ export async function destroyContainer(containerId: string): Promise<void> {
         }
         throw error;
     }
-}
-
-export async function listFilesInContainer(container: Docker.Container): Promise<FileInfo[]> {
-    const result = await execCommand(
-        container,
-        [
-            'sh',
-            '-c',
-            `find ${CONTAINER_WORKDIR} -type f ! -path '*/.*' -exec sh -c 'echo "{}|$(stat -f%z "{}" 2>/dev/null || stat -c%s "{}")"' \\;`
-        ],
-        false
-    );
-
-    if (result.exitCode !== 0 || !result.stdout.trim()) {
-        return [];
-    }
-
-    const files: FileInfo[] = [];
-    const lines = result.stdout.trim().split('\n');
-
-    for (const line of lines) {
-        const [fullPath, sizeStr] = line.split('|');
-        if (!fullPath || !sizeStr) continue;
-
-        const size = parseInt(sizeStr, 10);
-        if (isNaN(size) || size > MAX_FILE_SIZE) continue;
-
-        const relativePath = fullPath.replace(`${CONTAINER_WORKDIR}/`, '');
-        if (relativePath && relativePath !== fullPath) {
-            files.push({ path: relativePath, size });
-        }
-    }
-
-    return files;
 }

@@ -5,39 +5,6 @@ import { generateResponse } from '../lib/llm/response.js';
 import { ChatJobPayload } from './queue.service.js';
 import { getDecryptedApiKey } from './apiKey.service.js';
 
-import { redis } from '../lib/redis.js';
-
-const DAILY_MESSAGE_LIMIT = 20;
-const RATE_LIMIT_WINDOW = 24 * 60 * 60;
-
-export async function checkRateLimit(userId: string): Promise<boolean> {
-  try {
-    const key = `rl:daily:${userId}`;
-    const now = Date.now();
-    const windowStart = now - (RATE_LIMIT_WINDOW * 1000);
-
-    const multi = redis.multi();
-    multi.zremrangebyscore(key, 0, windowStart);
-    multi.zcard(key);
-    multi.zadd(key, now, `${now}:${Math.random()}`);
-    multi.expire(key, RATE_LIMIT_WINDOW);
-    
-    const results = await multi.exec();
-    if (!results || results.length < 2) return false;
-
-    const count = typeof results[1]?.[1] === 'number' ? results[1][1] : 0;
-    
-    if (count >= DAILY_MESSAGE_LIMIT) {
-        return true;
-    }
-
-    return false;
-  } catch (error) {
-    logger.error({ error, userId }, 'Failed to check rate limit');
-    return false; 
-  }
-}
-
 export async function getOrCreateChat(
   userId: string,
   chatId: string | undefined,

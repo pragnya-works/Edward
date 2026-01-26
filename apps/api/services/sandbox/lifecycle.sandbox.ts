@@ -18,14 +18,14 @@ const containerStatusCache = new Map<string, { alive: boolean; timestamp: number
 async function waitForProvisioning(chatId: string): Promise<string | null> {
     const lockKey = `edward:locking:provision:${chatId}`;
     const start = Date.now();
-    
+
     while (Date.now() - start < PROVISIONING_TIMEOUT_MS) {
         const activeId = await getActiveSandbox(chatId);
         if (activeId) return activeId;
-        
+
         const isLocked = await redis.get(lockKey);
         if (!isLocked) return null;
-        
+
         await new Promise(resolve => setTimeout(resolve, 500));
     }
     return null;
@@ -33,43 +33,53 @@ async function waitForProvisioning(chatId: string): Promise<string | null> {
 
 export async function provisionSandbox(userId: string, chatId: string): Promise<string> {
     const lockKey = `edward:locking:provision:${chatId}`;
-    
-    try {
-        const existingId = await waitForProvisioning(chatId);
-        if (existingId) return existingId;
+    const MAX_ATTEMPTS = 10;
 
-        const acquired = await redis.set(lockKey, 'true', 'EX', 60, 'NX');
-        if (!acquired) {
-            return provisionSandbox(userId, chatId);
-        }
-
-        const sandboxId = nanoid(12);
-        const container = await createContainer(userId, chatId, sandboxId);
-
-        const sandbox: SandboxInstance = {
-            id: sandboxId,
-            containerId: container.id,
-            expiresAt: Date.now() + SANDBOX_TTL,
-            userId,
-            chatId,
-        };
-
+    for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
         try {
-            await restoreSandboxInstance(sandbox);
+            const existingId = await waitForProvisioning(chatId);
+            if (existingId) return existingId;
+
+            const acquired = await redis.set(lockKey, 'true', 'EX', 60, 'NX');
+            if (!acquired) {
+                await new Promise(resolve => setTimeout(resolve, 200 + Math.random() * 300));
+                continue;
+            }
+
+            try {
+                const sandboxId = nanoid(12);
+                const container = await createContainer(userId, chatId, sandboxId);
+
+                const sandbox: SandboxInstance = {
+                    id: sandboxId,
+                    containerId: container.id,
+                    expiresAt: Date.now() + SANDBOX_TTL,
+                    userId,
+                    chatId,
+                };
+
+                try {
+                    await restoreSandboxInstance(sandbox);
+                } catch (error) {
+                    logger.error({ error, sandboxId, chatId }, 'Restoration failed during provisioning');
+                }
+
+                await saveSandboxState(sandbox);
+                await redis.del(lockKey);
+
+                logger.info({ sandboxId, userId, chatId, containerId: container.id }, 'Sandbox provisioned');
+                return sandboxId;
+            } catch (provisionError) {
+                await redis.del(lockKey);
+                throw provisionError;
+            }
         } catch (error) {
-            logger.error({ error, sandboxId, chatId }, 'Restoration failed during provisioning');
+            logger.error({ error, userId, chatId }, 'Failed to provision sandbox');
+            throw new Error('Could not provision sandbox environment');
         }
-
-        await saveSandboxState(sandbox);
-        await redis.del(lockKey);
-
-        logger.info({ sandboxId, userId, chatId, containerId: container.id }, 'Sandbox provisioned');
-        return sandboxId;
-    } catch (error) {
-        await redis.del(lockKey);
-        logger.error({ error, userId, chatId }, 'Failed to provision sandbox');
-        throw new Error('Could not provision sandbox environment');
     }
+
+    throw new Error('Could not provision sandbox: lock acquisition timeout');
 }
 
 export async function cleanupSandbox(sandboxId: string): Promise<void> {
@@ -160,10 +170,10 @@ export async function getActiveSandbox(chatId: string): Promise<string | undefin
     try {
         const container = getContainer(sandbox.containerId);
         await container.inspect();
-        
+
         containerStatusCache.set(sandbox.containerId, { alive: true, timestamp: Date.now() });
         await refreshSandboxExpiry(sandbox);
-        
+
         return sandbox.id;
     } catch (error) {
         containerStatusCache.set(sandbox.containerId, { alive: false, timestamp: Date.now() });

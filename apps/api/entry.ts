@@ -10,7 +10,7 @@ import { initSandboxService, shutdownSandboxService } from './services/sandbox/l
 import { redis } from './lib/redis.js';
 import { apiKeyRouter } from './routes/apiKey.routes.js';
 import { chatRouter } from './routes/chat.routes.js';
-import { authMiddleware } from './middleware/auth.js';
+import { authMiddleware, AuthenticatedRequest } from './middleware/auth.js';
 
 import { Environment, createLogger } from './utils/logger.js';
 import { HttpStatus, HttpMethod, ERROR_MESSAGES } from './utils/constants.js';
@@ -89,14 +89,14 @@ app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 if (!isProd) {
   app.use(function requestLoggerMiddleware(req: Request, res: Response, next: NextFunction) {
     const startTimeTime = Date.now();
-    
+
     res.on('finish', function logResponse() {
       const durationMs = Date.now() - startTimeTime;
       logger.info(
         `${req.method} ${req.originalUrl} | Status: ${res.statusCode} | Duration: ${durationMs}ms`
       );
     });
-    
+
     next();
   });
 }
@@ -134,8 +134,22 @@ const chatRateLimiter = rateLimit({
   store: new RedisStore(sharedRedisRateLimitConfig('chat')),
 });
 
+const dailyChatRateLimiter = rateLimit({
+  windowMs: 24 * 60 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => {
+    return (req as AuthenticatedRequest).userId || req.ip || 'anonymous';
+  },
+  handler: (_req, res) => {
+    sendError(res, HttpStatus.TOO_MANY_REQUESTS, 'Daily message quota exceeded (10 messages/24h)');
+  },
+  store: new RedisStore(sharedRedisRateLimitConfig('chat-daily')),
+});
+
 app.use('/api-key', apiKeyRateLimiter, authMiddleware, apiKeyRouter);
-app.use('/chat', chatRateLimiter, authMiddleware, chatRouter);
+app.use('/chat', chatRateLimiter, authMiddleware, dailyChatRateLimiter, chatRouter);
 
 app.get('/health', function healthCheckRoute(_req: Request, res: Response) {
   res.status(HttpStatus.OK).json({
@@ -155,7 +169,7 @@ app.use(function routeNotFoundHandler(_req: Request, res: Response) {
 app.use(function globalErrorHandler(err: unknown, _req: Request, res: Response, _next: NextFunction) {
   const error = ensureError(err);
   logger.error(error);
-  
+
   res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
     error: isProd ? ERROR_MESSAGES.INTERNAL_SERVER_ERROR : error.message,
     timestamp: new Date().toISOString(),
@@ -164,7 +178,7 @@ app.use(function globalErrorHandler(err: unknown, _req: Request, res: Response, 
 
 const serverInstance = app.listen(PORT, async function onServerStarted() {
   logger.info(`Edward API Server listening on port ${PORT} [Mode: ${ENV}]`);
-  
+
   try {
     await initSandboxService();
     logger.info('Sandbox Service initialized.');
@@ -193,7 +207,7 @@ async function handleGracefulShutdown(signal: string) {
         shutdownSandboxService(),
         redis.quit(),
       ]);
-      
+
       logger.info('Graceful shutdown successful.');
       clearTimeout(shutdownTimeout);
       process.exit(0);

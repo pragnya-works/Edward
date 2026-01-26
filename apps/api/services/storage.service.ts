@@ -1,6 +1,8 @@
 import { S3Client, ListObjectsV2Command, GetObjectCommand } from '@aws-sdk/client-s3';
 import { Upload } from '@aws-sdk/lib-storage';
 import { StreamingBlobPayloadInputTypes } from '@smithy/types';
+import { Readable } from 'stream';
+import { lookup } from 'mime-types';
 import { logger } from '../utils/logger.js';
 import { S3File } from './sandbox/types.sandbox.js';
 
@@ -34,7 +36,15 @@ interface S3UploadError extends Error {
     originalError?: Error;
 }
 
-export function createS3UploadError(
+interface NetworkError extends Error {
+    $metadata?: {
+        httpStatusCode?: number;
+    };
+    statusCode?: number;
+    status?: number;
+}
+
+function createS3UploadError(
     message: string,
     key: string,
     isRetryable: boolean,
@@ -47,33 +57,6 @@ export function createS3UploadError(
     error.originalError = originalError;
     return error;
 }
-
-const MIME_TYPES: Readonly<Record<string, string>> = Object.freeze({
-    js: 'application/javascript',
-    jsx: 'application/javascript',
-    ts: 'application/typescript',
-    tsx: 'application/typescript',
-    mjs: 'application/javascript',
-    cjs: 'application/javascript',
-    html: 'text/html',
-    css: 'text/css',
-    json: 'application/json',
-    xml: 'application/xml',
-    md: 'text/markdown',
-    txt: 'text/plain',
-    yaml: 'text/yaml',
-    yml: 'text/yaml',
-    png: 'image/png',
-    jpg: 'image/jpeg',
-    jpeg: 'image/jpeg',
-    gif: 'image/gif',
-    svg: 'image/svg+xml',
-    webp: 'image/webp',
-    pdf: 'application/pdf',
-    zip: 'application/zip',
-    tar: 'application/x-tar',
-    gz: 'application/gzip',
-});
 
 function validateS3Key(key: string): void {
     if (!key || key.trim().length === 0) {
@@ -102,11 +85,32 @@ function sanitizePathComponent(component: string): string {
 }
 
 function getContentType(filePath: string): string {
-    const ext = filePath.split('.').pop()?.toLowerCase();
-    return (ext && MIME_TYPES[ext]) || 'application/octet-stream';
+    if (filePath.toLowerCase().endsWith('.ts') || filePath.toLowerCase().endsWith('.tsx')) {
+        return 'application/typescript';
+    }
+
+    if (filePath.toLowerCase().endsWith('.js') ||
+        filePath.toLowerCase().endsWith('.jsx') ||
+        filePath.toLowerCase().endsWith('.mjs') ||
+        filePath.toLowerCase().endsWith('.cjs')) {
+        return 'application/javascript';
+    }
+
+    const contentType = lookup(filePath) || 'application/octet-stream';
+    return contentType;
 }
 
 function isRetryableError(error: Error): boolean {
+    const networkError = error as NetworkError;
+    const statusCode =
+        networkError.$metadata?.httpStatusCode ||
+        networkError.statusCode ||
+        networkError.status;
+
+    if (typeof statusCode === 'number' && statusCode >= 500 && statusCode < 600) {
+        return true;
+    }
+
     const message = error.message.toLowerCase();
     const retryablePatterns = [
         'timeout',
@@ -114,9 +118,13 @@ function isRetryableError(error: Error): boolean {
         'enotfound',
         'econnrefused',
         'socket hang up',
-        '5',
         'network',
         'throttl',
+        'slowdown',
+        'service unavailable',
+        'bad gateway',
+        'gateway timeout',
+        'internal server error',
     ];
 
     return retryablePatterns.some(pattern => message.includes(pattern));
@@ -124,6 +132,15 @@ function isRetryableError(error: Error): boolean {
 
 async function sleep(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function streamToBuffer(stream: Readable): Promise<Buffer> {
+    return new Promise((resolve, reject) => {
+        const chunks: Buffer[] = [];
+        stream.on('data', chunk => chunks.push(Buffer.from(chunk)));
+        stream.on('error', err => reject(err));
+        stream.on('end', () => resolve(Buffer.concat(chunks)));
+    });
 }
 
 async function uploadWithRetry(
@@ -134,6 +151,19 @@ async function uploadWithRetry(
     contentLength?: number
 ): Promise<void> {
     let lastError: Error | null = null;
+    let uploadBody = body;
+    if (uploadBody instanceof Readable) {
+        try {
+            uploadBody = await streamToBuffer(uploadBody);
+        } catch (error) {
+            throw createS3UploadError(
+                `Failed to buffer upload stream: ${error instanceof Error ? error.message : String(error)}`,
+                key,
+                false,
+                error instanceof Error ? error : new Error(String(error))
+            );
+        }
+    }
 
     for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
         try {
@@ -148,7 +178,7 @@ async function uploadWithRetry(
                 params: {
                     Bucket: BUCKET_NAME!,
                     Key: key,
-                    Body: body,
+                    Body: uploadBody,
                     ContentType: contentType,
                     Metadata: metadata,
                     ContentLength: contentLength,
@@ -188,7 +218,7 @@ async function uploadWithRetry(
 export function buildS3Key(userId: string, chatId: string, filePath?: string): string {
     const safeUserId = sanitizePathComponent(userId);
     const safeChatId = sanitizePathComponent(chatId);
-    
+
     if (!safeUserId || !safeChatId) {
         throw new Error('Invalid S3 key components');
     }
@@ -202,10 +232,10 @@ export function buildS3Key(userId: string, chatId: string, filePath?: string): s
 }
 
 export async function uploadFile(
-  key: string,
-  content: StreamingBlobPayloadInputTypes,
-  metadata: UploadMetadata,
-  contentLength?: number
+    key: string,
+    content: StreamingBlobPayloadInputTypes,
+    metadata: UploadMetadata,
+    contentLength?: number
 ): Promise<UploadResult> {
     if (!BUCKET_NAME) {
         logger.warn({ key }, 'S3 upload skipped: bucket not configured');
@@ -251,7 +281,7 @@ export async function listFolder(prefix: string): Promise<S3File[]> {
                     Key: item.Key!,
                     Size: item.Size ?? 0,
                 }));
-            
+
             files.push(...batch);
             continuationToken = response.NextContinuationToken;
         } while (continuationToken);

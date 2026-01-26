@@ -50,7 +50,7 @@ export function useApiKey() {
       });
 
       if (!res.ok) {
-        if (res.status === 404 || res.status === 200) {
+        if (res.status === 404) {
           return await res.json() as ApiKeyResponse;
         }
         throw new Error("Failed to fetch API key status");

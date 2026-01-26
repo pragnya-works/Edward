@@ -26,7 +26,7 @@ export async function enqueueChatJob(payload: ChatJobPayload): Promise<void> {
       {
         jobId: validatedPayload.messageId,
         removeOnComplete: true,
-        removeOnFail: false, 
+        removeOnFail: true, 
       }
     );
     logger.info(`[Queue] Job enqueued for user ${validatedPayload.userId}, chat ${validatedPayload.chatId}`);

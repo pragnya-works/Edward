@@ -18,7 +18,7 @@ import { prepareSandboxFile, writeSandboxFile, flushSandbox } from '../services/
 import { backupSandbox } from '../services/sandbox/backup.sandbox.js';
 import { ensureError } from '../utils/error.js';
 
-import { checkRateLimit, getOrCreateChat, saveMessage } from '../services/chat.service.js';
+import { getOrCreateChat, saveMessage } from '../services/chat.service.js';
 
 function sendError(res: Response, status: HttpStatus, error: string): void {
   if (res.headersSent) {
@@ -44,11 +44,6 @@ export async function unifiedSendMessage(
     }
 
     const body = validated.data;
-
-    if (await checkRateLimit(userId)) {
-      sendError(res, HttpStatus.TOO_MANY_REQUESTS, 'Daily message quota exceeded (10 messages/24h)');
-      return;
-    }
 
     let decryptedApiKey: string;
     try {
@@ -245,12 +240,10 @@ export async function unifiedSendMessage(
 
       logger.error(error, 'Streaming error');
 
-      if (!res.headersSent) {
-        res.write(`data: ${JSON.stringify({
-          type: ParserEventType.ERROR,
-          message: 'Stream processing failed'
-        })}\n\n`);
-      }
+      res.write(`data: ${JSON.stringify({
+        type: ParserEventType.ERROR,
+        message: 'Stream processing failed'
+      })}\n\n`);
 
       res.end();
 

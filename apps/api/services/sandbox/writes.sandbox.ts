@@ -18,6 +18,20 @@ function shEscape(str: string): string {
     return `'${str.replace(/'/g, "'\\''")}'`;
 }
 
+async function cleanupBufferKeys(sandboxId: string, filePaths: string[]): Promise<void> {
+    if (filePaths.length === 0) return;
+
+    const filesSetKey = `${BUFFER_FILES_SET_PREFIX}${sandboxId}`;
+    const bufferKeys = filePaths.map(filePath => 
+        `${BUFFER_KEY_PREFIX}${sandboxId}:${filePath}`
+    );
+
+    const pipeline = redis.pipeline();
+    bufferKeys.forEach(key => pipeline.del(key));
+    filePaths.forEach(filePath => pipeline.srem(filesSetKey, filePath));
+    await pipeline.exec();
+}
+
 export async function flushSandbox(sandboxId: string): Promise<void> {
     const lockKey = `${FLUSH_LOCK_PREFIX}${sandboxId}`;
     const acquired = await redis.set(lockKey, 'locked', 'PX', FLUSH_LOCK_TTL, 'NX');
@@ -60,10 +74,9 @@ export async function flushSandbox(sandboxId: string): Promise<void> {
                 stream.write(content);
                 stream.end();
             });
-
-            await redis.del(bufferKey);
-            await redis.srem(filesSetKey, filePath);
         }
+
+        await cleanupBufferKeys(sandboxId, filePaths);
     } catch (error) {
         logger.error({ error, sandboxId }, 'Flush failed');
         throw error;
@@ -125,11 +138,7 @@ export async function prepareSandboxFile(sandboxId: string, filePath: string): P
         throw new Error(`Invalid path: ${filePath}`);
     }
 
-    const bufferKey = `${BUFFER_KEY_PREFIX}${sandboxId}:${normalizedPath}`;
-    const filesSetKey = `${BUFFER_FILES_SET_PREFIX}${sandboxId}`;
-
-    await redis.del(bufferKey);
-    await redis.srem(filesSetKey, normalizedPath);
+    await cleanupBufferKeys(sandboxId, [normalizedPath]);
 
     const fullPath = path.posix.join(CONTAINER_WORKDIR, normalizedPath);
     const dirPath = path.posix.dirname(fullPath);
@@ -138,7 +147,7 @@ export async function prepareSandboxFile(sandboxId: string, filePath: string): P
     await execCommand(container, ['sh', '-c', `mkdir -p ${shEscape(dirPath)} && : > ${shEscape(fullPath)}`]);
 }
 
-export function clearWriteTimers(sandboxId: string) {
+export function clearWriteTimers(sandboxId: string): void {
     const timer = writeTimers.get(sandboxId);
     if (timer) {
         clearTimeout(timer);
@@ -146,6 +155,9 @@ export function clearWriteTimers(sandboxId: string) {
     }
 }
 
-export function clearBuffers(sandboxId: string) {
-    void redis.del(`${BUFFER_FILES_SET_PREFIX}${sandboxId}`);
+export async function clearBuffers(sandboxId: string): Promise<void> {
+    const filesSetKey = `${BUFFER_FILES_SET_PREFIX}${sandboxId}`;
+    const filePaths = await redis.smembers(filesSetKey);
+    await cleanupBufferKeys(sandboxId, filePaths);
+    await redis.del(filesSetKey);
 }

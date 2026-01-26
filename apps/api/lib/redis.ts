@@ -5,7 +5,7 @@ const redisHost = process.env.REDIS_HOST;
 const redisPort = Number(process.env.REDIS_PORT);
 
 if (!redisHost || !redisPort) {
-    logger.warn('REDIS_HOST or REDIS_PORT not defined. Redis features may fail.');
+    throw new Error('REDIS_HOST or REDIS_PORT not defined. Cannot initialize Redis.');
 }
 
 export const redis = new Redis({
