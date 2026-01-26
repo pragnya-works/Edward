@@ -1,5 +1,5 @@
 import type { Response } from 'express';
-import { db, chat, message, eq, and, gte, count, MessageRole } from '@workspace/auth';
+import { db, chat, message, eq, MessageRole } from '@workspace/auth';
 import { type AuthenticatedRequest, getAuthenticatedUserId } from '../middleware/auth.js';
 import {
   ChatIdParamSchema,
@@ -13,10 +13,13 @@ import { createStreamParser } from '../lib/llm/parser.js';
 import { getDecryptedApiKey } from '../services/apiKey.service.js';
 import { HttpStatus, ERROR_MESSAGES } from '../utils/constants.js';
 import { sendError as sendStandardError, sendSuccess } from '../utils/response.js';
-import { provisionSandbox, writeSandboxFile, cleanupSandbox, prepareSandboxFile, flushSandbox } from '../services/sandbox.service.js';
+import { provisionSandbox, cleanupSandbox } from '../services/sandbox/lifecycle.sandbox.js';
+import { prepareSandboxFile, writeSandboxFile, flushSandbox } from '../services/sandbox/writes.sandbox.js';
+import { backupSandbox } from '../services/sandbox/backup.sandbox.js';
+import { getActiveSandbox } from '../services/sandbox/state.sandbox.js';
 import { ensureError } from '../utils/error.js';
 
-const DAILY_MESSAGE_LIMIT = 10;
+import { checkRateLimit, getOrCreateChat, saveMessage } from '../services/chat.service.js';
 
 function sendError(res: Response, status: HttpStatus, error: string): void {
   if (res.headersSent) {
@@ -26,23 +29,6 @@ function sendError(res: Response, status: HttpStatus, error: string): void {
   }
 
   sendStandardError(res, status, error);
-}
-
-async function checkRateLimit(userId: string): Promise<boolean> {
-  const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-
-  const [result] = await db
-    .select({ value: count() })
-    .from(message)
-    .where(
-      and(
-        eq(message.userId, userId),
-        gte(message.createdAt, twentyFourHoursAgo),
-        eq(message.role, MessageRole.User)
-      )
-    );
-
-  return (result?.value || 0) >= DAILY_MESSAGE_LIMIT;
 }
 
 export async function unifiedSendMessage(
@@ -79,53 +65,21 @@ export async function unifiedSendMessage(
       return;
     }
 
-    let chatId = body.chatId;
-    let isNewChat = false;
-    const now = new Date();
-
-    if (!chatId) {
-      chatId = nanoid(32);
-      isNewChat = true;
-
-      await db.insert(chat).values({
-        id: chatId,
-        userId,
-        title: body.title || 'New Chat',
+    const chatResult = await getOrCreateChat(userId, body.chatId, {
+        title: body.title,
         description: body.description,
-        visibility: body.visibility || false,
-        createdAt: now,
-        updatedAt: now,
-      });
-    } else {
-      const [existing] = await db
-        .select({ userId: chat.userId })
-        .from(chat)
-        .where(eq(chat.id, chatId))
-        .limit(1);
+        visibility: body.visibility
+    });
 
-      if (!existing) {
-        sendError(res, HttpStatus.NOT_FOUND, ERROR_MESSAGES.NOT_FOUND);
+    if (chatResult.error) {
+        sendError(res, chatResult.status || HttpStatus.INTERNAL_SERVER_ERROR, chatResult.error);
         return;
-      }
-
-      if (existing.userId !== userId) {
-        sendError(res, HttpStatus.FORBIDDEN, ERROR_MESSAGES.FORBIDDEN);
-        return;
-      }
     }
 
-    const userMessageId = nanoid(32);
-    const assistantMessageId = nanoid(32);
+    const { chatId, isNewChat } = chatResult;
 
-    await db.insert(message).values({
-      id: userMessageId,
-      chatId,
-      userId,
-      role: MessageRole.User,
-      content: body.content,
-      createdAt: now,
-      updatedAt: now,
-    });
+    const userMessageId = await saveMessage(chatId, userId, MessageRole.User, body.content);
+    const assistantMessageId = nanoid(32);
 
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
@@ -141,8 +95,14 @@ export async function unifiedSendMessage(
 
     const parser = createStreamParser();
     let fullRawResponse = '';
-    let currentSandboxId: string | undefined;
+    let currentSandboxId: string | undefined = await getActiveSandbox(chatId);
     let currentFilePath: string | undefined;
+    let lazySandboxPromise: Promise<string> | null = null;
+    
+    if (currentSandboxId) {
+        logger.info(`[Chat] Reusing existing sandbox: ${currentSandboxId}`);
+        lazySandboxPromise = Promise.resolve(currentSandboxId);
+    } 
 
     const abortController = new AbortController();
     req.on('close', () => {
@@ -163,12 +123,14 @@ export async function unifiedSendMessage(
           try {
             switch (event.type) {
               case ParserEventType.SANDBOX_START:
-                if (currentSandboxId) {
-                  await cleanupSandbox(currentSandboxId).catch((err) =>
-                    logger.error(ensureError(err), `Failed to cleanup previous sandbox: ${currentSandboxId}`)
-                  );
+                if (!currentSandboxId && lazySandboxPromise) {
+                     currentSandboxId = await lazySandboxPromise;
+                     lazySandboxPromise = null;
                 }
-                currentSandboxId = await provisionSandbox();
+                
+                if (!currentSandboxId) {
+                    currentSandboxId = await provisionSandbox(userId, chatId);
+                }
                 break;
 
               case ParserEventType.FILE_START:
@@ -195,6 +157,17 @@ export async function unifiedSendMessage(
 
               case ParserEventType.FILE_END:
                 currentFilePath = undefined;
+                break;
+
+              case ParserEventType.SANDBOX_END:
+                if (currentSandboxId) {
+                  await flushSandbox(currentSandboxId).catch((err: unknown) =>
+                    logger.error(ensureError(err), `Flush failed during SANDBOX_END: ${currentSandboxId}`)
+                  );
+                  await backupSandbox(currentSandboxId).catch((err: unknown) =>
+                    logger.error(ensureError(err), `Backup failed during SANDBOX_END: ${currentSandboxId}`)
+                  );
+                }
                 break;
             }
           } catch (sandboxError) {
@@ -242,6 +215,9 @@ export async function unifiedSendMessage(
                 await flushSandbox(currentSandboxId).catch((err) =>
                   logger.error(ensureError(err), `Flush failed during SANDBOX_END: ${currentSandboxId}`)
                 );
+                await backupSandbox(currentSandboxId).catch((err) =>
+                  logger.error(ensureError(err), `Backup failed during SANDBOX_END: ${currentSandboxId}`)
+                );
               }
               break;
           }
@@ -251,28 +227,19 @@ export async function unifiedSendMessage(
         res.write(`data: ${JSON.stringify(event)}\n\n`);
       }
 
-      if (currentSandboxId) {
-        await flushSandbox(currentSandboxId).catch((err) =>
+      if (currentSandboxId)
+        await flushSandbox(currentSandboxId).catch((err: unknown) =>
           logger.error(ensureError(err), `Final flush failed for sandbox: ${currentSandboxId}`)
         );
-      }
 
-      await db.insert(message).values({
-        id: assistantMessageId,
-        chatId,
-        userId,
-        role: MessageRole.Assistant,
-        content: fullRawResponse,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      });
+       await saveMessage(chatId, userId, MessageRole.Assistant, fullRawResponse, assistantMessageId);
       res.write('data: [DONE]\n\n');
       res.end();
 
     } catch (streamError) {
       const error = ensureError(streamError);
       if (currentSandboxId) {
-        await cleanupSandbox(currentSandboxId).catch((err) =>
+        await cleanupSandbox(currentSandboxId).catch((err: unknown) =>
           logger.error(ensureError(err), `Cleanup failed after stream error: ${currentSandboxId}`)
         );
       }
@@ -289,15 +256,7 @@ export async function unifiedSendMessage(
       res.end();
 
       try {
-        await db.insert(message).values({
-          id: assistantMessageId,
-          chatId,
-          userId,
-          role: MessageRole.Assistant,
-          content: fullRawResponse || `Error: ${error.message}`,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        });
+        await saveMessage(chatId, userId, MessageRole.Assistant, fullRawResponse || `Error: ${error.message}`, assistantMessageId);
       } catch (dbError) {
         logger.error(ensureError(dbError), 'Failed to save error message to database');
       }

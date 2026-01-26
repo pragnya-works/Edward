@@ -47,7 +47,7 @@ export async function getApiKey(
       logger.error(`[API Key] Decryption failed for user ${userData.id}: ${errorMessage}`);
     }
 
-    logger.info(`[API Key] Retrieved for user: ${userId}`);
+
 
     sendSuccess(res, HttpStatus.OK, 'API key status retrieved successfully', {
       hasApiKey: true,
