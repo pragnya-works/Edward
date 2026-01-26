@@ -29,6 +29,13 @@
       "when": 1768910475315,
       "tag": "0003_lumpy_red_hulk",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1769435980372,
+      "tag": "0004_cleanup_project_tables",
+      "breakpoints": true
     }
   ]
 }
