@@ -1,7 +1,7 @@
 import { db, user, eq } from '@workspace/auth';
 import { decrypt } from '../utils/encryption.js';
 
-export async function getUserWithApiKey(userId: string) {
+export async function getUserEncryptedKey(userId: string): Promise<{ id: string; apiKey: string | null; createdAt: Date; updatedAt: Date } | undefined> {
     const [result] = await db
         .select({
             id: user.id,
@@ -16,11 +16,13 @@ export async function getUserWithApiKey(userId: string) {
     return result;
 }
 
-export async function getDecryptedApiKey(userId: string): Promise<string> {
-    const userData = await getUserWithApiKey(userId);
+export const getUserWithApiKey = getUserEncryptedKey;
 
-    if (!userData?.apiKey) {
-        throw new Error('API key not found');
+export async function getDecryptedApiKey(userId: string): Promise<string> {
+    const userData = await getUserEncryptedKey(userId);
+
+    if (!userData || !userData.apiKey) {
+        throw new Error('API key configuration not found for this user.');
     }
 
     return decrypt(userData.apiKey);

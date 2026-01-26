@@ -1,6 +1,5 @@
-import { ChatOpenAI } from "@langchain/openai";
-import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
-import { HumanMessage, SystemMessage } from "@langchain/core/messages";
+import OpenAI from 'openai';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import { Provider, API_KEY_REGEX } from '@workspace/shared/constants';
 import { SYSTEM_PROMPT } from "./system-prompt.js";
 import { createLogger } from "../../utils/logger.js";
@@ -8,29 +7,27 @@ import { ensureError } from "../../utils/error.js";
 
 const logger = createLogger('LLM');
 
-function createLLM(apiKey: string) {
-  if (!apiKey || typeof apiKey !== 'string') {
-    throw new Error('Invalid API key provided to LLM factory');
-  }
-
+function getClient(apiKey: string) {
   if (API_KEY_REGEX[Provider.OPENAI].test(apiKey)) {
-    const modelName = process.env.OPENAI_MODEL;
-    if (!modelName) {
+    const model = process.env.OPENAI_MODEL;
+    if (!model) {
       throw new Error('OPENAI_MODEL environment variable is not configured');
     }
-    return new ChatOpenAI({
-      apiKey,
-      modelName,
-    });
+    return {
+      type: Provider.OPENAI,
+      client: new OpenAI({ apiKey }),
+      model
+    };
   } else if (API_KEY_REGEX[Provider.GEMINI].test(apiKey)) {
     const model = process.env.GEMINI_MODEL;
     if (!model) {
       throw new Error('GEMINI_MODEL environment variable is not configured');
     }
-    return new ChatGoogleGenerativeAI({
-      apiKey,
-      model,
-    });
+    return {
+      type: Provider.GEMINI,
+      client: new GoogleGenerativeAI(apiKey),
+      model
+    };
   } else {
     throw new Error('Unrecognized API key format. Please provide a valid OpenAI or Gemini API key.');
   }
@@ -45,19 +42,37 @@ export async function* streamResponse(apiKey: string, content: string, signal?: 
     throw new Error('Invalid content: Content must be a non-empty string');
   }
 
-  const llm = createLLM(apiKey);
+  const { type, client, model } = getClient(apiKey);
 
   try {
-    const stream = await llm.stream([
-      new SystemMessage({ content: SYSTEM_PROMPT }),
-      new HumanMessage({ content }),
-    ], { signal });
+    if (type === Provider.OPENAI) {
+      const openai = client as OpenAI;
+      const stream = await openai.chat.completions.create({
+        model,
+        messages: [
+          { role: 'system', content: SYSTEM_PROMPT },
+          { role: 'user', content }
+        ],
+        stream: true,
+      }, { signal });
 
-    for await (const chunk of stream) {
-      if (signal?.aborted) break;
-      const chunkContent = chunk.content as string;
-      if (chunkContent) {
-        yield chunkContent;
+      for await (const chunk of stream) {
+        if (signal?.aborted) break;
+        const text = chunk.choices[0]?.delta?.content || '';
+        if (text) yield text;
+      }
+    } else {
+      const genAI = client as GoogleGenerativeAI;
+      const geminiModel = genAI.getGenerativeModel({ model, systemInstruction: SYSTEM_PROMPT });
+      
+      const result = await geminiModel.generateContentStream({
+        contents: [{ role: 'user', parts: [{ text: content }] }]
+      });
+
+      for await (const chunk of result.stream) {
+        if (signal?.aborted) break;
+        const text = chunk.text();
+        if (text) yield text;
       }
     }
   } catch (error: unknown) {
@@ -80,15 +95,28 @@ export async function generateResponse(apiKey: string, content: string): Promise
     throw new Error('Invalid content: Content must be a non-empty string');
   }
 
-  const llm = createLLM(apiKey);
+  const { type, client, model } = getClient(apiKey);
 
   try {
-    const response = await llm.invoke([
-      new SystemMessage({ content: SYSTEM_PROMPT }),
-      new HumanMessage({ content }),
-    ]);
-
-    return response.content as string;
+    if (type === Provider.OPENAI) {
+      const openai = client as OpenAI;
+      const completion = await openai.chat.completions.create({
+        model,
+        messages: [
+          { role: 'system', content: SYSTEM_PROMPT },
+          { role: 'user', content }
+        ],
+      });
+      return completion.choices[0]?.message?.content || '';
+    } else {
+      const genAI = client as GoogleGenerativeAI;
+      const geminiModel = genAI.getGenerativeModel({ model, systemInstruction: SYSTEM_PROMPT });
+      
+      const result = await geminiModel.generateContent({
+        contents: [{ role: 'user', parts: [{ text: content }] }]
+      });
+      return result.response.text();
+    }
   } catch (error) {
     logger.error(ensureError(error), 'LLM response generation failed');
     throw error;
