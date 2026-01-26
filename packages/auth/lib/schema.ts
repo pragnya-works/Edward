@@ -66,8 +66,6 @@ export const chat = pgTable("chat", {
 	title: text("title"),
 	description: text("description"),
 	visibility: boolean("visibility").default(false),
-	sourceCodePath: text("source_code_path"),
-	previewLink: text("preview_link"),
 	githubRepoId: text("github_repo_id"),
 	isFavourite: boolean("is_favourite").default(false),
 	originalChatId: text("original_chat_id"),

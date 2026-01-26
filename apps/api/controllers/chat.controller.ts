@@ -17,6 +17,7 @@ import { provisionSandbox, cleanupSandbox, getActiveSandbox } from '../services/
 import { prepareSandboxFile, writeSandboxFile, flushSandbox } from '../services/sandbox/writes.sandbox.js';
 import { backupSandbox } from '../services/sandbox/backup.sandbox.js';
 import { ensureError } from '../utils/error.js';
+import { deleteFolder, buildS3Key } from '../services/storage.service.js';
 
 import { getOrCreateChat, saveMessage } from '../services/chat.service.js';
 
@@ -315,5 +316,56 @@ async function ensureSandboxWarmth(userId: string, chatId: string): Promise<void
     await provisionSandbox(userId, chatId);
   } catch (error) {
     logger.error({ error: ensureError(error), chatId, userId }, 'Failed to ensure sandbox warmth');
+  }
+}
+
+export async function deleteChat(
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> {
+  try {
+    const userId = getAuthenticatedUserId(req);
+    const validated = ChatIdParamSchema.safeParse(req.params);
+
+    if (!validated.success) {
+      sendError(res, HttpStatus.BAD_REQUEST, validated.error.errors[0]?.message || ERROR_MESSAGES.VALIDATION_ERROR);
+      return;
+    }
+
+    const { chatId } = validated.data;
+
+    const [chatData] = await db
+      .select({ userId: chat.userId })
+      .from(chat)
+      .where(eq(chat.id, chatId))
+      .limit(1);
+
+    if (!chatData) {
+      sendError(res, HttpStatus.NOT_FOUND, ERROR_MESSAGES.NOT_FOUND);
+      return;
+    }
+
+    if (chatData.userId !== userId) {
+      sendError(res, HttpStatus.FORBIDDEN, ERROR_MESSAGES.FORBIDDEN);
+      return;
+    }
+
+    const activeSandboxId = await getActiveSandbox(chatId);
+    if (activeSandboxId) {
+      await cleanupSandbox(activeSandboxId).catch((err) =>
+        logger.error({ err, chatId }, 'Failed to cleanup sandbox during chat deletion')
+      );
+    }
+
+    const s3Prefix = buildS3Key(userId, chatId);
+    await deleteFolder(s3Prefix).catch((err) =>
+      logger.error({ err, chatId, s3Prefix }, 'Failed to cleanup S3 storage during chat deletion')
+    );
+    await db.delete(chat).where(eq(chat.id, chatId));
+
+    sendSuccess(res, HttpStatus.OK, 'Chat deleted successfully');
+  } catch (error) {
+    logger.error(ensureError(error), 'deleteChat error');
+    sendError(res, HttpStatus.INTERNAL_SERVER_ERROR, ERROR_MESSAGES.INTERNAL_SERVER_ERROR);
   }
 }

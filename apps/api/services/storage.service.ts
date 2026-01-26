@@ -1,4 +1,4 @@
-import { S3Client, ListObjectsV2Command, GetObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, ListObjectsV2Command, GetObjectCommand, DeleteObjectsCommand } from '@aws-sdk/client-s3';
 import { Upload } from '@aws-sdk/lib-storage';
 import { StreamingBlobPayloadInputTypes } from '@smithy/types';
 import { Readable } from 'stream';
@@ -307,5 +307,44 @@ export async function downloadFile(key: string): Promise<NodeJS.ReadableStream |
     } catch (error) {
         logger.error({ error, key }, 'Failed to download file from S3');
         return null;
+    }
+}
+
+export async function deleteFolder(prefix: string): Promise<void> {
+    if (!BUCKET_NAME) return;
+
+    try {
+        let continuationToken: string | undefined;
+
+        do {
+            const listCommand = new ListObjectsV2Command({
+                Bucket: BUCKET_NAME,
+                Prefix: prefix,
+                ContinuationToken: continuationToken,
+            });
+
+            const listResponse = await s3Client.send(listCommand);
+            const objects = listResponse.Contents || [];
+
+            if (objects.length > 0) {
+                const deleteCommand = new DeleteObjectsCommand({
+                    Bucket: BUCKET_NAME,
+                    Delete: {
+                        Objects: objects.map(obj => ({ Key: obj.Key })),
+                        Quiet: true,
+                    },
+                });
+
+                await s3Client.send(deleteCommand);
+                logger.debug({ count: objects.length, prefix }, 'Deleted S3 batch');
+            }
+
+            continuationToken = listResponse.NextContinuationToken;
+        } while (continuationToken);
+
+        logger.info({ prefix }, 'S3 folder deleted');
+    } catch (error) {
+        logger.error({ error, prefix }, 'Failed to delete S3 folder');
+        throw error;
     }
 }
