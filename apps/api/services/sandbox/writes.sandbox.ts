@@ -74,9 +74,9 @@ export async function flushSandbox(sandboxId: string): Promise<void> {
                 stream.write(content);
                 stream.end();
             });
-        }
 
-        await cleanupBufferKeys(sandboxId, filePaths);
+            await cleanupBufferKeys(sandboxId, [filePath]);
+        }
     } catch (error) {
         logger.error({ error, sandboxId }, 'Flush failed');
         throw error;
