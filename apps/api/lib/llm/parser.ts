@@ -78,7 +78,9 @@ export function createStreamParser() {
 
   function handleThinkingState(events: ParserEvent[]): void {
     const endIdx = buffer.indexOf(TAGS.THINKING_END);
-    if (endIdx !== -1) {
+    const sandboxIdx = buffer.indexOf(TAGS.SANDBOX_START);
+
+    if (endIdx !== -1 && (sandboxIdx === -1 || endIdx < sandboxIdx)) {
       if (endIdx > 0) {
         const thinkingContent = buffer.slice(0, endIdx);
         if (thinkingContent) {
@@ -86,6 +88,16 @@ export function createStreamParser() {
         }
       }
       buffer = buffer.slice(endIdx + TAGS.THINKING_END.length);
+      state = StreamState.TEXT;
+      events.push({ type: ParserEventType.THINKING_END });
+    } else if (sandboxIdx !== -1) {
+      if (sandboxIdx > 0) {
+        const thinkingContent = buffer.slice(0, sandboxIdx);
+        if (thinkingContent) {
+          events.push({ type: ParserEventType.THINKING_CONTENT, content: thinkingContent });
+        }
+      }
+      buffer = buffer.slice(sandboxIdx);
       state = StreamState.TEXT;
       events.push({ type: ParserEventType.THINKING_END });
     } else {

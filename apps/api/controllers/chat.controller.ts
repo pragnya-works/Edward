@@ -13,10 +13,9 @@ import { createStreamParser } from '../lib/llm/parser.js';
 import { getDecryptedApiKey } from '../services/apiKey.service.js';
 import { HttpStatus, ERROR_MESSAGES } from '../utils/constants.js';
 import { sendError as sendStandardError, sendSuccess } from '../utils/response.js';
-import { provisionSandbox, cleanupSandbox } from '../services/sandbox/lifecycle.sandbox.js';
+import { provisionSandbox, cleanupSandbox, getActiveSandbox } from '../services/sandbox/lifecycle.sandbox.js';
 import { prepareSandboxFile, writeSandboxFile, flushSandbox } from '../services/sandbox/writes.sandbox.js';
 import { backupSandbox } from '../services/sandbox/backup.sandbox.js';
-import { getActiveSandbox } from '../services/sandbox/state.sandbox.js';
 import { ensureError } from '../utils/error.js';
 
 import { checkRateLimit, getOrCreateChat, saveMessage } from '../services/chat.service.js';
@@ -66,14 +65,14 @@ export async function unifiedSendMessage(
     }
 
     const chatResult = await getOrCreateChat(userId, body.chatId, {
-        title: body.title,
-        description: body.description,
-        visibility: body.visibility
+      title: body.title,
+      description: body.description,
+      visibility: body.visibility
     });
 
     if (chatResult.error) {
-        sendError(res, chatResult.status || HttpStatus.INTERNAL_SERVER_ERROR, chatResult.error);
-        return;
+      sendError(res, chatResult.status || HttpStatus.INTERNAL_SERVER_ERROR, chatResult.error);
+      return;
     }
 
     const { chatId, isNewChat } = chatResult;
@@ -98,11 +97,11 @@ export async function unifiedSendMessage(
     let currentSandboxId: string | undefined = await getActiveSandbox(chatId);
     let currentFilePath: string | undefined;
     let lazySandboxPromise: Promise<string> | null = null;
-    
+
     if (currentSandboxId) {
-        logger.info(`[Chat] Reusing existing sandbox: ${currentSandboxId}`);
-        lazySandboxPromise = Promise.resolve(currentSandboxId);
-    } 
+      logger.info(`[Chat] Reusing existing sandbox: ${currentSandboxId}`);
+      lazySandboxPromise = Promise.resolve(currentSandboxId);
+    }
 
     const abortController = new AbortController();
     req.on('close', () => {
@@ -124,12 +123,12 @@ export async function unifiedSendMessage(
             switch (event.type) {
               case ParserEventType.SANDBOX_START:
                 if (!currentSandboxId && lazySandboxPromise) {
-                     currentSandboxId = await lazySandboxPromise;
-                     lazySandboxPromise = null;
+                  currentSandboxId = await lazySandboxPromise;
+                  lazySandboxPromise = null;
                 }
-                
+
                 if (!currentSandboxId) {
-                    currentSandboxId = await provisionSandbox(userId, chatId);
+                  currentSandboxId = await provisionSandbox(userId, chatId);
                 }
                 break;
 
@@ -164,7 +163,7 @@ export async function unifiedSendMessage(
                   await flushSandbox(currentSandboxId).catch((err: unknown) =>
                     logger.error(ensureError(err), `Flush failed during SANDBOX_END: ${currentSandboxId}`)
                   );
-                  await backupSandbox(currentSandboxId).catch((err: unknown) =>
+                  void backupSandbox(currentSandboxId).catch((err: unknown) =>
                     logger.error(ensureError(err), `Backup failed during SANDBOX_END: ${currentSandboxId}`)
                   );
                 }
@@ -215,7 +214,7 @@ export async function unifiedSendMessage(
                 await flushSandbox(currentSandboxId).catch((err) =>
                   logger.error(ensureError(err), `Flush failed during SANDBOX_END: ${currentSandboxId}`)
                 );
-                await backupSandbox(currentSandboxId).catch((err) =>
+                void backupSandbox(currentSandboxId).catch((err) =>
                   logger.error(ensureError(err), `Backup failed during SANDBOX_END: ${currentSandboxId}`)
                 );
               }
@@ -232,7 +231,7 @@ export async function unifiedSendMessage(
           logger.error(ensureError(err), `Final flush failed for sandbox: ${currentSandboxId}`)
         );
 
-       await saveMessage(chatId, userId, MessageRole.Assistant, fullRawResponse, assistantMessageId);
+      await saveMessage(chatId, userId, MessageRole.Assistant, fullRawResponse, assistantMessageId);
       res.write('data: [DONE]\n\n');
       res.end();
 
@@ -310,8 +309,18 @@ export async function getChatHistory(
       chatId,
       messages,
     });
+
+    void ensureSandboxWarmth(userId, chatId);
   } catch (error) {
     logger.error(ensureError(error), 'getChatHistory error');
     sendError(res, HttpStatus.INTERNAL_SERVER_ERROR, ERROR_MESSAGES.INTERNAL_SERVER_ERROR);
+  }
+}
+
+async function ensureSandboxWarmth(userId: string, chatId: string): Promise<void> {
+  try {
+    await provisionSandbox(userId, chatId);
+  } catch (error) {
+    logger.error({ error: ensureError(error), chatId, userId }, 'Failed to ensure sandbox warmth');
   }
 }

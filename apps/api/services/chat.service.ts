@@ -7,7 +7,7 @@ import { getDecryptedApiKey } from './apiKey.service.js';
 
 import { redis } from '../lib/redis.js';
 
-const DAILY_MESSAGE_LIMIT = 10;
+const DAILY_MESSAGE_LIMIT = 20;
 const RATE_LIMIT_WINDOW = 24 * 60 * 60;
 
 export async function checkRateLimit(userId: string): Promise<boolean> {

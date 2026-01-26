@@ -23,3 +23,8 @@ export interface BackupResult {
     failed: number;
     errors: string[];
 }
+
+export interface S3File {
+    Key: string;
+    Size: number;
+}

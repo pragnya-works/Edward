@@ -1,18 +1,19 @@
-import { listFilesInContainer, readFileStreamFromContainer, getContainer } from './docker.sandbox.js';
-import { SandboxInstance } from './types.sandbox.js';
+import { getContainer, CONTAINER_WORKDIR } from './docker.sandbox.js';
+import { SandboxInstance, BackupResult, S3File } from './types.sandbox.js';
 import { getSandboxState } from './state.sandbox.js';
-import { buildS3Key, uploadFile, isS3Configured } from '../storage.service.js';
+import { buildS3Key, uploadFile, isS3Configured, downloadFile, listFolder } from '../storage.service.js';
 import { logger } from '../../utils/logger.js';
-import { BackupResult } from './types.sandbox.js';
+import { ensureError } from '../../utils/error.js';
+import { Readable } from 'stream';
+import tar from 'tar-stream';
+import path from 'path';
 
-const MAX_CONCURRENT_UPLOADS = 10;
+const MAX_CONCURRENT_UPLOADS = 5;
 
 export async function backupSandboxInstance(sandbox: SandboxInstance): Promise<void> {
     const sandboxId = sandbox.id;
 
-    if (!isS3Configured()) {
-        return;
-    }
+    if (!isS3Configured()) return;
 
     try {
         const container = getContainer(sandbox.containerId);
@@ -20,69 +21,83 @@ export async function backupSandboxInstance(sandbox: SandboxInstance): Promise<v
         try {
             await container.inspect();
         } catch (error) {
+            logger.debug({ sandboxId, error: ensureError(error).message }, 'Backup skipped: container not found');
             return;
         }
 
-        const files = await listFilesInContainer(container);
-        if (files.length === 0) return;
+        const uploadTimestamp = new Date().toISOString();
+        const tarStream = await container.getArchive({ path: CONTAINER_WORKDIR });
 
-        const result: BackupResult = {
-            totalFiles: files.length,
+        const results: BackupResult = {
+            totalFiles: 0,
             successful: 0,
             failed: 0,
-            errors: [],
+            errors: []
         };
 
-        const uploadTimestamp = new Date().toISOString();
+        const extract = tar.extract();
+        const uploadQueue: Promise<void>[] = [];
 
-        for (let i = 0; i < files.length; i += MAX_CONCURRENT_UPLOADS) {
-            const batch = files.slice(i, i + MAX_CONCURRENT_UPLOADS);
+        extract.on('entry', async (header, stream, next) => {
+            const relativePath = header.name.replace(/^[^/]+\/?/, '');
+            
+            if (!relativePath || header.type !== 'file') {
+                stream.resume();
+                return next();
+            }
 
-            const uploadResults = await Promise.allSettled(
-                batch.map(async (file) => {
-                    const stream = await readFileStreamFromContainer(container, file.path);
-                    const s3Key = buildS3Key(sandbox.userId, sandbox.chatId, file.path);
-                    const uploadResult = await uploadFile(s3Key, stream, {
+            results.totalFiles++;
+            const s3Key = buildS3Key(sandbox.userId, sandbox.chatId, relativePath);
+
+            const chunks: Buffer[] = [];
+            stream.on('data', (chunk: Buffer) => chunks.push(chunk));
+            
+            stream.on('end', async () => {
+                const buffer = Buffer.concat(chunks);
+                
+                const uploadTask = (async () => {
+                    const uploadResult = await uploadFile(s3Key, buffer, {
                         sandboxId,
-                        originalPath: file.path,
+                        originalPath: relativePath,
                         uploadTimestamp,
                     });
 
-                    if (!uploadResult.success) {
-                        throw uploadResult.error || new Error('Upload failed');
+                    if (uploadResult.success) {
+                        results.successful++;
+                    } else {
+                        results.failed++;
+                        results.errors.push(`${relativePath}: ${uploadResult.error?.message}`);
                     }
+                })();
 
-                    return file.path;
-                })
-            );
+                uploadQueue.push(uploadTask);
 
-            for (const uploadResult of uploadResults) {
-                if (uploadResult.status === 'fulfilled') {
-                    result.successful++;
-                } else {
-                    result.failed++;
-                    const errorMsg = uploadResult.reason?.message || 'Unknown error';
-                    result.errors.push(errorMsg);
+                if (uploadQueue.length >= MAX_CONCURRENT_UPLOADS) {
+                    await Promise.all(uploadQueue.splice(0, uploadQueue.length - MAX_CONCURRENT_UPLOADS + 1));
                 }
-            }
-        }
+                
+                next();
+            });
 
-        const logLevel = result.failed === 0 ? 'info' : 'warn';
-        logger[logLevel](
-            {
-                sandboxId,
-                containerId: sandbox.containerId,
-                filesBackedUp: result.successful,
-                ...result,
-                errors: result.errors.length > 5
-                    ? [...result.errors.slice(0, 5), `...and ${result.errors.length - 5} more`]
-                    : result.errors,
-            },
-            'Sandbox backup completed'
-        );
+            stream.on('error', (err) => {
+                results.failed++;
+                results.errors.push(`${relativePath}: ${err.message}`);
+                next();
+            });
+        });
+
+        await new Promise((resolve, reject) => {
+            tarStream.pipe(extract);
+            extract.on('finish', resolve);
+            extract.on('error', reject);
+        });
+
+        await Promise.all(uploadQueue);
+
+        const logLevel = results.failed === 0 ? 'info' : 'warn';
+        logger[logLevel]({ sandboxId, ...results }, 'Extracted sandbox backup completed');
     } catch (error) {
-        const err = error instanceof Error ? error : new Error(String(error));
-        logger.error({ error: err, sandboxId }, 'Backup failed');
+        logger.error({ error: ensureError(error), sandboxId }, 'Backup failed');
     }
 }
 
@@ -90,4 +105,60 @@ export async function backupSandbox(sandboxId: string): Promise<void> {
     const sandbox = await getSandboxState(sandboxId);
     if (!sandbox) return;
     return backupSandboxInstance(sandbox);
+}
+
+export async function restoreSandboxInstance(sandbox: SandboxInstance): Promise<void> {
+    if (!isS3Configured()) return;
+
+    const sandboxId = sandbox.id;
+    try {
+        const folderPrefix = buildS3Key(sandbox.userId, sandbox.chatId);
+        const items: S3File[] = await listFolder(folderPrefix);
+
+        if (items.length === 0) {
+            logger.info({ sandboxId, chatId: sandbox.chatId, folderPrefix }, 'No assets found in S3 to restore');
+            return;
+        }
+
+        const container = getContainer(sandbox.containerId);
+        const pack = tar.pack();
+
+        const restorePath = path.posix.dirname(CONTAINER_WORKDIR);
+
+        logger.info({ sandboxId, chatId: sandbox.chatId, fileCount: items.length }, 'Restoring workspace from S3 files');
+        const uploadPromise = container.putArchive(pack as unknown as Readable, {
+            path: restorePath,
+        });
+
+        for (const item of items) {
+            const key = item.Key;
+            const size = item.Size;
+
+            const relativePath = key.replace(folderPrefix, '');
+            if (!relativePath || relativePath.startsWith('/') || relativePath.includes('..')) continue;
+
+            const stream = await downloadFile(key);
+            if (!stream) {
+                logger.warn({ key }, 'Failed to download file during restoration');
+                continue;
+            }
+
+            const name = path.posix.join('edward', relativePath);
+            const entry = pack.entry({ name, size });
+            (stream as Readable).pipe(entry);
+
+            await new Promise((resolve, reject) => {
+                entry.on('finish', resolve);
+                entry.on('error', reject);
+                (stream as Readable).on('error', reject);
+            });
+        }
+
+        pack.finalize();
+        await uploadPromise;
+
+        logger.info({ sandboxId, chatId: sandbox.chatId }, 'Restoration successful');
+    } catch (error) {
+        logger.error({ error: ensureError(error), sandboxId, chatId: sandbox.chatId }, 'Restoration failed');
+    }
 }

@@ -2,8 +2,6 @@ import Docker from 'dockerode';
 import tar from 'tar-stream';
 import { Writable } from 'stream';
 import { ExecResult, FileInfo } from './types.sandbox.js';
-import { logger } from '../../utils/logger.js';
-import { Readable, PassThrough } from 'stream';
 
 const docker = new Docker();
 const PREWARM_IMAGE = 'node:20-slim';
@@ -92,11 +90,11 @@ export async function execCommand(
 export async function packFiles(files: Record<string, string>): Promise<NodeJS.ReadableStream> {
     try {
         const pack = tar.pack();
-        
+
         for (const [path, content] of Object.entries(files)) {
             pack.entry({ name: path }, content);
         }
-        
+
         pack.finalize();
         return pack;
     } catch (error) {
@@ -110,16 +108,16 @@ export async function setupWorkspace(container: Docker.Container): Promise<void>
 }
 
 export async function initializeWorkspaceWithFiles(
-    container: Docker.Container, 
+    container: Docker.Container,
     files: Record<string, string>
 ): Promise<void> {
     if (Object.keys(files).length === 0) return;
 
     try {
         await setupWorkspace(container);
-        
+
         const tarStream = await packFiles(files);
-        
+
         await container.putArchive(tarStream, {
             path: CONTAINER_WORKDIR
         });
@@ -207,34 +205,4 @@ export async function listFilesInContainer(container: Docker.Container): Promise
     }
 
     return files;
-}
-
-
-
-
-export async function readFileStreamFromContainer(
-    container: Docker.Container,
-    filePath: string
-): Promise<Readable> {
-    const path = await import('path');
-    const fullPath = path.posix.join(CONTAINER_WORKDIR, filePath);
-
-    const exec = await container.exec({
-        Cmd: ['cat', fullPath],
-        AttachStdout: true,
-        AttachStderr: true,
-    });
-
-    const stream = await exec.start({ hijack: true });
-    
-    const stdout = new PassThrough();
-    const stderr = new PassThrough();
-
-    container.modem.demuxStream(stream, stdout, stderr);
-
-    stderr.on('data', (chunk) => {
-        logger.warn({ filePath, error: chunk.toString() }, 'Error during file stream read');
-    });
-
-    return stdout;
 }

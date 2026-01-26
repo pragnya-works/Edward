@@ -1,18 +1,48 @@
 import { nanoid } from 'nanoid';
 import { logger } from '../../utils/logger.js';
 import { SandboxInstance } from './types.sandbox.js';
-import { saveSandboxState, deleteSandboxState, getSandboxState } from './state.sandbox.js';
-import { createContainer, destroyContainer, listContainers, SANDBOX_LABEL } from './docker.sandbox.js';
-import { backupSandboxInstance } from './backup.sandbox.js';
+import { saveSandboxState, deleteSandboxState, getSandboxState, getActiveSandboxState, refreshSandboxExpiry } from './state.sandbox.js';
+import { createContainer, destroyContainer, listContainers, SANDBOX_LABEL, getContainer } from './docker.sandbox.js';
+import { backupSandboxInstance, restoreSandboxInstance } from './backup.sandbox.js';
 import { flushSandbox, clearWriteTimers, clearBuffers } from './writes.sandbox.js';
+import { redis } from '../../lib/redis.js';
 
 const SANDBOX_TTL = 30 * 60 * 1000;
 const CLEANUP_INTERVAL_MS = 60 * 1000;
+const PROVISIONING_TIMEOUT_MS = 30000;
+const CONTAINER_STATUS_CACHE_MS = 10000;
 
 let cleanupInterval: NodeJS.Timeout | null = null;
+const containerStatusCache = new Map<string, { alive: boolean; timestamp: number }>();
+
+async function waitForProvisioning(chatId: string): Promise<string | null> {
+    const lockKey = `edward:locking:provision:${chatId}`;
+    const start = Date.now();
+    
+    while (Date.now() - start < PROVISIONING_TIMEOUT_MS) {
+        const activeId = await getActiveSandbox(chatId);
+        if (activeId) return activeId;
+        
+        const isLocked = await redis.get(lockKey);
+        if (!isLocked) return null;
+        
+        await new Promise(resolve => setTimeout(resolve, 500));
+    }
+    return null;
+}
 
 export async function provisionSandbox(userId: string, chatId: string): Promise<string> {
+    const lockKey = `edward:locking:provision:${chatId}`;
+    
     try {
+        const existingId = await waitForProvisioning(chatId);
+        if (existingId) return existingId;
+
+        const acquired = await redis.set(lockKey, 'true', 'EX', 60, 'NX');
+        if (!acquired) {
+            return provisionSandbox(userId, chatId);
+        }
+
         const sandboxId = nanoid(12);
         const container = await createContainer(userId, chatId, sandboxId);
 
@@ -24,11 +54,19 @@ export async function provisionSandbox(userId: string, chatId: string): Promise<
             chatId,
         };
 
+        try {
+            await restoreSandboxInstance(sandbox);
+        } catch (error) {
+            logger.error({ error, sandboxId, chatId }, 'Restoration failed during provisioning');
+        }
+
         await saveSandboxState(sandbox);
+        await redis.del(lockKey);
 
         logger.info({ sandboxId, userId, chatId, containerId: container.id }, 'Sandbox provisioned');
         return sandboxId;
     } catch (error) {
+        await redis.del(lockKey);
         logger.error({ error, userId, chatId }, 'Failed to provision sandbox');
         throw new Error('Could not provision sandbox environment');
     }
@@ -106,4 +144,31 @@ export async function shutdownSandboxService(): Promise<void> {
         cleanupInterval = null;
     }
     logger.info('Sandbox service shutdown complete');
+}
+
+export async function getActiveSandbox(chatId: string): Promise<string | undefined> {
+    const sandbox = await getActiveSandboxState(chatId);
+    if (!sandbox) return undefined;
+
+    const cached = containerStatusCache.get(sandbox.containerId);
+    if (cached && (Date.now() - cached.timestamp < CONTAINER_STATUS_CACHE_MS)) {
+        if (!cached.alive) return undefined;
+        await refreshSandboxExpiry(sandbox);
+        return sandbox.id;
+    }
+
+    try {
+        const container = getContainer(sandbox.containerId);
+        await container.inspect();
+        
+        containerStatusCache.set(sandbox.containerId, { alive: true, timestamp: Date.now() });
+        await refreshSandboxExpiry(sandbox);
+        
+        return sandbox.id;
+    } catch (error) {
+        containerStatusCache.set(sandbox.containerId, { alive: false, timestamp: Date.now() });
+        logger.warn({ sandboxId: sandbox.id, chatId }, 'Active sandbox container not found, cleaning up stale state');
+        await deleteSandboxState(sandbox.id, chatId);
+        return undefined;
+    }
 }

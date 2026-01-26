@@ -47,15 +47,22 @@ export async function getSandboxIdByChat(chatId: string): Promise<string | null>
     }
 }
 
-export async function getActiveSandbox(chatId: string): Promise<string | undefined> {
-    const sandboxId = await getSandboxIdByChat(chatId);
-    if (sandboxId) {
-        const sandbox = await getSandboxState(sandboxId);
-        if (sandbox) {
-            sandbox.expiresAt = Date.now() + SANDBOX_TTL;
-            await saveSandboxState(sandbox);
-            return sandbox.id;
-        }
+export async function getActiveSandboxState(chatId: string): Promise<SandboxInstance | null> {
+    try {
+        const sandboxId = await getSandboxIdByChat(chatId);
+        if (!sandboxId) return null;
+        return await getSandboxState(sandboxId);
+    } catch (error) {
+        logger.error({ error, chatId }, 'Failed to get active sandbox state');
+        return null;
     }
-    return undefined;
+}
+
+export async function refreshSandboxExpiry(sandbox: SandboxInstance): Promise<void> {
+    try {
+        sandbox.expiresAt = Date.now() + SANDBOX_TTL;
+        await saveSandboxState(sandbox);
+    } catch (error) {
+        logger.error({ error, sandboxId: sandbox.id }, 'Failed to refresh sandbox expiry');
+    }
 }

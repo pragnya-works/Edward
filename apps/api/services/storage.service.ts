@@ -1,13 +1,14 @@
-import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, ListObjectsV2Command, GetObjectCommand } from '@aws-sdk/client-s3';
+import { Upload } from '@aws-sdk/lib-storage';
 import { StreamingBlobPayloadInputTypes } from '@smithy/types';
 import { logger } from '../utils/logger.js';
+import { S3File } from './sandbox/types.sandbox.js';
 
 const BUCKET_NAME = process.env.AWS_BUCKET_NAME;
 const REGION = process.env.AWS_REGION;
 const MAX_RETRIES = 3;
 const RETRY_BASE_DELAY_MS = 1000;
 const MAX_KEY_LENGTH = 1024;
-const MAX_FILE_SIZE = 20 * 1024 * 1024;
 
 const s3Client = new S3Client({
     region: REGION,
@@ -129,7 +130,8 @@ async function uploadWithRetry(
     key: string,
     body: StreamingBlobPayloadInputTypes,
     contentType: string,
-    metadata: UploadMetadata
+    metadata: UploadMetadata,
+    contentLength?: number
 ): Promise<void> {
     let lastError: Error | null = null;
 
@@ -141,15 +143,20 @@ async function uploadWithRetry(
                 await sleep(delay);
             }
 
-            const command = new PutObjectCommand({
-                Bucket: BUCKET_NAME!,
-                Key: key,
-                Body: body,
-                ContentType: contentType,
-                Metadata: metadata,
+            const upload = new Upload({
+                client: s3Client,
+                params: {
+                    Bucket: BUCKET_NAME!,
+                    Key: key,
+                    Body: body,
+                    ContentType: contentType,
+                    Metadata: metadata,
+                    ContentLength: contentLength,
+                },
+                leavePartsOnError: false,
             });
 
-            await s3Client.send(command);
+            await upload.done();
             return;
         } catch (error) {
             lastError = error instanceof Error ? error : new Error(String(error));
@@ -178,22 +185,27 @@ async function uploadWithRetry(
     );
 }
 
-export function buildS3Key(userId: string, chatId: string, filePath: string): string {
+export function buildS3Key(userId: string, chatId: string, filePath?: string): string {
     const safeUserId = sanitizePathComponent(userId);
     const safeChatId = sanitizePathComponent(chatId);
-    const normalizedPath = filePath.startsWith('/') ? filePath.slice(1) : filePath;
-
-    if (!safeUserId || !safeChatId || !normalizedPath) {
+    
+    if (!safeUserId || !safeChatId) {
         throw new Error('Invalid S3 key components');
     }
 
+    if (!filePath) {
+        return `${safeUserId}/${safeChatId}/`;
+    }
+
+    const normalizedPath = filePath.startsWith('/') ? filePath.slice(1) : filePath;
     return `${safeUserId}/${safeChatId}/${normalizedPath}`;
 }
 
 export async function uploadFile(
   key: string,
   content: StreamingBlobPayloadInputTypes,
-  metadata: UploadMetadata
+  metadata: UploadMetadata,
+  contentLength?: number
 ): Promise<UploadResult> {
     if (!BUCKET_NAME) {
         logger.warn({ key }, 'S3 upload skipped: bucket not configured');
@@ -203,26 +215,8 @@ export async function uploadFile(
     try {
         validateS3Key(key);
 
-    let size: number | undefined;
-
-    if (typeof content === 'string' || Buffer.isBuffer(content)) {
-      size = content.length;
-    } else if (content instanceof Uint8Array) {
-      size = content.byteLength;
-    } else if (content instanceof Blob) {
-      size = content.size;
-    }
-
-    if (typeof size === 'number' && size > MAX_FILE_SIZE) {
-      throw createS3UploadError(
-        `File size ${size} exceeds maximum ${MAX_FILE_SIZE}`,
-        key,
-        false
-      );
-    }
-
-    const contentType = getContentType(key);
-    await uploadWithRetry(key, content, contentType, metadata);
+        const contentType = getContentType(key);
+        await uploadWithRetry(key, content, contentType, metadata, contentLength);
 
         return { success: true, key };
     } catch (error) {
@@ -234,4 +228,54 @@ export async function uploadFile(
 
 export function isS3Configured(): boolean {
     return Boolean(BUCKET_NAME && REGION);
+}
+
+export async function listFolder(prefix: string): Promise<S3File[]> {
+    if (!BUCKET_NAME) return [];
+
+    const files: S3File[] = [];
+    let continuationToken: string | undefined;
+
+    try {
+        do {
+            const command = new ListObjectsV2Command({
+                Bucket: BUCKET_NAME,
+                Prefix: prefix,
+                ContinuationToken: continuationToken,
+            });
+
+            const response = await s3Client.send(command);
+            const batch = (response.Contents || [])
+                .filter(item => item.Key)
+                .map(item => ({
+                    Key: item.Key!,
+                    Size: item.Size ?? 0,
+                }));
+            
+            files.push(...batch);
+            continuationToken = response.NextContinuationToken;
+        } while (continuationToken);
+
+        return files;
+    } catch (error) {
+        logger.error({ error, prefix }, 'Failed to list S3 folder');
+        return [];
+    }
+}
+
+export async function downloadFile(key: string): Promise<NodeJS.ReadableStream | null> {
+    if (!BUCKET_NAME) return null;
+
+    try {
+        const command = new GetObjectCommand({
+            Bucket: BUCKET_NAME,
+            Key: key,
+        });
+
+        const response = await s3Client.send(command);
+        return (response.Body as NodeJS.ReadableStream) || null;
+    } catch (error) {
+        logger.error({ error, key }, 'Failed to download file from S3');
+        return null;
+    }
 }
