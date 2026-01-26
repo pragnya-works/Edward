@@ -1,81 +1,35 @@
 import 'dotenv/config';
-import { ReceiveMessageCommand, DeleteMessageCommand, Message } from '@aws-sdk/client-sqs';
-import { ChatJobPayloadSchema } from './services/queue.service.js';
+import { Worker, Job } from 'bullmq';
+import { ChatJobPayloadSchema, ChatJobPayload } from './services/queue.service.js';
 import { processChatMessage } from './services/chat.service.js';
-import { logger } from './utils/logger.js';
-import { sqsClient, QUEUE_URL } from './lib/sqs.js';
+import { createLogger } from './utils/logger.js';
+import { connection, QUEUE_NAME } from './lib/queue.js';
 
-let isShuttingDown = false;
-let activeJobs = 0;
+const logger = createLogger('WORKER');
 
-async function handleMessage(msg: Message) {
-  if (!msg.Body || !msg.ReceiptHandle) return;
-
-  activeJobs++;
-  try {
-    const body = JSON.parse(msg.Body);
-    const payload = ChatJobPayloadSchema.parse(body);
-
+const worker = new Worker<ChatJobPayload>(
+  QUEUE_NAME,
+  async function (job: Job<ChatJobPayload>) {
+    const payload = ChatJobPayloadSchema.parse(job.data);
     await processChatMessage(payload);
-
-    await sqsClient.send(new DeleteMessageCommand({
-      QueueUrl: QUEUE_URL,
-      ReceiptHandle: msg.ReceiptHandle!,
-    }));
-
-    logger.info(`[Worker] Message deleted from queue`);
-  } catch (err) {
-    logger.error(err, '[Worker] Error handling message');
-  } finally {
-    activeJobs--;
+  },
+  {
+    connection,
+    concurrency: 5,
   }
-}
+);
 
-async function pollQueue() {
-  if (!QUEUE_URL) {
-    logger.error('SQS_QUEUE_URL is not defined');
-    return;
-  }
+worker.on('completed', function (job) {
+  logger.info(`[Worker] Job ${job.id} completed`);
+});
 
-  logger.info('[Worker] Starting polling...');
-
-  while (!isShuttingDown) {
-    try {
-      const command = new ReceiveMessageCommand({
-        QueueUrl: QUEUE_URL,
-        MaxNumberOfMessages: 5,
-        WaitTimeSeconds: 20,
-        AttributeNames: ['All'],
-      });
-
-      const response = await sqsClient.send(command);
-
-      if (response.Messages && response.Messages.length > 0) {
-        await Promise.all(response.Messages.map(handleMessage));
-      }
-    } catch (error) {
-      if (!isShuttingDown) {
-        logger.error(error, '[Worker] Polling error');
-        await new Promise(resolve => setTimeout(resolve, 5000));
-      }
-    }
-  }
-}
+worker.on('failed', function (job, err) {
+  logger.error(err, `[Worker] Job ${job?.id} failed`);
+});
 
 async function gracefulShutdown() {
-  if (isShuttingDown) return;
-  isShuttingDown = true;
-  logger.info('[Worker] Shutting down... Waiting for active jobs to finish.');
-
-  const shutdownStart = Date.now();
-  while (activeJobs > 0) {
-    if (Date.now() - shutdownStart > 30000) {
-       logger.warn('[Worker] Timeout reached. Forcing exit.');
-       break;
-    }
-    await new Promise(resolve => setTimeout(resolve, 100));
-  }
-
+  logger.info('[Worker] Shutting down...');
+  await worker.close();
   logger.info('[Worker] Shutdown complete.');
   process.exit(0);
 }
@@ -83,4 +37,4 @@ async function gracefulShutdown() {
 process.on('SIGINT', gracefulShutdown);
 process.on('SIGTERM', gracefulShutdown);
 
-pollQueue();
+logger.info('[Worker] Started listening for jobs...');

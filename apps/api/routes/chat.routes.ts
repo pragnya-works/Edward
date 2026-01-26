@@ -1,18 +1,12 @@
 import { Router, type Router as ExpressRouter } from 'express';
-import { createChat, sendMessage, getChatHistory } from '../controllers/chat.controller.js';
+import { getChatHistory, unifiedSendMessage } from '../controllers/chat.controller.js';
 import { validateRequest } from '../middleware/validateRequest.js';
 import {
-  CreateChatRequestSchema,
-  SendMessageRequestSchema,
   GetChatHistoryRequestSchema,
+  UnifiedSendMessageRequestSchema,
 } from '../schemas/chat.schema.js';
 
-export function createChatRouter(): ExpressRouter {
-  const router = Router();
+export const chatRouter: ExpressRouter = Router();
 
-  router.post('/', validateRequest(CreateChatRequestSchema), createChat);
-  router.post('/:chatId/message', validateRequest(SendMessageRequestSchema), sendMessage);
-  router.get('/:chatId/history', validateRequest(GetChatHistoryRequestSchema), getChatHistory);
-
-  return router;
-}
+chatRouter.post('/message', validateRequest(UnifiedSendMessageRequestSchema), unifiedSendMessage);
+chatRouter.get('/:chatId/history', validateRequest(GetChatHistoryRequestSchema), getChatHistory);

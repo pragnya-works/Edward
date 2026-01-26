@@ -26,7 +26,7 @@ import { motion } from "motion/react";
 export default function UserProfile() {
   const router = useRouter();
   const { data: session } = useSession();
-  const { apiKey, validateAndSaveApiKey, error } = useApiKey();
+  const { keyPreview, hasApiKey, validateAndSaveApiKey, error } = useApiKey();
   const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState(false);
   const themeTogglerRef = useRef<AnimatedThemeTogglerHandle>(null);
   const { open, animate } = useSidebar();
@@ -45,14 +45,6 @@ export default function UserProfile() {
       console.error("Failed to sign out:", error);
     }
   };
-
-  const getProviderFromKey = (key: string): Provider => {
-    if (API_KEY_REGEX[Provider.OPENAI].test(key)) return Provider.OPENAI;
-    if (API_KEY_REGEX[Provider.GEMINI].test(key)) return Provider.GEMINI;
-    return Provider.OPENAI;
-  };
-
-  const initialProvider = apiKey ? getProviderFromKey(apiKey) : Provider.OPENAI;
 
   return (
     <>
@@ -109,8 +101,8 @@ export default function UserProfile() {
         onClose={() => setIsApiKeyModalOpen(false)}
         onValidate={() => { }}
         onSaveApiKey={validateAndSaveApiKey}
-        initialApiKey={apiKey || ""}
-        initialProvider={initialProvider}
+        keyPreview={keyPreview}
+        hasExistingKey={hasApiKey ?? false}
         error={error}
       />
     </>
