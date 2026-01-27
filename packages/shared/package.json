@@ -1,5 +1,5 @@
 {
-  "name": "@workspace/shared",
+  "name": "@edward/shared",
   "version": "1.0.0",
   "description": "Shared utilities and constants for Edward workspace",
   "type": "module",
@@ -19,6 +19,6 @@
   "devDependencies": {
     "tsup": "^8.3.5",
     "typescript": "5.7.3",
-    "@workspace/typescript-config": "workspace:*"
+    "@edward/typescript-config": "workspace:*"
   }
 }

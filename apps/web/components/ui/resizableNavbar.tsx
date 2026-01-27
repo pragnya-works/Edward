@@ -1,5 +1,5 @@
 "use client";
-import { cn } from "@workspace/ui/lib/utils";
+import { cn } from "@edward/ui/lib/utils";
 import Link from "next/link";
 import {
     motion,

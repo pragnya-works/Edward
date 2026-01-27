@@ -1,5 +1,5 @@
 import { useState, useEffect, type KeyboardEvent } from "react";
-import { Button } from "@workspace/ui/components/button";
+import { Button } from "@edward/ui/components/button";
 import {
   Dialog,
   DialogContent,
@@ -7,21 +7,21 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@workspace/ui/components/dialog";
+} from "@edward/ui/components/dialog";
 import {
   Tabs,
   TabsContent,
   TabsList,
   TabsTrigger,
-} from "@workspace/ui/components/tabs";
-import { OpenAI } from "@workspace/ui/components/ui/openAi";
-import { Gemini } from "@workspace/ui/components/ui/gemini";
+} from "@edward/ui/components/tabs";
+import { OpenAI } from "@edward/ui/components/ui/openAi";
+import { Gemini } from "@edward/ui/components/ui/gemini";
 import {
   Provider,
   API_KEY_REGEX,
   API_KEY_VALIDATION_ERROR,
-} from "@workspace/shared/constants";
-import { ApiKeyInput } from "@workspace/ui/components/ui/apiKeyInput";
+} from "@edward/shared/constants";
+import { ApiKeyInput } from "@edward/ui/components/ui/apiKeyInput";
 
 interface BYOKProps {
   isOpen?: boolean;

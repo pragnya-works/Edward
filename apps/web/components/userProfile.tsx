@@ -3,8 +3,8 @@
 import { useState } from "react";
 import { signOut } from "@/lib/auth-client";
 import { useSession } from "@/lib/auth-client";
-import { Avatar, AvatarFallback, AvatarImage } from "@workspace/ui/components/avatar";
-import { Button } from "@workspace/ui/components/button";
+import { Avatar, AvatarFallback, AvatarImage } from "@edward/ui/components/avatar";
+import { Button } from "@edward/ui/components/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -12,14 +12,14 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
   DropdownMenuPositioner,
-} from "@workspace/ui/components/ui/dropdown-menu";
+} from "@edward/ui/components/ui/dropdown-menu";
 import { LogOut, Key } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { BYOK } from "@workspace/ui/components/ui/byok";
+import { BYOK } from "@edward/ui/components/ui/byok";
 import { useApiKey } from "@/hooks/useApiKey";
-import { AnimatedThemeToggler, type AnimatedThemeTogglerHandle } from "@workspace/ui/components/animated-theme-toggler"
+import { AnimatedThemeToggler, type AnimatedThemeTogglerHandle } from "@edward/ui/components/animated-theme-toggler"
 import { useRef } from "react";
-import { useSidebar } from "@workspace/ui/components/sidebar";
+import { useSidebar } from "@edward/ui/components/sidebar";
 import { motion } from "motion/react";
 
 export default function UserProfile() {

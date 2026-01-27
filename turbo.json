@@ -15,7 +15,7 @@
         "LINEAR_API_KEY"
       ]
     },
-    "@workspace/auth#build": {
+    "@edward/auth#build": {
       "dependsOn": ["^build"],
       "outputs": ["dist/**"],
       "env": [

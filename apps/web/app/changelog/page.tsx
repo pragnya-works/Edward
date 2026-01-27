@@ -2,15 +2,15 @@ import { Metadata } from "next";
 import { getLinearIssues, groupAndSortIssues } from "@/lib/linear";
 import { ChangelogHeader } from "@/components/changelog/header";
 import { IssueCard } from "@/components/changelog/issueCard";
-import { Card, CardContent } from "@workspace/ui/components/card";
+import { Card, CardContent } from "@edward/ui/components/card";
 import { 
   Accordion, 
   AccordionContent, 
   AccordionItem, 
   AccordionTrigger 
-} from "@workspace/ui/components/accordion";
+} from "@edward/ui/components/accordion";
 import { AlertCircle, Tag } from "lucide-react";
-import { Badge } from "@workspace/ui/components/badge";
+import { Badge } from "@edward/ui/components/badge";
 
 export const revalidate = 3600;
 

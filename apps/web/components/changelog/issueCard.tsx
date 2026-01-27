@@ -1,10 +1,10 @@
-import { Card, CardHeader, CardTitle } from "@workspace/ui/components/card";
+import { Card, CardHeader, CardTitle } from "@edward/ui/components/card";
 import { Calendar } from "lucide-react";
 import { StatusBadge } from "./statusBadge";
 import { PriorityBadge } from "./priorityBadge";
 import { ChangelogIssue } from "@/lib/linear";
-import { Badge } from "@workspace/ui/components/badge";
-import { Skeleton } from "@workspace/ui/components/skeleton";
+import { Badge } from "@edward/ui/components/badge";
+import { Skeleton } from "@edward/ui/components/skeleton";
 
 export function IssueCard({ issue }: { issue: ChangelogIssue }) {
   const dateToUse = issue.completedAt || issue.updatedAt;

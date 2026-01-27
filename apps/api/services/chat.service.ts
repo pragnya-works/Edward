@@ -1,4 +1,4 @@
-import { db, chat, message, MessageRole, eq } from '@workspace/auth';
+import { db, chat, message, MessageRole, eq } from '@edward/auth';
 import { nanoid } from 'nanoid';
 import { logger } from '../utils/logger.js';
 import { generateResponse } from '../lib/llm/response.js';

@@ -14,7 +14,7 @@ import Link from "next/link";
 import { LoaderIcon } from "lucide-react";
 import { IconBrandGithubFilled } from "@tabler/icons-react";
 import { signIn } from "@/lib/auth-client";
-import { Skeleton } from "@workspace/ui/components/skeleton";
+import { Skeleton } from "@edward/ui/components/skeleton";
 import { useSession } from "@/lib/auth-client";
 import { useState } from "react";
 import { AnimatePresence, motion } from "motion/react";

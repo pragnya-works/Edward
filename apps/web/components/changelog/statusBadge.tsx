@@ -1,4 +1,4 @@
-import { Badge } from "@workspace/ui/components/badge";
+import { Badge } from "@edward/ui/components/badge";
 import { AlertCircle, CheckCircle2, Circle, Loader2 } from "lucide-react";
 import React from "react";
 

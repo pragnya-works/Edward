@@ -2,7 +2,7 @@
 
 import * as React from "react"
 
-import { cn } from "@workspace/ui/lib/utils"
+import { cn } from "@edward/ui/lib/utils"
 
 function Label({
   className,

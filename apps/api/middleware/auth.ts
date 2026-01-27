@@ -1,5 +1,5 @@
 import type { Request, Response, NextFunction } from 'express';
-import { auth } from '@workspace/auth';
+import { auth } from '@edward/auth';
 import { logger } from '../utils/logger.js';
 import { HttpMethod, HttpStatus, ERROR_MESSAGES } from '../utils/constants.js';
 

@@ -5,7 +5,7 @@ import {
   Provider,
   API_KEY_REGEX,
   API_KEY_VALIDATION_ERROR
-} from "@workspace/shared/constants";
+} from "@edward/shared/constants";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, useCallback, useRef } from "react";
 

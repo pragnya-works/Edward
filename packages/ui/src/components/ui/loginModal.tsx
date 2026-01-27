@@ -1,5 +1,5 @@
-import { Button } from "@workspace/ui/components/button";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@workspace/ui/components/dialog";
+import { Button } from "@edward/ui/components/button";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@edward/ui/components/dialog";
 
 interface LoginModalProps {
   isOpen: boolean;

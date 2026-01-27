@@ -1,4 +1,4 @@
-import { db, user, eq } from '@workspace/auth';
+import { db, user, eq } from '@edward/auth';
 import { decrypt } from '../utils/encryption.js';
 
 export async function getUserEncryptedKey(userId: string): Promise<{ id: string; apiKey: string | null; createdAt: Date; updatedAt: Date } | undefined> {

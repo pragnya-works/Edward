@@ -1,5 +1,5 @@
 import type { Response } from 'express';
-import { db, chat, message, eq, MessageRole } from '@workspace/auth';
+import { db, chat, message, eq, MessageRole } from '@edward/auth';
 import { type AuthenticatedRequest, getAuthenticatedUserId } from '../middleware/auth.js';
 import {
   ChatIdParamSchema,

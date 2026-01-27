@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { cn } from "@workspace/ui/lib/utils";
+import { cn } from "@edward/ui/lib/utils";
 
 export const FlipWords = ({
   words,

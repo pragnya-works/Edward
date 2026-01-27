@@ -1,5 +1,5 @@
 import type { Response } from 'express';
-import { db, user, eq } from '@workspace/auth';
+import { db, user, eq } from '@edward/auth';
 import { type AuthenticatedRequest, getAuthenticatedUserId } from '../middleware/auth.js';
 import {
   ApiKeySchema,

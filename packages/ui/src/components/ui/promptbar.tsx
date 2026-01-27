@@ -1,14 +1,14 @@
 import { ArrowRight, PaperclipIcon } from "lucide-react";
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Button } from "@workspace/ui/components/button";
-import { Card } from "@workspace/ui/components/card";
-import { Textarea } from "@workspace/ui/components/textarea";
-import { TextAnimate } from "@workspace/ui/components/textAnimate";
-import { Tooltip, TooltipContent, TooltipTrigger, TooltipPositioner } from "@workspace/ui/components/tooltip";
-import { useIsMobile } from "@workspace/ui/hooks/useMobile";
-import { LoginModal } from "@workspace/ui/components/ui/loginModal";
-import { BYOK } from "@workspace/ui/components/ui/byok";
-import { Provider } from "@workspace/shared/constants";
+import { Button } from "@edward/ui/components/button";
+import { Card } from "@edward/ui/components/card";
+import { Textarea } from "@edward/ui/components/textarea";
+import { TextAnimate } from "@edward/ui/components/textAnimate";
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipPositioner } from "@edward/ui/components/tooltip";
+import { useIsMobile } from "@edward/ui/hooks/useMobile";
+import { LoginModal } from "@edward/ui/components/ui/loginModal";
+import { BYOK } from "@edward/ui/components/ui/byok";
+import { Provider } from "@edward/shared/constants";
 
 const SUGGESTIONS: string[] = [
   "Build a high-fidelity SaaS landing page with Bento grid layouts and subtle Framer Motion reveals",

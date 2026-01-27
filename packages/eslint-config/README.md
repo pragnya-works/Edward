@@ -1,3 +1,3 @@
-# `@workspace/eslint-config`
+# `@edward/eslint-config`
 
-Shared eslint configuration for the workspace.
+Shared eslint configuration for the Edward workspace.

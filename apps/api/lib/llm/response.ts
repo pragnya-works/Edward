@@ -1,6 +1,6 @@
 import OpenAI from 'openai';
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { Provider, API_KEY_REGEX } from '@workspace/shared/constants';
+import { Provider, API_KEY_REGEX } from '@edward/shared/constants';
 import { SYSTEM_PROMPT } from "./system-prompt.js";
 import { createLogger } from "../../utils/logger.js";
 import { ensureError } from "../../utils/error.js";
