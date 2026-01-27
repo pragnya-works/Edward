@@ -23,7 +23,11 @@ export async function ensureContainerRunning(container: Docker.Container): Promi
 export async function execCommand(
     container: Docker.Container,
     cmd: string[],
-    throwOnError = true
+    throwOnError = true,
+    timeoutMs = EXEC_TIMEOUT_MS,
+    user?: string,
+    workingDir?: string,
+    env?: string[]
 ): Promise<ExecResult> {
     await ensureContainerRunning(container);
 
@@ -31,6 +35,9 @@ export async function execCommand(
         Cmd: cmd,
         AttachStdout: true,
         AttachStderr: true,
+        User: user,
+        WorkingDir: workingDir,
+        Env: env,
     });
 
     const stream = await exec.start({ hijack: true });
@@ -41,8 +48,8 @@ export async function execCommand(
     const result = await new Promise<ExecResult>((resolve, reject) => {
         const timeout = setTimeout(() => {
             stream.destroy();
-            reject(new Error(`Command timeout: ${cmd.join(' ')}`));
-        }, EXEC_TIMEOUT_MS);
+            reject(new Error(`Command timeout after ${timeoutMs}ms: ${cmd.join(' ')}`));
+        }, timeoutMs);
 
         const stdoutStream = new Writable({
             write(chunk: Buffer | string, _enc: BufferEncoding, cb: (error?: Error | null) => void) {
@@ -143,16 +150,20 @@ export async function createContainer(userId: string, chatId: string, sandboxId:
         },
         HostConfig: {
             Memory: 1024 * 1024 * 1024,
-            MemorySwap: 1024 * 1024 * 1024,
-            NanoCpus: 1000000000,
-            PidsLimit: 100,
-            NetworkMode: 'none',
+            MemorySwap: 3 * 1024 * 1024 * 1024,
+            NanoCpus: 500000000,
+            CpuShares: 512,
+            PidsLimit: 2048,
         },
         User: 'node',
         WorkingDir: '/home/node',
+        Env: [
+            'NODE_OPTIONS=--max-old-space-size=768'
+        ]
     });
 
     await container.start();
+    await disconnectFromNetwork(container.id).catch(() => { });
     await setupWorkspace(container);
     return container;
 }
@@ -171,6 +182,30 @@ export async function destroyContainer(containerId: string): Promise<void> {
         await container.remove({ force: true });
     } catch (error) {
         if (error instanceof Error && error.message.includes('404')) {
+            return;
+        }
+        throw error;
+    }
+}
+
+export async function connectToNetwork(containerId: string, networkName = 'bridge'): Promise<void> {
+    try {
+        const network = docker.getNetwork(networkName);
+        await network.connect({ Container: containerId });
+    } catch (error) {
+        if (error instanceof Error && error.message.includes('already exists')) {
+            return;
+        }
+        throw error;
+    }
+}
+
+export async function disconnectFromNetwork(containerId: string, networkName = 'bridge'): Promise<void> {
+    try {
+        const network = docker.getNetwork(networkName);
+        await network.disconnect({ Container: containerId, Force: true });
+    } catch (error) {
+        if (error instanceof Error && (error.message.includes('not connected') || error.message.includes('404'))) {
             return;
         }
         throw error;

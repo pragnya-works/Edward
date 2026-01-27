@@ -16,6 +16,7 @@ import { sendError as sendStandardError, sendSuccess } from '../utils/response.j
 import { provisionSandbox, cleanupSandbox, getActiveSandbox } from '../services/sandbox/lifecycle.sandbox.js';
 import { prepareSandboxFile, writeSandboxFile, flushSandbox } from '../services/sandbox/writes.sandbox.js';
 import { backupSandbox } from '../services/sandbox/backup.sandbox.js';
+import { buildAndUploadPreview } from '../services/sandbox/build.sandbox.js';
 import { ensureError } from '../utils/error.js';
 import { deleteFolder, buildS3Key } from '../services/storage.service.js';
 
@@ -222,10 +223,34 @@ export async function unifiedSendMessage(
         res.write(`data: ${JSON.stringify(event)}\n\n`);
       }
 
-      if (currentSandboxId)
-        await flushSandbox(currentSandboxId).catch((err: unknown) =>
+
+      if (currentSandboxId) {
+        await flushSandbox(currentSandboxId, true).catch((err: unknown) =>
           logger.error(ensureError(err), `Final flush failed for sandbox: ${currentSandboxId}`)
         );
+
+        void buildAndUploadPreview(currentSandboxId)
+          .then((buildResult) => {
+            if (buildResult.success) {
+              logger.info({
+                sandboxId: currentSandboxId,
+                chatId,
+                buildDirectory: buildResult.buildDirectory,
+                previewUploaded: buildResult.previewUploaded,
+                previewStats: buildResult.previewStats,
+              }, 'Build and preview upload completed');
+            } else {
+              logger.warn({
+                sandboxId: currentSandboxId,
+                chatId,
+                error: buildResult.error,
+              }, 'Build did not complete successfully');
+            }
+          })
+          .catch((err: unknown) =>
+            logger.error(ensureError(err), `Build and preview upload failed for sandbox: ${currentSandboxId}`)
+          );
+      }
 
       await saveMessage(chatId, userId, MessageRole.Assistant, fullRawResponse, assistantMessageId);
       res.write('data: [DONE]\n\n');

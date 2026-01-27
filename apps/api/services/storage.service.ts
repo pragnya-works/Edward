@@ -1,7 +1,6 @@
 import { S3Client, ListObjectsV2Command, GetObjectCommand, DeleteObjectsCommand } from '@aws-sdk/client-s3';
 import { Upload } from '@aws-sdk/lib-storage';
 import { StreamingBlobPayloadInputTypes } from '@smithy/types';
-import { Readable } from 'stream';
 import { lookup } from 'mime-types';
 import { logger } from '../utils/logger.js';
 import { S3File } from './sandbox/types.sandbox.js';
@@ -134,14 +133,7 @@ async function sleep(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-async function streamToBuffer(stream: Readable): Promise<Buffer> {
-    return new Promise((resolve, reject) => {
-        const chunks: Buffer[] = [];
-        stream.on('data', chunk => chunks.push(Buffer.from(chunk)));
-        stream.on('error', err => reject(err));
-        stream.on('end', () => resolve(Buffer.concat(chunks)));
-    });
-}
+
 
 async function uploadWithRetry(
     key: string,
@@ -152,18 +144,6 @@ async function uploadWithRetry(
 ): Promise<void> {
     let lastError: Error | null = null;
     let uploadBody = body;
-    if (uploadBody instanceof Readable) {
-        try {
-            uploadBody = await streamToBuffer(uploadBody);
-        } catch (error) {
-            throw createS3UploadError(
-                `Failed to buffer upload stream: ${error instanceof Error ? error.message : String(error)}`,
-                key,
-                false,
-                error instanceof Error ? error : new Error(String(error))
-            );
-        }
-    }
 
     for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
         try {
