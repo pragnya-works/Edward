@@ -9,9 +9,18 @@ import { TopFade } from "@/components/home/topFade"
 import { useSession } from "@/lib/auth-client"
 
 import { AnimatePresence, motion } from "motion/react"
+import { useTheme } from "next-themes"
+import { useEffect } from "react"
 
 export default function Home() {
   const { data: session, isPending } = useSession();
+  const { setTheme, resolvedTheme } = useTheme();
+
+  useEffect(() => {
+    if (!isPending && !session?.user && resolvedTheme !== "dark") {
+      setTheme("dark");
+    }
+  }, [isPending, session, setTheme, resolvedTheme]);
 
   if (isPending) return null;
 

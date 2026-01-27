@@ -136,6 +136,7 @@ export async function restoreSandboxInstance(sandbox: SandboxInstance): Promise<
 
             const relativePath = key.replace(folderPrefix, '');
             if (!relativePath || relativePath.startsWith('/') || relativePath.includes('..')) continue;
+            if (relativePath.startsWith('previews/')) continue;
 
             const stream = await downloadFile(key);
             if (!stream) {
