@@ -2,8 +2,8 @@
 
 import React, { memo, useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { TextAnimate } from "@workspace/ui/components/textAnimate";
-import { cn } from "@workspace/ui/lib/utils";
+import { TextAnimate } from "@edward/ui/components/textAnimate";
+import { cn } from "@edward/ui/lib/utils";
 
 const EXAMPLES = [
     {

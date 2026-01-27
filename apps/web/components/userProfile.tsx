@@ -3,8 +3,8 @@
 import { useState } from "react";
 import { signOut } from "@/lib/auth-client";
 import { useSession } from "@/lib/auth-client";
-import { Avatar, AvatarFallback, AvatarImage } from "@workspace/ui/components/avatar";
-import { Button } from "@workspace/ui/components/button";
+import { Avatar, AvatarFallback, AvatarImage } from "@edward/ui/components/avatar";
+import { Button } from "@edward/ui/components/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -12,21 +12,20 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
   DropdownMenuPositioner,
-} from "@workspace/ui/components/ui/dropdown-menu";
+} from "@edward/ui/components/ui/dropdown-menu";
 import { LogOut, Key } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { BYOK } from "@workspace/ui/components/ui/byok";
+import { BYOK } from "@edward/ui/components/ui/byok";
 import { useApiKey } from "@/hooks/useApiKey";
-import { Provider, API_KEY_REGEX } from "@workspace/ui/constants/apiKey.constants";
-import { AnimatedThemeToggler, type AnimatedThemeTogglerHandle } from "@workspace/ui/components/animated-theme-toggler"
+import { AnimatedThemeToggler, type AnimatedThemeTogglerHandle } from "@edward/ui/components/animated-theme-toggler"
 import { useRef } from "react";
-import { useSidebar } from "@workspace/ui/components/sidebar";
+import { useSidebar } from "@edward/ui/components/sidebar";
 import { motion } from "motion/react";
 
 export default function UserProfile() {
   const router = useRouter();
   const { data: session } = useSession();
-  const { apiKey, validateAndSaveApiKey, error } = useApiKey();
+  const { keyPreview, hasApiKey, validateAndSaveApiKey, error } = useApiKey();
   const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState(false);
   const themeTogglerRef = useRef<AnimatedThemeTogglerHandle>(null);
   const { open, animate } = useSidebar();
@@ -44,15 +43,7 @@ export default function UserProfile() {
     } catch (error) {
       console.error("Failed to sign out:", error);
     }
-  }
-
-  function getProviderFromKey(key: string): Provider {
-    if (API_KEY_REGEX[Provider.OPENAI].test(key)) return Provider.OPENAI;
-    if (API_KEY_REGEX[Provider.GEMINI].test(key)) return Provider.GEMINI;
-    return Provider.OPENAI;
-  }
-
-  const initialProvider = apiKey ? getProviderFromKey(apiKey) : Provider.OPENAI;
+  };
 
   return (
     <>
@@ -109,8 +100,8 @@ export default function UserProfile() {
         onClose={() => setIsApiKeyModalOpen(false)}
         onValidate={() => { }}
         onSaveApiKey={validateAndSaveApiKey}
-        initialApiKey={apiKey || ""}
-        initialProvider={initialProvider}
+        keyPreview={keyPreview}
+        hasExistingKey={hasApiKey ?? false}
         error={error}
       />
     </>

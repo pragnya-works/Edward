@@ -1,9 +1,8 @@
 import type { Response } from 'express';
-import { db, user, eq } from '@workspace/auth';
+import { db, user, eq } from '@edward/auth';
 import { type AuthenticatedRequest, getAuthenticatedUserId } from '../middleware/auth.js';
 import {
-  CreateApiKeyRequestSchema,
-  UpdateApiKeyRequestSchema,
+  ApiKeySchema,
   CreateApiKeyResponse,
   UpdateApiKeyResponse,
   GetApiKeyResponse,
@@ -11,123 +10,126 @@ import {
   ErrorResponse,
 } from '../schemas/apiKey.schema.js';
 import { encrypt, decrypt } from '../utils/encryption.js';
-import { z } from 'zod';
+import { logger } from '../utils/logger.js';
+import { getUserWithApiKey } from '../services/apiKey.service.js';
+import { sendError, sendSuccess } from '../utils/response.js';
+import { HttpStatus } from '../utils/constants.js';
 
-const sendError = (res: Response, status: number, error: string): void => {
-  res.status(status).json({
-    error,
-    timestamp: new Date().toISOString(),
-  });
-};
+function formatKeyPreview(apiKey: string): string {
+  return `${apiKey.slice(0, 7)}...${apiKey.slice(-4)}`;
+}
 
-const getUser = async (userId: string) => {
-  const [result] = await db
-    .select({
-      id: user.id,
-      apiKey: user.apiKey,
-      createdAt: user.createdAt,
-      updatedAt: user.updatedAt,
-    })
-    .from(user)
-    .where(eq(user.id, userId))
-    .limit(1);
-
-  return result;
-};
-
-export const getApiKey = async (
+export async function getApiKey(
   req: AuthenticatedRequest,
   res: Response<GetApiKeyResponse | ErrorResponse>
-): Promise<void> => {
+): Promise<void> {
   try {
     const userId = getAuthenticatedUserId(req);
-    const userData = await getUser(userId);
+    const userData = await getUserWithApiKey(userId);
 
     if (!userData?.apiKey) {
-      sendError(res, 404, 'API key not found');
+      logger.info(`[API Key] Access attempt - No key found for user: ${userId}`);
+      sendSuccess(res, HttpStatus.OK, 'No API key found', {
+        hasApiKey: false,
+        userId: userData?.id || userId,
+        createdAt: userData?.createdAt,
+        updatedAt: userData?.updatedAt,
+      });
       return;
     }
 
-    let decryptedKey: string | undefined;
+    let keyPreview: string | undefined;
     try {
-      decryptedKey = decrypt(userData.apiKey);
+      const decryptedKey = decrypt(userData.apiKey);
+      keyPreview = formatKeyPreview(decryptedKey);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      console.warn(`[getApiKey] Failed to decrypt API key for user ${userData.id}: ${errorMessage}`);
+      logger.error(`[API Key] Decryption failed for user ${userData.id}: ${errorMessage}`);
     }
 
-    res.status(200).json({
-      message: 'API key retrieved successfully',
-      data: {
-        hasApiKey: !!userData.apiKey,
-        apiKey: decryptedKey,
-        userId: userData.id,
-        createdAt: userData.createdAt,
-        updatedAt: userData.updatedAt,
-      },
-      timestamp: new Date().toISOString(),
+
+
+    sendSuccess(res, HttpStatus.OK, 'API key status retrieved successfully', {
+      hasApiKey: true,
+      keyPreview,
+      userId: userData.id,
+      createdAt: userData.createdAt,
+      updatedAt: userData.updatedAt,
     });
   } catch (error) {
-    console.error('getApiKey error:', error);
-    sendError(res, 500, 'Internal server error');
+    logger.error(error, 'getApiKey error');
+    sendError(res, HttpStatus.INTERNAL_SERVER_ERROR, 'Internal server error');
   }
-};
+}
 
-export const createApiKey = async (
+export async function createApiKey(
   req: AuthenticatedRequest,
   res: Response<CreateApiKeyResponse | ErrorResponse>
-): Promise<void> => {
+): Promise<void> {
   try {
     const userId = getAuthenticatedUserId(req);
-    const { body } = req as z.infer<typeof CreateApiKeyRequestSchema>;
-    const userData = await getUser(userId);
+    const validated = ApiKeySchema.safeParse(req.body);
+
+    if (!validated.success) {
+      sendError(res, HttpStatus.BAD_REQUEST, validated.error.errors[0]?.message || 'Validation failed');
+      return;
+    }
+
+    const { apiKey } = validated.data;
+    const userData = await getUserWithApiKey(userId);
 
     if (!userData) {
-      sendError(res, 404, 'User not found');
+      sendError(res, HttpStatus.NOT_FOUND, 'User not found');
       return;
     }
 
     if (userData.apiKey) {
-      sendError(res, 409, 'API key already exists');
+      logger.warn(`[API Key] Creation attempt failed - Key already exists for user: ${userId}`);
+      sendError(res, HttpStatus.CONFLICT, 'API key already exists');
       return;
     }
 
-    const encryptedApiKey = encrypt(body.apiKey);
+    const encryptedApiKey = encrypt(apiKey);
     const [updatedUser] = await db
       .update(user)
-      .set({ apiKey: encryptedApiKey })
+      .set({ apiKey: encryptedApiKey, updatedAt: new Date() })
       .where(eq(user.id, userData.id))
       .returning();
 
-    res.status(201).json({
-      message: 'API key created successfully',
-      data: {
-        apiKey: body.apiKey,
-        userId: updatedUser.id,
-      },
-      timestamp: new Date().toISOString(),
+    logger.info(`[API Key] Created for user: ${userId}`);
+
+    sendSuccess(res, HttpStatus.CREATED, 'API key created successfully', {
+      userId: updatedUser.id,
+      keyPreview: formatKeyPreview(apiKey),
     });
   } catch (error) {
-    console.error('createApiKey error:', error);
-    sendError(res, 500, 'Internal server error');
+    logger.error(error, 'createApiKey error');
+    sendError(res, HttpStatus.INTERNAL_SERVER_ERROR, 'Internal server error');
   }
-};
+}
 
-export const updateApiKey = async (
+export async function updateApiKey(
   req: AuthenticatedRequest,
   res: Response<UpdateApiKeyResponse | ErrorResponse>
-): Promise<void> => {
+): Promise<void> {
   try {
     const userId = getAuthenticatedUserId(req);
-    const { body } = req as z.infer<typeof UpdateApiKeyRequestSchema>;
-    const userData = await getUser(userId);
+    const validated = ApiKeySchema.safeParse(req.body);
 
-    if (!userData) {
-      sendError(res, 404, 'User not found');
+    if (!validated.success) {
+      sendError(res, HttpStatus.BAD_REQUEST, validated.error.errors[0]?.message || 'Validation failed');
       return;
     }
 
-    const encryptedApiKey = encrypt(body.apiKey);
+    const { apiKey } = validated.data;
+    const userData = await getUserWithApiKey(userId);
+
+    if (!userData) {
+      sendError(res, HttpStatus.NOT_FOUND, 'User not found');
+      return;
+    }
+
+    const encryptedApiKey = encrypt(apiKey);
 
     const [updatedUser] = await db
       .update(user)
@@ -138,30 +140,28 @@ export const updateApiKey = async (
       .where(eq(user.id, userData.id))
       .returning();
 
-    res.status(200).json({
-      message: 'API key updated successfully',
-      data: {
-        apiKey: body.apiKey,
-        userId: updatedUser.id,
-      },
-      timestamp: new Date().toISOString(),
+    logger.info(`[API Key] Updated for user: ${userId}`);
+
+    sendSuccess(res, HttpStatus.OK, 'API key updated successfully', {
+      userId: updatedUser.id,
+      keyPreview: formatKeyPreview(apiKey),
     });
   } catch (error) {
-    console.error('updateApiKey error:', error);
-    sendError(res, 500, 'Internal server error');
+    logger.error(error, 'updateApiKey error');
+    sendError(res, HttpStatus.INTERNAL_SERVER_ERROR, 'Internal server error');
   }
-};
+}
 
-export const deleteApiKey = async (
+export async function deleteApiKey(
   req: AuthenticatedRequest,
   res: Response<DeleteApiKeyResponse | ErrorResponse>
-): Promise<void> => {
+): Promise<void> {
   try {
     const userId = getAuthenticatedUserId(req);
-    const userData = await getUser(userId);
+    const userData = await getUserWithApiKey(userId);
 
     if (!userData) {
-      sendError(res, 404, 'User not found');
+      sendError(res, HttpStatus.NOT_FOUND, 'User not found');
       return;
     }
 
@@ -170,22 +170,11 @@ export const deleteApiKey = async (
       .set({ apiKey: null, updatedAt: new Date() })
       .where(eq(user.id, userData.id));
 
-    res.status(200).json({
-      message: 'API key deleted successfully',
-      timestamp: new Date().toISOString(),
-    });
-  } catch (error) {
-    console.error('deleteApiKey error:', error);
-    sendError(res, 500, 'Internal server error');
-  }
-};
+    logger.info(`[API Key] Deleted for user: ${userId}`);
 
-export const useApiKeyForRequest = async (userId: string) => {
-  const userData = await getUser(userId);
-  if (!userData?.apiKey) {
-    throw new Error('API key not found');
+    sendSuccess(res, HttpStatus.OK, 'API key deleted successfully');
+  } catch (error) {
+    logger.error(error, 'deleteApiKey error');
+    sendError(res, HttpStatus.INTERNAL_SERVER_ERROR, 'Internal server error');
   }
-  
-  const decryptedApiKey = decrypt(userData.apiKey);
-  return decryptedApiKey;
-};
+}

@@ -1,7 +1,7 @@
 import React, { memo } from "react";
-import { BentoCard, BentoGrid } from "@workspace/ui/components/bento-grid";
-import { DottedMap } from "@workspace/ui/components/dotted-map";
-import { LineShadowText } from "@workspace/ui/components/line-shadow-text";
+import { BentoCard, BentoGrid } from "@edward/ui/components/bento-grid";
+import { DottedMap } from "@edward/ui/components/dotted-map";
+import { LineShadowText } from "@edward/ui/components/line-shadow-text";
 import { motion } from "motion/react";
 import { AIGenerationVisual } from "./aiGenerationVisual";
 import { InstantPreviewVisual } from "./instantPreviewVisual";

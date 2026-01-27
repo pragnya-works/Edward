@@ -1,5 +1,5 @@
 "use client";
-import { cn } from "@workspace/ui/lib/utils";
+import { cn } from "@edward/ui/lib/utils";
 import { useState, createContext, useContext, useEffect, useMemo } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { IconMenu2, IconX } from "@tabler/icons-react";

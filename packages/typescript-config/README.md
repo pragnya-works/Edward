@@ -1,3 +1,3 @@
-# `@workspace/typescript-config`
+# `@edward/typescript-config`
 
-Shared typescript configuration for the workspace.
+Shared typescript configuration for the Edward workspace.

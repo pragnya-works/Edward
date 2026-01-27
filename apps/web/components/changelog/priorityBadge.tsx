@@ -1,4 +1,4 @@
-import { Badge } from "@workspace/ui/components/badge";
+import { Badge } from "@edward/ui/components/badge";
 import { 
   AlertTriangle, 
   ArrowUpCircle, 

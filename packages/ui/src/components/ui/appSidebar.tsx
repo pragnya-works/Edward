@@ -1,14 +1,14 @@
 "use client";
-import { SidebarBody, SidebarLink, SidebarTrigger, useSidebar } from "@workspace/ui/components/sidebar";
+import { SidebarBody, SidebarLink, SidebarTrigger, useSidebar } from "@edward/ui/components/sidebar";
 import { motion } from "motion/react";
 import { Home, ScrollText, ChevronRight } from "lucide-react";
-import { cn } from "@workspace/ui/lib/utils";
+import { cn } from "@edward/ui/lib/utils";
 import {
   Tooltip,
   TooltipContent,
   TooltipPositioner,
   TooltipTrigger,
-} from "@workspace/ui/components/tooltip";
+} from "@edward/ui/components/tooltip";
 import { useState, useEffect } from "react";
 
 interface AppSidebarProps {

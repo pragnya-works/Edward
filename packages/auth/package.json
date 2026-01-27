@@ -1,5 +1,5 @@
 {
-  "name": "@workspace/auth",
+  "name": "@edward/auth",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -13,6 +13,7 @@
   },
   "scripts": {
     "build": "tsc",
+    "lint": "eslint . --max-warnings 0",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio"
@@ -24,8 +25,8 @@
   },
   "devDependencies": {
     "@types/node": "^25.0.8",
-    "@workspace/eslint-config": "workspace:*",
-    "@workspace/typescript-config": "workspace:*",
+    "@edward/eslint-config": "workspace:*",
+    "@edward/typescript-config": "workspace:*",
     "drizzle-kit": "^0.31.8",
     "typescript": "^5.9.3"
   }

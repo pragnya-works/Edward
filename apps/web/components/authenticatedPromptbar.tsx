@@ -1,6 +1,6 @@
 "use client";
 
-import Promptbar from "@workspace/ui/components/ui/promptbar";
+import Promptbar from "@edward/ui/components/ui/promptbar";
 import { useSession, signIn } from "@/lib/auth-client";
 import { useApiKey } from "@/hooks/useApiKey";
 

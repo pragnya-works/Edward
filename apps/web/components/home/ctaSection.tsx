@@ -1,8 +1,8 @@
-import { Button } from "@workspace/ui/components/button";
-import { FlickeringGrid } from "@workspace/ui/components/flickering-grid";
-import { AnimatedShinyText } from "@workspace/ui/components/animated-shiny-text";
+import { Button } from "@edward/ui/components/button";
+import { FlickeringGrid } from "@edward/ui/components/flickering-grid";
+import { AnimatedShinyText } from "@edward/ui/components/animated-shiny-text";
 import { ArrowRight } from "lucide-react";
-import { cn } from "@workspace/ui/lib/utils";
+import { cn } from "@edward/ui/lib/utils";
 
 export function CTASection() {
     return (

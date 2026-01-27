@@ -1,12 +1,12 @@
-import { Button } from "@workspace/ui/components/button";
-import { Input } from "@workspace/ui/components/input";
-import { Label } from "@workspace/ui/components/label";
+import { Button } from "@edward/ui/components/button";
+import { Input } from "@edward/ui/components/input";
+import { Label } from "@edward/ui/components/label";
 import { Eye, EyeOff } from "lucide-react";
 import {
   Provider,
   API_KEY_LABEL,
   API_KEY_PLACEHOLDER,
-} from "@workspace/ui/constants/apiKey.constants";
+} from "@edward/shared/constants";
 
 interface ApiKeyInputProps {
   provider: Provider;

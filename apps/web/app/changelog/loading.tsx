@@ -1,4 +1,4 @@
-import { Skeleton } from "@workspace/ui/components/skeleton";
+import { Skeleton } from "@edward/ui/components/skeleton";
 import { IssueCardSkeleton } from "@/components/changelog/issueCard";
 
 export default function Loading() {

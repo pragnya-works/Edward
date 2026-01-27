@@ -9,9 +9,9 @@ export const ApiKeySchema = z.object({
 export const ApiKeyDataSchema = z.object({
   hasApiKey: z.boolean(),
   userId: z.string(),
-  apiKey: z.string().optional(),
-  createdAt: z.date(),
-  updatedAt: z.date(),
+  keyPreview: z.string().optional(),
+  createdAt: z.date().optional(),
+  updatedAt: z.date().optional(),
 });
 
 export const CreateApiKeyRequestSchema = z.object({
@@ -31,8 +31,8 @@ export type GetApiKeyResponse = {
 export type CreateApiKeyResponse = {
   message: string;
   data: {
-    apiKey: string;
     userId: string;
+    keyPreview: string;
   };
   timestamp: string;
 };
@@ -40,8 +40,8 @@ export type CreateApiKeyResponse = {
 export type UpdateApiKeyResponse = {
   message: string;
   data: {
-    apiKey: string;
     userId: string;
+    keyPreview: string;
   };
   timestamp: string;
 };

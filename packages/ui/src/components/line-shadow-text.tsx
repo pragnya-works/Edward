@@ -2,7 +2,7 @@
 
 import { motion, MotionProps } from "motion/react"
 
-import { cn } from "@workspace/ui/lib/utils"
+import { cn } from "@edward/ui/lib/utils"
 
 interface LineShadowTextProps
   extends

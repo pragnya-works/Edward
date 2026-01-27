@@ -1,18 +1,27 @@
 import type { Request, Response, NextFunction } from 'express';
-import { auth } from '@workspace/auth';
+import { auth } from '@edward/auth';
+import { logger } from '../utils/logger.js';
+import { HttpMethod, HttpStatus, ERROR_MESSAGES } from '../utils/constants.js';
 
 export interface AuthenticatedRequest extends Request {
   userId?: string;
   sessionId?: string;
 }
 
-export const authMiddleware = async (
+function sendUnauthorized(res: Response): void {
+  res.status(HttpStatus.UNAUTHORIZED).json({
+    error: ERROR_MESSAGES.UNAUTHORIZED,
+    timestamp: new Date().toISOString(),
+  });
+}
+
+export async function authMiddleware(
   req: AuthenticatedRequest,
   res: Response,
   next: NextFunction
-): Promise<void> => {
+): Promise<void> {
   try {
-    if (req.method === 'OPTIONS') {
+    if (req.method === HttpMethod.OPTIONS) {
       next();
       return;
     }
@@ -22,27 +31,22 @@ export const authMiddleware = async (
     });
 
     if (!sessionData?.session || !sessionData?.user) {
-      res.status(401).json({
-        error: 'Unauthorized',
-        timestamp: new Date().toISOString(),
-      });
+      sendUnauthorized(res);
       return;
     }
+
     req.userId = sessionData.user.id;
     req.sessionId = sessionData.session.id;
     next();
   } catch (error) {
-    console.error('authMiddleware error:', error);
-    res.status(401).json({
-      error: 'Unauthorized',
-      timestamp: new Date().toISOString(),
-    });
+    logger.error(error, 'authMiddleware error');
+    sendUnauthorized(res);
   }
-};
+}
 
-export const getAuthenticatedUserId = (req: AuthenticatedRequest): string => {
+export function getAuthenticatedUserId(req: AuthenticatedRequest): string {
   if (!req.userId) {
     throw new Error("Context Error: req.userId is missing. Ensure 'authMiddleware' is applied to this route.");
   }
   return req.userId;
-};
+}

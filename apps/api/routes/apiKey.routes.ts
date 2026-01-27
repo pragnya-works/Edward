@@ -1,4 +1,4 @@
-import { Router, type Router as ExpressRouter } from 'express';
+import { Router } from 'express';
 import { getApiKey, createApiKey, updateApiKey, deleteApiKey } from '../controllers/apiKey.controller.js';
 import { validateRequest } from '../middleware/validateRequest.js';
 import {
@@ -6,13 +6,9 @@ import {
   UpdateApiKeyRequestSchema,
 } from '../schemas/apiKey.schema.js';
 
-export function createApiKeyRouter(): ExpressRouter {
-  const router = Router();
+export const apiKeyRouter: Router = Router();
 
-  router.get('/', getApiKey);
-  router.post('/', validateRequest(CreateApiKeyRequestSchema), createApiKey);
-  router.put('/', validateRequest(UpdateApiKeyRequestSchema), updateApiKey);
-  router.delete('/', deleteApiKey);
-
-  return router;
-}
+apiKeyRouter.get('/', getApiKey);
+apiKeyRouter.post('/', validateRequest(CreateApiKeyRequestSchema), createApiKey);
+apiKeyRouter.put('/', validateRequest(UpdateApiKeyRequestSchema), updateApiKey);
+apiKeyRouter.delete('/', deleteApiKey);

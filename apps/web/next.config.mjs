@@ -1,6 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  transpilePackages: ["@workspace/ui", "@shadergradient/react"],
+  transpilePackages: ["@edward/ui", "@shadergradient/react"],
 }
 
 export default nextConfig

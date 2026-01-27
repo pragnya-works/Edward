@@ -1,9 +1,9 @@
 "use client";
 
 import { useSession } from "@/lib/auth-client";
-import { AppSidebar } from "@workspace/ui/components/ui/appSidebar";
-import { SidebarProvider } from "@workspace/ui/components/sidebar";
-import { cn } from "@workspace/ui/lib/utils";
+import { AppSidebar } from "@edward/ui/components/ui/appSidebar";
+import { SidebarProvider } from "@edward/ui/components/sidebar";
+import { cn } from "@edward/ui/lib/utils";
 import { ReactNode, useState } from "react";
 import UserProfile from "../userProfile";
 import { LoaderIcon } from "lucide-react";

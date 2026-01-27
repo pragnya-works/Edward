@@ -11,11 +11,11 @@
   },
   "iconLibrary": "lucide",
   "aliases": {
-    "components": "@workspace/ui/components",
-    "utils": "@workspace/ui/lib/utils",
-    "ui": "@workspace/ui/components",
-    "lib": "@workspace/ui/lib",
-    "hooks": "@workspace/ui/hooks"
+    "components": "@edward/ui/components",
+    "utils": "@edward/ui/lib/utils",
+    "ui": "@edward/ui/components",
+    "lib": "@edward/ui/lib",
+    "hooks": "@edward/ui/hooks"
   },
   "registries": {
     "@magicui": "https://magicui.design/r/{name}.json",
