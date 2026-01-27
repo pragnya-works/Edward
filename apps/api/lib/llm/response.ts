@@ -64,10 +64,10 @@ export async function* streamResponse(apiKey: string, content: string, signal?: 
     } else {
       const genAI = client as GoogleGenerativeAI;
       const geminiModel = genAI.getGenerativeModel({ model, systemInstruction: SYSTEM_PROMPT });
-      
+
       const result = await geminiModel.generateContentStream({
         contents: [{ role: 'user', parts: [{ text: content }] }]
-      });
+      }, { signal });
 
       for await (const chunk of result.stream) {
         if (signal?.aborted) break;
@@ -111,7 +111,7 @@ export async function generateResponse(apiKey: string, content: string): Promise
     } else {
       const genAI = client as GoogleGenerativeAI;
       const geminiModel = genAI.getGenerativeModel({ model, systemInstruction: SYSTEM_PROMPT });
-      
+
       const result = await geminiModel.generateContent({
         contents: [{ role: 'user', parts: [{ text: content }] }]
       });

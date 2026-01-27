@@ -35,6 +35,8 @@ export async function uploadBuildFilesToS3(
         let currentActiveUploads = 0;
 
         await new Promise<void>((resolve, reject) => {
+            const sourceStream = tarArchiveStream as NodeJS.ReadableStream;
+
             tarExtractor.on('entry', (header, fileStream, nextEntry) => {
                 const relativePath = header.name.replace(/^[^/]+\/?/, '');
 
@@ -52,6 +54,7 @@ export async function uploadBuildFilesToS3(
                 const uploadPromise = (async () => {
                     currentActiveUploads++;
                     try {
+                        fileStream.resume();
                         const result = await uploadFile(s3Key, fileStream, {
                             sandboxId: sandbox.id,
                             originalPath: relativePath,
@@ -66,25 +69,16 @@ export async function uploadBuildFilesToS3(
                         }
                     } finally {
                         currentActiveUploads--;
+                        nextEntry();
                     }
                 })();
 
                 allUploadPromises.push(uploadPromise);
 
-                uploadPromise.then(() => {
-                    const index = allUploadPromises.indexOf(uploadPromise);
-                    if (index > -1) {
-                        allUploadPromises.splice(index, 1);
-                    }
-                });
-
-                if (currentActiveUploads < MAX_PARALLEL_UPLOADS) {
-                    fileStream.resume();
-                    nextEntry();
-                } else {
+                if (currentActiveUploads >= MAX_PARALLEL_UPLOADS) {
+                    sourceStream.pause?.();
                     Promise.race(allUploadPromises).then(() => {
-                        fileStream.resume();
-                        nextEntry();
+                        sourceStream.resume?.();
                     });
                 }
             });

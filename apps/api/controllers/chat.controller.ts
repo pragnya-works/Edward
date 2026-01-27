@@ -329,7 +329,7 @@ export async function getChatHistory(
       messages,
     });
 
-    void ensureSandboxWarmth(userId, chatId);
+    void ensureSandboxWarmth(chatData.userId, chatId);
   } catch (error) {
     logger.error(ensureError(error), 'getChatHistory error');
     sendError(res, HttpStatus.INTERNAL_SERVER_ERROR, ERROR_MESSAGES.INTERNAL_SERVER_ERROR);

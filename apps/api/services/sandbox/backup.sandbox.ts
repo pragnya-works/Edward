@@ -40,7 +40,7 @@ export async function backupSandboxInstance(sandbox: SandboxInstance): Promise<v
 
         extract.on('entry', async (header, stream, next) => {
             const relativePath = header.name.replace(/^[^/]+\/?/, '');
-            
+
             if (!relativePath || header.type !== 'file') {
                 stream.resume();
                 return next();
@@ -51,10 +51,10 @@ export async function backupSandboxInstance(sandbox: SandboxInstance): Promise<v
 
             const chunks: Buffer[] = [];
             stream.on('data', (chunk: Buffer) => chunks.push(chunk));
-            
+
             stream.on('end', async () => {
                 const buffer = Buffer.concat(chunks);
-                
+
                 const uploadTask = (async () => {
                     const uploadResult = await uploadFile(s3Key, buffer, {
                         sandboxId,
@@ -75,7 +75,7 @@ export async function backupSandboxInstance(sandbox: SandboxInstance): Promise<v
                 if (uploadQueue.length >= MAX_CONCURRENT_UPLOADS) {
                     await Promise.all(uploadQueue.splice(0, uploadQueue.length - MAX_CONCURRENT_UPLOADS + 1));
                 }
-                
+
                 next();
             });
 
@@ -143,7 +143,7 @@ export async function restoreSandboxInstance(sandbox: SandboxInstance): Promise<
                 continue;
             }
 
-            const name = path.posix.join('edward', relativePath);
+            const name = path.posix.join(path.posix.basename(CONTAINER_WORKDIR), relativePath);
             const entry = pack.entry({ name, size });
             (stream as Readable).pipe(entry);
 

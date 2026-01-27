@@ -103,6 +103,7 @@ export async function cleanupSandbox(sandboxId: string): Promise<void> {
 
         try {
             await destroyContainer(sandbox.containerId);
+            containerStatusCache.delete(sandbox.containerId);
         } catch (error) {
             logger.error({ error, containerId: sandbox.containerId }, 'Failed to destroy container');
         }

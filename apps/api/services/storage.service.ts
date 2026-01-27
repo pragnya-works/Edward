@@ -135,6 +135,16 @@ async function sleep(ms: number): Promise<void> {
 
 
 
+function isNonReplayableStream(body: StreamingBlobPayloadInputTypes): boolean {
+    if (body === null || body === undefined) return false;
+    if (typeof body === 'string') return false;
+    if (body instanceof Buffer) return false;
+    if (body instanceof Uint8Array) return false;
+
+    return typeof (body as NodeJS.ReadableStream).pipe === 'function' ||
+        typeof (body as ReadableStream).getReader === 'function';
+}
+
 async function uploadWithRetry(
     key: string,
     body: StreamingBlobPayloadInputTypes,
@@ -143,9 +153,11 @@ async function uploadWithRetry(
     contentLength?: number
 ): Promise<void> {
     let lastError: Error | null = null;
-    let uploadBody = body;
 
-    for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    const canRetry = !isNonReplayableStream(body);
+    const maxAttempts = canRetry ? MAX_RETRIES : 1;
+
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
         try {
             if (attempt > 0) {
                 const delay = RETRY_BASE_DELAY_MS * Math.pow(2, attempt - 1);
@@ -158,7 +170,7 @@ async function uploadWithRetry(
                 params: {
                     Bucket: BUCKET_NAME!,
                     Key: key,
-                    Body: uploadBody,
+                    Body: body,
                     ContentType: contentType,
                     Metadata: metadata,
                     ContentLength: contentLength,
@@ -181,14 +193,14 @@ async function uploadWithRetry(
             }
 
             logger.warn(
-                { error: lastError, key, attempt: attempt + 1 },
+                { error: lastError, key, attempt: attempt + 1, canRetry },
                 'S3 upload attempt failed'
             );
         }
     }
 
     throw createS3UploadError(
-        `S3 upload failed after ${MAX_RETRIES} attempts`,
+        `S3 upload failed after ${maxAttempts} attempts`,
         key,
         false,
         lastError!

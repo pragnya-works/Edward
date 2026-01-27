@@ -97,7 +97,7 @@ export function useApiKey() {
           }
         };
       });
-      queryClient.invalidateQueries({ queryKey: ["apiKeyStatus", userId] });
+      queryClient.invalidateQueries({ queryKey: ["apiKey", userId] });
     },
     onError: function () {
       setError("Failed to save API key. Please try again.");

@@ -21,12 +21,14 @@ export async function enqueueChatJob(payload: ChatJobPayload): Promise<void> {
 
   try {
     await chatQueue.add(
-      'process-chat-message', 
+      'process-chat-message',
       validatedPayload,
       {
         jobId: validatedPayload.messageId,
         removeOnComplete: true,
-        removeOnFail: true, 
+        removeOnFail: 100,
+        attempts: 3,
+        backoff: { type: 'exponential', delay: 1000 },
       }
     );
     logger.info(`[Queue] Job enqueued for user ${validatedPayload.userId}, chat ${validatedPayload.chatId}`);

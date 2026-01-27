@@ -99,14 +99,13 @@ export async function processChatMessage(payload: ChatJobPayload): Promise<void>
     logger.error(error, `[Service] Error processing message for user ${userId}`);
 
     const errorMessageId = nanoid(32);
-    const errorContent = error instanceof Error ? error.message : 'Unknown internal error occurred';
 
     await db.insert(message).values({
       id: errorMessageId,
       chatId: chatId,
       userId: userId,
       role: MessageRole.Assistant,
-      content: `Sorry, I encountered an error processing your request: ${errorContent}`,
+      content: 'Sorry, I encountered an internal error while processing your request.',
       createdAt: new Date(),
       updatedAt: new Date(),
     });

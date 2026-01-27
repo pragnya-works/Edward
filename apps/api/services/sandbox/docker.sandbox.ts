@@ -138,6 +138,19 @@ export async function initializeWorkspaceWithFiles(
     }
 }
 
+async function verifyNetworkIsolation(containerId: string): Promise<void> {
+    const container = docker.getContainer(containerId);
+    const info = await container.inspect();
+    const networks = info.NetworkSettings?.Networks ?? {};
+    const connectedNetworks = Object.keys(networks);
+
+    if (connectedNetworks.length > 0) {
+        throw new Error(
+            `Container still connected to networks: ${connectedNetworks.join(', ')}`
+        );
+    }
+}
+
 export async function createContainer(userId: string, chatId: string, sandboxId: string): Promise<Docker.Container> {
     const container = await docker.createContainer({
         Image: PREWARM_IMAGE,
@@ -163,7 +176,17 @@ export async function createContainer(userId: string, chatId: string, sandboxId:
     });
 
     await container.start();
-    await disconnectFromNetwork(container.id).catch(() => { });
+
+    try {
+        await disconnectFromNetwork(container.id);
+        await verifyNetworkIsolation(container.id);
+    } catch (error) {
+        await container.remove({ force: true }).catch(() => { });
+        throw new Error(
+            `Failed to isolate sandbox container from network: ${error instanceof Error ? error.message : String(error)}`
+        );
+    }
+
     await setupWorkspace(container);
     return container;
 }
