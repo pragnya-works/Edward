@@ -69,9 +69,9 @@ export async function uploadBuildFilesToS3(
                         }
                     } finally {
                         currentActiveUploads--;
-                        nextEntry();
                     }
                 })();
+                nextEntry();
 
                 allUploadPromises.push(uploadPromise);
 
