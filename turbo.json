@@ -30,6 +30,24 @@
     },
     "lint": {
       "dependsOn": ["^build"]
+    },
+    "api#lint": {
+      "dependsOn": ["^build"],
+      "env": [
+        "EDWARD_API_PORT",
+        "NODE_ENV",
+        "REDIS_HOST",
+        "REDIS_PORT",
+        "CORS_ORIGIN",
+        "OPENAI_MODEL",
+        "GEMINI_MODEL",
+        "AWS_BUCKET_NAME",
+        "AWS_REGION",
+        "ENCRYPTION_KEY",
+        "DATABASE_URL",
+        "GITHUB_CLIENT_ID",
+        "GITHUB_CLIENT_SECRET"
+      ]
     }
   }
 }
