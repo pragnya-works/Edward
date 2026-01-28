@@ -4,6 +4,7 @@ export interface ChangelogIssue {
   id: string;
   identifier: string;
   title: string;
+  description?: string;
   updatedAt: Date;
   completedAt?: Date;
   priority: number;
@@ -59,6 +60,7 @@ export async function getLinearIssues(): Promise<FetchIssuesResult> {
           id: issue.id,
           identifier: issue.identifier,
           title: issue.title,
+          description: issue.description ?? undefined,
           updatedAt: issue.updatedAt,
           completedAt: issue.completedAt ?? undefined,
           priority: issue.priority,
