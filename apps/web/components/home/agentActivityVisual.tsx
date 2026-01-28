@@ -1,6 +1,6 @@
 "use client";
 
-import React, { memo, useState, useEffect, useMemo } from "react";
+import React, { memo, useState, useEffect, useMemo, useRef, useCallback, useSyncExternalStore } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { Search, FileCode, Edit3, Terminal, CheckCircle2, User, Bot, Loader2 } from "lucide-react";
 
@@ -82,33 +82,68 @@ const ToolCallUI = memo(({ call }: { call: ToolCall }) => {
 });
 ToolCallUI.displayName = "ToolCallUI";
 
+const SEQUENCE = [
+    { delay: 1000, next: 1 },
+    { delay: 800,  next: 2 },
+    { delay: 1200, next: 3 },
+    { delay: 1000, next: 4 },
+    { delay: 800,  next: 5 },
+    { delay: 5000, next: 0 }
+] as const;
+
+function subscribeToVisibility(callback: () => void) {
+    document.addEventListener('visibilitychange', callback);
+    return () => document.removeEventListener('visibilitychange', callback);
+}
+
+function getVisibilitySnapshot() {
+    return document.visibilityState === 'visible';
+}
+
+function getServerVisibilitySnapshot() {
+    return true;
+}
+
 export const AgentActivityVisual = memo(() => {
     const [step, setStep] = useState(0);
+    const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const sequenceIndexRef = useRef(0);
+    
+    const isDocumentVisible = useSyncExternalStore(
+        subscribeToVisibility,
+        getVisibilitySnapshot,
+        getServerVisibilitySnapshot
+    );
+    
+    const clearCurrentTimeout = useCallback(() => {
+        if (timeoutRef.current) {
+            clearTimeout(timeoutRef.current);
+            timeoutRef.current = null;
+        }
+    }, []);
+    
+    const runSequence = useCallback(() => {
+        const currentSequenceStep = SEQUENCE[sequenceIndexRef.current];
+        if (!currentSequenceStep) return;
+        
+        clearCurrentTimeout();
+        
+        timeoutRef.current = setTimeout(() => {
+            setStep(currentSequenceStep.next);
+            sequenceIndexRef.current = (sequenceIndexRef.current + 1) % SEQUENCE.length;
+            runSequence();
+        }, currentSequenceStep.delay);
+    }, [clearCurrentTimeout]);
     
     useEffect(() => {
-        const sequence = [
-            { delay: 1000, next: 1 },
-            { delay: 800,  next: 2 },
-            { delay: 1200, next: 3 },
-            { delay: 1000, next: 4 },
-            { delay: 800,  next: 5 },
-            { delay: 5000, next: 0 }
-        ];
-
-        let timeout: NodeJS.Timeout;
-        const run = (idx: number) => {
-            const currentStep = sequence[idx];
-            if (!currentStep) return;
-
-            timeout = setTimeout(() => {
-                setStep(currentStep.next);
-                run((idx + 1) % sequence.length);
-            }, currentStep.delay);
-        };
-
-        run(0);
-        return () => clearTimeout(timeout);
-    }, []);
+        if (isDocumentVisible) {
+            runSequence();
+        } else {
+            clearCurrentTimeout();
+        }
+        
+        return () => clearCurrentTimeout();
+    }, [isDocumentVisible, runSequence, clearCurrentTimeout]);
 
     const data = CONVERSATION[0];
     if (!data) return null;

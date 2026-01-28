@@ -1,8 +1,8 @@
-import React, { memo } from "react";
+import React, { memo, useState, useEffect, useRef, useSyncExternalStore } from "react";
 import { BentoCard, BentoGrid } from "@edward/ui/components/bento-grid";
 import { DottedMap } from "@edward/ui/components/dotted-map";
 import { LineShadowText } from "@edward/ui/components/line-shadow-text";
-import { motion } from "motion/react";
+import { motion, useReducedMotion } from "motion/react";
 import { AIGenerationVisual } from "./aiGenerationVisual";
 import { InstantPreviewVisual } from "./instantPreviewVisual";
 import { AgentActivityVisual } from "./agentActivityVisual";
@@ -16,6 +16,62 @@ const PreviewBackground = memo(() => {
 });
 PreviewBackground.displayName = "PreviewBackground";
 
+const GLOBE_MARKERS: Array<{ lat: number; lng: number; size: number }> = [
+    { lat: 40.7128, lng: -74.0060, size: 1.2 },
+    { lat: 51.5074, lng: -0.1278, size: 1.2 },
+    { lat: 35.6762, lng: 139.6503, size: 1.2 },
+    { lat: -33.8688, lng: 151.2093, size: 1.2 },
+    { lat: 1.3521, lng: 103.8198, size: 1.2 }
+];
+
+function subscribeToVisibility(callback: () => void) {
+    document.addEventListener('visibilitychange', callback);
+    return () => document.removeEventListener('visibilitychange', callback);
+}
+
+function getVisibilitySnapshot() {
+    return document.visibilityState === 'visible';
+}
+
+function getServerVisibilitySnapshot() {
+    return true;
+}
+
+const PulsingOrb = memo(function PulsingOrb() {
+    const [isIntersecting, setIsIntersecting] = useState(false);
+    const shouldReduceMotion = useReducedMotion();
+    const elementRef = useRef<HTMLDivElement>(null);
+    
+    const isDocumentVisible = useSyncExternalStore(
+        subscribeToVisibility,
+        getVisibilitySnapshot,
+        getServerVisibilitySnapshot
+    );
+    
+    useEffect(() => {
+        const element = elementRef.current;
+        if (!element) return;
+        
+        const observer = new IntersectionObserver(
+            ([entry]) => setIsIntersecting(entry?.isIntersecting ?? false),
+            { threshold: 0.1 }
+        );
+        
+        observer.observe(element);
+        return () => observer.disconnect();
+    }, []);
+    
+    const shouldAnimate = isDocumentVisible && isIntersecting && !shouldReduceMotion;
+    
+    return (
+        <motion.div
+            ref={elementRef}
+            animate={shouldAnimate ? { scale: [1, 1.2, 1], opacity: [0.05, 0.1, 0.05] } : { scale: 1, opacity: 0.075 }}
+            transition={shouldAnimate ? { duration: 4, repeat: Infinity, ease: "easeInOut" } : { duration: 0 }}
+            className="absolute top-[35%] left-1/2 -translate-x-1/2 w-40 h-40 bg-primary/30 rounded-full blur-3xl"
+        />
+    );
+});
 
 const GlobeBackground = memo(() => {
     return (
@@ -27,22 +83,12 @@ const GlobeBackground = memo(() => {
                     className="opacity-20 group-hover:opacity-40 transition-all duration-700 scale-125 group-hover:scale-[1.3] text-primary/30"
                     dotColor="currentColor"
                     dotRadius={0.4}
-                    markers={[
-                        { lat: 40.7128, lng: -74.0060, size: 1.2 },
-                        { lat: 51.5074, lng: -0.1278, size: 1.2 },
-                        { lat: 35.6762, lng: 139.6503, size: 1.2 },
-                        { lat: -33.8688, lng: 151.2093, size: 1.2 },
-                        { lat: 1.3521, lng: 103.8198, size: 1.2 }
-                    ]}
+                    markers={GLOBE_MARKERS}
                     markerColor="var(--color-primary)"
                 />
             </div>
 
-            <motion.div
-                animate={{ scale: [1, 1.2, 1], opacity: [0.05, 0.1, 0.05] }}
-                transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
-                className="absolute top-[35%] left-1/2 -translate-x-1/2 w-40 h-40 bg-primary/30 rounded-full blur-3xl"
-            />
+            <PulsingOrb />
 
             <div className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-background via-background/60 to-transparent" />
         </div>

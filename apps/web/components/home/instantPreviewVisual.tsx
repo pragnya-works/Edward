@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useRef, useCallback, memo, useSyncExternalStore } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { cn } from "@edward/ui/lib/utils";
 
@@ -11,7 +11,7 @@ const variants = {
     scaleUp: { initial: { opacity: 0, scale: 0.95 }, animate: { opacity: 1, scale: 1 } },
 };
 
-function BrowserHeader() {
+const BrowserHeader = memo(function BrowserHeader() {
     return (
         <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/10">
             <div className="flex gap-1.5">
@@ -23,9 +23,9 @@ function BrowserHeader() {
             <div className="w-8" />
         </div>
     );
-}
+});
 
-function Sidebar() {
+const Sidebar = memo(function Sidebar() {
     return (
         <div className="w-10 md:w-12 border-r border-border bg-muted/5 p-3 space-y-4 shrink-0">
             {[1, 2, 3, 4].map((i) => (
@@ -39,9 +39,9 @@ function Sidebar() {
             ))}
         </div>
     );
-}
+});
 
-function SkeletonUI() {
+const SkeletonUI = memo(function SkeletonUI() {
     return (
         <div className="flex-1 p-6 space-y-6">
             <div className="space-y-3">
@@ -61,9 +61,9 @@ function SkeletonUI() {
             </div>
         </div>
     );
-}
+});
 
-function DashboardLayout() {
+const DashboardLayout = memo(function DashboardLayout() {
     return (
         <div className="flex-1 p-5 md:p-6 space-y-5 overflow-hidden">
             <div className="flex items-center justify-between">
@@ -129,9 +129,9 @@ function DashboardLayout() {
             </div>
         </div>
     );
-}
+});
 
-function MarketingLayout() {
+const MarketingLayout = memo(function MarketingLayout() {
     return (
         <div className="flex-1 p-6 space-y-6 overflow-hidden flex flex-col items-center">
             <motion.div 
@@ -173,9 +173,9 @@ function MarketingLayout() {
             </motion.div>
         </div>
     );
-}
+});
 
-function KanbanLayout() {
+const KanbanLayout = memo(function KanbanLayout() {
     return (
         <div className="flex-1 p-5 md:p-6 space-y-5 overflow-hidden">
             <div className="flex items-center justify-between">
@@ -224,9 +224,9 @@ function KanbanLayout() {
             </div>
         </div>
     );
-}
+});
 
-function SettingsLayout() {
+const SettingsLayout = memo(function SettingsLayout() {
     return (
         <div className="flex-1 p-5 md:p-6 space-y-5 overflow-hidden">
             <div className="space-y-1 pb-2 border-b border-border/50">
@@ -273,35 +273,99 @@ function SettingsLayout() {
             </div>
         </div>
     );
+});
+
+type LayoutType = 'dashboard' | 'marketing' | 'kanban' | 'settings';
+const LAYOUT_ORDER: LayoutType[] = ['dashboard', 'marketing', 'kanban', 'settings'];
+
+const LayoutRenderer = memo(function LayoutRenderer({ type }: { type: LayoutType }) {
+    switch (type) {
+        case 'dashboard': return <DashboardLayout />;
+        case 'marketing': return <MarketingLayout />;
+        case 'kanban': return <KanbanLayout />;
+        case 'settings': return <SettingsLayout />;
+    }
+});
+
+function subscribeToVisibility(callback: () => void) {
+    document.addEventListener('visibilitychange', callback);
+    return () => document.removeEventListener('visibilitychange', callback);
+}
+
+function getVisibilitySnapshot() {
+    return document.visibilityState === 'visible';
+}
+
+function getServerVisibilitySnapshot() {
+    return true;
+}
+
+function useVisibilityAwareInterval(callback: () => void, delay: number) {
+    const savedCallback = useRef(callback);
+    const intervalRef = useRef<NodeJS.Timeout | null>(null);
+    
+    const isDocumentVisible = useSyncExternalStore(
+        subscribeToVisibility,
+        getVisibilitySnapshot,
+        getServerVisibilitySnapshot
+    );
+    
+    useEffect(() => {
+        savedCallback.current = callback;
+    }, [callback]);
+    
+    useEffect(() => {
+        const startInterval = () => {
+            if (intervalRef.current) return;
+            intervalRef.current = setInterval(() => savedCallback.current(), delay);
+        };
+        
+        const stopInterval = () => {
+            if (intervalRef.current) {
+                clearInterval(intervalRef.current);
+                intervalRef.current = null;
+            }
+        };
+        
+        if (isDocumentVisible) {
+            startInterval();
+        } else {
+            stopInterval();
+        }
+        
+        return () => stopInterval();
+    }, [delay, isDocumentVisible]);
 }
 
 export function InstantPreviewVisual() {
     const [index, setIndex] = useState(0);
     const [isGenerating, setIsGenerating] = useState(true);
+    const generatingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-    const layouts = useMemo(() => [
-        <DashboardLayout key="dashboard" />,
-        <MarketingLayout key="marketing" />,
-        <KanbanLayout key="kanban" />,
-        <SettingsLayout key="settings" />
-    ], []);
+    const handleCycle = useCallback(() => {
+        setIsGenerating(true);
+        if (generatingTimeoutRef.current) {
+            clearTimeout(generatingTimeoutRef.current);
+        }
+        generatingTimeoutRef.current = setTimeout(() => {
+            setIndex((prev) => (prev + 1) % LAYOUT_ORDER.length);
+            setIsGenerating(false);
+        }, 1200);
+    }, []);
+    
+    useVisibilityAwareInterval(handleCycle, 6000);
 
     useEffect(() => {
-        const cycleInterval = setInterval(() => {
-            setIsGenerating(true);
-            setTimeout(() => {
-                setIndex((prev) => (prev + 1) % layouts.length);
-                setIsGenerating(false);
-            }, 1200);
-        }, 6000);
-
         const initialTimer = setTimeout(() => setIsGenerating(false), 1200);
-
         return () => {
-            clearInterval(cycleInterval);
             clearTimeout(initialTimer);
+            if (generatingTimeoutRef.current) {
+                clearTimeout(generatingTimeoutRef.current);
+            }
         };
-    }, [layouts.length]);
+    }, []);
+    
+    const currentLayoutType = LAYOUT_ORDER[index] ?? 'dashboard';
 
     return (
         <div className="absolute inset-0 flex justify-center opacity-95 pointer-events-none group-hover:scale-[1.03] transition-transform duration-[1.5s] ease-out pt-4">
@@ -333,13 +397,13 @@ export function InstantPreviewVisual() {
                             </motion.div>
                         ) : (
                             <motion.div
-                                key={`layout-${index}`}
+                                key={`layout-${currentLayoutType}`}
                                 initial={{ opacity: 0, scale: 0.95, y: 15 }}
                                 animate={{ opacity: 1, scale: 1, y: 0 }}
                                 transition={{ duration: 0.6, ease: [0.19, 1, 0.22, 1] }}
                                 className="flex-1 h-full bg-background/20"
                             >
-                                {layouts[index]}
+                                <LayoutRenderer type={currentLayoutType} />
                             </motion.div>
                         )}
                     </AnimatePresence>

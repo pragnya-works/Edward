@@ -11,6 +11,7 @@ import { useSession } from "@/lib/auth-client"
 import { AnimatePresence, motion } from "motion/react"
 import { useTheme } from "next-themes"
 import { useEffect } from "react"
+import { cn } from "@edward/ui/lib/utils"
 
 export default function Home() {
   const { data: session, isPending } = useSession();
@@ -25,7 +26,7 @@ export default function Home() {
   if (isPending) return null;
 
   return (
-    <div className="flex flex-col min-h-screen">
+    <div className={cn("flex flex-col", !session?.user ? "min-h-screen" : "h-full")}>
       <TopFade />
       {!session?.user && <ShaderGradientBackground />}
       <main className="flex-1">

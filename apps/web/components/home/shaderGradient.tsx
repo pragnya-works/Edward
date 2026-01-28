@@ -1,9 +1,11 @@
 "use client"
 
-import React, { Suspense, useState, useEffect } from "react"
+import React, { Suspense, useState, useEffect, memo } from "react"
 import dynamic from "next/dynamic"
-import { motion, AnimatePresence } from "motion/react"
+import { motion } from "motion/react"
 import type { GradientT } from "@shadergradient/react"
+import { useTabVisibility } from "../../hooks/useTabVisibility"
+import { useInView } from "../../hooks/useInView"
 
 const COLORS = {
   color1: "#73bfc4",
@@ -55,54 +57,87 @@ const ShaderGradient = dynamic(
   { ssr: false }
 )
 
+const FALLBACK_GRADIENT_STYLE = {
+  background: `
+    radial-gradient(circle at 75% 25%, ${COLORS.color1}44 0%, transparent 60%),
+    radial-gradient(circle at 25% 75%, ${COLORS.color2}44 0%, transparent 60%),
+    radial-gradient(circle at 50% 50%, ${COLORS.color3}33 0%, transparent 70%)
+  `,
+  filter: "blur(140px)",
+} as const
+
+const StaticGradientFallback = memo(function StaticGradientFallback({ opacity }: { opacity: number }) {
+  return (
+    <motion.div 
+      className="absolute inset-0 z-0"
+      initial={{ opacity: 0.4 }}
+      animate={{ opacity }}
+      transition={{ duration: 1.5, ease: "easeInOut" }}
+      style={FALLBACK_GRADIENT_STYLE}
+    />
+  )
+})
+
+const ShaderContent = memo(function ShaderContent({ 
+  shouldRender, 
+  hasAppeared 
+}: { 
+  shouldRender: boolean
+  hasAppeared: boolean 
+}) {
+  if (!shouldRender) return null
+  
+  return (
+    <Suspense fallback={null}>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: hasAppeared ? 1 : 0 }}
+        transition={{ duration: 2.5, ease: [0.22, 1, 0.36, 1] }}
+        className="w-full h-full"
+      >
+        <ShaderGradientCanvas
+          pixelDensity={1} 
+          fov={45}
+          style={CANVAS_STYLE}
+          powerPreference="low-power"
+        >
+          <ShaderGradient {...GRADIENT_CONFIG} />
+        </ShaderGradientCanvas>
+      </motion.div>
+    </Suspense>
+  )
+})
+
 export function ShaderGradientBackground() {
   const [hasAppeared, setHasAppeared] = useState(false)
+  const [isMounted, setIsMounted] = useState(false)
+  const isDocumentVisible = useTabVisibility()
+  const { ref: containerRef, isInView: isInViewport } = useInView({ threshold: 0.1 })
+  
+  const shouldRenderShader = isMounted && isDocumentVisible && isInViewport
 
   useEffect(() => {
+    const mountTimer = setTimeout(() => setIsMounted(true), 100)
+    return () => clearTimeout(mountTimer)
+  }, [])
+
+  useEffect(() => {
+    if (!isMounted) return
     const timer = setTimeout(() => setHasAppeared(true), 150)
     return () => clearTimeout(timer)
-  }, [])
+  }, [isMounted])
+
+  const fallbackOpacity = hasAppeared ? 0.15 : 0.4
 
   return (
     <div 
+      ref={containerRef}
       className="fixed inset-0 w-full h-full -z-50 overflow-hidden bg-background select-none pointer-events-none"
       aria-hidden="true"
     >
-      <motion.div 
-        className="absolute inset-0 z-0"
-        initial={{ opacity: 0.4 }}
-        animate={{ opacity: hasAppeared ? 0.15 : 0.4 }}
-        transition={{ duration: 1.5, ease: "easeInOut" }}
-        style={{
-          background: `
-            radial-gradient(circle at 75% 25%, ${COLORS.color1}44 0%, transparent 60%),
-            radial-gradient(circle at 25% 75%, ${COLORS.color2}44 0%, transparent 60%),
-            radial-gradient(circle at 50% 50%, ${COLORS.color3}33 0%, transparent 70%)
-          `,
-          filter: "blur(140px)",
-        }}
-      />
-
-      <div className="absolute inset-0 z-[5]">
-        <AnimatePresence mode="wait">
-          <Suspense fallback={null}>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: hasAppeared ? 1 : 0 }}
-              transition={{ duration: 2.5, ease: [0.22, 1, 0.36, 1] }}
-              className="w-full h-full"
-            >
-              <ShaderGradientCanvas
-                pixelDensity={1} 
-                fov={45}
-                style={CANVAS_STYLE}
-                powerPreference="low-power"
-              >
-                <ShaderGradient {...GRADIENT_CONFIG} />
-              </ShaderGradientCanvas>
-            </motion.div>
-          </Suspense>
-        </AnimatePresence>
+      <StaticGradientFallback opacity={shouldRenderShader ? fallbackOpacity : 0.25} />
+      <div className="absolute inset-0 z-5">
+        <ShaderContent shouldRender={shouldRenderShader} hasAppeared={hasAppeared} />
       </div>
     </div>
   )

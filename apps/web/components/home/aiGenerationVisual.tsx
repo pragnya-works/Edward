@@ -1,6 +1,6 @@
 "use client";
 
-import React, { memo, useState, useEffect } from "react";
+import React, { memo, useState, useEffect, useRef, useCallback, useSyncExternalStore } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { TextAnimate } from "@edward/ui/components/textAnimate";
 import { cn } from "@edward/ui/lib/utils";
@@ -48,15 +48,64 @@ const EXAMPLES = [
     }
 ];
 
-const GenerationFlow = () => {
+function subscribeToVisibility(callback: () => void) {
+    document.addEventListener('visibilitychange', callback);
+    return () => document.removeEventListener('visibilitychange', callback);
+}
+
+function getVisibilitySnapshot() {
+    return document.visibilityState === 'visible';
+}
+
+function getServerVisibilitySnapshot() {
+    return true;
+}
+
+function useVisibilityAwareInterval(callback: () => void, delay: number) {
+    const savedCallback = useRef(callback);
+    const intervalRef = useRef<NodeJS.Timeout | null>(null);
+    
+    const isDocumentVisible = useSyncExternalStore(
+        subscribeToVisibility,
+        getVisibilitySnapshot,
+        getServerVisibilitySnapshot
+    );
+    
+    useEffect(() => {
+        savedCallback.current = callback;
+    }, [callback]);
+    
+    useEffect(() => {
+        const startInterval = () => {
+            if (intervalRef.current) return;
+            intervalRef.current = setInterval(() => savedCallback.current(), delay);
+        };
+        
+        const stopInterval = () => {
+            if (intervalRef.current) {
+                clearInterval(intervalRef.current);
+                intervalRef.current = null;
+            }
+        };
+        
+        if (isDocumentVisible) {
+            startInterval();
+        } else {
+            stopInterval();
+        }
+        
+        return () => stopInterval();
+    }, [delay, isDocumentVisible]);
+}
+
+const GenerationFlow = memo(function GenerationFlow() {
     const [index, setIndex] = useState(0);
 
-    useEffect(() => {
-        const timer = setInterval(() => {
-            setIndex((prev) => (prev + 1) % EXAMPLES.length);
-        }, 8000);
-        return () => clearInterval(timer);
+    const handleCycle = useCallback(() => {
+        setIndex((prev) => (prev + 1) % EXAMPLES.length);
     }, []);
+
+    useVisibilityAwareInterval(handleCycle, 8000);
 
     const current = EXAMPLES[index] || EXAMPLES[0];
     if (!current) return null;
@@ -119,7 +168,7 @@ const GenerationFlow = () => {
             </motion.div>
         </AnimatePresence>
     );
-};
+});
 
 export const AIGenerationVisual = memo(() => {
     return (
