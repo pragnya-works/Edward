@@ -1,6 +1,7 @@
 import { Badge } from "@edward/ui/components/badge";
-import { AlertCircle, CheckCircle2, Circle, Loader2 } from "lucide-react";
-import React from "react";
+import { cn } from "@edward/ui/lib/utils";
+import { CheckCircle2, Circle, Loader2, XCircle } from "lucide-react";
+import { memo } from "react";
 
 interface StatusBadgeProps {
   name: string;
@@ -8,32 +9,43 @@ interface StatusBadgeProps {
   type: string;
 }
 
-function StatusIcon({ type }: { type: string }) {
-  switch (type) {
-    case "completed":
-      return <CheckCircle2 className="h-3 w-3" />;
-    case "started":
-      return <Loader2 className="h-3 w-3 animate-spin" />;
-    case "canceled":
-      return <AlertCircle className="h-3 w-3" />;
-    default:
-      return <Circle className="h-3 w-3" />;
-  }
-}
+const statusConfig: Record<string, { icon: React.ReactNode; className: string }> = {
+  completed: {
+    icon: <CheckCircle2 className="w-3 h-3" />,
+    className: "text-emerald-600 dark:text-emerald-400 bg-emerald-50/50 dark:bg-emerald-950/20 border-emerald-200/50 dark:border-emerald-800/30",
+  },
+  started: {
+    icon: <Loader2 className="w-3 h-3 animate-spin" />,
+    className: "text-amber-600 dark:text-amber-400 bg-amber-50/50 dark:bg-amber-950/20 border-amber-200/50 dark:border-amber-800/30",
+  },
+  canceled: {
+    icon: <XCircle className="w-3 h-3" />,
+    className: "text-rose-600 dark:text-rose-400 bg-rose-50/50 dark:bg-rose-950/20 border-rose-200/50 dark:border-rose-800/30",
+  },
+  default: {
+    icon: <Circle className="w-3 h-3" />,
+    className: "text-slate-600 dark:text-slate-400 bg-slate-50/50 dark:bg-slate-950/20 border-slate-200/50 dark:border-slate-800/30",
+  },
+};
 
-export function StatusBadge({ name, color, type }: StatusBadgeProps) {
+function StatusBadgeComponent({ name, type }: StatusBadgeProps) {
+  const config = statusConfig[type] ?? statusConfig.default;
+
   return (
     <Badge
       variant="outline"
-      className="flex shrink-0 items-center gap-1.5 border-border/50 bg-secondary/50 px-3 py-1 text-xs font-medium capitalize dark:border-[--badge-border] dark:bg-[--badge-bg] dark:text-[--badge-color]"
-      style={{
-        ['--badge-border' as string]: color ? `${color}40` : undefined,
-        ['--badge-color' as string]: color ?? undefined,
-        ['--badge-bg' as string]: color ? `${color}10` : undefined,
-      }}
+      className={cn(
+        "flex items-center gap-1.5 px-2 py-0.5 text-[11px] font-medium capitalize",
+        "border rounded-md transition-colors",
+        config!.className
+      )}
     >
-      <StatusIcon type={type} />
+      {config!.icon}
+      <span className="sr-only">Status:</span>
       {name}
     </Badge>
   );
 }
+
+export const StatusBadge = memo(StatusBadgeComponent);
+StatusBadge.displayName = "StatusBadge";

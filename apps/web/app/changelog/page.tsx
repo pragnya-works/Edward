@@ -1,16 +1,9 @@
 import { Metadata } from "next";
-import { getLinearIssues, groupAndSortIssues } from "@/lib/linear";
+import { Suspense } from "react";
+import { getLinearIssues, groupAndSortIssues, ChangelogIssue } from "@/lib/linear";
 import { ChangelogHeader } from "@/components/changelog/header";
-import { IssueCard } from "@/components/changelog/issueCard";
-import { Card, CardContent } from "@edward/ui/components/card";
-import { 
-  Accordion, 
-  AccordionContent, 
-  AccordionItem, 
-  AccordionTrigger 
-} from "@edward/ui/components/accordion";
-import { AlertCircle, Tag } from "lucide-react";
-import { Badge } from "@edward/ui/components/badge";
+import { IssueCard, IssueCardSkeleton } from "@/components/changelog/issueCard";
+import { AlertCircle, FolderGit } from "lucide-react";
 
 export const revalidate = 3600;
 
@@ -19,58 +12,113 @@ export const metadata: Metadata = {
   description: "Stay up to date with the latest improvements, features, and fixes we've shipped.",
 };
 
-export default async function ChangelogPage() {
+function ChangelogSkeleton() {
+  return (
+    <div className="space-y-0">
+      {Array.from({ length: 5 }).map((_, i) => (
+        <IssueCardSkeleton key={i} index={i} />
+      ))}
+    </div>
+  );
+}
+
+function ErrorState({ error }: { error: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
+      <div className="w-12 h-12 rounded-full bg-destructive/10 flex items-center justify-center mb-4">
+        <AlertCircle className="w-6 h-6 text-destructive/70" />
+      </div>
+      <h3 className="text-base font-medium text-foreground mb-1">
+        Unable to Load Changelog
+      </h3>
+      <p className="text-sm text-muted-foreground max-w-sm">
+        {error === "Missing LINEAR_API_KEY environment variable"
+          ? "Please configure the LINEAR_API_KEY environment variable."
+          : "There was an error connecting to Linear. Please try again later."}
+      </p>
+    </div>
+  );
+}
+
+function EmptyState() {
+  return (
+    <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
+      <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mb-4">
+        <FolderGit className="w-6 h-6 text-muted-foreground/50" />
+      </div>
+      <h3 className="text-base font-medium text-foreground mb-1">No Updates Yet</h3>
+      <p className="text-sm text-muted-foreground">
+        Check back soon for new features and improvements.
+      </p>
+    </div>
+  );
+}
+
+interface CategorySectionProps {
+  label: string;
+  issues: ChangelogIssue[];
+  startIndex: number;
+}
+
+function CategorySection({ label, issues, startIndex }: CategorySectionProps) {
+  return (
+    <section className="mb-10 last:mb-0">
+      <div className="flex items-center gap-3 mb-4 pb-2 border-b border-border/30">
+        <h2 className="text-sm font-semibold text-foreground/90 uppercase tracking-wider">
+          {label}
+        </h2>
+        <span className="text-xs text-muted-foreground/60 tabular-nums">{issues.length}</span>
+      </div>
+      <div className="space-y-0">
+        {issues.map((issue, idx) => (
+          <IssueCard key={issue.id} issue={issue} index={startIndex + idx} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+async function ChangelogContent() {
   const { issues, error } = await getLinearIssues();
+
+  if (error) return <ErrorState error={error} />;
+  if (issues.length === 0) return <EmptyState />;
+
   const { categorizedIssues, sortedLabels } = groupAndSortIssues(issues);
+  let globalIndex = 0;
 
   return (
-    <div className="container mx-auto max-w-4xl py-24 md:py-12 px-4 md:px-8">
-      <ChangelogHeader />
+    <div className="space-y-0">
+      {sortedLabels.map((label) => {
+        const categoryIssues = categorizedIssues[label];
+        if (!categoryIssues?.length) return null;
 
-      {error ? (
-        <Card className="border-destructive/50 bg-destructive/5">
-          <CardContent className="flex flex-col items-center justify-center p-8 text-center text-sm md:text-base">
-            <AlertCircle className="mb-4 h-10 w-10 text-destructive" />
-            <h3 className="text-lg font-semibold text-destructive">Unable to Load Issues</h3>
-            <p className="text-muted-foreground">
-              {error === "Missing LINEAR_API_KEY environment variable"
-                ? "Please configure the LINEAR_API_KEY environment variable."
-                : "There was an error connecting to Linear."}
-            </p>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="space-y-6">
-          {issues.length === 0 ? (
-            <div className="text-center text-muted-foreground py-12 text-sm md:text-base">
-              No changelog items found yet. Check back soon!
-            </div>
-          ) : (
-            <Accordion multiple defaultValue={sortedLabels} className="w-full space-y-4">
-              {sortedLabels.map((label) => (
-                <AccordionItem key={label} value={label} className="border-none">
-                  <AccordionTrigger className="hover:no-underline py-2">
-                    <div className="flex items-center gap-2">
-                      <Tag className="h-4 w-4 text-primary" />
-                      <span className="text-base md:text-lg font-semibold capitalize">{label}</span>
-                      <Badge variant="secondary" className="ml-2 font-mono text-[10px] md:text-xs">
-                        {categorizedIssues[label]?.length}
-                      </Badge>
-                    </div>
-                  </AccordionTrigger>
-                  <AccordionContent className="pt-4">
-                    <div className="grid gap-4">
-                      {categorizedIssues[label]?.map((issue) => (
-                        <IssueCard key={issue.id} issue={issue} />
-                      ))}
-                    </div>
-                  </AccordionContent>
-                </AccordionItem>
-              ))}
-            </Accordion>
-          )}
-        </div>
-      )}
+        const section = (
+          <CategorySection
+            key={label}
+            label={label}
+            issues={categoryIssues}
+            startIndex={globalIndex}
+          />
+        );
+
+        globalIndex += categoryIssues.length;
+        return section;
+      })}
     </div>
+  );
+}
+
+export default function ChangelogPage() {
+  return (
+    <main>
+      <div className="container max-w-3xl mx-auto px-4 sm:px-6 py-12 md:py-16 lg:py-20">
+        <ChangelogHeader />
+        
+        <Suspense fallback={<ChangelogSkeleton />}>
+          <ChangelogContent />
+        </Suspense>
+      </div>
+    </main>
   );
 }

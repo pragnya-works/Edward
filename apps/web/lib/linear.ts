@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { LinearClient, PaginationOrderBy } from "@linear/sdk";
 
 export interface ChangelogIssue {
@@ -25,7 +26,7 @@ export interface FetchIssuesResult {
   error: string | null;
 }
 
-export async function getLinearIssues(): Promise<FetchIssuesResult> {
+export const getLinearIssues = cache(async (): Promise<FetchIssuesResult> => {
   const apiKey = process.env.LINEAR_API_KEY;
 
   if (!apiKey) {
@@ -38,12 +39,8 @@ export async function getLinearIssues(): Promise<FetchIssuesResult> {
       first: 50,
       orderBy: PaginationOrderBy.UpdatedAt,
       filter: {
-        project: {
-          name: { eq: "Edward" },
-        },
-        state: {
-          type: { neq: "completed" },
-        },
+        project: { name: { eq: "Edward" } },
+        state: { type: { neq: "completed" } },
         number: { gt: 5 },
       },
       includeArchived: true,
@@ -51,10 +48,7 @@ export async function getLinearIssues(): Promise<FetchIssuesResult> {
 
     const formattedIssues = await Promise.all(
       issues.nodes.map(async (issue) => {
-        const [state, labels] = await Promise.all([
-          issue.state,
-          issue.labels(),
-        ]);
+        const [state, labels] = await Promise.all([issue.state, issue.labels()]);
 
         return {
           id: issue.id,
@@ -83,7 +77,7 @@ export async function getLinearIssues(): Promise<FetchIssuesResult> {
     console.error("Failed to fetch Linear issues:", error);
     return { issues: [], error: "Failed to connect to Linear API" };
   }
-}
+});
 
 export function groupAndSortIssues(issues: ChangelogIssue[]): {
   categorizedIssues: Record<string, ChangelogIssue[]>;

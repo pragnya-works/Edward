@@ -2,8 +2,7 @@
 
 import { useState, useCallback, memo } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Card, CardHeader, CardTitle, CardContent } from "@edward/ui/components/card";
-import { Calendar } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import { StatusBadge } from "./statusBadge";
 import { PriorityBadge } from "./priorityBadge";
 import { ChangelogIssue } from "@/lib/linear";
@@ -13,9 +12,10 @@ import { cn } from "@edward/ui/lib/utils";
 
 interface IssueCardProps {
   issue: ChangelogIssue;
+  index?: number;
 }
 
-function IssueCardComponent({ issue }: IssueCardProps) {
+function IssueCardComponent({ issue, index = 0 }: IssueCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const dateToUse = issue.completedAt || issue.updatedAt;
   const hasDescription = Boolean(issue.description?.trim());
@@ -36,127 +36,141 @@ function IssueCardComponent({ issue }: IssueCardProps) {
     [hasDescription]
   );
 
+  const formattedDate = new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+  }).format(new Date(dateToUse));
+
   return (
-    <Card
+    <motion.article
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{
+        duration: 0.3,
+        delay: index * 0.05,
+        ease: [0.23, 1, 0.32, 1],
+      }}
       className={cn(
-        "group overflow-hidden border-border/50 transition-all bg-card/50",
-        hasDescription && "cursor-pointer hover:bg-muted/50 hover:border-border hover:shadow-sm",
-        isExpanded && "bg-muted/30 border-border shadow-sm"
+        "group relative border-b border-border/40 last:border-b-0",
+        "transition-colors duration-200",
+        hasDescription && "cursor-pointer hover:bg-muted/30"
       )}
       role={hasDescription ? "button" : undefined}
       aria-expanded={hasDescription ? isExpanded : undefined}
-      aria-controls={hasDescription ? `issue-description-${issue.id}` : undefined}
       tabIndex={hasDescription ? 0 : undefined}
       onClick={handleToggle}
       onKeyDown={handleKeyDown}
     >
-      <CardHeader className="flex flex-row items-start justify-between gap-4 p-4 md:p-6">
-        <div className="space-y-3 flex-1">
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs md:text-sm text-muted-foreground">
-            <span className="font-mono">{issue.identifier}</span>
-            <span className="hidden sm:inline">•</span>
-            <div className="flex items-center gap-1">
-              <Calendar className="h-3 w-3" />
-              <time dateTime={dateToUse.toISOString()}>
-                {new Intl.DateTimeFormat("en-US", {
-                  month: "short",
-                  day: "numeric",
-                  year: "numeric",
-                }).format(new Date(dateToUse))}
-              </time>
-            </div>
+      <div className="py-4 px-1">
+        <div className="flex items-start gap-4">
+          <div className="flex flex-col items-end gap-1 pt-0.5 min-w-[60px]">
+            <time
+              dateTime={dateToUse.toISOString()}
+              className="text-[11px] font-medium text-muted-foreground/60 tabular-nums"
+            >
+              {formattedDate}
+            </time>
             {issue.priority > 0 && (
-              <>
-                <span className="hidden sm:inline">•</span>
-                <PriorityBadge priority={issue.priority} label={issue.priorityLabel} />
-              </>
+              <PriorityBadge priority={issue.priority} label={issue.priorityLabel} />
             )}
           </div>
 
-          <CardTitle
-            className={cn(
-              "text-lg md:text-xl font-semibold leading-tight tracking-tight transition-colors",
-              hasDescription && "group-hover:text-primary"
-            )}
-          >
-            {issue.title}
-          </CardTitle>
-
-          {issue.labels.length > 1 && (
-            <div className="flex flex-wrap gap-1 pt-1">
-              {issue.labels.slice(1).map((label) => (
-                <Badge
-                  key={label.name}
-                  variant="outline"
-                  className="px-1.5 py-0 text-[10px] opacity-70 capitalize"
-                  style={{
-                    borderColor: `${label.color}40`,
-                    color: label.color,
-                    backgroundColor: `${label.color}10`,
-                  }}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex-1 min-w-0">
+                <h3
+                  className={cn(
+                    "text-[15px] font-medium leading-snug text-foreground",
+                    "transition-colors duration-200",
+                    hasDescription && "group-hover:text-primary"
+                  )}
                 >
-                  {label.name}
-                </Badge>
-              ))}
-            </div>
-          )}
-        </div>
-        <div className="flex shrink-0 flex-col items-end pt-1">
-          <StatusBadge
-            name={issue.state.name}
-            color={issue.state.color}
-            type={issue.state.type}
-          />
-        </div>
-      </CardHeader>
-
-      <AnimatePresence initial={false}>
-        {isExpanded && hasDescription && (
-          <motion.div
-            id={`issue-description-${issue.id}`}
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{
-              height: { duration: 0.3, ease: [0.4, 0, 0.2, 1] },
-              opacity: { duration: 0.25, ease: "easeInOut" },
-            }}
-            className="overflow-hidden"
-          >
-            <CardContent className="pt-0 pb-4 px-4 md:px-6">
-              <div className="border-t border-border/50 pt-4 mt-2">
-                <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap">
-                  {issue.description}
-                </p>
+                  {issue.title}
+                </h3>
+                {issue.labels.length > 1 && (
+                  <div className="flex flex-wrap gap-1.5 mt-2">
+                    {issue.labels.slice(1).map((label) => (
+                      <Badge
+                        key={label.name}
+                        variant="outline"
+                        className="px-1.5 py-0 text-[10px] font-normal text-muted-foreground/70 border-border/30 bg-transparent"
+                      >
+                        {label.name}
+                      </Badge>
+                    ))}
+                  </div>
+                )}
               </div>
-            </CardContent>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </Card>
+              <div className="flex items-center gap-2 shrink-0">
+                <StatusBadge
+                  name={issue.state.name}
+                  color={issue.state.color}
+                  type={issue.state.type}
+                />
+                {hasDescription && (
+                  <motion.div
+                    animate={{ rotate: isExpanded ? 180 : 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="text-muted-foreground/40"
+                  >
+                    <ChevronDown className="w-4 h-4" />
+                  </motion.div>
+                )}
+              </div>
+            </div>
+            <AnimatePresence initial={false}>
+              {isExpanded && hasDescription && (
+                <motion.div
+                  id={`issue-description-${issue.id}`}
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: "auto", opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{
+                    height: { duration: 0.25, ease: [0.4, 0, 0.2, 1] },
+                    opacity: { duration: 0.2 },
+                  }}
+                  className="overflow-hidden"
+                >
+                  <div className="pt-3 mt-3 border-t border-border/30">
+                    <p className="text-[13px] text-muted-foreground/80 leading-relaxed whitespace-pre-wrap">
+                      {issue.description}
+                    </p>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        </div>
+      </div>
+    </motion.article>
   );
 }
 
 export const IssueCard = memo(IssueCardComponent);
 IssueCard.displayName = "IssueCard";
 
-export function IssueCardSkeleton() {
+export function IssueCardSkeleton({ index = 0 }: { index?: number }) {
   return (
-    <Card className="border-border/50">
-      <CardHeader className="flex flex-row items-start justify-between gap-4 p-6">
-        <div className="space-y-3 flex-1">
-          <div className="flex items-center gap-2">
-            <Skeleton className="h-3 w-16" />
-            <Skeleton className="h-3 w-24" />
-          </div>
-          <Skeleton className="h-6 w-3/4" />
-          <div className="flex gap-2">
-            <Skeleton className="h-4 w-12" />
-            <Skeleton className="h-4 w-12" />
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.2, delay: index * 0.03 }}
+      className="py-4 px-1 border-b border-border/40 last:border-b-0"
+    >
+      <div className="flex items-start gap-4">
+        <div className="min-w-15 pt-0.5">
+          <Skeleton className="h-3 w-10 ml-auto" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex-1 min-w-0 space-y-2">
+              <Skeleton className="h-4 w-3/4" />
+              <Skeleton className="h-3 w-1/2" />
+            </div>
+            <Skeleton className="h-5 w-16 shrink-0" />
           </div>
         </div>
-        <Skeleton className="h-6 w-24" />
-      </CardHeader>
-    </Card>
+      </div>
+    </motion.div>
   );
 }

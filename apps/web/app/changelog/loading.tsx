@@ -3,17 +3,23 @@ import { IssueCardSkeleton } from "@/components/changelog/issueCard";
 
 export default function Loading() {
   return (
-    <div className="container mx-auto max-w-4xl py-12 px-4 md:px-8">
-      <div className="mb-12 flex flex-col items-center gap-4 text-center">
-        <Skeleton className="h-10 w-48 md:h-12 md:w-64" />
-        <Skeleton className="h-4 w-full max-w-lg md:h-5 md:w-125" />
-      </div>
+    <main>
+      <div className="container max-w-3xl mx-auto px-4 sm:px-6 py-12 md:py-16 lg:py-20">
+        <div className="mb-12 md:mb-16 lg:mb-20">
+          <div className="flex items-center gap-3 mb-4">
+            <Skeleton className="w-8 h-8 rounded-lg" />
+            <Skeleton className="h-3 w-16" />
+          </div>
+          <Skeleton className="h-9 w-48 md:h-10 md:w-56 mb-3" />
+          <Skeleton className="h-4 w-full max-w-md" />
+        </div>
 
-      <div className="space-y-6">
-        {[...Array(3)].map((_, i) => (
-          <IssueCardSkeleton key={i} />
-        ))}
+        <div className="space-y-0">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <IssueCardSkeleton key={i} index={i} />
+          ))}
+        </div>
       </div>
-    </div>
+    </main>
   );
 }
