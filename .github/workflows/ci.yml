@@ -51,6 +51,8 @@ jobs:
       - name: Build
         run: pnpm turbo build
         env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
-          BETTER_AUTH_URL: ${{ secrets.BETTER_AUTH_URL }}
+          DATABASE_URL: 'postgres://build:build@localhost:5432/build'
+          BETTER_AUTH_SECRET: 'build-time-secret'
+          BETTER_AUTH_URL: 'http://localhost:3000'
+          GITHUB_CLIENT_ID: 'build'
+          GITHUB_CLIENT_SECRET: 'build'
