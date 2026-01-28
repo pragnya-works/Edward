@@ -29,6 +29,7 @@
     "@edward/eslint-config": "workspace:*",
     "@edward/typescript-config": "workspace:*",
     "drizzle-kit": "^0.31.8",
+    "eslint": "^9.32.0",
     "typescript": "^5.9.3"
   }
 }

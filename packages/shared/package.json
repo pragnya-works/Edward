@@ -20,6 +20,8 @@
   "devDependencies": {
     "tsup": "^8.3.5",
     "typescript": "5.7.3",
-    "@edward/typescript-config": "workspace:*"
+    "@edward/eslint-config": "workspace:*",
+    "@edward/typescript-config": "workspace:*",
+    "eslint": "^9.32.0"
   }
 }
