@@ -102,6 +102,9 @@ importers:
         specifier: ^3.25.76
         version: 3.25.76
     devDependencies:
+      '@edward/eslint-config':
+        specifier: workspace:*
+        version: link:../../packages/eslint-config
       '@types/cookie-parser':
         specifier: ^1.4.10
         version: 1.4.10(@types/express@5.0.6)
@@ -123,6 +126,9 @@ importers:
       concurrently:
         specifier: ^9.2.1
         version: 9.2.1
+      eslint:
+        specifier: ^9.32.0
+        version: 9.39.2(jiti@2.6.1)
       tsx:
         specifier: ^4.19.2
         version: 4.21.0
