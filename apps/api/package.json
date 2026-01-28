@@ -11,7 +11,7 @@
     "start": "node dist/entry.js",
     "build": "tsc",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint .",
+    "lint": "eslint . --max-warnings 20",
     "test:coverage": "vitest run --coverage",
     "clean": "rm -rf dist"
   },
