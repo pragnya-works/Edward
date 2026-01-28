@@ -46,7 +46,7 @@ jobs:
         run: pnpm turbo lint
 
       - name: Test with Coverage
-        run: pnpm turbo test:coverage
+        run: pnpm --filter api test:coverage
 
       - name: Build
         run: pnpm turbo build
