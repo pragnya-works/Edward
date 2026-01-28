@@ -24,6 +24,12 @@
         "BETTER_AUTH_URL",
         "LINEAR_API_KEY"
       ]
+    },
+    "typecheck": {
+      "dependsOn": ["^build"]
+    },
+    "lint": {
+      "dependsOn": ["^build"]
     }
   }
 }

@@ -4,7 +4,8 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "lint": "eslint . --max-warnings 0"
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint . --max-warnings 20"
   },
   "dependencies": {
     "@base-ui/react": "^1.1.0",

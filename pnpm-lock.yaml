@@ -102,6 +102,9 @@ importers:
         specifier: ^3.25.76
         version: 3.25.76
     devDependencies:
+      '@edward/eslint-config':
+        specifier: workspace:*
+        version: link:../../packages/eslint-config
       '@types/cookie-parser':
         specifier: ^1.4.10
         version: 1.4.10(@types/express@5.0.6)
@@ -126,6 +129,9 @@ importers:
       concurrently:
         specifier: ^9.2.1
         version: 9.2.1
+      eslint:
+        specifier: ^9.32.0
+        version: 9.39.2(jiti@2.6.1)
       tsx:
         specifier: ^4.19.2
         version: 4.21.0
@@ -239,6 +245,9 @@ importers:
       drizzle-kit:
         specifier: ^0.31.8
         version: 0.31.8
+      eslint:
+        specifier: ^9.32.0
+        version: 9.39.2(jiti@2.6.1)
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -287,9 +296,15 @@ importers:
 
   packages/shared:
     devDependencies:
+      '@edward/eslint-config':
+        specifier: workspace:*
+        version: link:../eslint-config
       '@edward/typescript-config':
         specifier: workspace:*
         version: link:../typescript-config
+      eslint:
+        specifier: ^9.32.0
+        version: 9.39.2(jiti@2.6.1)
       tsup:
         specifier: ^8.3.5
         version: 8.5.1(jiti@2.6.1)(postcss@8.5.6)(tsx@4.21.0)(typescript@5.7.3)
