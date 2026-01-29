@@ -12,7 +12,11 @@
         "DATABASE_URL",
         "BETTER_AUTH_SECRET",
         "BETTER_AUTH_URL",
-        "LINEAR_API_KEY"
+        "LINEAR_API_KEY",
+        "GITHUB_CLIENT_ID",
+        "GITHUB_CLIENT_SECRET",
+        "NEXT_PUBLIC_BETTER_AUTH_URL",
+        "NEXT_PUBLIC_API_URL"
       ]
     },
     "@edward/auth#build": {
@@ -22,7 +26,33 @@
         "DATABASE_URL",
         "BETTER_AUTH_SECRET",
         "BETTER_AUTH_URL",
-        "LINEAR_API_KEY"
+        "GITHUB_CLIENT_ID",
+        "GITHUB_CLIENT_SECRET"
+      ]
+    },
+    "api#build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**"],
+      "env": [
+        "API_URL",
+        "EDWARD_API_PORT",
+        "NODE_ENV",
+        "CORS_ORIGIN",
+        "DATABASE_URL",
+        "BETTER_AUTH_SECRET",
+        "BETTER_AUTH_URL",
+        "GITHUB_CLIENT_ID",
+        "GITHUB_CLIENT_SECRET",
+        "ENCRYPTION_KEY",
+        "OPENAI_MODEL",
+        "GEMINI_MODEL",
+        "REDIS_HOST",
+        "REDIS_PORT",
+        "AWS_REGION",
+        "AWS_ACCESS_KEY_ID",
+        "AWS_SECRET_ACCESS_KEY",
+        "AWS_BUCKET_NAME",
+        "CLOUDFRONT_DISTRIBUTION_URL"
       ]
     },
     "typecheck": {
@@ -43,10 +73,15 @@
         "GEMINI_MODEL",
         "AWS_BUCKET_NAME",
         "AWS_REGION",
+        "AWS_ACCESS_KEY_ID",
+        "AWS_SECRET_ACCESS_KEY",
         "ENCRYPTION_KEY",
         "DATABASE_URL",
+        "BETTER_AUTH_SECRET",
+        "BETTER_AUTH_URL",
         "GITHUB_CLIENT_ID",
-        "GITHUB_CLIENT_SECRET"
+        "GITHUB_CLIENT_SECRET",
+        "CLOUDFRONT_DISTRIBUTION_URL"
       ]
     }
   }

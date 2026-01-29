@@ -4,13 +4,10 @@ process.env.NODE_ENV = 'test';
 process.env.ENCRYPTION_KEY = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
 process.env.REDIS_HOST = 'localhost';
 process.env.REDIS_PORT = '6379';
-process.env.DATABASE_URL = 'postgresql://test:test@localhost:5432/test';
 process.env.AWS_BUCKET_NAME = 'test-bucket';
 process.env.AWS_REGION = 'us-east-1';
 process.env.OPENAI_MODEL = 'gpt-4';
 process.env.GEMINI_MODEL = 'gemini-pro';
-process.env.GITHUB_CLIENT_ID = 'test-client-id';
-process.env.GITHUB_CLIENT_SECRET = 'test-client-secret';
 process.env.CORS_ORIGIN = 'http://localhost:3000';
 process.env.EDWARD_API_PORT = '3001';
 
