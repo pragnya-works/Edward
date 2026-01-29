@@ -5,8 +5,6 @@ import { logger } from '../../utils/logger.js';
 import { ensureError } from '../../utils/error.js';
 import tar from 'tar-stream';
 
-const MAX_PARALLEL_UPLOADS = 5;
-
 export async function uploadBuildFilesToS3(
     sandbox: SandboxInstance,
     buildDirectory: string
@@ -32,11 +30,8 @@ export async function uploadBuildFilesToS3(
         const tarExtractor = tar.extract();
 
         const allUploadPromises: Promise<void>[] = [];
-        let currentActiveUploads = 0;
 
         await new Promise<void>((resolve, reject) => {
-            const sourceStream = tarArchiveStream as NodeJS.ReadableStream;
-
             tarExtractor.on('entry', (header, fileStream, nextEntry) => {
                 const relativePath = header.name.replace(/^[^/]+\/?/, '');
 
@@ -47,40 +42,50 @@ export async function uploadBuildFilesToS3(
                 }
 
                 uploadResults.totalFiles++;
-                const s3Key = buildS3Key(sandbox.userId, sandbox.chatId, `previews/${relativePath}`);
-
-                fileStream.pause();
-
+                const s3Key = buildS3Key(sandbox.userId, sandbox.chatId, relativePath);
                 const uploadPromise = (async () => {
-                    currentActiveUploads++;
                     try {
-                        fileStream.resume();
-                        const result = await uploadFile(s3Key, fileStream, {
+                        const chunks: Buffer[] = [];
+                        for await (const chunk of fileStream) {
+                            chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+                        }
+                        const fileBuffer = Buffer.concat(chunks);
+
+                        const result = await uploadFile(s3Key, fileBuffer, {
                             sandboxId: sandbox.id,
                             originalPath: relativePath,
                             uploadTimestamp,
-                        });
+                        }, fileBuffer.length);
 
                         if (result.success) {
                             uploadResults.successful++;
                         } else {
                             uploadResults.failed++;
-                            uploadResults.errors.push(`${relativePath}: ${result.error?.message}`);
+                            const errorMsg = result.error?.message || 'Unknown error';
+                            uploadResults.errors.push(`${relativePath}: ${errorMsg}`);
+                            logger.warn({
+                                sandboxId: sandbox.id,
+                                file: relativePath,
+                                s3Key,
+                                error: result.error
+                            }, 'File upload failed');
                         }
-                    } finally {
-                        currentActiveUploads--;
+                    } catch (uploadErr) {
+                        uploadResults.failed++;
+                        const errorMsg = uploadErr instanceof Error ? uploadErr.message : String(uploadErr);
+                        uploadResults.errors.push(`${relativePath}: ${errorMsg}`);
+                        logger.error({
+                            sandboxId: sandbox.id,
+                            file: relativePath,
+                            s3Key,
+                            error: uploadErr
+                        }, 'File upload threw exception');
                     }
                 })();
-                nextEntry();
 
                 allUploadPromises.push(uploadPromise);
 
-                if (currentActiveUploads >= MAX_PARALLEL_UPLOADS) {
-                    sourceStream.pause?.();
-                    Promise.race(allUploadPromises).then(() => {
-                        sourceStream.resume?.();
-                    });
-                }
+                nextEntry();
             });
 
             tarExtractor.on('finish', () => {

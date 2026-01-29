@@ -237,8 +237,11 @@ export async function unifiedSendMessage(
                 chatId,
                 buildDirectory: buildResult.buildDirectory,
                 previewUploaded: buildResult.previewUploaded,
+                previewUrl: buildResult.previewUrl,
                 previewStats: buildResult.previewStats,
-              }, 'Build and preview upload completed');
+              }, buildResult.previewUrl
+                ? `Build and preview upload completed - Preview URL: ${buildResult.previewUrl}`
+                : 'Build and preview upload completed (no preview URL available)');
             } else {
               logger.warn({
                 sandboxId: currentSandboxId,
