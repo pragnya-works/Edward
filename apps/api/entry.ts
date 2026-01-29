@@ -168,7 +168,7 @@ app.use(function routeNotFoundHandler(_req: Request, res: Response) {
   });
 });
 
-app.use(function globalErrorHandler(err: unknown, _req: Request, res: Response) {
+app.use(function globalErrorHandler(err: unknown, _req: Request, res: Response, _next: NextFunction) {
   const error = ensureError(err);
   logger.error(error);
 
