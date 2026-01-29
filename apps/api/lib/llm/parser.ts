@@ -112,6 +112,13 @@ export function createStreamParser() {
     if (fileIdx !== -1 && (endIdx === -1 || fileIdx < endIdx)) {
       const closeIdx = buffer.indexOf('>', fileIdx);
       if (closeIdx !== -1) {
+        if (fileIdx > 0) {
+          const textContent = buffer.slice(0, fileIdx);
+          if (textContent.trim()) {
+            events.push({ type: ParserEventType.TEXT, content: textContent });
+          }
+        }
+
         const tag = buffer.slice(fileIdx, closeIdx + 1);
         const rawPath = tag.match(/path="([^"]*)"/)?.[1];
 
@@ -134,7 +141,19 @@ export function createStreamParser() {
       events.push({ type: ParserEventType.SANDBOX_END });
     } else {
       const lastLt = buffer.lastIndexOf('<');
-      if (lastLt === -1 && buffer.length > LOOKAHEAD_LIMIT) {
+      if (lastLt !== -1 && buffer.length - lastLt < LOOKAHEAD_LIMIT) {
+        if (buffer.length > LOOKAHEAD_LIMIT && lastLt > 0) {
+          const safeContent = buffer.slice(0, lastLt);
+          if (safeContent.trim()) {
+            events.push({ type: ParserEventType.TEXT, content: safeContent });
+          }
+          buffer = buffer.slice(lastLt);
+        }
+      } else if (lastLt === -1 && buffer.length > LOOKAHEAD_LIMIT) {
+        const safeContent = buffer;
+        if (safeContent.trim()) {
+          events.push({ type: ParserEventType.TEXT, content: safeContent });
+        }
         buffer = '';
       }
     }

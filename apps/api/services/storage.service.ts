@@ -79,7 +79,7 @@ function validateS3Key(key: string): void {
     }
 }
 
-function sanitizePathComponent(component: string): string {
+export function sanitizePathComponent(component: string): string {
     return component.replace(/[^a-zA-Z0-9-_.]/g, '_');
 }
 
@@ -243,7 +243,14 @@ export async function uploadFile(
         return { success: true, key };
     } catch (error) {
         const err = error instanceof Error ? error : new Error(String(error));
-        logger.error({ error: err, key }, 'S3 upload failed');
+        logger.error({
+            error: err,
+            key,
+            errorName: err.name,
+            errorMessage: err.message,
+            errorStack: err.stack,
+            errorDetails: JSON.stringify(error, Object.getOwnPropertyNames(error))
+        }, 'S3 upload failed');
         return { success: false, key, error: err };
     }
 }

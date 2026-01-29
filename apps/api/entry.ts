@@ -3,7 +3,7 @@ import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
-import rateLimit from 'express-rate-limit';
+import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import { RedisStore } from 'rate-limit-redis';
 
 import { initSandboxService, shutdownSandboxService } from './services/sandbox/lifecycle.sandbox.js';
@@ -140,7 +140,9 @@ const dailyChatRateLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: (req) => {
-    return (req as AuthenticatedRequest).userId || req.ip || 'anonymous';
+    const userId = (req as AuthenticatedRequest).userId;
+    if (userId) return userId;
+    return ipKeyGenerator(req.ip || 'anonymous');
   },
   handler: (_req, res) => {
     sendError(res, HttpStatus.TOO_MANY_REQUESTS, 'Daily message quota exceeded (10 messages/24h)');
