@@ -1,10 +1,15 @@
 import { z } from 'zod';
 
+export const NPM_PACKAGE_REGEX = /^(?:@[a-z0-9-~][a-z0-9-._~]*\/)?[a-z0-9-~][a-z0-9-._~]*$/i;
+export const MAX_DEPENDENCIES = 50;
+export const MAX_PACKAGE_NAME_LENGTH = 214;
+
 export enum StreamState {
   TEXT = 'TEXT',
   THINKING = 'THINKING',
   SANDBOX = 'SANDBOX',
   FILE = 'FILE',
+  INSTALL = 'INSTALL',
 }
 
 export enum ParserEventType {
@@ -17,6 +22,9 @@ export enum ParserEventType {
   FILE_START = 'file_start',
   FILE_CONTENT = 'file_content',
   FILE_END = 'file_end',
+  INSTALL_START = 'install_start',
+  INSTALL_CONTENT = 'install_content',
+  INSTALL_END = 'install_end',
   ERROR = 'error',
   META = 'meta',
 }
@@ -51,9 +59,22 @@ export const ParserEventSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal(ParserEventType.FILE_START), path: z.string() }),
   z.object({ type: z.literal(ParserEventType.FILE_CONTENT), content: z.string() }),
   z.object({ type: z.literal(ParserEventType.FILE_END) }),
+  z.object({ type: z.literal(ParserEventType.INSTALL_START) }),
+  z.object({
+    type: z.literal(ParserEventType.INSTALL_CONTENT),
+    dependencies: z.array(z.string())
+      .max(MAX_DEPENDENCIES)
+      .refine(
+        pkgs => pkgs.every(p =>
+          p.length <= MAX_PACKAGE_NAME_LENGTH && NPM_PACKAGE_REGEX.test(p)
+        ),
+        { message: 'Invalid package name format' }
+      ),
+    framework: z.enum(['nextjs', 'vite-react', 'vanilla', 'next', 'react', 'vite', 'next.js']).optional()
+  }),
+  z.object({ type: z.literal(ParserEventType.INSTALL_END) }),
   z.object({ type: z.literal(ParserEventType.ERROR), message: z.string() }),
   z.object({ type: z.literal(ParserEventType.META), chatId: z.string(), userMessageId: z.string(), assistantMessageId: z.string(), isNewChat: z.boolean() }),
 ]);
 
 export type ParserEvent = z.infer<typeof ParserEventSchema>;
-

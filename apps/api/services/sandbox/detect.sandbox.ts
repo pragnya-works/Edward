@@ -1,5 +1,6 @@
 import { CONTAINER_WORKDIR, getContainer, execCommand } from './docker.sandbox.js';
 import { doesFileExist, doesDirectoryExist, TIMEOUT_CHECK_MS } from './utils.sandbox.js';
+import { logger } from '../../utils/logger.js';
 
 export type PackageManager = 'pnpm' | 'npm' | 'yarn';
 
@@ -57,4 +58,29 @@ export async function findBuildOutputDirectory(containerId: string): Promise<str
     }
 
     return null;
+}
+
+export async function predictBuildDirectory(containerId: string): Promise<string> {
+    try {
+        const container = getContainer(containerId);
+        const result = await execCommand(container, ['cat', `${CONTAINER_WORKDIR}/package.json`], false, TIMEOUT_CHECK_MS);
+
+        if (result.exitCode === 0) {
+            const pkg = JSON.parse(result.stdout);
+            const deps = { ...(pkg.dependencies || {}), ...(pkg.devDependencies || {}) };
+
+            if (deps.next) return '.next';
+            if (deps.vite) return 'dist';
+            if (deps.nuxt) return '.output';
+            if (deps['react-scripts']) return 'build';
+        }
+    } catch (error) {
+        logger.debug({ error, containerId }, 'Failed to predict build directory from package.json');
+    }
+
+    if (await isStaticSite(containerId)) {
+        return '.';
+    }
+
+    return 'dist';
 }

@@ -6,6 +6,7 @@ import { logger } from '../../utils/logger.js';
 import { ensureError } from '../../utils/error.js';
 import { Readable } from 'stream';
 import tar from 'tar-stream';
+import { predictBuildDirectory } from './detect.sandbox.js';
 import path from 'path';
 
 const MAX_CONCURRENT_UPLOADS = 5;
@@ -41,7 +42,15 @@ export async function backupSandboxInstance(sandbox: SandboxInstance): Promise<v
         extract.on('entry', async (header, stream, next) => {
             const relativePath = header.name.replace(/^[^/]+\/?/, '');
 
-            if (!relativePath || header.type !== 'file') {
+            if (!relativePath || header.type !== 'file' || 
+                relativePath.includes('node_modules/') || 
+                relativePath.includes('.next/') ||
+                relativePath.startsWith('dist/') ||
+                relativePath.startsWith('build/') ||
+                relativePath.startsWith('out/') ||
+                relativePath.startsWith('.output/') ||
+                relativePath.startsWith('preview/')
+            ) {
                 stream.resume();
                 return next();
             }
@@ -113,50 +122,86 @@ export async function restoreSandboxInstance(sandbox: SandboxInstance): Promise<
     const sandboxId = sandbox.id;
     try {
         const folderPrefix = buildS3Key(sandbox.userId, sandbox.chatId);
-        const items: S3File[] = await listFolder(folderPrefix);
+        const allItems: S3File[] = await listFolder(folderPrefix);
 
-        if (items.length === 0) {
+        if (allItems.length === 0) {
             logger.info({ sandboxId, chatId: sandbox.chatId, folderPrefix }, 'No assets found in S3 to restore');
             return;
         }
 
-        const container = getContainer(sandbox.containerId);
-        const pack = tar.pack();
-
-        const restorePath = path.posix.dirname(CONTAINER_WORKDIR);
-
-        logger.info({ sandboxId, chatId: sandbox.chatId, fileCount: items.length }, 'Restoring workspace from S3 files');
-        const uploadPromise = container.putArchive(pack as unknown as Readable, {
-            path: restorePath,
+        const sourceItems = allItems.filter(item => {
+            const rel = item.Key.replace(folderPrefix, '');
+            if (!rel) return false;
+            
+            if (rel.startsWith('_next/') || 
+                rel === 'index.html' || 
+                rel === '404.html' || 
+                rel === 'index.txt' ||
+                rel.startsWith('preview/') || 
+                rel.startsWith('previews/')) {
+                return false;
+            }
+            
+            return true;
         });
 
-        for (const item of items) {
-            const key = item.Key;
-            const size = item.Size;
+        const previewItems = allItems.filter(item => {
+            const rel = item.Key.replace(folderPrefix, '');
+            return rel && (rel.startsWith('preview/') || rel.startsWith('previews/'));
+        });
 
-            const relativePath = key.replace(folderPrefix, '');
-            if (!relativePath || relativePath.startsWith('/') || relativePath.includes('..')) continue;
-            if (relativePath.startsWith('previews/')) continue;
+        const container = getContainer(sandbox.containerId);
+        const restorePath = path.posix.dirname(CONTAINER_WORKDIR);
 
-            const stream = await downloadFile(key);
-            if (!stream) {
-                logger.warn({ key }, 'Failed to download file during restoration');
-                continue;
-            }
-
-            const name = path.posix.join(path.posix.basename(CONTAINER_WORKDIR), relativePath);
-            const entry = pack.entry({ name, size });
-            (stream as Readable).pipe(entry);
-
-            await new Promise((resolve, reject) => {
-                entry.on('finish', resolve);
-                entry.on('error', reject);
-                (stream as Readable).on('error', reject);
+        if (sourceItems.length > 0) {
+            logger.info({ sandboxId, fileCount: sourceItems.length }, 'Restoring source files');
+            const sourcePack = tar.pack();
+            const sourceUploadPromise = container.putArchive(sourcePack as unknown as Readable, {
+                path: restorePath,
             });
+
+            for (const item of sourceItems) {
+                const relativePath = item.Key.replace(folderPrefix, '');
+                const stream = await downloadFile(item.Key);
+                if (!stream) continue;
+
+                const name = path.posix.join(path.posix.basename(CONTAINER_WORKDIR), relativePath);
+                const entry = sourcePack.entry({ name, size: item.Size });
+                (stream as Readable).pipe(entry);
+                await new Promise((res, rej) => {
+                    entry.on('finish', res);
+                    entry.on('error', rej);
+                });
+            }
+            sourcePack.finalize();
+            await sourceUploadPromise;
         }
 
-        pack.finalize();
-        await uploadPromise;
+        if (previewItems.length > 0) {
+            const buildDirectory = await predictBuildDirectory(sandbox.containerId);
+            logger.info({ sandboxId, buildDirectory, fileCount: previewItems.length }, 'Restoring preview files to build directory');
+
+            const previewPack = tar.pack();
+            const previewUploadPromise = container.putArchive(previewPack as unknown as Readable, {
+                path: restorePath,
+            });
+
+            for (const item of previewItems) {
+                const relativePath = item.Key.replace(folderPrefix, '').replace(/^(?:preview|previews)\//, '');
+                const stream = await downloadFile(item.Key);
+                if (!stream) continue;
+
+                const name = path.posix.join(path.posix.basename(CONTAINER_WORKDIR), buildDirectory, relativePath);
+                const entry = previewPack.entry({ name, size: item.Size });
+                (stream as Readable).pipe(entry);
+                await new Promise((res, rej) => {
+                    entry.on('finish', res);
+                    entry.on('error', rej);
+                });
+            }
+            previewPack.finalize();
+            await previewUploadPromise;
+        }
 
         logger.info({ sandboxId, chatId: sandbox.chatId }, 'Restoration successful');
     } catch (error) {

@@ -4,6 +4,7 @@ export interface SandboxInstance {
     expiresAt: number;
     userId: string;
     chatId: string;
+    scaffoldedFramework?: string;
 }
 
 export interface ExecResult {

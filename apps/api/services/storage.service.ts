@@ -95,6 +95,10 @@ function getContentType(filePath: string): string {
         return 'application/javascript';
     }
 
+    if (filePath.toLowerCase().endsWith('.css')) {
+        return 'text/css';
+    }
+
     const contentType = lookup(filePath) || 'application/octet-stream';
     return contentType;
 }

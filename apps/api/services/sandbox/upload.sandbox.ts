@@ -34,15 +34,27 @@ export async function uploadBuildFilesToS3(
         await new Promise<void>((resolve, reject) => {
             tarExtractor.on('entry', (header, fileStream, nextEntry) => {
                 const relativePath = header.name.replace(/^[^/]+\/?/, '');
-
                 if (!relativePath || header.type !== 'file') {
                     fileStream.resume();
                     nextEntry();
                     return;
                 }
 
+                if (
+                    relativePath.includes('node_modules/') || 
+                    relativePath.startsWith('node_modules/') ||
+                    relativePath.includes('/node_modules/') ||
+                    relativePath.startsWith('.') ||
+                    relativePath.includes('/.')
+                ) {
+                    fileStream.resume();
+                    nextEntry();
+                    return;
+                }
+
                 uploadResults.totalFiles++;
-                const s3Key = buildS3Key(sandbox.userId, sandbox.chatId, relativePath);
+                const s3Key = buildS3Key(sandbox.userId, sandbox.chatId, `preview/${relativePath}`);
+                logger.info({ sandboxId: sandbox.id, relativePath, s3Key, buildDirectory }, 'Uploading build artifact');
                 const uploadPromise = (async () => {
                     try {
                         const chunks: Buffer[] = [];
@@ -50,15 +62,17 @@ export async function uploadBuildFilesToS3(
                             chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
                         }
                         const fileBuffer = Buffer.concat(chunks);
-
+                        
                         const result = await uploadFile(s3Key, fileBuffer, {
                             sandboxId: sandbox.id,
                             originalPath: relativePath,
                             uploadTimestamp,
+                            buildDirectory,
                         }, fileBuffer.length);
 
                         if (result.success) {
                             uploadResults.successful++;
+                            logger.debug({ sandboxId: sandbox.id, relativePath, size: fileBuffer.length }, 'File uploaded successfully');
                         } else {
                             uploadResults.failed++;
                             const errorMsg = result.error?.message || 'Unknown error';
@@ -80,12 +94,12 @@ export async function uploadBuildFilesToS3(
                             s3Key,
                             error: uploadErr
                         }, 'File upload threw exception');
+                    } finally {
+                        nextEntry();
                     }
                 })();
 
                 allUploadPromises.push(uploadPromise);
-
-                nextEntry();
             });
 
             tarExtractor.on('finish', () => {

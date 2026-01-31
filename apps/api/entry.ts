@@ -88,10 +88,10 @@ app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
 if (!isProd) {
   app.use(function requestLoggerMiddleware(req: Request, res: Response, next: NextFunction) {
-    const startTimeTime = Date.now();
+    const startTime = Date.now();
 
     res.on('finish', function logResponse() {
-      const durationMs = Date.now() - startTimeTime;
+      const durationMs = Date.now() - startTime;
       logger.info(
         `${req.method} ${req.originalUrl} | Status: ${res.statusCode} | Duration: ${durationMs}ms`
       );

@@ -66,7 +66,10 @@ export async function* streamResponse(apiKey: string, content: string, signal?: 
       const geminiModel = genAI.getGenerativeModel({ model, systemInstruction: SYSTEM_PROMPT });
 
       const result = await geminiModel.generateContentStream({
-        contents: [{ role: 'user', parts: [{ text: content }] }]
+        contents: [{ role: 'user', parts: [{ text: content }] }],
+        generationConfig: {
+            maxOutputTokens: 16384,
+        }
       }, { signal });
 
       for await (const chunk of result.stream) {

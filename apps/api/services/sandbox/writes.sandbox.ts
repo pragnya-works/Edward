@@ -3,6 +3,17 @@ import { redis } from '../../lib/redis.js';
 import { getSandboxState } from './state.sandbox.js';
 import { getContainer, ensureContainerRunning, CONTAINER_WORKDIR, execCommand } from './docker.sandbox.js';
 import { logger } from '../../utils/logger.js';
+import { getTemplateConfig } from './templates/template.registry.js';
+
+function isProtectedFile(filePath: string, framework?: string): boolean {
+    if (!framework) return false;
+
+    const config = getTemplateConfig(framework);
+    if (!config) return false;
+
+    const fileName = path.posix.basename(filePath);
+    return config.protectedFiles.includes(fileName) || config.protectedFiles.includes(filePath);
+}
 
 const BUFFER_KEY_PREFIX = 'edward:buffer:';
 const BUFFER_FILES_SET_PREFIX = 'edward:buffer:files:';
@@ -13,10 +24,6 @@ const MAX_WRITE_BUFFER = 5 * 1024 * 1024;
 const FLUSH_LOCK_TTL = 30000;
 
 const writeTimers = new Map<string, NodeJS.Timeout>();
-
-function shEscape(str: string): string {
-    return `'${str.replace(/'/g, "'\\''")}'`;
-}
 
 async function cleanupBufferKeys(sandboxId: string, filePaths: string[]): Promise<void> {
     if (filePaths.length === 0) return;
@@ -75,6 +82,7 @@ export async function flushSandbox(sandboxId: string, waitForLock = false): Prom
                     await redis.rename(bufferKey, processingKey);
                     await redis.srem(filesSetKey, filePath);
                 } catch (err) {
+                    logger.debug({ err, sandboxId, filePath }, 'Redis rename failed during flush, skipping');
                     continue;
                 }
 
@@ -87,7 +95,7 @@ export async function flushSandbox(sandboxId: string, waitForLock = false): Prom
                 try {
                     const fullPath = path.posix.join(CONTAINER_WORKDIR, filePath);
                     const exec = await container.exec({
-                        Cmd: ['sh', '-c', `cat >> ${shEscape(fullPath)}`],
+                        Cmd: ['sh', '-c', `cat >> '${fullPath.replace(/'/g, "'\"'\"'")}'`],
                         AttachStdin: true,
                         AttachStdout: true,
                         AttachStderr: true,
@@ -128,18 +136,28 @@ export async function writeSandboxFile(
     if (!sandbox) return;
 
     const normalizedPath = path.posix.normalize(filePath);
-    if (normalizedPath.startsWith('..') || path.posix.isAbsolute(normalizedPath)) {
+    const resolvedPath = path.posix.resolve('/', normalizedPath);
+    if (!resolvedPath.startsWith('/') || normalizedPath.startsWith('..') || path.posix.isAbsolute(normalizedPath)) {
         throw new Error(`Invalid path: ${filePath}`);
+    }
+
+    if (isProtectedFile(normalizedPath, sandbox.scaffoldedFramework)) {
+        logger.info({ sandboxId, filePath: normalizedPath, framework: sandbox.scaffoldedFramework }, 'Blocked write to protected framework file');
+        return;
     }
 
     const bufferKey = `${BUFFER_KEY_PREFIX}${sandboxId}:${normalizedPath}`;
     const filesSetKey = `${BUFFER_FILES_SET_PREFIX}${sandboxId}`;
 
-    await redis.append(bufferKey, content);
-    await redis.sadd(filesSetKey, normalizedPath);
-
-    await redis.pexpire(bufferKey, 30 * 60 * 1000);
-    await redis.pexpire(filesSetKey, 30 * 60 * 1000);
+    try {
+        await redis.append(bufferKey, content);
+        await redis.sadd(filesSetKey, normalizedPath);
+        await redis.pexpire(bufferKey, 30 * 60 * 1000);
+        await redis.pexpire(filesSetKey, 30 * 60 * 1000);
+    } catch (error) {
+        logger.error({ error, sandboxId, filePath: normalizedPath }, 'Redis write failed');
+        throw new Error(`Failed to buffer file content: ${error instanceof Error ? error.message : String(error)}`);
+    }
 
     const currentBufferSize = await redis.strlen(bufferKey);
 
@@ -168,8 +186,18 @@ export async function prepareSandboxFile(sandboxId: string, filePath: string): P
     }
 
     const normalizedPath = path.posix.normalize(filePath);
-    if (normalizedPath.startsWith('..') || path.posix.isAbsolute(normalizedPath)) {
+    const resolvedPath = path.posix.resolve('/', normalizedPath);
+    if (!resolvedPath.startsWith('/') || normalizedPath.startsWith('..') || path.posix.isAbsolute(normalizedPath)) {
         throw new Error(`Invalid path: ${filePath}`);
+    }
+
+    if (isProtectedFile(normalizedPath, sandbox.scaffoldedFramework)) {
+        logger.info({
+            sandboxId,
+            filePath: normalizedPath,
+            framework: sandbox.scaffoldedFramework
+        }, 'Blocked prepare/truncate for protected framework file');
+        return;
     }
 
     const lockKey = `${FLUSH_LOCK_PREFIX}${sandboxId}`;
@@ -185,7 +213,8 @@ export async function prepareSandboxFile(sandboxId: string, filePath: string): P
         const dirPath = path.posix.dirname(fullPath);
 
         const container = getContainer(sandbox.containerId);
-        await execCommand(container, ['sh', '-c', `mkdir -p ${shEscape(dirPath)} && : > ${shEscape(fullPath)}`]);
+        await execCommand(container, ['mkdir', '-p', dirPath]);
+        await execCommand(container, ['truncate', '-s', '0', fullPath]);
     } finally {
         await redis.del(lockKey);
     }

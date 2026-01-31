@@ -19,7 +19,6 @@ import {
     isStaticSite
 } from './detect.sandbox.js';
 
-import { ensureNextJsConfig } from './config.sandbox.js';
 import { uploadBuildFilesToS3 } from './upload.sandbox.js';
 import { buildPreviewUrl } from '../preview.service.js';
 
@@ -249,8 +248,6 @@ export async function buildAndUploadPreview(sandboxId: string): Promise<BuildRes
 
         logger.info({ sandboxId }, 'Dependencies installed successfully');
         logger.info({ sandboxId, packageManager }, 'Running build command');
-
-        await ensureNextJsConfig(containerId, CONTAINER_WORKDIR);
 
         const buildResult = await runBuildCommand(containerId, packageManager);
         await disconnectContainerFromNetwork(containerId, sandboxId);
