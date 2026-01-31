@@ -13,7 +13,8 @@
       "csstype": "^3.2.3",
       "js-yaml": "^4.1.1",
       "tmp": "^0.2.4",
-      "esbuild": "^0.25.0"
+      "esbuild": "^0.25.0",
+      "fast-xml-parser": ">=5.3.4"
     }
   },
   "devDependencies": {
