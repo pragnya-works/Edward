@@ -29,11 +29,15 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
           
+      - name: Lowercase repository name
+        id: repo
+        run: echo "lower=${GITHUB_REPOSITORY,,}" >> $GITHUB_OUTPUT
+
       - name: Build and push
         uses: docker/build-push-action@v5
         with:
           context: docker/templates/${{ matrix.framework }}
           push: true
-          tags: ghcr.io/${{ github.repository }}/${{ matrix.framework }}-sandbox:latest
+          tags: ghcr.io/${{ steps.repo.outputs.lower }}/${{ matrix.framework }}-sandbox:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
