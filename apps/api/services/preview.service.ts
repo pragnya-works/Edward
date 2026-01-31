@@ -6,14 +6,13 @@ export function isCloudFrontConfigured(): boolean {
     return Boolean(CLOUDFRONT_URL);
 }
 
-export function buildPreviewUrl(userId: string, chatId: string, entryFile = 'index.html'): string | null {
+export function buildPreviewUrl(userId: string, chatId: string): string | null {
     if (!CLOUDFRONT_URL) return null;
 
-    const path = [
+    const pathParts = [
         sanitizePathComponent(userId),
         sanitizePathComponent(chatId),
-        entryFile.replace(/^\//, '')
-    ].join('/');
+    ];
 
-    return `${CLOUDFRONT_URL}/${path}`;
+    return `${CLOUDFRONT_URL}/${pathParts.join('/')}/`;
 }
