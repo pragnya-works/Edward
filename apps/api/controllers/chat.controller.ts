@@ -359,7 +359,7 @@ export async function getChatHistory(
       messages,
     });
 
-    void provisionSandbox(userId, chatId, undefined, true).catch((err) =>
+    void provisionSandbox(chatData.userId, chatId, undefined, true).catch((err) =>
       logger.error({ err, chatId }, 'Background sandbox restoration failed')
     );
 
