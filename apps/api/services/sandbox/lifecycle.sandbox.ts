@@ -81,7 +81,7 @@ export async function provisionSandbox(userId: string, chatId: string, framework
                 await saveSandboxState(sandbox);
                 await redis.del(lockKey);
 
-                logger.info({ sandboxId, userId, chatId, containerId: container.id }, 'Sandbox provisioned');
+                logger.info({ sandboxId, chatId, containerId: container.id }, 'Sandbox provisioned');
                 return sandboxId;
             } catch (provisionError) {
                 await redis.del(lockKey);
@@ -191,9 +191,8 @@ export async function getActiveSandbox(chatId: string): Promise<string | undefin
 
         return sandbox.id;
     } catch (error) {
-        logger.debug({ error, sandboxId: sandbox.id, containerId: sandbox.containerId }, 'Container inspect failed, marking as not alive');
         containerStatusCache.set(sandbox.containerId, { alive: false, timestamp: Date.now() });
-        logger.warn({ sandboxId: sandbox.id, chatId }, 'Active sandbox container not found, cleaning up stale state');
+        logger.warn({ sandboxId: sandbox.id, chatId }, 'Active sandbox container not found, cleaning up');
         await deleteSandboxState(sandbox.id, chatId);
         return undefined;
     }

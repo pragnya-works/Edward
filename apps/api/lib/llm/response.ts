@@ -33,7 +33,12 @@ function getClient(apiKey: string) {
   }
 }
 
-export async function* streamResponse(apiKey: string, content: string, signal?: AbortSignal): AsyncGenerator<string> {
+export async function* streamResponse(
+  apiKey: string, 
+  content: string, 
+  signal?: AbortSignal,
+  verifiedDependencies?: string[]
+): AsyncGenerator<string> {
   if (!apiKey || typeof apiKey !== 'string' || apiKey.trim().length === 0) {
     throw new Error('Invalid API key: API key must be a non-empty string');
   }
@@ -43,6 +48,11 @@ export async function* streamResponse(apiKey: string, content: string, signal?: 
   }
 
   const { type, client, model } = getClient(apiKey);
+  const contextPrompt = verifiedDependencies && verifiedDependencies.length > 0
+    ? `\n\n[CONTEXT] The following packages have been verified and corrected for use in this project: ${verifiedDependencies.join(', ')}. Please use these exact names in your <edward_install> tag.`
+    : '';
+
+  const fullSystemPrompt = SYSTEM_PROMPT + contextPrompt;
 
   try {
     if (type === Provider.OPENAI) {
@@ -50,7 +60,7 @@ export async function* streamResponse(apiKey: string, content: string, signal?: 
       const stream = await openai.chat.completions.create({
         model,
         messages: [
-          { role: 'system', content: SYSTEM_PROMPT },
+          { role: 'system', content: fullSystemPrompt },
           { role: 'user', content }
         ],
         stream: true,
@@ -63,7 +73,7 @@ export async function* streamResponse(apiKey: string, content: string, signal?: 
       }
     } else {
       const genAI = client as GoogleGenerativeAI;
-      const geminiModel = genAI.getGenerativeModel({ model, systemInstruction: SYSTEM_PROMPT });
+      const geminiModel = genAI.getGenerativeModel({ model, systemInstruction: fullSystemPrompt });
 
       const result = await geminiModel.generateContentStream({
         contents: [{ role: 'user', parts: [{ text: content }] }],
@@ -89,7 +99,11 @@ export async function* streamResponse(apiKey: string, content: string, signal?: 
   }
 }
 
-export async function generateResponse(apiKey: string, content: string): Promise<string> {
+export async function generateResponse(
+  apiKey: string, 
+  content: string,
+  verifiedDependencies?: string[]
+): Promise<string> {
   if (!apiKey || typeof apiKey !== 'string' || apiKey.trim().length === 0) {
     throw new Error('Invalid API key: API key must be a non-empty string');
   }
@@ -99,6 +113,11 @@ export async function generateResponse(apiKey: string, content: string): Promise
   }
 
   const { type, client, model } = getClient(apiKey);
+  const contextPrompt = verifiedDependencies && verifiedDependencies.length > 0
+    ? `\n\n[CONTEXT] The following packages have been verified and corrected for use in this project: ${verifiedDependencies.join(', ')}. Please use these exact names in your <edward_install> tag.`
+    : '';
+
+  const fullSystemPrompt = SYSTEM_PROMPT + contextPrompt;
 
   try {
     if (type === Provider.OPENAI) {
@@ -106,14 +125,14 @@ export async function generateResponse(apiKey: string, content: string): Promise
       const completion = await openai.chat.completions.create({
         model,
         messages: [
-          { role: 'system', content: SYSTEM_PROMPT },
+          { role: 'system', content: fullSystemPrompt },
           { role: 'user', content }
         ],
       });
       return completion.choices[0]?.message?.content || '';
     } else {
       const genAI = client as GoogleGenerativeAI;
-      const geminiModel = genAI.getGenerativeModel({ model, systemInstruction: SYSTEM_PROMPT });
+      const geminiModel = genAI.getGenerativeModel({ model, systemInstruction: fullSystemPrompt });
 
       const result = await geminiModel.generateContent({
         contents: [{ role: 'user', parts: [{ text: content }] }]

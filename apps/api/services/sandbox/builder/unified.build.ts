@@ -3,9 +3,10 @@ import { getSandboxState } from '../state.sandbox.js';
 import { logger } from '../../../utils/logger.js';
 import { ensureError } from '../../../utils/error.js';
 import { runUnifiedBuild, BuildOptions } from '../../builder.service.js';
-import { uploadBuildFilesToS3 } from '../upload.sandbox.js';
+import { uploadBuildFilesToS3, uploadSpaFallback } from '../upload.sandbox.js';
 import { buildPreviewUrl } from '../../preview.service.js';
 import { disconnectContainerFromNetwork } from '../utils.sandbox.js';
+import { Framework } from './base-path.injector.js';
 
 export interface BuildResult {
   success: boolean;
@@ -53,7 +54,15 @@ export async function buildAndUploadUnified(sandboxId: string): Promise<BuildRes
     const buildDirectory = buildResult.outputInfo!.directory;
     logger.info({ sandboxId, buildDirectory }, 'Uploading build artifacts to S3');
 
-    const uploadResult = await uploadBuildFilesToS3(sandbox, buildDirectory);
+    const framework = (scaffoldedFramework || 'vanilla') as Framework;
+    const uploadResult = await uploadBuildFilesToS3(sandbox, buildDirectory, framework);
+
+    if (framework !== 'vanilla') {
+      await uploadSpaFallback(sandbox, framework).catch(err =>
+        logger.warn({ err, sandboxId }, 'SPA fallback upload failed')
+      );
+    }
+
     await disconnectContainerFromNetwork(containerId, sandboxId);
 
     const previewUrl = buildPreviewUrl(userId, chatId);
@@ -62,8 +71,6 @@ export async function buildAndUploadUnified(sandboxId: string): Promise<BuildRes
     logger.info({
       sandboxId,
       success: allSuccessful,
-      totalFiles: uploadResult.totalFiles,
-      successful: uploadResult.successful
     }, 'Unified build and upload completed');
 
     return {

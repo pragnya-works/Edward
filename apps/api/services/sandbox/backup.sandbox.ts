@@ -22,7 +22,6 @@ export async function backupSandboxInstance(sandbox: SandboxInstance): Promise<v
         try {
             await container.inspect();
         } catch (error) {
-            logger.debug({ sandboxId, error: ensureError(error).message }, 'Backup skipped: container not found');
             return;
         }
 
@@ -42,8 +41,8 @@ export async function backupSandboxInstance(sandbox: SandboxInstance): Promise<v
         extract.on('entry', async (header, stream, next) => {
             const relativePath = header.name.replace(/^[^/]+\/?/, '');
 
-            if (!relativePath || header.type !== 'file' || 
-                relativePath.includes('node_modules/') || 
+            if (!relativePath || header.type !== 'file' ||
+                relativePath.includes('node_modules/') ||
                 relativePath.includes('.next/') ||
                 relativePath.startsWith('dist/') ||
                 relativePath.startsWith('build/') ||
@@ -103,8 +102,7 @@ export async function backupSandboxInstance(sandbox: SandboxInstance): Promise<v
 
         await Promise.all(uploadQueue);
 
-        const logLevel = results.failed === 0 ? 'info' : 'warn';
-        logger[logLevel]({ sandboxId, ...results }, 'Extracted sandbox backup completed');
+        logger.info({ sandboxId }, 'Backup completed');
     } catch (error) {
         logger.error({ error: ensureError(error), sandboxId }, 'Backup failed');
     }
@@ -125,23 +123,23 @@ export async function restoreSandboxInstance(sandbox: SandboxInstance): Promise<
         const allItems: S3File[] = await listFolder(folderPrefix);
 
         if (allItems.length === 0) {
-            logger.info({ sandboxId, chatId: sandbox.chatId, folderPrefix }, 'No assets found in S3 to restore');
+            logger.info({ sandboxId, chatId: sandbox.chatId }, 'No assets found in S3 to restore');
             return;
         }
 
         const sourceItems = allItems.filter(item => {
             const rel = item.Key.replace(folderPrefix, '');
             if (!rel) return false;
-            
-            if (rel.startsWith('_next/') || 
-                rel === 'index.html' || 
-                rel === '404.html' || 
+
+            if (rel.startsWith('_next/') ||
+                rel === 'index.html' ||
+                rel === '404.html' ||
                 rel === 'index.txt' ||
-                rel.startsWith('preview/') || 
+                rel.startsWith('preview/') ||
                 rel.startsWith('previews/')) {
                 return false;
             }
-            
+
             return true;
         });
 

@@ -58,7 +58,7 @@ export async function runUnifiedBuild(
             return { success: true, outputInfo };
         }
 
-        logger.info({ sandboxId, script: pkg.scripts.build, basePath }, 'Running build command');
+        logger.info({ sandboxId, script: pkg.scripts.build }, 'Running build command');
 
         const buildResult = await execCommand(
             container,
@@ -73,8 +73,6 @@ export async function runUnifiedBuild(
         logger.info({
             sandboxId,
             exitCode: buildResult.exitCode,
-            stdoutLength: buildResult.stdout.length,
-            stderrLength: buildResult.stderr.length
         }, 'Build command completed');
 
         if (buildResult.exitCode !== 0) {
@@ -93,7 +91,7 @@ export async function runUnifiedBuild(
 
         const outputInfo = await detectBuildOutput(containerId, sandboxId);
 
-        logger.info({ sandboxId, outputInfo }, 'Build completed and output detected');
+        logger.info({ sandboxId }, 'Build completed');
 
         return { success: true, outputInfo };
     } catch (error) {
