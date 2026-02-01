@@ -35,12 +35,16 @@ async function runContainerCommand(
 async function validateSyntax(containerId: string, _sandboxId: string): Promise<ValidationResult> {
     const result = await runContainerCommand(containerId, [
         'sh', '-c',
-        'find src -name "*.ts" -o -name "*.tsx" -o -name "*.js" -o -name "*.jsx" 2>/dev/null | head -20 | xargs -I{} sh -c "node --check {} 2>&1 || true"'
+        'find src -name "*.ts" -o -name "*.tsx" -o -name "*.js" -o -name "*.jsx" 2>/dev/null | head -20 | xargs -I{} node --check {} 2>&1'
     ]);
 
-    if (result.exitCode !== 0 && result.stderr) {
-        const errors = parseSyntaxErrors(result.stderr);
-        return { valid: false, stage: 'syntax', errors };
+    const output = result.stdout + result.stderr;
+    
+    if (output && (result.exitCode !== 0 || output.includes('SyntaxError'))) {
+        const errors = parseSyntaxErrors(output);
+        if (errors.length > 0) {
+            return { valid: false, stage: 'syntax', errors };
+        }
     }
 
     return { valid: true, errors: [] };
@@ -70,7 +74,7 @@ function parseSyntaxErrors(output: string): ValidationError[] {
 async function validateTypes(containerId: string, _sandboxId: string): Promise<ValidationResult> {
     const result = await runContainerCommand(containerId, [
         'sh', '-c',
-        'if [ -f tsconfig.json ]; then pnpm tsc --noEmit 2>&1 | head -50; else echo "no-ts"; fi'
+        'if [ -f tsconfig.json ]; then set -o pipefail; pnpm tsc --noEmit 2>&1 | head -50; else echo "no-ts"; fi'
     ], 60000);
 
     if (result.stdout.includes('no-ts')) {

@@ -13,7 +13,7 @@ import { createStreamParser } from '../lib/llm/parser.js';
 import { getDecryptedApiKey } from '../services/apiKey.service.js';
 import { HttpStatus, ERROR_MESSAGES } from '../utils/constants.js';
 import { sendError as sendStandardError, sendSuccess } from '../utils/response.js';
-import { cleanupSandbox, getActiveSandbox } from '../services/sandbox/lifecycle.sandbox.js';
+import { cleanupSandbox, getActiveSandbox, provisionSandbox } from '../services/sandbox/lifecycle.sandbox.js';
 import { prepareSandboxFile, writeSandboxFile, flushSandbox } from '../services/sandbox/writes.sandbox.js';
 import { backupSandbox } from '../services/sandbox/backup.sandbox.js';
 import { buildAndUploadUnified } from '../services/sandbox/builder/unified.build.js';
@@ -190,7 +190,7 @@ export async function unifiedSendMessage(
 
                 const rawDependencies = event.dependencies || [];
                 if (rawDependencies.length > 0) {
-                    await advanceWorkflow(workflow, rawDependencies);
+                  await advanceWorkflow(workflow, rawDependencies);
                 }
                 break;
               }
@@ -242,10 +242,10 @@ export async function unifiedSendMessage(
 
             case ParserEventType.SANDBOX_END:
               if (workflow.sandboxId) {
-                await flushSandbox(workflow.sandboxId).catch((err) =>
+                await flushSandbox(workflow.sandboxId).catch((err: unknown) =>
                   logger.error(ensureError(err), `Flush failed during SANDBOX_END: ${workflow.sandboxId}`)
                 );
-                void backupSandbox(workflow.sandboxId).catch((err) =>
+                void backupSandbox(workflow.sandboxId).catch((err: unknown) =>
                   logger.error(ensureError(err), `Backup failed during SANDBOX_END: ${workflow.sandboxId}`)
                 );
               }
@@ -358,6 +358,10 @@ export async function getChatHistory(
       chatId,
       messages,
     });
+
+    void provisionSandbox(userId, chatId, undefined, true).catch((err) =>
+      logger.error({ err, chatId }, 'Background sandbox restoration failed')
+    );
 
   } catch (error) {
     logger.error(ensureError(error), 'getChatHistory error');

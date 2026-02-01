@@ -36,8 +36,22 @@ const PHASE_CONFIGS: PhaseConfig[] = [
 async function getWorkflow(id: string): Promise<WorkflowState | null> {
     const data = await redis.get(`${WORKFLOW_PREFIX}${id}`);
     if (!data) return null;
-    const parsed = WorkflowStateSchema.safeParse(JSON.parse(data));
-    return parsed.success ? parsed.data : null;
+
+    try {
+        const parsed = WorkflowStateSchema.safeParse(JSON.parse(data));
+        if (!parsed.success) {
+            logger.warn({ workflowId: id, parseErrors: parsed.error.errors },
+                'Invalid workflow schema, deleting corrupted data');
+            await redis.del(`${WORKFLOW_PREFIX}${id}`).catch(() => { });
+            return null;
+        }
+        return parsed.data;
+    } catch (error) {
+        logger.error({ error, workflowId: id },
+            'Malformed JSON in Redis, deleting corrupted data');
+        await redis.del(`${WORKFLOW_PREFIX}${id}`).catch(() => { });
+        return null;
+    }
 }
 
 async function saveWorkflow(state: WorkflowState): Promise<void> {
@@ -61,10 +75,20 @@ async function acquireLock(lockKey: string): Promise<string | null> {
 }
 
 async function releaseLock(lockKey: string, lockId: string): Promise<void> {
-    const currentLockId = await redis.get(`${LOCK_PREFIX}${lockKey}`);
-    if (currentLockId === lockId) {
-        await redis.del(`${LOCK_PREFIX}${lockKey}`);
-    }
+    const luaScript = `
+        if redis.call("GET", KEYS[1]) == ARGV[1] then
+            return redis.call("DEL", KEYS[1])
+        else
+            return 0
+        end
+    `;
+
+    await redis.eval(
+        luaScript,
+        1,
+        `${LOCK_PREFIX}${lockKey}`,
+        lockId
+    );
 }
 
 export async function createWorkflow(
@@ -147,7 +171,7 @@ export async function ensureSandbox(
     let sandboxId = await getActiveSandbox(state.chatId);
 
     if (!sandboxId) {
-        sandboxId = await provisionSandbox(state.userId, state.chatId, framework || state.context.framework);
+        sandboxId = await provisionSandbox(state.userId, state.chatId, framework || state.context.framework, false);
     }
 
     state.sandboxId = sandboxId;

@@ -50,40 +50,23 @@ export async function mergeAndInstallDependencies(
             );
 
             if (devResult.exitCode !== 0) {
-                logger.warn({ sandboxId, stderr: devResult.stderr.slice(0, 300) }, 'Dev dependency install had issues');
-            }
-        }
-
-        if (allDeps.length > 0) {
-            const result = await execCommand(
-                container,
-                ['pnpm', 'add', ...allDeps],
-                false,
-                TIMEOUT_DEPENDENCY_INSTALL_MS,
-                undefined,
-                CONTAINER_WORKDIR,
-                ['NEXT_TELEMETRY_DISABLED=1', 'CI=true']
-            );
-
-            await disconnectContainerFromNetwork(containerId, sandboxId);
-
-            if (result.exitCode !== 0) {
                 logger.error({
                     sandboxId,
-                    exitCode: result.exitCode,
-                    stdout: result.stdout.slice(0, 500),
-                    stderr: result.stderr.slice(0, 500)
-                }, 'Dependency install failed');
+                    exitCode: devResult.exitCode,
+                    stdout: devResult.stdout.slice(0, 500),
+                    stderr: devResult.stderr.slice(0, 500)
+                }, 'Dev dependency install failed');
+
+                await disconnectContainerFromNetwork(containerId, sandboxId);
 
                 return {
                     success: false,
-                    error: `Failed to install dependencies: ${result.stderr || result.stdout}`.slice(0, 300)
+                    error: `Failed to install dev dependencies: ${devResult.stderr || devResult.stdout}`.slice(0, 300)
                 };
             }
         } else {
             await disconnectContainerFromNetwork(containerId, sandboxId);
         }
-
         logger.info({ sandboxId, framework }, 'Successfully installed all dependencies');
         return { success: true };
     } catch (error) {

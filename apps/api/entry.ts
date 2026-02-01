@@ -9,7 +9,7 @@ import { redis } from './lib/redis.js';
 import { apiKeyRouter } from './routes/apiKey.routes.js';
 import { chatRouter } from './routes/chat.routes.js';
 import { authMiddleware } from './middleware/auth.js';
-
+import { apiKeyRateLimiter } from './middleware/rateLimit.js';
 import { Environment, createLogger } from './utils/logger.js';
 import { HttpStatus, HttpMethod, ERROR_MESSAGES } from './utils/constants.js';
 import { ensureError } from './utils/error.js';
@@ -97,8 +97,6 @@ if (!isProd) {
     next();
   });
 }
-
-import { apiKeyRateLimiter } from './middleware/rateLimit.js';
 
 app.use('/api-key', apiKeyRateLimiter, authMiddleware, apiKeyRouter);
 app.use('/chat', authMiddleware, chatRouter);

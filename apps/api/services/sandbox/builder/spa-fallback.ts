@@ -1,9 +1,9 @@
 import { RuntimeConfig } from './base-path.injector.js';
 
 export function generateSpaFallbackHtml(runtimeConfig: RuntimeConfig): string {
-    const basePath = runtimeConfig.basePath || '';
+  const basePath = runtimeConfig.basePath || '';
 
-    return `<!DOCTYPE html>
+  return `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
@@ -31,19 +31,20 @@ export function generateSpaFallbackHtml(runtimeConfig: RuntimeConfig): string {
 }
 
 export function generateRuntimeScript(runtimeConfig: RuntimeConfig): string {
-    const config = {
-        basePath: runtimeConfig.basePath,
-        assetPrefix: runtimeConfig.assetPrefix
-    };
+  const config = {
+    basePath: runtimeConfig.basePath,
+    assetPrefix: runtimeConfig.assetPrefix
+  };
 
-    return `<script>
+  return `<script>
 window.__EDWARD_RUNTIME__ = ${JSON.stringify(config)};
 (function() {
+  var basePath = '${runtimeConfig.basePath || ''}';
   var intendedRoute = sessionStorage.getItem('__edward_intended_route');
   if (intendedRoute) {
     sessionStorage.removeItem('__edward_intended_route');
     if (window.history && window.history.replaceState) {
-      window.history.replaceState(null, '', intendedRoute);
+      window.history.replaceState(null, '', basePath + intendedRoute);
     }
   }
 })();
@@ -51,15 +52,15 @@ window.__EDWARD_RUNTIME__ = ${JSON.stringify(config)};
 }
 
 export function injectRuntimeScriptIntoHtml(html: string, runtimeConfig: RuntimeConfig): string {
-    const script = generateRuntimeScript(runtimeConfig);
+  const script = generateRuntimeScript(runtimeConfig);
 
-    if (html.includes('</head>')) {
-        return html.replace('</head>', `${script}\n</head>`);
-    }
+  if (html.includes('</head>')) {
+    return html.replace('</head>', `${script}\n</head>`);
+  }
 
-    if (html.includes('<body')) {
-        return html.replace(/<body([^>]*)>/, `<body$1>\n${script}`);
-    }
+  if (html.includes('<body')) {
+    return html.replace(/<body([^>]*)>/, `<body$1>\n${script}`);
+  }
 
-    return script + html;
+  return script + html;
 }

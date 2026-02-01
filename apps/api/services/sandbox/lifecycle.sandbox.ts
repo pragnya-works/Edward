@@ -32,7 +32,7 @@ async function waitForProvisioning(chatId: string): Promise<string | null> {
     return null;
 }
 
-export async function provisionSandbox(userId: string, chatId: string, framework?: string): Promise<string> {
+export async function provisionSandbox(userId: string, chatId: string, framework?: string, shouldRestore: boolean = false): Promise<string> {
     const lockKey = `edward:locking:provision:${chatId}`;
     const lockValue = nanoid(16);
     const MAX_ATTEMPTS = 10;
@@ -72,10 +72,12 @@ export async function provisionSandbox(userId: string, chatId: string, framework
                     scaffoldedFramework: framework?.toLowerCase(),
                 };
 
-                try {
-                    await restoreSandboxInstance(sandbox);
-                } catch (error) {
-                    logger.error({ error, sandboxId, chatId }, 'Restoration failed during provisioning');
+                if (shouldRestore) {
+                    try {
+                        await restoreSandboxInstance(sandbox);
+                    } catch (error) {
+                        logger.error({ error, sandboxId, chatId }, 'Restoration failed during provisioning');
+                    }
                 }
 
                 await saveSandboxState(sandbox);

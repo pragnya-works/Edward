@@ -74,10 +74,11 @@ export async function buildAndUploadUnified(sandboxId: string): Promise<BuildRes
     }, 'Unified build and upload completed');
 
     return {
-      success: true,
+      success: allSuccessful,
       buildDirectory,
       previewUploaded: uploadResult.successful > 0,
-      previewUrl
+      previewUrl: allSuccessful ? previewUrl : null,
+      error: allSuccessful ? undefined : `Upload incomplete: ${uploadResult.successful}/${uploadResult.totalFiles} files uploaded`
     };
   } catch (error) {
     await disconnectContainerFromNetwork(containerId, sandboxId).catch(() => { });

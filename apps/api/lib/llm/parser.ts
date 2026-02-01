@@ -144,10 +144,19 @@ export function createStreamParser() {
       if (endIdx > 0) {
         let content = buffer.slice(0, endIdx);
         const trimmed = content.trimEnd();
-        if (trimmed.endsWith('```')) {
-          content = trimmed.slice(0, -3).trimEnd();
+        const trimmedStart = content.trimStart();
+
+        if (trimmedStart.startsWith('```') && trimmed.endsWith('```')) {
+          const firstNewline = trimmedStart.indexOf('\n');
+          if (firstNewline !== -1) {
+            const afterOpening = trimmedStart.slice(firstNewline + 1);
+            const beforeClosing = afterOpening.trimEnd();
+            if (beforeClosing.endsWith('```')) {
+              content = beforeClosing.slice(0, -3).trimEnd();
+            }
+          }
         }
-        
+
         if (content) {
           events.push({ type: ParserEventType.FILE_CONTENT, content });
         }
@@ -360,12 +369,14 @@ export function createStreamParser() {
         case StreamState.TEXT:
           events.push({ type: ParserEventType.TEXT, content: buffer });
           break;
+
         case StreamState.THINKING:
           events.push(
             { type: ParserEventType.THINKING_CONTENT, content: buffer },
             { type: ParserEventType.THINKING_END }
           );
           break;
+
         case StreamState.FILE:
           events.push(
             { type: ParserEventType.FILE_CONTENT, content: buffer },
@@ -373,10 +384,21 @@ export function createStreamParser() {
             { type: ParserEventType.SANDBOX_END }
           );
           break;
+
         case StreamState.SANDBOX:
           events.push({ type: ParserEventType.SANDBOX_END });
           break;
+
         case StreamState.INSTALL:
+          const content = buffer.trim();
+          if (content) {
+            const parsed = parseInstallContent(content);
+            events.push({
+              type: ParserEventType.INSTALL_CONTENT,
+              dependencies: parsed.dependencies,
+              framework: parsed.framework,
+            });
+          }
           events.push({ type: ParserEventType.INSTALL_END });
           break;
       }
