@@ -3,19 +3,16 @@ import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
-import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
-import { RedisStore } from 'rate-limit-redis';
 
 import { initSandboxService, shutdownSandboxService } from './services/sandbox/lifecycle.sandbox.js';
 import { redis } from './lib/redis.js';
 import { apiKeyRouter } from './routes/apiKey.routes.js';
 import { chatRouter } from './routes/chat.routes.js';
-import { authMiddleware, AuthenticatedRequest } from './middleware/auth.js';
+import { authMiddleware } from './middleware/auth.js';
 
 import { Environment, createLogger } from './utils/logger.js';
 import { HttpStatus, HttpMethod, ERROR_MESSAGES } from './utils/constants.js';
 import { ensureError } from './utils/error.js';
-import { sendError } from './utils/response.js';
 
 const PORT = Number(process.env.EDWARD_API_PORT) || 3001;
 const ENV = (process.env.NODE_ENV as Environment) || Environment.Development;
@@ -101,57 +98,10 @@ if (!isProd) {
   });
 }
 
-function sharedRedisRateLimitConfig(prefix: string) {
-  return {
-    sendCommand: async (...args: string[]) => {
-      const redisCommand = args[0];
-      if (!redisCommand) throw new Error('Redis command is missing');
-      return (await redis.call(redisCommand, ...args.slice(1))) as string | number | boolean;
-    },
-    prefix: `rl:${prefix}:`,
-  };
-}
-
-const apiKeyRateLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 20,
-  standardHeaders: true,
-  legacyHeaders: false,
-  handler: (_req, res) => {
-    sendError(res, HttpStatus.TOO_MANY_REQUESTS, 'Too many requests. Please try again in 15 minutes.');
-  },
-  store: new RedisStore(sharedRedisRateLimitConfig('api-key')),
-});
-
-const chatRateLimiter = rateLimit({
-  windowMs: 60 * 1000,
-  max: 10,
-  standardHeaders: true,
-  legacyHeaders: false,
-  handler: (_req, res) => {
-    sendError(res, HttpStatus.TOO_MANY_REQUESTS, 'Chat burst limit reached. Please wait a minute.');
-  },
-  store: new RedisStore(sharedRedisRateLimitConfig('chat')),
-});
-
-const dailyChatRateLimiter = rateLimit({
-  windowMs: 24 * 60 * 60 * 1000,
-  max: 10,
-  standardHeaders: true,
-  legacyHeaders: false,
-  keyGenerator: (req) => {
-    const userId = (req as AuthenticatedRequest).userId;
-    if (userId) return userId;
-    return ipKeyGenerator(req.ip || 'anonymous');
-  },
-  handler: (_req, res) => {
-    sendError(res, HttpStatus.TOO_MANY_REQUESTS, 'Daily message quota exceeded (10 messages/24h)');
-  },
-  store: new RedisStore(sharedRedisRateLimitConfig('chat-daily')),
-});
+import { apiKeyRateLimiter } from './middleware/rateLimit.js';
 
 app.use('/api-key', apiKeyRateLimiter, authMiddleware, apiKeyRouter);
-app.use('/chat', chatRateLimiter, authMiddleware, dailyChatRateLimiter, chatRouter);
+app.use('/chat', authMiddleware, chatRouter);
 
 app.get('/health', function healthCheckRoute(_req: Request, res: Response) {
   res.status(HttpStatus.OK).json({
