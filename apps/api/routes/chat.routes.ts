@@ -6,9 +6,10 @@ import {
   GetChatHistoryRequestSchema,
   UnifiedSendMessageRequestSchema,
 } from '../schemas/chat.schema.js';
+import { chatRateLimiter, dailyChatRateLimiter } from '../middleware/rateLimit.js';
 
 export const chatRouter: ExpressRouter = Router();
 
-chatRouter.post('/message', validateRequest(UnifiedSendMessageRequestSchema), unifiedSendMessage);
+chatRouter.post('/message', chatRateLimiter, dailyChatRateLimiter, validateRequest(UnifiedSendMessageRequestSchema), unifiedSendMessage);
 chatRouter.get('/:chatId/history', validateRequest(GetChatHistoryRequestSchema), getChatHistory);
 chatRouter.delete('/:chatId', validateRequest(GetChatHistoryRequestSchema), deleteChat);

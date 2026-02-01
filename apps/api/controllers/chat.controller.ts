@@ -13,14 +13,33 @@ import { createStreamParser } from '../lib/llm/parser.js';
 import { getDecryptedApiKey } from '../services/apiKey.service.js';
 import { HttpStatus, ERROR_MESSAGES } from '../utils/constants.js';
 import { sendError as sendStandardError, sendSuccess } from '../utils/response.js';
-import { provisionSandbox, cleanupSandbox, getActiveSandbox } from '../services/sandbox/lifecycle.sandbox.js';
+import { cleanupSandbox, getActiveSandbox, provisionSandbox } from '../services/sandbox/lifecycle.sandbox.js';
 import { prepareSandboxFile, writeSandboxFile, flushSandbox } from '../services/sandbox/writes.sandbox.js';
 import { backupSandbox } from '../services/sandbox/backup.sandbox.js';
-import { buildAndUploadPreview } from '../services/sandbox/build.sandbox.js';
+import { buildAndUploadUnified } from '../services/sandbox/builder/unified.build.js';
 import { ensureError } from '../utils/error.js';
 import { deleteFolder, buildS3Key } from '../services/storage.service.js';
-
 import { getOrCreateChat, saveMessage } from '../services/chat.service.js';
+import { createWorkflow, advanceWorkflow, ensureSandbox } from '../services/planning/workflow.engine.js';
+
+async function handleFileContent(
+  sandboxId: string,
+  filePath: string,
+  content: string,
+  isFirstChunk: boolean
+): Promise<void> {
+  let processedContent = content;
+  if (isFirstChunk) {
+    const trimmed = content.trimStart();
+    if (trimmed.startsWith('```')) {
+      const newlineIdx = trimmed.indexOf('\n');
+      processedContent = newlineIdx !== -1 ? trimmed.slice(newlineIdx + 1) : '';
+    }
+  }
+  if (processedContent) {
+    await writeSandboxFile(sandboxId, filePath, processedContent);
+  }
+}
 
 function sendError(res: Response, status: HttpStatus, error: string): void {
   if (res.headersSent) {
@@ -89,29 +108,43 @@ export async function unifiedSendMessage(
       isNewChat
     })}\n\n`);
 
+    const workflow = await createWorkflow(userId, chatId, {
+      userRequest: body.content,
+    });
+
+    await advanceWorkflow(workflow, body.content);
+
+    const preVerifiedDeps = workflow.context.intent?.features || [];
+
     const parser = createStreamParser();
     let fullRawResponse = '';
-    let currentSandboxId: string | undefined = await getActiveSandbox(chatId);
+    const MAX_RESPONSE_SIZE = 10 * 1024 * 1024;
+    const MAX_STREAM_DURATION_MS = 5 * 60 * 1000;
+    let streamTimer: NodeJS.Timeout | null = null;
     let currentFilePath: string | undefined;
-    let lazySandboxPromise: Promise<string> | null = null;
-
-    if (currentSandboxId) {
-      logger.info(`[Chat] Reusing existing sandbox: ${currentSandboxId}`);
-      lazySandboxPromise = Promise.resolve(currentSandboxId);
-    }
+    let isFirstFileChunk = false;
 
     const abortController = new AbortController();
+    streamTimer = setTimeout(() => {
+      logger.warn({ chatId }, 'Stream timeout reached');
+      abortController.abort();
+    }, MAX_STREAM_DURATION_MS);
+
     req.on('close', () => {
-      logger.info(`[Chat] Connection closed by client: ${chatId}`);
+      logger.info({ chatId }, 'Connection closed by client');
+      if (streamTimer) clearTimeout(streamTimer);
       abortController.abort();
     });
 
     try {
-      const stream = streamResponse(decryptedApiKey, body.content, abortController.signal);
+      const stream = streamResponse(decryptedApiKey, body.content, abortController.signal, preVerifiedDeps);
 
       for await (const chunk of stream) {
         if (abortController.signal.aborted) break;
 
+        if (fullRawResponse.length + chunk.length > MAX_RESPONSE_SIZE) {
+          throw new Error('Response size exceeded maximum limit');
+        }
         fullRawResponse += chunk;
         const events = parser.process(chunk);
 
@@ -119,36 +152,22 @@ export async function unifiedSendMessage(
           try {
             switch (event.type) {
               case ParserEventType.SANDBOX_START:
-                if (!currentSandboxId && lazySandboxPromise) {
-                  currentSandboxId = await lazySandboxPromise;
-                  lazySandboxPromise = null;
-                }
-
-                if (!currentSandboxId) {
-                  currentSandboxId = await provisionSandbox(userId, chatId);
+                if (!workflow.sandboxId) {
+                  await ensureSandbox(workflow);
                 }
                 break;
 
               case ParserEventType.FILE_START:
-                if (!currentSandboxId) {
-                  logger.error('[Chat] FILE_START received without active sandbox');
-                  res.write(`data: ${JSON.stringify({ type: ParserEventType.ERROR, message: 'No active sandbox for file operation' })}\n\n`);
-                  break;
-                }
+                if (!workflow.sandboxId) await ensureSandbox(workflow);
                 currentFilePath = event.path;
-                await prepareSandboxFile(currentSandboxId, currentFilePath);
+                isFirstFileChunk = true;
+                await prepareSandboxFile(workflow.sandboxId!, currentFilePath);
                 break;
 
               case ParserEventType.FILE_CONTENT:
-                if (!currentSandboxId) {
-                  logger.error('[Chat] FILE_CONTENT received without active sandbox');
-                  break;
-                }
-                if (!currentFilePath) {
-                  logger.error('[Chat] FILE_CONTENT received without active file');
-                  break;
-                }
-                await writeSandboxFile(currentSandboxId, currentFilePath, event.content);
+                if (!workflow.sandboxId || !currentFilePath) break;
+                await handleFileContent(workflow.sandboxId, currentFilePath, event.content, isFirstFileChunk);
+                if (isFirstFileChunk) isFirstFileChunk = false;
                 break;
 
               case ParserEventType.FILE_END:
@@ -156,14 +175,27 @@ export async function unifiedSendMessage(
                 break;
 
               case ParserEventType.SANDBOX_END:
-                if (currentSandboxId) {
-                  await flushSandbox(currentSandboxId).catch((err: unknown) =>
-                    logger.error(ensureError(err), `Flush failed during SANDBOX_END: ${currentSandboxId}`)
-                  );
-                  void backupSandbox(currentSandboxId).catch((err: unknown) =>
-                    logger.error(ensureError(err), `Backup failed during SANDBOX_END: ${currentSandboxId}`)
+                if (workflow.sandboxId) {
+                  await flushSandbox(workflow.sandboxId).catch((err: unknown) =>
+                    logger.error(ensureError(err), `Flush failed during SANDBOX_END: ${workflow.sandboxId}`)
                   );
                 }
+                break;
+
+              case ParserEventType.INSTALL_START:
+                break;
+
+              case ParserEventType.INSTALL_CONTENT: {
+                if (!workflow.sandboxId) await ensureSandbox(workflow);
+
+                const rawDependencies = event.dependencies || [];
+                if (rawDependencies.length > 0) {
+                  await advanceWorkflow(workflow, rawDependencies);
+                }
+                break;
+              }
+
+              case ParserEventType.INSTALL_END:
                 break;
             }
           } catch (sandboxError) {
@@ -188,17 +220,19 @@ export async function unifiedSendMessage(
         try {
           switch (event.type) {
             case ParserEventType.FILE_START:
-              if (!currentSandboxId) {
+              if (!workflow.sandboxId) {
                 logger.error('[Chat] FILE_START in flush without active sandbox');
                 break;
               }
               currentFilePath = event.path;
-              await prepareSandboxFile(currentSandboxId, currentFilePath);
+              isFirstFileChunk = true;
+              await prepareSandboxFile(workflow.sandboxId, currentFilePath);
               break;
 
             case ParserEventType.FILE_CONTENT:
-              if (currentSandboxId && currentFilePath) {
-                await writeSandboxFile(currentSandboxId, currentFilePath, event.content);
+              if (workflow.sandboxId && currentFilePath) {
+                await handleFileContent(workflow.sandboxId, currentFilePath, event.content, isFirstFileChunk);
+                if (isFirstFileChunk) isFirstFileChunk = false;
               }
               break;
 
@@ -207,12 +241,12 @@ export async function unifiedSendMessage(
               break;
 
             case ParserEventType.SANDBOX_END:
-              if (currentSandboxId) {
-                await flushSandbox(currentSandboxId).catch((err) =>
-                  logger.error(ensureError(err), `Flush failed during SANDBOX_END: ${currentSandboxId}`)
+              if (workflow.sandboxId) {
+                await flushSandbox(workflow.sandboxId).catch((err: unknown) =>
+                  logger.error(ensureError(err), `Flush failed during SANDBOX_END: ${workflow.sandboxId}`)
                 );
-                void backupSandbox(currentSandboxId).catch((err) =>
-                  logger.error(ensureError(err), `Backup failed during SANDBOX_END: ${currentSandboxId}`)
+                void backupSandbox(workflow.sandboxId).catch((err: unknown) =>
+                  logger.error(ensureError(err), `Backup failed during SANDBOX_END: ${workflow.sandboxId}`)
                 );
               }
               break;
@@ -224,35 +258,28 @@ export async function unifiedSendMessage(
       }
 
 
-      if (currentSandboxId) {
-        await flushSandbox(currentSandboxId, true).catch((err: unknown) =>
-          logger.error(ensureError(err), `Final flush failed for sandbox: ${currentSandboxId}`)
+      if (workflow.sandboxId) {
+        await flushSandbox(workflow.sandboxId, true).catch((err: unknown) =>
+          logger.error(ensureError(err), `Final flush failed for sandbox: ${workflow.sandboxId}`)
         );
 
-        void buildAndUploadPreview(currentSandboxId)
-          .then((buildResult) => {
+        void buildAndUploadUnified(workflow.sandboxId)
+          .then((buildResult: any) => {
             if (buildResult.success) {
-              logger.info({
-                sandboxId: currentSandboxId,
-                chatId,
-                buildDirectory: buildResult.buildDirectory,
-                previewUploaded: buildResult.previewUploaded,
-                previewUrl: buildResult.previewUrl,
-                previewStats: buildResult.previewStats,
-              }, buildResult.previewUrl
-                ? `Build and preview upload completed - Preview URL: ${buildResult.previewUrl}`
-                : 'Build and preview upload completed (no preview URL available)');
+              logger.info({ sandboxId: workflow.sandboxId, url: buildResult.previewUrl }, '[Chat] Build successful');
             } else {
-              logger.warn({
-                sandboxId: currentSandboxId,
+              logger.error({
+                sandboxId: workflow.sandboxId,
                 chatId,
                 error: buildResult.error,
               }, 'Build did not complete successfully');
             }
           })
           .catch((err: unknown) =>
-            logger.error(ensureError(err), `Build and preview upload failed for sandbox: ${currentSandboxId}`)
+            logger.error(ensureError(err), `Build and preview upload failed for sandbox: ${workflow.sandboxId}`)
           );
+      } else {
+        logger.warn({ chatId }, '[Chat] No sandbox ID available, skipping build');
       }
 
       await saveMessage(chatId, userId, MessageRole.Assistant, fullRawResponse, assistantMessageId);
@@ -261,9 +288,9 @@ export async function unifiedSendMessage(
 
     } catch (streamError) {
       const error = ensureError(streamError);
-      if (currentSandboxId) {
-        await cleanupSandbox(currentSandboxId).catch((err: unknown) =>
-          logger.error(ensureError(err), `Cleanup failed after stream error: ${currentSandboxId}`)
+      if (workflow.sandboxId) {
+        await cleanupSandbox(workflow.sandboxId).catch((err: unknown) =>
+          logger.error(ensureError(err), `Cleanup failed after stream error: ${workflow.sandboxId}`)
         );
       }
 
@@ -332,18 +359,13 @@ export async function getChatHistory(
       messages,
     });
 
-    void ensureSandboxWarmth(chatData.userId, chatId);
+    void provisionSandbox(chatData.userId, chatId, undefined, true).catch((err) =>
+      logger.error({ err, chatId }, 'Background sandbox restoration failed')
+    );
+
   } catch (error) {
     logger.error(ensureError(error), 'getChatHistory error');
     sendError(res, HttpStatus.INTERNAL_SERVER_ERROR, ERROR_MESSAGES.INTERNAL_SERVER_ERROR);
-  }
-}
-
-async function ensureSandboxWarmth(userId: string, chatId: string): Promise<void> {
-  try {
-    await provisionSandbox(userId, chatId);
-  } catch (error) {
-    logger.error({ error: ensureError(error), chatId, userId }, 'Failed to ensure sandbox warmth');
   }
 }
 
@@ -386,7 +408,7 @@ export async function deleteChat(
     }
 
     const s3Prefix = buildS3Key(userId, chatId);
-    await deleteFolder(s3Prefix).catch((err) =>
+    await deleteFolder(s3Prefix).catch((err: unknown) =>
       logger.error({ err, chatId, s3Prefix }, 'Failed to cleanup S3 storage during chat deletion')
     );
     await db.delete(chat).where(eq(chat.id, chatId));

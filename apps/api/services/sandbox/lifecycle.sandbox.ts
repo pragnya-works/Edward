@@ -6,6 +6,7 @@ import { createContainer, destroyContainer, listContainers, SANDBOX_LABEL, getCo
 import { backupSandboxInstance, restoreSandboxInstance } from './backup.sandbox.js';
 import { flushSandbox, clearWriteTimers, clearBuffers } from './writes.sandbox.js';
 import { redis } from '../../lib/redis.js';
+import { getTemplateConfig, getDefaultImage, isValidFramework } from './templates/template.registry.js';
 
 const SANDBOX_TTL = 30 * 60 * 1000;
 const CLEANUP_INTERVAL_MS = 60 * 1000;
@@ -31,24 +32,36 @@ async function waitForProvisioning(chatId: string): Promise<string | null> {
     return null;
 }
 
-export async function provisionSandbox(userId: string, chatId: string): Promise<string> {
+export async function provisionSandbox(userId: string, chatId: string, framework?: string, shouldRestore: boolean = false): Promise<string> {
     const lockKey = `edward:locking:provision:${chatId}`;
+    const lockValue = nanoid(16);
     const MAX_ATTEMPTS = 10;
+
+    if (framework && !isValidFramework(framework)) {
+        throw new Error(`Unsupported framework: ${framework}`);
+    }
 
     for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
         try {
             const existingId = await waitForProvisioning(chatId);
             if (existingId) return existingId;
 
-            const acquired = await redis.set(lockKey, 'true', 'EX', 60, 'NX');
+            const acquired = await redis.set(lockKey, lockValue, 'EX', 60, 'NX');
             if (!acquired) {
                 await new Promise(resolve => setTimeout(resolve, 200 + Math.random() * 300));
                 continue;
             }
 
             try {
+                const doubleCheckId = await getActiveSandbox(chatId);
+                if (doubleCheckId) {
+                    await redis.del(lockKey);
+                    return doubleCheckId;
+                }
+
                 const sandboxId = nanoid(12);
-                const container = await createContainer(userId, chatId, sandboxId);
+                const image = framework ? (getTemplateConfig(framework)?.image || getDefaultImage()) : getDefaultImage();
+                const container = await createContainer(userId, chatId, sandboxId, image);
 
                 const sandbox: SandboxInstance = {
                     id: sandboxId,
@@ -56,18 +69,21 @@ export async function provisionSandbox(userId: string, chatId: string): Promise<
                     expiresAt: Date.now() + SANDBOX_TTL,
                     userId,
                     chatId,
+                    scaffoldedFramework: framework?.toLowerCase(),
                 };
 
-                try {
-                    await restoreSandboxInstance(sandbox);
-                } catch (error) {
-                    logger.error({ error, sandboxId, chatId }, 'Restoration failed during provisioning');
+                if (shouldRestore) {
+                    try {
+                        await restoreSandboxInstance(sandbox);
+                    } catch (error) {
+                        logger.error({ error, sandboxId, chatId }, 'Restoration failed during provisioning');
+                    }
                 }
 
                 await saveSandboxState(sandbox);
                 await redis.del(lockKey);
 
-                logger.info({ sandboxId, userId, chatId, containerId: container.id }, 'Sandbox provisioned');
+                logger.info({ sandboxId, chatId, containerId: container.id }, 'Sandbox provisioned');
                 return sandboxId;
             } catch (provisionError) {
                 await redis.del(lockKey);
@@ -178,7 +194,7 @@ export async function getActiveSandbox(chatId: string): Promise<string | undefin
         return sandbox.id;
     } catch (error) {
         containerStatusCache.set(sandbox.containerId, { alive: false, timestamp: Date.now() });
-        logger.warn({ sandboxId: sandbox.id, chatId }, 'Active sandbox container not found, cleaning up stale state');
+        logger.warn({ sandboxId: sandbox.id, chatId }, 'Active sandbox container not found, cleaning up');
         await deleteSandboxState(sandbox.id, chatId);
         return undefined;
     }
