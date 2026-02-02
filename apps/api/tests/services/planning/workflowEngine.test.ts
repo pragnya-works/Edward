@@ -5,7 +5,7 @@ import {
     createWorkflow, 
     advanceWorkflow, 
     getWorkflowStatus
-} from '../../../services/planning/workflow.engine.js';
+} from '../../../services/planning/workflowEngine.js';
 import { WorkflowState } from '../../../services/planning/schemas.js';
 import * as buildService from '../../../services/sandbox/builder/unified.build.js';
 
@@ -37,10 +37,13 @@ vi.mock('../../../services/validation/pipeline.js', () => ({
     runValidationPipeline: vi.fn().mockResolvedValue({ valid: true, errors: [] })
 }));
 
-vi.mock('../../../services/sandbox/lifecycle.sandbox.js', () => ({
+vi.mock('../../../services/sandbox/lifecycle/provisioning.js', () => ({
     provisionSandbox: vi.fn().mockResolvedValue('mock-sandbox-id'),
-    cleanupSandbox: vi.fn().mockResolvedValue(undefined),
     getActiveSandbox: vi.fn().mockResolvedValue(null)
+}));
+
+vi.mock('../../../services/sandbox/lifecycle/cleanup.js', () => ({
+    cleanupSandbox: vi.fn().mockResolvedValue(undefined)
 }));
 
 vi.mock('../../../services/sandbox/state.sandbox.js', () => ({
@@ -165,10 +168,8 @@ describe('WorkflowEngine', () => {
         });
 
         it('should restart from ANALYZE after recovery succeeds when first step fails', async () => {
-            // Import the service to access the mock
             const apiKeyService = await import('../../../services/apiKey.service.js');
             
-            // Step 1: ANALYZE fails
             const state: WorkflowState = {
                 id: mockWorkflowId,
                 userId: mockUserId,
@@ -182,11 +183,7 @@ describe('WorkflowEngine', () => {
             };
 
             vi.mocked(redis.set).mockResolvedValue('OK');
-            
-            // Mock getDecryptedApiKey to fail for ANALYZE step
             vi.mocked(apiKeyService.getDecryptedApiKey).mockRejectedValue(new Error('API key not found'));
-
-            // Execute ANALYZE - should fail and transition to RECOVER
             const analyzeResult = await advanceWorkflow(state, 'Create a landing page');
             
             expect(analyzeResult.success).toBe(false);
@@ -194,8 +191,6 @@ describe('WorkflowEngine', () => {
             expect(state.history).toHaveLength(1);
             expect(state.history[0]?.success).toBe(false);
             expect(state.history[0]?.step).toBe('ANALYZE');
-
-            // Step 2: RECOVER succeeds (default step returns success)
             vi.mocked(apiKeyService.getDecryptedApiKey).mockResolvedValue('mock-api-key');
 
             const recoverResult = await advanceWorkflow(state);
@@ -203,8 +198,6 @@ describe('WorkflowEngine', () => {
             expect(recoverResult.success).toBe(true);
             expect(recoverResult.step).toBe('RECOVER');
             expect(state.history).toHaveLength(2);
-            
-            // Critical: workflow should restart from ANALYZE, not mark as completed
             expect(state.currentStep).toBe('ANALYZE');
             expect(state.status).not.toBe('completed');
             expect(state.status).toBe('running');

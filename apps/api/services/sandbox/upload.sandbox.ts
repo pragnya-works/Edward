@@ -1,12 +1,14 @@
 import { CONTAINER_WORKDIR, getContainer } from './docker.sandbox.js';
 import { SandboxInstance, BackupResult } from './types.sandbox.js';
-import { buildS3Key, uploadFile, isS3Configured } from '../storage.service.js';
+import { uploadFile } from '../storage.service.js';
 import { logger } from '../../utils/logger.js';
 import { ensureError } from '../../utils/error.js';
 import tar from 'tar-stream';
-import { generateRuntimeConfig } from './builder/base-path.injector.js';
-import { generateSpaFallbackHtml, injectRuntimeScriptIntoHtml } from './builder/spa-fallback.js';
+import { generateRuntimeConfig } from './builder/basePathInjector.js';
+import { generateSpaFallbackHtml, injectRuntimeScriptIntoHtml } from './builder/spaFallback.js';
 import { Framework } from '../planning/schemas.js';
+import { isS3Configured } from '../storage/config.js';
+import { buildS3Key } from '../storage/key.utils.js';
 
 export async function uploadBuildFilesToS3(
     sandbox: SandboxInstance,
@@ -60,7 +62,7 @@ export async function uploadBuildFilesToS3(
                 const s3Key = buildS3Key(sandbox.userId, sandbox.chatId, `preview/${relativePath}`);
                 const uploadPromise = (async () => {
                     try {
-                        let chunks: Buffer[] = [];
+                        const chunks: Buffer[] = [];
                         for await (const chunk of fileStream) {
                             chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
                         }
@@ -117,15 +119,6 @@ export async function uploadBuildFilesToS3(
             tarExtractor.on('error', reject);
             tarArchiveStream.pipe(tarExtractor);
         });
-
-        logger.info({
-            sandboxId: sandbox.id,
-            chatId: sandbox.chatId,
-            buildDirectory,
-            totalFiles: uploadResults.totalFiles,
-            successfulUploads: uploadResults.successful,
-            failedUploads: uploadResults.failed,
-        }, 'Preview upload completed');
     } catch (error) {
         const errorObj = ensureError(error);
         logger.error({ error: errorObj, sandboxId: sandbox.id, buildDirectory }, 'Failed to upload build files to S3');
@@ -163,10 +156,6 @@ export async function uploadSpaFallback(
             },
             fallbackHtml.length
         );
-
-        if (result.success) {
-            logger.info({ sandboxId: sandbox.id }, 'SPA fallback uploaded');
-        }
 
         return { success: result.success, error: result.error?.message };
     } catch (error) {

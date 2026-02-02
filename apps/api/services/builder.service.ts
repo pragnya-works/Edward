@@ -2,7 +2,7 @@ import { getContainer, execCommand, CONTAINER_WORKDIR } from './sandbox/docker.s
 import { logger } from '../utils/logger.js';
 import { detectBuildOutput, BuildOutputInfo } from './sandbox/builder/output.detector.js';
 import { TIMEOUT_BUILD_MS } from './sandbox/utils.sandbox.js';
-import { injectBasePathConfigs, calculateBasePath } from './sandbox/builder/base-path.injector.js';
+import { injectBasePathConfigs, calculateBasePath } from './sandbox/builder/basePathInjector.js';
 
 export interface BuildResult {
     success: boolean;
@@ -58,8 +58,6 @@ export async function runUnifiedBuild(
             return { success: true, outputInfo };
         }
 
-        logger.info({ sandboxId, script: pkg.scripts.build }, 'Running build command');
-
         const buildResult = await execCommand(
             container,
             ['pnpm', 'run', 'build'],
@@ -69,11 +67,6 @@ export async function runUnifiedBuild(
             CONTAINER_WORKDIR,
             ['NEXT_TELEMETRY_DISABLED=1', 'CI=true', `EDWARD_BASE_PATH=${basePath}`]
         );
-
-        logger.info({
-            sandboxId,
-            exitCode: buildResult.exitCode,
-        }, 'Build command completed');
 
         if (buildResult.exitCode !== 0) {
             logger.error({ sandboxId, exitCode: buildResult.exitCode }, 'Build failed');
@@ -90,9 +83,6 @@ export async function runUnifiedBuild(
         }
 
         const outputInfo = await detectBuildOutput(containerId, sandboxId);
-
-        logger.info({ sandboxId }, 'Build completed');
-
         return { success: true, outputInfo };
     } catch (error) {
         logger.error({ error, sandboxId }, 'Error during unified build process');

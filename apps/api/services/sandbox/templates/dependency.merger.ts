@@ -26,25 +26,12 @@ export async function mergeAndInstallDependencies(
         const allDevDeps = [...new Set(contract.developmentDependencies)];
 
         if (allRuntimeDeps.length === 0 && allDevDeps.length === 0) {
-            logger.debug({ sandboxId, framework }, 'No dependencies to install');
             return { success: true };
         }
 
-        logger.info({ 
-            sandboxId, 
-            framework,
-            frameworkRuntime: contract.runtimeDependencies.length,
-            frameworkDev: contract.developmentDependencies.length,
-            userPackages: userPackages.length,
-            totalRuntime: allRuntimeDeps.length,
-            totalDev: allDevDeps.length
-        }, 'Installing dependencies');
-        
         await connectToNetwork(containerId);
 
         if (allRuntimeDeps.length > 0) {
-            logger.debug({ sandboxId, packages: allRuntimeDeps }, 'Installing runtime dependencies');
-            
             const depsResult = await execCommand(
                 container,
                 ['pnpm', 'add', ...allRuntimeDeps],
@@ -71,11 +58,9 @@ export async function mergeAndInstallDependencies(
                 };
             }
             
-            logger.debug({ sandboxId, count: allRuntimeDeps.length }, 'Runtime dependencies installed');
         }
 
         if (allDevDeps.length > 0) {
-            logger.debug({ sandboxId, packages: allDevDeps }, 'Installing development dependencies');
             
             const devResult = await execCommand(
                 container,
@@ -103,7 +88,6 @@ export async function mergeAndInstallDependencies(
                 };
             }
             
-            logger.debug({ sandboxId, count: allDevDeps.length }, 'Development dependencies installed');
         }
 
         await disconnectContainerFromNetwork(containerId, sandboxId);
@@ -139,8 +123,6 @@ export async function mergeAndInstallDependencies(
                         ]
                     };
                 }
-                
-                logger.info({ sandboxId, framework }, 'Framework contract validated successfully');
             }
         } catch (validationError) {
             logger.warn({ 
@@ -149,14 +131,6 @@ export async function mergeAndInstallDependencies(
             }, 'Could not validate framework contract (non-fatal)');
             warnings.push('Contract validation skipped due to error');
         }
-        
-        logger.info({ 
-            sandboxId, 
-            framework,
-            installedRuntime: allRuntimeDeps.length,
-            installedDev: allDevDeps.length,
-            warnings: warnings.length
-        }, 'Dependency installation complete');
         
         return { 
             success: true,

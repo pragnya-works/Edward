@@ -1,4 +1,4 @@
-import { RuntimeConfig } from './base-path.injector.js';
+import { RuntimeConfig } from './basePathInjector.js';
 
 export function generateSpaFallbackHtml(runtimeConfig: RuntimeConfig): string {
   const basePath = runtimeConfig.basePath || '';

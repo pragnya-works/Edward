@@ -48,9 +48,6 @@ async function installPackageManagerGlobally(
     if (alreadyInstalled) {
         return true;
     }
-
-    logger.info({ sandboxId, packageManager }, `Installing ${packageManager} globally`);
-
     try {
         const container = getContainer(containerId);
         const installCommand = ['npm', 'install', '-g', packageManager];
@@ -65,8 +62,6 @@ async function installPackageManagerGlobally(
             }, `Failed to install ${packageManager} globally`);
             return false;
         }
-
-        logger.info({ sandboxId, packageManager }, `Successfully installed ${packageManager}`);
         return true;
     } catch (error) {
         logger.error({ error: ensureError(error), sandboxId, packageManager }, `Error installing ${packageManager}`);
@@ -216,7 +211,6 @@ export async function buildAndUploadPreview(sandboxId: string): Promise<BuildRes
         if (!packageManager) {
             const isStatic = await isStaticSite(containerId);
             if (isStatic) {
-                logger.info({ sandboxId }, 'Static site detected');
                 const uploadData = await uploadAndGeneratePreviewUrl(sandbox, '.');
                 return { ...result, success: true, buildDirectory: '.', ...uploadData };
             }
@@ -224,8 +218,6 @@ export async function buildAndUploadPreview(sandboxId: string): Promise<BuildRes
             result.error = 'No package.json found';
             return result;
         }
-
-        logger.info({ sandboxId, packageManager }, 'Installing dependencies');
 
         try {
             await connectToNetwork(containerId);
@@ -236,18 +228,12 @@ export async function buildAndUploadPreview(sandboxId: string): Promise<BuildRes
             return result;
         }
 
-        logger.info({ sandboxId, packageManager }, 'Installing dependencies');
-
         const installResult = await installDependencies(containerId, packageManager, sandboxId);
-
         if (!installResult.success) {
             result.error = installResult.error;
             logger.warn({ sandboxId, error: installResult.error }, 'Dependency installation failed');
             return result;
         }
-
-        logger.info({ sandboxId }, 'Dependencies installed successfully');
-        logger.info({ sandboxId, packageManager }, 'Running build command');
 
         const buildResult = await runBuildCommand(containerId, packageManager);
         await disconnectContainerFromNetwork(containerId, sandboxId);
@@ -265,7 +251,6 @@ export async function buildAndUploadPreview(sandboxId: string): Promise<BuildRes
             return result;
         }
 
-        logger.info({ sandboxId, buildDirectory }, 'Uploading build to S3');
         const uploadData = await uploadAndGeneratePreviewUrl(sandbox, buildDirectory);
 
         return { ...result, success: true, buildDirectory, ...uploadData };

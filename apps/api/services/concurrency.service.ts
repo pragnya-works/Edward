@@ -25,13 +25,9 @@ export async function acquireUserSlot(userId: string): Promise<boolean> {
       return false;
     }
     
-    logger.debug({ userId, slots: current, max: MAX_CONCURRENT_PER_USER }, 
-      'Acquired user concurrency slot');
     return true;
   } catch (error) {
     logger.error({ error, userId }, 'Failed to acquire user slot - Redis unavailable, failing closed');
-    // Fail closed: deny access when concurrency tracking is unavailable
-    // This prevents unbounded concurrent work during Redis outages
     return false;
   }
 }
@@ -45,9 +41,6 @@ export async function releaseUserSlot(userId: string): Promise<void> {
     if (current <= 0) {
       await redis.del(key);
     }
-    
-    logger.debug({ userId, slots: Math.max(0, current) }, 
-      'Released user concurrency slot');
   } catch (error) {
     logger.error({ error, userId }, 'Failed to release user slot');
   }

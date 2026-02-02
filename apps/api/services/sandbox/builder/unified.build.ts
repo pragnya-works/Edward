@@ -49,8 +49,6 @@ export async function buildAndUploadUnified(sandboxId: string): Promise<BuildRes
     if (nodeModulesCheck.exitCode !== 0 || requestedPackages.length > 0) {
       if (nodeModulesCheck.exitCode !== 0) {
         logger.warn({ sandboxId }, 'node_modules missing before build, triggering installation');
-      } else {
-        logger.info({ sandboxId, packageCount: requestedPackages.length }, 'Verifying/Installing requested dependencies');
       }
 
       const installResult = await mergeAndInstallDependencies(containerId, requestedPackages, sandboxId);
@@ -64,8 +62,6 @@ export async function buildAndUploadUnified(sandboxId: string): Promise<BuildRes
           previewUrl: null
         };
       }
-
-      logger.info({ sandboxId }, 'Dependency verification/installation completed');
     }
 
     const buildOptions: BuildOptions | undefined = userId && chatId
@@ -86,7 +82,6 @@ export async function buildAndUploadUnified(sandboxId: string): Promise<BuildRes
     }
 
     const buildDirectory = buildResult.outputInfo!.directory;
-    logger.info({ sandboxId, buildDirectory }, 'Uploading build artifacts to S3');
 
     const framework = (scaffoldedFramework || 'vanilla') as Framework;
     const uploadResult = await uploadBuildFilesToS3(sandbox, buildDirectory, framework);
@@ -101,11 +96,6 @@ export async function buildAndUploadUnified(sandboxId: string): Promise<BuildRes
 
     const previewUrl = buildPreviewUrl(userId, chatId);
     const allSuccessful = uploadResult.totalFiles === uploadResult.successful;
-
-    logger.info({
-      sandboxId,
-      success: allSuccessful,
-    }, 'Unified build and upload completed');
 
     return {
       success: allSuccessful,

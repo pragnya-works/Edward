@@ -1,6 +1,5 @@
 import { CONTAINER_WORKDIR, getContainer, execCommand } from './docker.sandbox.js';
 import { doesFileExist, doesDirectoryExist, TIMEOUT_CHECK_MS } from './utils.sandbox.js';
-import { logger } from '../../utils/logger.js';
 
 export type PackageManager = 'pnpm' | 'npm' | 'yarn';
 
@@ -75,7 +74,7 @@ export async function predictBuildDirectory(containerId: string): Promise<string
             if (deps['react-scripts']) return 'build';
         }
     } catch (error) {
-        logger.debug({ error, containerId }, 'Failed to predict build directory from package.json');
+        // Silently continue if package.json doesn't exist
     }
 
     if (await isStaticSite(containerId)) {

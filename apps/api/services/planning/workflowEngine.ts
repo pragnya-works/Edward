@@ -1,13 +1,10 @@
 import { nanoid } from 'nanoid';
-import { redis } from '../../lib/redis.js';
 import { logger } from '../../utils/logger.js';
 import {
     WorkflowState,
-    WorkflowStateSchema,
     WorkflowStepType,
     WorkflowContext,
     StepResult,
-    PhaseConfig,
     Framework,
     PackageInfo,
     IntentAnalysis
@@ -15,84 +12,15 @@ import {
 import { analyzeIntent } from './analyzers/intent.analyzer.js';
 import { resolvePackages } from '../registry/package.registry.js';
 import { runValidationPipeline } from '../validation/pipeline.js';
-import { provisionSandbox, cleanupSandbox, getActiveSandbox } from '../sandbox/lifecycle.sandbox.js';
+import { cleanupSandbox } from '../sandbox/lifecycle/cleanup.js';
+import { provisionSandbox, getActiveSandbox } from '../sandbox/lifecycle/provisioning.js';
 import { getSandboxState } from '../sandbox/state.sandbox.js';
 import { buildAndUploadUnified } from '../sandbox/builder/unified.build.js';
 import { getDecryptedApiKey } from '../apiKey.service.js';
 import { mergeAndInstallDependencies } from '../sandbox/templates/dependency.merger.js';
-
-const WORKFLOW_PREFIX = 'edward:workflow:';
-const LOCK_PREFIX = 'edward:lock:';
-const WORKFLOW_TTL_SECONDS = 3600;
-const LOCK_TTL_SECONDS = 300;
-
-const PHASE_CONFIGS: PhaseConfig[] = [
-    { name: 'ANALYZE', executor: 'llm', maxRetries: 2, timeoutMs: 30000 },
-    { name: 'RESOLVE_PACKAGES', executor: 'worker', maxRetries: 3, timeoutMs: 60000 },
-    { name: 'INSTALL_PACKAGES', executor: 'worker', maxRetries: 3, timeoutMs: 120000 },
-    { name: 'GENERATE', executor: 'hybrid', maxRetries: 2, timeoutMs: 120000 },
-    { name: 'BUILD', executor: 'worker', maxRetries: 3, timeoutMs: 180000 },
-    { name: 'DEPLOY', executor: 'worker', maxRetries: 2, timeoutMs: 60000 },
-    { name: 'RECOVER', executor: 'llm', maxRetries: 2, timeoutMs: 60000 }
-];
-
-async function getWorkflow(id: string): Promise<WorkflowState | null> {
-    const data = await redis.get(`${WORKFLOW_PREFIX}${id}`);
-    if (!data) return null;
-
-    try {
-        const parsed = WorkflowStateSchema.safeParse(JSON.parse(data));
-        if (!parsed.success) {
-            logger.warn({ workflowId: id, parseErrors: parsed.error.errors },
-                'Invalid workflow schema, deleting corrupted data');
-            await redis.del(`${WORKFLOW_PREFIX}${id}`).catch(() => { });
-            return null;
-        }
-        return parsed.data;
-    } catch (error) {
-        logger.error({ error, workflowId: id },
-            'Malformed JSON in Redis, deleting corrupted data');
-        await redis.del(`${WORKFLOW_PREFIX}${id}`).catch(() => { });
-        return null;
-    }
-}
-
-async function saveWorkflow(state: WorkflowState): Promise<void> {
-    state.updatedAt = Date.now();
-    await redis.set(
-        `${WORKFLOW_PREFIX}${state.id}`,
-        JSON.stringify(state),
-        'EX',
-        WORKFLOW_TTL_SECONDS
-    );
-}
-
-async function deleteWorkflow(id: string): Promise<void> {
-    await redis.del(`${WORKFLOW_PREFIX}${id}`);
-}
-
-async function acquireLock(lockKey: string): Promise<string | null> {
-    const lockId = nanoid();
-    const acquired = await redis.set(`${LOCK_PREFIX}${lockKey}`, lockId, 'EX', LOCK_TTL_SECONDS, 'NX');
-    return acquired ? lockId : null;
-}
-
-async function releaseLock(lockKey: string, lockId: string): Promise<void> {
-    const luaScript = `
-        if redis.call("GET", KEYS[1]) == ARGV[1] then
-            return redis.call("DEL", KEYS[1])
-        else
-            return 0
-        end
-    `;
-
-    await redis.eval(
-        luaScript,
-        1,
-        `${LOCK_PREFIX}${lockKey}`,
-        lockId
-    );
-}
+import { PHASE_CONFIGS } from './workflow/config.js';
+import { getWorkflow, saveWorkflow, deleteWorkflow } from './workflow/store.js';
+import { acquireLock, releaseLock } from './workflow/locks.js';
 
 export async function createWorkflow(
     userId: string,
@@ -112,7 +40,6 @@ export async function createWorkflow(
     };
 
     await saveWorkflow(state);
-    logger.info({ workflowId: state.id, userId, chatId, intent: state.context.intent?.type }, 'Workflow created');
     return state;
 }
 
@@ -179,7 +106,6 @@ export async function ensureSandbox(
 
     state.sandboxId = sandboxId;
     await saveWorkflow(state);
-    logger.info({ workflowId: state.id, sandboxId }, 'Sandbox ensured');
     return sandboxId;
 }
 
@@ -212,12 +138,6 @@ export async function executeInstallPhase(state: WorkflowState): Promise<StepRes
             .filter(pkg => pkg.valid)
             .map(pkg => pkg.name);
 
-        logger.info({ 
-            workflowId: state.id, 
-            sandboxId: state.sandboxId, 
-            packageCount: packageNames.length 
-        }, 'Installing packages in container');
-
         const result = await mergeAndInstallDependencies(
             sandbox.containerId,
             packageNames,
@@ -233,12 +153,6 @@ export async function executeInstallPhase(state: WorkflowState): Promise<StepRes
                 retryCount: 0
             };
         }
-
-        logger.info({ 
-            workflowId: state.id, 
-            sandboxId: state.sandboxId,
-            warnings: result.warnings 
-        }, 'Package installation completed');
 
         return {
             step: 'INSTALL_PACKAGES',
@@ -429,7 +343,6 @@ async function executeStep(
 async function withRetry(
     fn: () => Promise<StepResult>,
     maxRetries: number,
-    step: WorkflowStepType
 ): Promise<StepResult> {
     let result: StepResult = { step: 'ANALYZE', success: false, error: 'No attempts made', durationMs: 0, retryCount: 0 };
     let retryCount = 0;
@@ -444,7 +357,6 @@ async function withRetry(
         if (attempt < maxRetries) {
             const backoff = Math.min(1000 * Math.pow(2, attempt - 1), 10000);
             await new Promise(resolve => setTimeout(resolve, backoff));
-            logger.info({ step, attempt, maxRetries }, 'Retrying step');
         }
     }
 
@@ -474,7 +386,6 @@ export async function advanceWorkflow(
     const result = await withRetry(
         () => executeStep(state, state.currentStep, stepInput),
         maxRetries,
-        state.currentStep
     );
 
     state.history.push(result);
@@ -534,12 +445,11 @@ export async function cancelWorkflow(id: string): Promise<boolean> {
     if (!state) return false;
 
     if (state.sandboxId) {
-        await cleanupSandbox(state.sandboxId).catch(err =>
+        await cleanupSandbox(state.sandboxId).catch((err: unknown) =>
             logger.error({ err, workflowId: id }, 'Failed to cleanup sandbox on cancel')
         );
     }
 
     await deleteWorkflow(id);
-    logger.info({ workflowId: id }, 'Workflow cancelled');
     return true;
 }

@@ -1,6 +1,6 @@
 import { getContainer, execCommand, CONTAINER_WORKDIR } from '../docker.sandbox.js';
 import { logger } from '../../../utils/logger.js';
-import { sanitizePathComponent } from '../../storage.service.js';
+import { sanitizePathComponent } from '../../storage/key.utils.js';
 import { Framework } from '../../planning/schemas.js';
 
 export type DeploymentType = 'path' | 'subdomain';
@@ -165,15 +165,7 @@ export async function injectBasePathConfigs(
     config: BasePathConfig,
     sandboxId: string
 ): Promise<void> {
-    const deploymentType = detectDeploymentType(config);
     const runtimeConfig = generateRuntimeConfig(config);
-
-    logger.info({
-        sandboxId,
-        framework: config.framework,
-        basePath: runtimeConfig.basePath || '(root - subdomain)',
-        deploymentType,
-    }, 'Injecting base path configurations');
 
     try {
         switch (config.framework) {
@@ -195,12 +187,6 @@ export async function injectBasePathConfigs(
             default:
                 logger.warn({ sandboxId, framework: config.framework }, 'Unknown framework, skipping config injection');
         }
-
-        logger.info({
-            sandboxId,
-            basePath: runtimeConfig.basePath || '(root)',
-            deploymentType,
-        }, 'Base path configurations injected successfully');
     } catch (error) {
         logger.error({ error, sandboxId }, 'Failed to inject base path configurations');
         throw error;
