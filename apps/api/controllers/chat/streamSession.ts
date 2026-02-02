@@ -167,6 +167,7 @@ export async function runStreamSession(params: StreamSessionParams): Promise<voi
             type: ParserEventType.ERROR,
             message: 'Sandbox execution failed'
           })}\n\n`);
+          continue;
         }
 
         res.write(`data: ${JSON.stringify(event)}\n\n`);
@@ -213,6 +214,7 @@ export async function runStreamSession(params: StreamSessionParams): Promise<voi
         }
       } catch (sandboxError) {
         logger.error(ensureError(sandboxError), 'Final sandbox operation failed');
+        continue;
       }
       res.write(`data: ${JSON.stringify(event)}\n\n`);
     }

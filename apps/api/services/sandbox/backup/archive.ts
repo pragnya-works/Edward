@@ -47,6 +47,7 @@ export async function createBackupArchive(container: DockerContainer): Promise<B
     extract.on('error', reject);
     pack.on('error', reject);
     gzip.on('error', reject);
+    tarStream.on('error', reject);
   });
 
   tarStream.pipe(extract);

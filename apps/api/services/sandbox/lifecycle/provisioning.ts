@@ -8,6 +8,11 @@ import { redis } from '../../../lib/redis.js';
 import { getTemplateConfig, getDefaultImage, isValidFramework } from '../templates/template.registry.js';
 import { PROVISIONING_TIMEOUT_MS, SANDBOX_TTL, CONTAINER_STATUS_CACHE_MS, containerStatusCache } from './state.js';
 
+async function releaseLock(lockKey: string, lockValue: string): Promise<void> {
+  const script = `if redis.call("get", KEYS[1]) == ARGV[1] then return redis.call("del", KEYS[1]) else return 0 end`;
+  await redis.eval(script, 1, lockKey, lockValue);
+}
+
 async function waitForProvisioning(chatId: string): Promise<string | null> {
   const lockKey = `edward:locking:provision:${chatId}`;
   const start = Date.now();
@@ -74,7 +79,7 @@ export async function provisionSandbox(userId: string, chatId: string, framework
       try {
         const doubleCheckId = await getActiveSandbox(chatId);
         if (doubleCheckId) {
-          await redis.del(lockKey);
+          await releaseLock(lockKey, lockValue);
           return doubleCheckId;
         }
 
@@ -100,10 +105,10 @@ export async function provisionSandbox(userId: string, chatId: string, framework
         }
 
         await saveSandboxState(sandbox);
-        await redis.del(lockKey);
+        await releaseLock(lockKey, lockValue);
         return sandboxId;
       } catch (provisionError) {
-        await redis.del(lockKey);
+        await releaseLock(lockKey, lockValue);
         throw provisionError;
       }
     } catch (error) {
