@@ -11,7 +11,7 @@ import { chatRouter } from './routes/chat.routes.js';
 import { authMiddleware } from './middleware/auth.js';
 import { apiKeyRateLimiter } from './middleware/rateLimit.js';
 import { Environment, createLogger } from './utils/logger.js';
-import { HttpStatus, HttpMethod, ERROR_MESSAGES } from './utils/constants.js';
+import { HttpStatus, HttpMethod, ERROR_MESSAGES, VERSION } from './utils/constants.js';
 import { ensureError } from './utils/error.js';
 
 const PORT = Number(process.env.EDWARD_API_PORT) || 3001;
@@ -104,6 +104,7 @@ app.use('/chat', authMiddleware, chatRouter);
 app.get('/health', function healthCheckRoute(_req: Request, res: Response) {
   res.status(HttpStatus.OK).json({
     status: 'ok',
+    version: VERSION,
     environment: ENV,
     timestamp: new Date().toISOString(),
   });
@@ -127,7 +128,7 @@ app.use(function globalErrorHandler(err: unknown, _req: Request, res: Response, 
 });
 
 const serverInstance = app.listen(PORT, async function onServerStarted() {
-  logger.info(`Edward API Server listening on port ${PORT} [Mode: ${ENV}]`);
+  logger.info(`Edward API v${VERSION} listening on port ${PORT} [Mode: ${ENV}]`);
 
   try {
     await initSandboxService();

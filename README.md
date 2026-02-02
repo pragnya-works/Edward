@@ -1,6 +1,6 @@
-# Edward Monorepo
+# Edward v1.0
 
-A monorepo template with Next.js, Turborepo, and shadcn/ui.
+A professional AI agent monorepo for shipping modern web apps instantly. Constructed with Next.js, Turborepo, and SSE streaming.
 
 ## Structure
 

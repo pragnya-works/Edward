@@ -3,6 +3,7 @@ import { Worker, Job } from 'bullmq';
 import { ChatJobPayloadSchema, ChatJobPayload } from './services/queue.service.js';
 import { processChatMessage } from './services/chat.service.js';
 import { createLogger } from './utils/logger.js';
+import { VERSION } from './utils/constants.js';
 import { connection, QUEUE_NAME } from './lib/queue.js';
 
 const logger = createLogger('WORKER');
@@ -37,4 +38,4 @@ async function gracefulShutdown() {
 process.on('SIGINT', gracefulShutdown);
 process.on('SIGTERM', gracefulShutdown);
 
-logger.info('[Worker] Started listening for jobs...');
+logger.info(`[Worker v${VERSION}] Started listening for jobs...`);
