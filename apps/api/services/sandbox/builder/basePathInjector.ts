@@ -1,9 +1,9 @@
 import { getContainer, execCommand, CONTAINER_WORKDIR } from '../docker.sandbox.js';
 import { logger } from '../../../utils/logger.js';
-import { sanitizePathComponent } from '../../storage.service.js';
+import { sanitizePathComponent } from '../../storage/key.utils.js';
+import { Framework } from '../../planning/schemas.js';
 
 export type DeploymentType = 'path' | 'subdomain';
-export type Framework = 'nextjs' | 'vite-react' | 'vanilla';
 
 export interface BasePathConfig {
     userId: string;
@@ -100,6 +100,9 @@ export function generateViteConfig(runtimeConfig: RuntimeConfig): string {
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import path from 'path'
+import { fileURLToPath } from 'url'
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 export default defineConfig({
   base: ${baseValue},
@@ -114,6 +117,7 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist',
+    emptyOutDir: true,
     rollupOptions: {
       input: path.resolve(__dirname, 'index.html'),
       output: {
@@ -161,21 +165,16 @@ export async function injectBasePathConfigs(
     config: BasePathConfig,
     sandboxId: string
 ): Promise<void> {
-    const deploymentType = detectDeploymentType(config);
     const runtimeConfig = generateRuntimeConfig(config);
-
-    logger.info({
-        sandboxId,
-        framework: config.framework,
-        basePath: runtimeConfig.basePath || '(root - subdomain)',
-        deploymentType,
-    }, 'Injecting base path configurations');
 
     try {
         switch (config.framework) {
             case 'nextjs': {
                 const nextConfig = generateNextConfig(runtimeConfig);
                 await writeFileToContainer(containerId, 'next.config.ts', nextConfig, sandboxId);
+
+                const eslintConfig = `// ESLint disabled for sandbox builds\nexport default [];\n`;
+                await writeFileToContainer(containerId, 'eslint.config.mjs', eslintConfig, sandboxId);
                 break;
             }
             case 'vite-react': {
@@ -188,12 +187,6 @@ export async function injectBasePathConfigs(
             default:
                 logger.warn({ sandboxId, framework: config.framework }, 'Unknown framework, skipping config injection');
         }
-
-        logger.info({
-            sandboxId,
-            basePath: runtimeConfig.basePath || '(root)',
-            deploymentType,
-        }, 'Base path configurations injected successfully');
     } catch (error) {
         logger.error({ error, sandboxId }, 'Failed to inject base path configurations');
         throw error;

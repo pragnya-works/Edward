@@ -8,38 +8,18 @@ import {
 } from '../schemas/chat.schema.js';
 import { nanoid } from 'nanoid';
 import { logger } from '../utils/logger.js';
-import { streamResponse } from '../lib/llm/response.js';
-import { createStreamParser } from '../lib/llm/parser.js';
 import { getDecryptedApiKey } from '../services/apiKey.service.js';
 import { HttpStatus, ERROR_MESSAGES } from '../utils/constants.js';
 import { sendError as sendStandardError, sendSuccess } from '../utils/response.js';
-import { cleanupSandbox, getActiveSandbox, provisionSandbox } from '../services/sandbox/lifecycle.sandbox.js';
-import { prepareSandboxFile, writeSandboxFile, flushSandbox } from '../services/sandbox/writes.sandbox.js';
-import { backupSandbox } from '../services/sandbox/backup.sandbox.js';
-import { buildAndUploadUnified } from '../services/sandbox/builder/unified.build.js';
 import { ensureError } from '../utils/error.js';
-import { deleteFolder, buildS3Key } from '../services/storage.service.js';
+import { deleteFolder } from '../services/storage.service.js';
 import { getOrCreateChat, saveMessage } from '../services/chat.service.js';
-import { createWorkflow, advanceWorkflow, ensureSandbox } from '../services/planning/workflow.engine.js';
-
-async function handleFileContent(
-  sandboxId: string,
-  filePath: string,
-  content: string,
-  isFirstChunk: boolean
-): Promise<void> {
-  let processedContent = content;
-  if (isFirstChunk) {
-    const trimmed = content.trimStart();
-    if (trimmed.startsWith('```')) {
-      const newlineIdx = trimmed.indexOf('\n');
-      processedContent = newlineIdx !== -1 ? trimmed.slice(newlineIdx + 1) : '';
-    }
-  }
-  if (processedContent) {
-    await writeSandboxFile(sandboxId, filePath, processedContent);
-  }
-}
+import { createWorkflow, advanceWorkflow } from '../services/planning/workflowEngine.js';
+import { acquireUserSlot, releaseUserSlot } from '../services/concurrency.service.js';
+import { runStreamSession } from './chat/streamSession.js';
+import { getActiveSandbox, provisionSandbox } from '../services/sandbox/lifecycle/provisioning.js';
+import { cleanupSandbox } from '../services/sandbox/lifecycle/cleanup.js';
+import { buildS3Key } from '../services/storage/key.utils.js';
 
 function sendError(res: Response, status: HttpStatus, error: string): void {
   if (res.headersSent) {
@@ -55,12 +35,21 @@ export async function unifiedSendMessage(
   req: AuthenticatedRequest,
   res: Response
 ): Promise<void> {
+  let slotAcquired = false;
+  let userId: string = '';
+
   try {
-    const userId = getAuthenticatedUserId(req);
+    userId = getAuthenticatedUserId(req);
     const validated = UnifiedSendMessageSchema.safeParse(req.body);
 
     if (!validated.success) {
       sendError(res, HttpStatus.BAD_REQUEST, validated.error.errors[0]?.message || ERROR_MESSAGES.VALIDATION_ERROR);
+      return;
+    }
+
+    slotAcquired = await acquireUserSlot(userId);
+    if (!slotAcquired) {
+      sendError(res, HttpStatus.TOO_MANY_REQUESTS, 'Too many concurrent requests. Please wait and try again.');
       return;
     }
 
@@ -114,205 +103,29 @@ export async function unifiedSendMessage(
 
     await advanceWorkflow(workflow, body.content);
 
-    const preVerifiedDeps = workflow.context.intent?.features || [];
+    const preVerifiedDeps = workflow.context.intent?.recommendedPackages || [];
 
-    const parser = createStreamParser();
-    let fullRawResponse = '';
-    const MAX_RESPONSE_SIZE = 10 * 1024 * 1024;
-    const MAX_STREAM_DURATION_MS = 5 * 60 * 1000;
-    let streamTimer: NodeJS.Timeout | null = null;
-    let currentFilePath: string | undefined;
-    let isFirstFileChunk = false;
-
-    const abortController = new AbortController();
-    streamTimer = setTimeout(() => {
-      logger.warn({ chatId }, 'Stream timeout reached');
-      abortController.abort();
-    }, MAX_STREAM_DURATION_MS);
-
-    req.on('close', () => {
-      logger.info({ chatId }, 'Connection closed by client');
-      if (streamTimer) clearTimeout(streamTimer);
-      abortController.abort();
+    await runStreamSession({
+      req,
+      res,
+      workflow,
+      userId,
+      chatId,
+      decryptedApiKey,
+      userContent: body.content,
+      assistantMessageId,
+      preVerifiedDeps,
     });
-
-    try {
-      const stream = streamResponse(decryptedApiKey, body.content, abortController.signal, preVerifiedDeps);
-
-      for await (const chunk of stream) {
-        if (abortController.signal.aborted) break;
-
-        if (fullRawResponse.length + chunk.length > MAX_RESPONSE_SIZE) {
-          throw new Error('Response size exceeded maximum limit');
-        }
-        fullRawResponse += chunk;
-        const events = parser.process(chunk);
-
-        for (const event of events) {
-          try {
-            switch (event.type) {
-              case ParserEventType.SANDBOX_START:
-                if (!workflow.sandboxId) {
-                  await ensureSandbox(workflow);
-                }
-                break;
-
-              case ParserEventType.FILE_START:
-                if (!workflow.sandboxId) await ensureSandbox(workflow);
-                currentFilePath = event.path;
-                isFirstFileChunk = true;
-                await prepareSandboxFile(workflow.sandboxId!, currentFilePath);
-                break;
-
-              case ParserEventType.FILE_CONTENT:
-                if (!workflow.sandboxId || !currentFilePath) break;
-                await handleFileContent(workflow.sandboxId, currentFilePath, event.content, isFirstFileChunk);
-                if (isFirstFileChunk) isFirstFileChunk = false;
-                break;
-
-              case ParserEventType.FILE_END:
-                currentFilePath = undefined;
-                break;
-
-              case ParserEventType.SANDBOX_END:
-                if (workflow.sandboxId) {
-                  await flushSandbox(workflow.sandboxId).catch((err: unknown) =>
-                    logger.error(ensureError(err), `Flush failed during SANDBOX_END: ${workflow.sandboxId}`)
-                  );
-                }
-                break;
-
-              case ParserEventType.INSTALL_START:
-                break;
-
-              case ParserEventType.INSTALL_CONTENT: {
-                if (!workflow.sandboxId) await ensureSandbox(workflow);
-
-                const rawDependencies = event.dependencies || [];
-                if (rawDependencies.length > 0) {
-                  await advanceWorkflow(workflow, rawDependencies);
-                }
-                break;
-              }
-
-              case ParserEventType.INSTALL_END:
-                break;
-            }
-          } catch (sandboxError) {
-            logger.error(ensureError(sandboxError), 'Sandbox operation failed during streaming');
-            res.write(`data: ${JSON.stringify({
-              type: ParserEventType.ERROR,
-              message: 'Sandbox execution failed'
-            })}\n\n`);
-          }
-
-          res.write(`data: ${JSON.stringify(event)}\n\n`);
-        }
-      }
-
-      if (abortController.signal.aborted) {
-        res.end();
-        return;
-      }
-
-      const finalEvents = parser.flush();
-      for (const event of finalEvents) {
-        try {
-          switch (event.type) {
-            case ParserEventType.FILE_START:
-              if (!workflow.sandboxId) {
-                logger.error('[Chat] FILE_START in flush without active sandbox');
-                break;
-              }
-              currentFilePath = event.path;
-              isFirstFileChunk = true;
-              await prepareSandboxFile(workflow.sandboxId, currentFilePath);
-              break;
-
-            case ParserEventType.FILE_CONTENT:
-              if (workflow.sandboxId && currentFilePath) {
-                await handleFileContent(workflow.sandboxId, currentFilePath, event.content, isFirstFileChunk);
-                if (isFirstFileChunk) isFirstFileChunk = false;
-              }
-              break;
-
-            case ParserEventType.FILE_END:
-              currentFilePath = undefined;
-              break;
-
-            case ParserEventType.SANDBOX_END:
-              if (workflow.sandboxId) {
-                await flushSandbox(workflow.sandboxId).catch((err: unknown) =>
-                  logger.error(ensureError(err), `Flush failed during SANDBOX_END: ${workflow.sandboxId}`)
-                );
-                void backupSandbox(workflow.sandboxId).catch((err: unknown) =>
-                  logger.error(ensureError(err), `Backup failed during SANDBOX_END: ${workflow.sandboxId}`)
-                );
-              }
-              break;
-          }
-        } catch (sandboxError) {
-          logger.error(ensureError(sandboxError), 'Final sandbox operation failed');
-        }
-        res.write(`data: ${JSON.stringify(event)}\n\n`);
-      }
-
-
-      if (workflow.sandboxId) {
-        await flushSandbox(workflow.sandboxId, true).catch((err: unknown) =>
-          logger.error(ensureError(err), `Final flush failed for sandbox: ${workflow.sandboxId}`)
-        );
-
-        void buildAndUploadUnified(workflow.sandboxId)
-          .then((buildResult: any) => {
-            if (buildResult.success) {
-              logger.info({ sandboxId: workflow.sandboxId, url: buildResult.previewUrl }, '[Chat] Build successful');
-            } else {
-              logger.error({
-                sandboxId: workflow.sandboxId,
-                chatId,
-                error: buildResult.error,
-              }, 'Build did not complete successfully');
-            }
-          })
-          .catch((err: unknown) =>
-            logger.error(ensureError(err), `Build and preview upload failed for sandbox: ${workflow.sandboxId}`)
-          );
-      } else {
-        logger.warn({ chatId }, '[Chat] No sandbox ID available, skipping build');
-      }
-
-      await saveMessage(chatId, userId, MessageRole.Assistant, fullRawResponse, assistantMessageId);
-      res.write('data: [DONE]\n\n');
-      res.end();
-
-    } catch (streamError) {
-      const error = ensureError(streamError);
-      if (workflow.sandboxId) {
-        await cleanupSandbox(workflow.sandboxId).catch((err: unknown) =>
-          logger.error(ensureError(err), `Cleanup failed after stream error: ${workflow.sandboxId}`)
-        );
-      }
-
-      logger.error(error, 'Streaming error');
-
-      res.write(`data: ${JSON.stringify({
-        type: ParserEventType.ERROR,
-        message: 'Stream processing failed'
-      })}\n\n`);
-
-      res.end();
-
-      try {
-        await saveMessage(chatId, userId, MessageRole.Assistant, fullRawResponse || `Error: ${error.message}`, assistantMessageId);
-      } catch (dbError) {
-        logger.error(ensureError(dbError), 'Failed to save error message to database');
-      }
-    }
 
   } catch (error) {
     logger.error(ensureError(error), 'unifiedSendMessage error');
     sendError(res, HttpStatus.INTERNAL_SERVER_ERROR, ERROR_MESSAGES.INTERNAL_SERVER_ERROR);
+  } finally {
+    if (slotAcquired && userId) {
+      await releaseUserSlot(userId).catch((err: unknown) =>
+        logger.error(ensureError(err), `Failed to release user slot for ${userId}`)
+      );
+    }
   }
 }
 

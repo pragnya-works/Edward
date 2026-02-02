@@ -35,7 +35,7 @@ async function runContainerCommand(
 async function validateSyntax(containerId: string, _sandboxId: string): Promise<ValidationResult> {
     const result = await runContainerCommand(containerId, [
         'sh', '-c',
-        'find src -name "*.ts" -o -name "*.tsx" -o -name "*.js" -o -name "*.jsx" 2>/dev/null | head -20 | xargs -I{} node --check {} 2>&1'
+        'find src -name "*.ts" -o -name "*.tsx" -o -name "*.js" -o -name "*.jsx" 2>/dev/null | xargs -I{} node --check {} 2>&1'
     ]);
 
     const output = result.stdout + result.stderr;
@@ -109,8 +109,7 @@ function parseTypeErrors(output: string): ValidationError[] {
     return errors;
 }
 
-async function validateBuild(_containerId: string, sandboxId: string): Promise<ValidationResult> {
-    logger.debug({ sandboxId }, 'Skipping build validation in pipeline - handled by builder.service');
+async function validateBuild(_containerId: string, _sandboxId: string): Promise<ValidationResult> {
     return { valid: true, errors: [] };
 }
 
@@ -145,7 +144,6 @@ export async function runValidationPipeline(
 
     try {
         for (const stage of stages) {
-            logger.debug({ sandboxId, stage: stage.name }, 'Running validation stage');
             const result = await stage.validate(containerId, sandboxId);
 
             if (!result.valid) {
@@ -159,7 +157,6 @@ export async function runValidationPipeline(
             }
         }
 
-        logger.info({ sandboxId }, 'All validation stages passed');
         return { valid: true, errors: [] };
     } catch (error) {
         logger.error({ error, sandboxId }, 'Validation pipeline failed');

@@ -3,10 +3,8 @@ import { db, MessageRole } from '@edward/auth';
 import {
   getOrCreateChat,
   saveMessage,
-  processChatMessage,
 } from '../../services/chat.service.js';
-import * as apiKeyService from '../../services/apiKey.service.js';
-import * as llmResponse from '../../lib/llm/response.js';
+
 
 vi.mock('@edward/auth', async () => {
   const actual = await vi.importActual<typeof import('@edward/auth')>('@edward/auth');
@@ -32,13 +30,7 @@ vi.mock('@edward/auth', async () => {
   };
 });
 
-vi.mock('../../services/apiKey.service.js', () => ({
-  getDecryptedApiKey: vi.fn(),
-}));
 
-vi.mock('../../lib/llm/response.js', () => ({
-  generateResponse: vi.fn(),
-}));
 
 vi.mock('nanoid', () => ({
   nanoid: vi.fn().mockReturnValue('mock-nanoid-32chars-long-id'),
@@ -47,7 +39,6 @@ vi.mock('nanoid', () => ({
 describe('chat service', () => {
   const mockUserId = 'user-123';
   const mockChatId = 'chat-456';
-  const mockApiKey = 'sk-proj-test-key';
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -167,46 +158,6 @@ describe('chat service', () => {
       await expect(
         saveMessage(mockChatId, mockUserId, MessageRole.User, 'Hello')
       ).rejects.toThrow('Failed to save message to database');
-    });
-  });
-
-  describe('processChatMessage', () => {
-    const mockPayload = {
-      chatId: mockChatId,
-      messageId: 'msg-123',
-      userId: mockUserId,
-      content: 'Hello AI',
-    };
-
-    it('should process message and save AI response', async () => {
-      vi.mocked(apiKeyService.getDecryptedApiKey).mockResolvedValue(mockApiKey);
-      vi.mocked(llmResponse.generateResponse).mockResolvedValue('AI response');
-      vi.mocked(db.values).mockResolvedValue([]);
-
-      await processChatMessage(mockPayload);
-
-      expect(apiKeyService.getDecryptedApiKey).toHaveBeenCalledWith(mockUserId);
-      expect(llmResponse.generateResponse).toHaveBeenCalledWith(mockApiKey, 'Hello AI');
-      expect(db.insert).toHaveBeenCalled();
-    });
-
-    it('should process message successfully', async () => {
-      vi.mocked(apiKeyService.getDecryptedApiKey).mockResolvedValue(mockApiKey);
-      vi.mocked(llmResponse.generateResponse).mockResolvedValue('AI response');
-      vi.mocked(db.values).mockResolvedValue([]);
-
-      await processChatMessage(mockPayload);
-
-      expect(apiKeyService.getDecryptedApiKey).toHaveBeenCalledWith(mockUserId);
-      expect(llmResponse.generateResponse).toHaveBeenCalledWith(mockApiKey, 'Hello AI');
-    });
-
-    it('should throw error when saving message fails', async () => {
-      vi.mocked(apiKeyService.getDecryptedApiKey).mockResolvedValue(mockApiKey);
-      vi.mocked(llmResponse.generateResponse).mockResolvedValue('AI response');
-      vi.mocked(db.values).mockRejectedValue(new Error('Save failed'));
-
-      await expect(processChatMessage(mockPayload)).rejects.toThrow('Save failed');
     });
   });
 });

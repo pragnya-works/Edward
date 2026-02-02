@@ -5,7 +5,7 @@ import {
     createWorkflow, 
     advanceWorkflow, 
     getWorkflowStatus
-} from '../../../services/planning/workflow.engine.js';
+} from '../../../services/planning/workflowEngine.js';
 import { WorkflowState } from '../../../services/planning/schemas.js';
 import * as buildService from '../../../services/sandbox/builder/unified.build.js';
 
@@ -37,10 +37,13 @@ vi.mock('../../../services/validation/pipeline.js', () => ({
     runValidationPipeline: vi.fn().mockResolvedValue({ valid: true, errors: [] })
 }));
 
-vi.mock('../../../services/sandbox/lifecycle.sandbox.js', () => ({
+vi.mock('../../../services/sandbox/lifecycle/provisioning.js', () => ({
     provisionSandbox: vi.fn().mockResolvedValue('mock-sandbox-id'),
-    cleanupSandbox: vi.fn().mockResolvedValue(undefined),
     getActiveSandbox: vi.fn().mockResolvedValue(null)
+}));
+
+vi.mock('../../../services/sandbox/lifecycle/cleanup.js', () => ({
+    cleanupSandbox: vi.fn().mockResolvedValue(undefined)
 }));
 
 vi.mock('../../../services/sandbox/state.sandbox.js', () => ({
@@ -64,6 +67,10 @@ vi.mock('../../../services/planning/analyzers/intent.analyzer.js', () => ({
         suggestedFramework: 'vite-react',
         reasoning: 'test'
     })
+}));
+
+vi.mock('../../../services/apiKey.service.js', () => ({
+    getDecryptedApiKey: vi.fn().mockResolvedValue('mock-api-key')
 }));
 
 describe('WorkflowEngine', () => {
@@ -158,6 +165,42 @@ describe('WorkflowEngine', () => {
 
             expect(result.success).toBe(false);
             expect(state.currentStep).toBe('RECOVER');
+        });
+
+        it('should restart from ANALYZE after recovery succeeds when first step fails', async () => {
+            const apiKeyService = await import('../../../services/apiKey.service.js');
+            
+            const state: WorkflowState = {
+                id: mockWorkflowId,
+                userId: mockUserId,
+                chatId: mockChatId,
+                currentStep: 'ANALYZE',
+                status: 'pending',
+                context: { errors: [] },
+                history: [],
+                createdAt: Date.now(),
+                updatedAt: Date.now()
+            };
+
+            vi.mocked(redis.set).mockResolvedValue('OK');
+            vi.mocked(apiKeyService.getDecryptedApiKey).mockRejectedValue(new Error('API key not found'));
+            const analyzeResult = await advanceWorkflow(state, 'Create a landing page');
+            
+            expect(analyzeResult.success).toBe(false);
+            expect(state.currentStep).toBe('RECOVER');
+            expect(state.history).toHaveLength(1);
+            expect(state.history[0]?.success).toBe(false);
+            expect(state.history[0]?.step).toBe('ANALYZE');
+            vi.mocked(apiKeyService.getDecryptedApiKey).mockResolvedValue('mock-api-key');
+
+            const recoverResult = await advanceWorkflow(state);
+            
+            expect(recoverResult.success).toBe(true);
+            expect(recoverResult.step).toBe('RECOVER');
+            expect(state.history).toHaveLength(2);
+            expect(state.currentStep).toBe('ANALYZE');
+            expect(state.status).not.toBe('completed');
+            expect(state.status).toBe('running');
         });
     });
 

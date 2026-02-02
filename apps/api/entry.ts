@@ -4,7 +4,7 @@ import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 
-import { initSandboxService, shutdownSandboxService } from './services/sandbox/lifecycle.sandbox.js';
+import { initSandboxService, shutdownSandboxService } from './services/sandbox/lifecycle/control.js';
 import { redis } from './lib/redis.js';
 import { apiKeyRouter } from './routes/apiKey.routes.js';
 import { chatRouter } from './routes/chat.routes.js';
@@ -117,7 +117,7 @@ app.use(function routeNotFoundHandler(_req: Request, res: Response) {
   });
 });
 
-app.use(function globalErrorHandler(err: unknown, _req: Request, res: Response, _next: NextFunction) {
+app.use(function globalErrorHandler(err: unknown, _req: Request, res: Response) {
   const error = ensureError(err);
   logger.error(error);
 

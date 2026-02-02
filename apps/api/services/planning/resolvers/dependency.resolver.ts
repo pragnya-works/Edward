@@ -67,13 +67,6 @@ export async function resolveDependencies(
             error: i.error
         }));
 
-        logger.info({
-            framework,
-            resolved: resolved.length,
-            failed: failed.length,
-            warnings: warnings.length
-        }, 'Dependency resolution complete');
-
         return { resolved, failed, warnings };
     } catch (error) {
         logger.error({ error, framework }, 'Dependency resolution failed');

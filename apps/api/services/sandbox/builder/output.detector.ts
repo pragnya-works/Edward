@@ -59,19 +59,14 @@ export async function detectBuildOutput(
 
         const pkg = JSON.parse(pkgResult.stdout);
         const framework = detectFramework(pkg);
-
-        logger.info({ sandboxId, framework }, 'Framework detected from package.json');
-
         if (framework === 'nextjs') {
             const foundDir = await findFirstExistingDirectory(container, FRAMEWORK_OUTPUT_DIRS.nextjs);
 
             if (foundDir === 'dist' || foundDir === 'out') {
-                logger.info({ sandboxId, directory: foundDir }, 'Found Next.js static export');
                 return { directory: foundDir, type: 'static' };
             }
 
             if (foundDir === '.next') {
-                logger.info({ sandboxId }, 'Found Next.js build output (.next/)');
                 return { directory: '.next', type: 'hybrid' };
             }
 

@@ -33,7 +33,7 @@ export const TEMPLATE_REGISTRY: Record<string, TemplateConfig> = {
         image: `${REGISTRY_BASE}/vanilla-sandbox:latest`,
         templateDir: 'vanilla',
         outputDir: '.',
-        protectedFiles: ['package.json']
+        protectedFiles: []
     }
 };
 
@@ -43,12 +43,17 @@ export function isValidFramework(framework: string): boolean {
     return validFrameworks.includes(normalized);
 }
 
-export function getTemplateConfig(framework: string): TemplateConfig | undefined {
+export function normalizeFramework(framework: string): 'nextjs' | 'vite-react' | 'vanilla' | undefined {
     const normalized = framework.toLowerCase();
-    if (normalized === 'next' || normalized === 'next.js') return TEMPLATE_REGISTRY.nextjs;
-    if (normalized === 'react' || normalized === 'vite' || normalized === 'vite-react') return TEMPLATE_REGISTRY['vite-react'];
+    if (normalized === 'next' || normalized === 'next.js' || normalized === 'nextjs') return 'nextjs';
+    if (normalized === 'react' || normalized === 'vite' || normalized === 'vite-react') return 'vite-react';
+    if (normalized === 'vanilla') return 'vanilla';
+    return undefined;
+}
 
-    return TEMPLATE_REGISTRY[normalized];
+export function getTemplateConfig(framework: string): TemplateConfig | undefined {
+    const normalized = normalizeFramework(framework);
+    return normalized ? TEMPLATE_REGISTRY[normalized] : undefined;
 }
 
 export function getDefaultImage(): string {

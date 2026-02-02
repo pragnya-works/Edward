@@ -3,6 +3,7 @@ import { z } from 'zod';
 const WorkflowStepTypeSchema = z.enum([
     'ANALYZE',
     'RESOLVE_PACKAGES',
+    'INSTALL_PACKAGES',
     'GENERATE',
     'BUILD',
     'DEPLOY',
@@ -35,6 +36,7 @@ export const IntentAnalysisSchema = z.object({
     type: z.enum(['landing', 'dashboard', 'portfolio', 'ecommerce', 'blog', 'custom']),
     complexity: ComplexitySchema,
     features: z.array(z.string()),
+    recommendedPackages: z.array(z.string()).default([]),
     suggestedFramework: FrameworkSchema,
     reasoning: z.string()
 });

@@ -90,7 +90,7 @@ async function validatePackage(name: string): Promise<ValidationResult> {
     if (cached) return cached;
 
     try {
-        let response = await fetchWithTimeout(`${NPM_REGISTRY_URL}/${encodeURIComponent(name)}`, FETCH_TIMEOUT_MS);
+        const response = await fetchWithTimeout(`${NPM_REGISTRY_URL}/${encodeURIComponent(name)}`, FETCH_TIMEOUT_MS);
 
         if (response.status === 404) {
             logger.info({ name }, 'Package not found, attempting fuzzy search');
