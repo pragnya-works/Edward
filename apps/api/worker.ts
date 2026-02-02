@@ -36,6 +36,7 @@ async function processBuildJob(payload: BuildJobPayload): Promise<void> {
         sandboxId, 
         error: result.error 
       }, '[Worker] Build failed');
+      throw new Error(result.error ?? 'Build failed without error message');
     }
   } catch (error) {
     logger.error({ error, sandboxId }, '[Worker] Build job threw exception');

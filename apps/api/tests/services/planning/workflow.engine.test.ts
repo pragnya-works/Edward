@@ -66,6 +66,10 @@ vi.mock('../../../services/planning/analyzers/intent.analyzer.js', () => ({
     })
 }));
 
+vi.mock('../../../services/apiKey.service.js', () => ({
+    getDecryptedApiKey: vi.fn().mockResolvedValue('mock-api-key')
+}));
+
 describe('WorkflowEngine', () => {
     const mockUserId = 'user-1';
     const mockChatId = 'chat-1';
@@ -158,6 +162,52 @@ describe('WorkflowEngine', () => {
 
             expect(result.success).toBe(false);
             expect(state.currentStep).toBe('RECOVER');
+        });
+
+        it('should restart from ANALYZE after recovery succeeds when first step fails', async () => {
+            // Import the service to access the mock
+            const apiKeyService = await import('../../../services/apiKey.service.js');
+            
+            // Step 1: ANALYZE fails
+            const state: WorkflowState = {
+                id: mockWorkflowId,
+                userId: mockUserId,
+                chatId: mockChatId,
+                currentStep: 'ANALYZE',
+                status: 'pending',
+                context: { errors: [] },
+                history: [],
+                createdAt: Date.now(),
+                updatedAt: Date.now()
+            };
+
+            vi.mocked(redis.set).mockResolvedValue('OK');
+            
+            // Mock getDecryptedApiKey to fail for ANALYZE step
+            vi.mocked(apiKeyService.getDecryptedApiKey).mockRejectedValue(new Error('API key not found'));
+
+            // Execute ANALYZE - should fail and transition to RECOVER
+            const analyzeResult = await advanceWorkflow(state, 'Create a landing page');
+            
+            expect(analyzeResult.success).toBe(false);
+            expect(state.currentStep).toBe('RECOVER');
+            expect(state.history).toHaveLength(1);
+            expect(state.history[0]?.success).toBe(false);
+            expect(state.history[0]?.step).toBe('ANALYZE');
+
+            // Step 2: RECOVER succeeds (default step returns success)
+            vi.mocked(apiKeyService.getDecryptedApiKey).mockResolvedValue('mock-api-key');
+
+            const recoverResult = await advanceWorkflow(state);
+            
+            expect(recoverResult.success).toBe(true);
+            expect(recoverResult.step).toBe('RECOVER');
+            expect(state.history).toHaveLength(2);
+            
+            // Critical: workflow should restart from ANALYZE, not mark as completed
+            expect(state.currentStep).toBe('ANALYZE');
+            expect(state.status).not.toBe('completed');
+            expect(state.status).toBe('running');
         });
     });
 

@@ -29,8 +29,10 @@ export async function acquireUserSlot(userId: string): Promise<boolean> {
       'Acquired user concurrency slot');
     return true;
   } catch (error) {
-    logger.error({ error, userId }, 'Failed to acquire user slot');
-    return true;
+    logger.error({ error, userId }, 'Failed to acquire user slot - Redis unavailable, failing closed');
+    // Fail closed: deny access when concurrency tracking is unavailable
+    // This prevents unbounded concurrent work during Redis outages
+    return false;
   }
 }
 
@@ -54,7 +56,8 @@ export async function releaseUserSlot(userId: string): Promise<void> {
 export async function getUserConcurrency(userId: string): Promise<number> {
   const key = getUserSlotKey(userId);
   const count = await redis.get(key);
-  return count ? parseInt(count, 10) : 0;
+  const parsed = count ? parseInt(count, 10) : 0;
+  return isNaN(parsed) ? 0 : parsed;
 }
 
 export async function withUserSlot<T>(

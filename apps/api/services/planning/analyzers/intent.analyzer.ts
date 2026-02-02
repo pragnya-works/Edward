@@ -21,14 +21,14 @@ Return exact JSON structure:
 }`;
 
 export async function analyzeIntent(input: string, apiKey: string): Promise<IntentAnalysis> {
-    const response = await generateResponse(
-        apiKey, 
-        `User Request: "${input}"`, 
-        [], 
-        ANALYSIS_SYSTEM_PROMPT
-    );
-    
     try {
+        const response = await generateResponse(
+            apiKey, 
+            `User Request: "${input}"`, 
+            [], 
+            ANALYSIS_SYSTEM_PROMPT
+        );
+
         const jsonMatch = response.match(/\{[\s\S]*\}/);
         if (!jsonMatch) throw new Error('No JSON found in LLM response');
         

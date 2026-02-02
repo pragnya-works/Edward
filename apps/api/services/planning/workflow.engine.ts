@@ -499,8 +499,15 @@ export async function advanceWorkflow(
             state.status = 'completed';
         } else if (currentIndex >= 0 && currentIndex + 1 < stepOrder.length) {
             state.currentStep = stepOrder[currentIndex + 1]!;
+        } else if (currentIndex === -1 && stepOrder.length > 0) {
+            state.currentStep = stepOrder[0]!;
         } else {
-            state.status = 'completed';
+            state.status = 'failed';
+            logger.error({
+                workflowId: state.id,
+                currentStep: state.currentStep,
+                currentIndex
+            }, 'Workflow in unexpected state during advancement');
         }
     }
 
