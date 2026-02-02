@@ -8,19 +8,18 @@ import {
 } from '../schemas/chat.schema.js';
 import { nanoid } from 'nanoid';
 import { logger } from '../utils/logger.js';
-import { streamResponse } from '../lib/llm/response.js';
-import { createStreamParser } from '../lib/llm/parser.js';
 import { getDecryptedApiKey } from '../services/apiKey.service.js';
 import { HttpStatus, ERROR_MESSAGES } from '../utils/constants.js';
 import { sendError as sendStandardError, sendSuccess } from '../utils/response.js';
-import { provisionSandbox, cleanupSandbox, getActiveSandbox } from '../services/sandbox/lifecycle.sandbox.js';
-import { prepareSandboxFile, writeSandboxFile, flushSandbox } from '../services/sandbox/writes.sandbox.js';
-import { backupSandbox } from '../services/sandbox/backup.sandbox.js';
-import { buildAndUploadPreview } from '../services/sandbox/build.sandbox.js';
 import { ensureError } from '../utils/error.js';
-import { deleteFolder, buildS3Key } from '../services/storage.service.js';
-
+import { deleteFolder } from '../services/storage.service.js';
 import { getOrCreateChat, saveMessage } from '../services/chat.service.js';
+import { createWorkflow, advanceWorkflow } from '../services/planning/workflowEngine.js';
+import { acquireUserSlot, releaseUserSlot } from '../services/concurrency.service.js';
+import { runStreamSession } from './chat/streamSession.js';
+import { getActiveSandbox, provisionSandbox } from '../services/sandbox/lifecycle/provisioning.js';
+import { cleanupSandbox } from '../services/sandbox/lifecycle/cleanup.js';
+import { buildS3Key } from '../services/storage/key.utils.js';
 
 function sendError(res: Response, status: HttpStatus, error: string): void {
   if (res.headersSent) {
@@ -36,12 +35,21 @@ export async function unifiedSendMessage(
   req: AuthenticatedRequest,
   res: Response
 ): Promise<void> {
+  let slotAcquired = false;
+  let userId: string = '';
+
   try {
-    const userId = getAuthenticatedUserId(req);
+    userId = getAuthenticatedUserId(req);
     const validated = UnifiedSendMessageSchema.safeParse(req.body);
 
     if (!validated.success) {
       sendError(res, HttpStatus.BAD_REQUEST, validated.error.errors[0]?.message || ERROR_MESSAGES.VALIDATION_ERROR);
+      return;
+    }
+
+    slotAcquired = await acquireUserSlot(userId);
+    if (!slotAcquired) {
+      sendError(res, HttpStatus.TOO_MANY_REQUESTS, 'Too many concurrent requests. Please wait and try again.');
       return;
     }
 
@@ -89,200 +97,35 @@ export async function unifiedSendMessage(
       isNewChat
     })}\n\n`);
 
-    const parser = createStreamParser();
-    let fullRawResponse = '';
-    let currentSandboxId: string | undefined = await getActiveSandbox(chatId);
-    let currentFilePath: string | undefined;
-    let lazySandboxPromise: Promise<string> | null = null;
-
-    if (currentSandboxId) {
-      logger.info(`[Chat] Reusing existing sandbox: ${currentSandboxId}`);
-      lazySandboxPromise = Promise.resolve(currentSandboxId);
-    }
-
-    const abortController = new AbortController();
-    req.on('close', () => {
-      logger.info(`[Chat] Connection closed by client: ${chatId}`);
-      abortController.abort();
+    const workflow = await createWorkflow(userId, chatId, {
+      userRequest: body.content,
     });
 
-    try {
-      const stream = streamResponse(decryptedApiKey, body.content, abortController.signal);
+    await advanceWorkflow(workflow, body.content);
 
-      for await (const chunk of stream) {
-        if (abortController.signal.aborted) break;
+    const preVerifiedDeps = workflow.context.intent?.recommendedPackages || [];
 
-        fullRawResponse += chunk;
-        const events = parser.process(chunk);
-
-        for (const event of events) {
-          try {
-            switch (event.type) {
-              case ParserEventType.SANDBOX_START:
-                if (!currentSandboxId && lazySandboxPromise) {
-                  currentSandboxId = await lazySandboxPromise;
-                  lazySandboxPromise = null;
-                }
-
-                if (!currentSandboxId) {
-                  currentSandboxId = await provisionSandbox(userId, chatId);
-                }
-                break;
-
-              case ParserEventType.FILE_START:
-                if (!currentSandboxId) {
-                  logger.error('[Chat] FILE_START received without active sandbox');
-                  res.write(`data: ${JSON.stringify({ type: ParserEventType.ERROR, message: 'No active sandbox for file operation' })}\n\n`);
-                  break;
-                }
-                currentFilePath = event.path;
-                await prepareSandboxFile(currentSandboxId, currentFilePath);
-                break;
-
-              case ParserEventType.FILE_CONTENT:
-                if (!currentSandboxId) {
-                  logger.error('[Chat] FILE_CONTENT received without active sandbox');
-                  break;
-                }
-                if (!currentFilePath) {
-                  logger.error('[Chat] FILE_CONTENT received without active file');
-                  break;
-                }
-                await writeSandboxFile(currentSandboxId, currentFilePath, event.content);
-                break;
-
-              case ParserEventType.FILE_END:
-                currentFilePath = undefined;
-                break;
-
-              case ParserEventType.SANDBOX_END:
-                if (currentSandboxId) {
-                  await flushSandbox(currentSandboxId).catch((err: unknown) =>
-                    logger.error(ensureError(err), `Flush failed during SANDBOX_END: ${currentSandboxId}`)
-                  );
-                  void backupSandbox(currentSandboxId).catch((err: unknown) =>
-                    logger.error(ensureError(err), `Backup failed during SANDBOX_END: ${currentSandboxId}`)
-                  );
-                }
-                break;
-            }
-          } catch (sandboxError) {
-            logger.error(ensureError(sandboxError), 'Sandbox operation failed during streaming');
-            res.write(`data: ${JSON.stringify({
-              type: ParserEventType.ERROR,
-              message: 'Sandbox execution failed'
-            })}\n\n`);
-          }
-
-          res.write(`data: ${JSON.stringify(event)}\n\n`);
-        }
-      }
-
-      if (abortController.signal.aborted) {
-        res.end();
-        return;
-      }
-
-      const finalEvents = parser.flush();
-      for (const event of finalEvents) {
-        try {
-          switch (event.type) {
-            case ParserEventType.FILE_START:
-              if (!currentSandboxId) {
-                logger.error('[Chat] FILE_START in flush without active sandbox');
-                break;
-              }
-              currentFilePath = event.path;
-              await prepareSandboxFile(currentSandboxId, currentFilePath);
-              break;
-
-            case ParserEventType.FILE_CONTENT:
-              if (currentSandboxId && currentFilePath) {
-                await writeSandboxFile(currentSandboxId, currentFilePath, event.content);
-              }
-              break;
-
-            case ParserEventType.FILE_END:
-              currentFilePath = undefined;
-              break;
-
-            case ParserEventType.SANDBOX_END:
-              if (currentSandboxId) {
-                await flushSandbox(currentSandboxId).catch((err) =>
-                  logger.error(ensureError(err), `Flush failed during SANDBOX_END: ${currentSandboxId}`)
-                );
-                void backupSandbox(currentSandboxId).catch((err) =>
-                  logger.error(ensureError(err), `Backup failed during SANDBOX_END: ${currentSandboxId}`)
-                );
-              }
-              break;
-          }
-        } catch (sandboxError) {
-          logger.error(ensureError(sandboxError), 'Final sandbox operation failed');
-        }
-        res.write(`data: ${JSON.stringify(event)}\n\n`);
-      }
-
-
-      if (currentSandboxId) {
-        await flushSandbox(currentSandboxId, true).catch((err: unknown) =>
-          logger.error(ensureError(err), `Final flush failed for sandbox: ${currentSandboxId}`)
-        );
-
-        void buildAndUploadPreview(currentSandboxId)
-          .then((buildResult) => {
-            if (buildResult.success) {
-              logger.info({
-                sandboxId: currentSandboxId,
-                chatId,
-                buildDirectory: buildResult.buildDirectory,
-                previewUploaded: buildResult.previewUploaded,
-                previewStats: buildResult.previewStats,
-              }, 'Build and preview upload completed');
-            } else {
-              logger.warn({
-                sandboxId: currentSandboxId,
-                chatId,
-                error: buildResult.error,
-              }, 'Build did not complete successfully');
-            }
-          })
-          .catch((err: unknown) =>
-            logger.error(ensureError(err), `Build and preview upload failed for sandbox: ${currentSandboxId}`)
-          );
-      }
-
-      await saveMessage(chatId, userId, MessageRole.Assistant, fullRawResponse, assistantMessageId);
-      res.write('data: [DONE]\n\n');
-      res.end();
-
-    } catch (streamError) {
-      const error = ensureError(streamError);
-      if (currentSandboxId) {
-        await cleanupSandbox(currentSandboxId).catch((err: unknown) =>
-          logger.error(ensureError(err), `Cleanup failed after stream error: ${currentSandboxId}`)
-        );
-      }
-
-      logger.error(error, 'Streaming error');
-
-      res.write(`data: ${JSON.stringify({
-        type: ParserEventType.ERROR,
-        message: 'Stream processing failed'
-      })}\n\n`);
-
-      res.end();
-
-      try {
-        await saveMessage(chatId, userId, MessageRole.Assistant, fullRawResponse || `Error: ${error.message}`, assistantMessageId);
-      } catch (dbError) {
-        logger.error(ensureError(dbError), 'Failed to save error message to database');
-      }
-    }
+    await runStreamSession({
+      req,
+      res,
+      workflow,
+      userId,
+      chatId,
+      decryptedApiKey,
+      userContent: body.content,
+      assistantMessageId,
+      preVerifiedDeps,
+    });
 
   } catch (error) {
     logger.error(ensureError(error), 'unifiedSendMessage error');
     sendError(res, HttpStatus.INTERNAL_SERVER_ERROR, ERROR_MESSAGES.INTERNAL_SERVER_ERROR);
+  } finally {
+    if (slotAcquired && userId) {
+      await releaseUserSlot(userId).catch((err: unknown) =>
+        logger.error(ensureError(err), `Failed to release user slot for ${userId}`)
+      );
+    }
   }
 }
 
@@ -329,18 +172,13 @@ export async function getChatHistory(
       messages,
     });
 
-    void ensureSandboxWarmth(chatData.userId, chatId);
+    void provisionSandbox(chatData.userId, chatId, undefined, true).catch((err) =>
+      logger.error({ err, chatId }, 'Background sandbox restoration failed')
+    );
+
   } catch (error) {
     logger.error(ensureError(error), 'getChatHistory error');
     sendError(res, HttpStatus.INTERNAL_SERVER_ERROR, ERROR_MESSAGES.INTERNAL_SERVER_ERROR);
-  }
-}
-
-async function ensureSandboxWarmth(userId: string, chatId: string): Promise<void> {
-  try {
-    await provisionSandbox(userId, chatId);
-  } catch (error) {
-    logger.error({ error: ensureError(error), chatId, userId }, 'Failed to ensure sandbox warmth');
   }
 }
 
@@ -383,7 +221,7 @@ export async function deleteChat(
     }
 
     const s3Prefix = buildS3Key(userId, chatId);
-    await deleteFolder(s3Prefix).catch((err) =>
+    await deleteFolder(s3Prefix).catch((err: unknown) =>
       logger.error({ err, chatId, s3Prefix }, 'Failed to cleanup S3 storage during chat deletion')
     );
     await db.delete(chat).where(eq(chat.id, chatId));

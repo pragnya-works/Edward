@@ -1,40 +1,107 @@
 import 'dotenv/config';
-import { Worker, Job } from 'bullmq';
-import { ChatJobPayloadSchema, ChatJobPayload } from './services/queue.service.js';
-import { processChatMessage } from './services/chat.service.js';
+import { Worker } from 'bullmq';
+import {
+  JobPayloadSchema,
+  JobPayload,
+  JobType,
+  BuildJobPayload,
+  BackupJobPayload,
+  CleanupJobPayload,
+} from './services/queue/queue.schemas.js';
 import { createLogger } from './utils/logger.js';
+import { VERSION } from './utils/constants.js';
 import { connection, QUEUE_NAME } from './lib/queue.js';
+import { buildAndUploadUnified } from './services/sandbox/builder/unified.build.js';
+import { backupSandboxInstance } from './services/sandbox/backup.sandbox.js';
+import { getSandboxState } from './services/sandbox/state.sandbox.js';
+import { cleanupSandbox } from './services/sandbox/lifecycle/cleanup.js';
 
 const logger = createLogger('WORKER');
 
-const worker = new Worker<ChatJobPayload>(
+async function processBuildJob(payload: BuildJobPayload): Promise<void> {
+  const { sandboxId } = payload;
+  
+  try {
+    const result = await buildAndUploadUnified(sandboxId);
+    
+    if (!result.success) {
+      throw new Error(result.error ?? 'Build failed without error message');
+    }
+  } catch (error) {
+    logger.error({ error, sandboxId }, '[Worker] Build job failed');
+    throw error;
+  }
+}
+
+async function processBackupJob(payload: BackupJobPayload): Promise<void> {
+  const { sandboxId } = payload;
+  
+  try {
+    const sandbox = await getSandboxState(sandboxId);
+    if (!sandbox) {
+      logger.warn({ sandboxId }, '[Worker] Sandbox not found for backup');
+      return;
+    }
+    
+    await backupSandboxInstance(sandbox);
+  } catch (error) {
+    logger.error({ error, sandboxId }, '[Worker] Backup job failed');
+    throw error;
+  }
+}
+
+async function processCleanupJob(payload: CleanupJobPayload): Promise<void> {
+  const { sandboxId } = payload;
+  
+  try {
+    await cleanupSandbox(sandboxId);
+  } catch (error) {
+    logger.error({ error, sandboxId }, '[Worker] Cleanup job failed');
+    throw error;
+  }
+}
+
+const worker = new Worker<JobPayload>(
   QUEUE_NAME,
-  async function (job: Job<ChatJobPayload>) {
-    const payload = ChatJobPayloadSchema.parse(job.data);
-    await processChatMessage(payload);
+  async (job) => {
+    const payload = JobPayloadSchema.parse(job.data);
+    
+    switch (payload.type) {
+      case JobType.BUILD:
+        return processBuildJob(payload);
+      case JobType.BACKUP:
+        return processBackupJob(payload);
+      case JobType.CLEANUP:
+        return processCleanupJob(payload);
+      default:
+        logger.error({ type: (payload as JobPayload).type }, '[Worker] Unknown job type');
+        throw new Error(`Unknown job type: ${(payload as JobPayload).type}`);
+    }
   },
   {
     connection,
-    concurrency: 5,
+    concurrency: 3,
   }
 );
 
-worker.on('completed', function (job) {
-  logger.info(`[Worker] Job ${job.id} completed`);
+worker.on('completed', (job) => {
+  logger.debug({ jobId: job.id, jobName: job.name }, '[Worker] Job completed');
 });
 
-worker.on('failed', function (job, err) {
-  logger.error(err, `[Worker] Job ${job?.id} failed`);
+worker.on('failed', (job, error) => {
+  logger.error({ error, jobId: job?.id, jobName: job?.name }, '[Worker] Job failed');
+});
+
+worker.on('error', (error) => {
+  logger.error({ error }, '[Worker] Worker error');
 });
 
 async function gracefulShutdown() {
-  logger.info('[Worker] Shutting down...');
   await worker.close();
-  logger.info('[Worker] Shutdown complete.');
   process.exit(0);
 }
 
 process.on('SIGINT', gracefulShutdown);
 process.on('SIGTERM', gracefulShutdown);
 
-logger.info('[Worker] Started listening for jobs...');
+logger.info(`[Worker v${VERSION}] Started listening for jobs...`);

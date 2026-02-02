@@ -35,7 +35,7 @@ export function Footer() {
 
             <div className="mx-auto max-w-6xl mt-16 pt-8 border-t border-border flex flex-col md:flex-row justify-between items-center gap-4">
                 <div className="text-sm text-muted-foreground">
-                    © {new Date().getFullYear()} Edward AI. All rights reserved.
+                    © {new Date().getFullYear()} Edward AI. v1.0.0. All rights reserved.
                 </div>
                 <div className="flex gap-6">
                     <Link href="#" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Twitter</Link>

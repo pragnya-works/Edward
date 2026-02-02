@@ -1,5 +1,6 @@
 import { getContainer, CONTAINER_WORKDIR, connectToNetwork, execCommand } from './docker.sandbox.js';
 import { getSandboxState } from './state.sandbox.js';
+import { SandboxInstance } from './types.sandbox.js';
 import { logger } from '../../utils/logger.js';
 import { ensureError } from '../../utils/error.js';
 
@@ -18,14 +19,15 @@ import {
     isStaticSite
 } from './detect.sandbox.js';
 
-import { ensureNextJsConfig } from './config.sandbox.js';
 import { uploadBuildFilesToS3 } from './upload.sandbox.js';
+import { buildPreviewUrl } from '../preview.service.js';
 
 export interface BuildResult {
     success: boolean;
     buildDirectory: string | null;
     error?: string;
     previewUploaded: boolean;
+    previewUrl: string | null;
     previewStats?: {
         totalFiles: number;
         successfulUploads: number;
@@ -46,9 +48,6 @@ async function installPackageManagerGlobally(
     if (alreadyInstalled) {
         return true;
     }
-
-    logger.info({ sandboxId, packageManager }, `Installing ${packageManager} globally`);
-
     try {
         const container = getContainer(containerId);
         const installCommand = ['npm', 'install', '-g', packageManager];
@@ -63,8 +62,6 @@ async function installPackageManagerGlobally(
             }, `Failed to install ${packageManager} globally`);
             return false;
         }
-
-        logger.info({ sandboxId, packageManager }, `Successfully installed ${packageManager}`);
         return true;
     } catch (error) {
         logger.error({ error: ensureError(error), sandboxId, packageManager }, `Error installing ${packageManager}`);
@@ -161,11 +158,35 @@ async function runBuildCommand(
     }
 }
 
+async function uploadAndGeneratePreviewUrl(
+    sandbox: SandboxInstance,
+    buildDirectory: string
+): Promise<Pick<BuildResult, 'previewUploaded' | 'previewUrl' | 'previewStats'>> {
+    const uploadResult = await uploadBuildFilesToS3(sandbox, buildDirectory);
+
+    if (uploadResult.totalFiles === 0) {
+        return { previewUploaded: false, previewUrl: null };
+    }
+
+    const previewUploaded = uploadResult.successful > 0;
+
+    return {
+        previewUploaded,
+        previewUrl: previewUploaded ? buildPreviewUrl(sandbox.userId, sandbox.chatId) : null,
+        previewStats: {
+            totalFiles: uploadResult.totalFiles,
+            successfulUploads: uploadResult.successful,
+            failedUploads: uploadResult.failed,
+        },
+    };
+}
+
 export async function buildAndUploadPreview(sandboxId: string): Promise<BuildResult> {
     const result: BuildResult = {
         success: false,
         buildDirectory: null,
         previewUploaded: false,
+        previewUrl: null,
     };
 
     const sandbox = await getSandboxState(sandboxId);
@@ -190,57 +211,29 @@ export async function buildAndUploadPreview(sandboxId: string): Promise<BuildRes
         if (!packageManager) {
             const isStatic = await isStaticSite(containerId);
             if (isStatic) {
-                logger.info({ sandboxId }, 'No package.json found but index.html exists. Treating as static site.');
-                result.success = true;
-                result.buildDirectory = '.'; 
-
-                logger.info({ sandboxId, buildDirectory: '.' }, 'Uploading static site files to S3');
-                const uploadResult = await uploadBuildFilesToS3(sandbox, '.');
-                
-                if (uploadResult.totalFiles > 0) {
-                    result.previewUploaded = uploadResult.successful > 0;
-                    result.previewStats = {
-                        totalFiles: uploadResult.totalFiles,
-                        successfulUploads: uploadResult.successful,
-                        failedUploads: uploadResult.failed,
-                    };
-                }
-                
-                return result;
+                const uploadData = await uploadAndGeneratePreviewUrl(sandbox, '.');
+                return { ...result, success: true, buildDirectory: '.', ...uploadData };
             }
 
-            logger.info({ sandboxId }, 'No package.json found, skipping build');
             result.error = 'No package.json found';
             return result;
         }
-
-        logger.info({ sandboxId, packageManager }, 'Connecting container to network for dependency installation');
 
         try {
             await connectToNetwork(containerId);
             isConnectedToNetwork = true;
             await new Promise(resolve => setTimeout(resolve, 2000));
         } catch (networkError) {
-            const errorObj = ensureError(networkError);
-            result.error = `Failed to connect to network: ${errorObj.message}`;
-            logger.error({ error: errorObj, sandboxId }, 'Network connection failed');
+            result.error = `Failed to connect to network: ${ensureError(networkError).message}`;
             return result;
         }
 
-        logger.info({ sandboxId, packageManager }, 'Installing dependencies');
-
         const installResult = await installDependencies(containerId, packageManager, sandboxId);
-
         if (!installResult.success) {
             result.error = installResult.error;
             logger.warn({ sandboxId, error: installResult.error }, 'Dependency installation failed');
             return result;
         }
-
-        logger.info({ sandboxId }, 'Dependencies installed successfully');
-        logger.info({ sandboxId, packageManager }, 'Running build command');
-
-        await ensureNextJsConfig(containerId, CONTAINER_WORKDIR);
 
         const buildResult = await runBuildCommand(containerId, packageManager);
         await disconnectContainerFromNetwork(containerId, sandboxId);
@@ -248,40 +241,22 @@ export async function buildAndUploadPreview(sandboxId: string): Promise<BuildRes
 
         if (!buildResult.success) {
             result.error = buildResult.error;
-            logger.warn({ sandboxId, error: buildResult.error }, 'Build command failed');
+            logger.warn({ sandboxId, error: buildResult.error }, 'Build failed');
             return result;
         }
-
-        logger.info({ sandboxId }, 'Build completed successfully');
 
         const buildDirectory = await findBuildOutputDirectory(containerId);
         if (!buildDirectory) {
             result.error = 'No build output directory found';
-            logger.warn({ sandboxId }, 'Build completed but no output directory found');
             return result;
         }
 
-        result.buildDirectory = buildDirectory;
-        result.success = true;
+        const uploadData = await uploadAndGeneratePreviewUrl(sandbox, buildDirectory);
 
-        logger.info({ sandboxId, buildDirectory }, 'Uploading build files to S3');
-
-        const uploadResult = await uploadBuildFilesToS3(sandbox, buildDirectory);
-
-        if (uploadResult.totalFiles > 0) {
-            result.previewUploaded = uploadResult.successful > 0;
-            result.previewStats = {
-                totalFiles: uploadResult.totalFiles,
-                successfulUploads: uploadResult.successful,
-                failedUploads: uploadResult.failed,
-            };
-        }
-
-        return result;
+        return { ...result, success: true, buildDirectory, ...uploadData };
     } catch (error) {
-        const errorObj = ensureError(error);
-        result.error = errorObj.message;
-        logger.error({ error: errorObj, sandboxId }, 'Build and upload process failed');
+        result.error = ensureError(error).message;
+        logger.error({ error, sandboxId }, 'Build failed');
         return result;
     } finally {
         if (isConnectedToNetwork) {

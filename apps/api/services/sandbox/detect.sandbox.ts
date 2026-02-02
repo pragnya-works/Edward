@@ -58,3 +58,28 @@ export async function findBuildOutputDirectory(containerId: string): Promise<str
 
     return null;
 }
+
+export async function predictBuildDirectory(containerId: string): Promise<string> {
+    try {
+        const container = getContainer(containerId);
+        const result = await execCommand(container, ['cat', `${CONTAINER_WORKDIR}/package.json`], false, TIMEOUT_CHECK_MS);
+
+        if (result.exitCode === 0) {
+            const pkg = JSON.parse(result.stdout);
+            const deps = { ...(pkg.dependencies || {}), ...(pkg.devDependencies || {}) };
+
+            if (deps.next) return '.next';
+            if (deps.vite) return 'dist';
+            if (deps.nuxt) return '.output';
+            if (deps['react-scripts']) return 'build';
+        }
+    } catch (error) {
+        // Silently continue if package.json doesn't exist
+    }
+
+    if (await isStaticSite(containerId)) {
+        return '.';
+    }
+
+    return 'dist';
+}

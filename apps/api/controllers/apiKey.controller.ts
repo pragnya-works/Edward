@@ -28,7 +28,6 @@ export async function getApiKey(
     const userData = await getUserWithApiKey(userId);
 
     if (!userData?.apiKey) {
-      logger.info(`[API Key] Access attempt - No key found for user: ${userId}`);
       sendSuccess(res, HttpStatus.OK, 'No API key found', {
         hasApiKey: false,
         userId: userData?.id || userId,
@@ -96,8 +95,6 @@ export async function createApiKey(
       .where(eq(user.id, userData.id))
       .returning();
 
-    logger.info(`[API Key] Created for user: ${userId}`);
-
     sendSuccess(res, HttpStatus.CREATED, 'API key created successfully', {
       userId: updatedUser.id,
       keyPreview: formatKeyPreview(apiKey),
@@ -140,8 +137,6 @@ export async function updateApiKey(
       .where(eq(user.id, userData.id))
       .returning();
 
-    logger.info(`[API Key] Updated for user: ${userId}`);
-
     sendSuccess(res, HttpStatus.OK, 'API key updated successfully', {
       userId: updatedUser.id,
       keyPreview: formatKeyPreview(apiKey),
@@ -169,8 +164,6 @@ export async function deleteApiKey(
       .update(user)
       .set({ apiKey: null, updatedAt: new Date() })
       .where(eq(user.id, userData.id));
-
-    logger.info(`[API Key] Deleted for user: ${userId}`);
 
     sendSuccess(res, HttpStatus.OK, 'API key deleted successfully');
   } catch (error) {

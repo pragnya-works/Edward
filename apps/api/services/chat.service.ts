@@ -1,9 +1,6 @@
 import { db, chat, message, MessageRole, eq } from '@edward/auth';
 import { nanoid } from 'nanoid';
 import { logger } from '../utils/logger.js';
-import { generateResponse } from '../lib/llm/response.js';
-import { ChatJobPayload } from './queue.service.js';
-import { getDecryptedApiKey } from './apiKey.service.js';
 
 export async function getOrCreateChat(
   userId: string,
@@ -76,38 +73,3 @@ export async function saveMessage(
   }
 }
 
-export async function processChatMessage(payload: ChatJobPayload): Promise<void> {
-  const { chatId, userId, content } = payload;
-  try {
-    const decryptedApiKey = await getDecryptedApiKey(userId);
-
-    const aiResponseContent = await generateResponse(decryptedApiKey, content);
-
-    const assistantMessageId = nanoid(32);
-
-    await db.insert(message).values({
-      id: assistantMessageId,
-      chatId: chatId,
-      userId: userId,
-      role: MessageRole.Assistant,
-      content: aiResponseContent,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    });
-
-  } catch (error) {
-    logger.error(error, `[Service] Error processing message for user ${userId}`);
-
-    const errorMessageId = nanoid(32);
-
-    await db.insert(message).values({
-      id: errorMessageId,
-      chatId: chatId,
-      userId: userId,
-      role: MessageRole.Assistant,
-      content: 'Sorry, I encountered an internal error while processing your request.',
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    });
-  }
-}

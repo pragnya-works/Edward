@@ -1,7 +1,7 @@
 import OpenAI from 'openai';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { Provider, API_KEY_REGEX } from '@edward/shared/constants';
-import { SYSTEM_PROMPT } from "./system-prompt.js";
+import { SYSTEM_PROMPT } from "./systemPrompt.js";
 import { createLogger } from "../../utils/logger.js";
 import { ensureError } from "../../utils/error.js";
 
@@ -33,7 +33,14 @@ function getClient(apiKey: string) {
   }
 }
 
-export async function* streamResponse(apiKey: string, content: string, signal?: AbortSignal): AsyncGenerator<string> {
+export async function* streamResponse(
+  apiKey: string, 
+  content: string, 
+  signal?: AbortSignal,
+  verifiedDependencies?: string[],
+  customSystemPrompt?: string,
+  framework?: string
+): AsyncGenerator<string> {
   if (!apiKey || typeof apiKey !== 'string' || apiKey.trim().length === 0) {
     throw new Error('Invalid API key: API key must be a non-empty string');
   }
@@ -43,6 +50,18 @@ export async function* streamResponse(apiKey: string, content: string, signal?: 
   }
 
   const { type, client, model } = getClient(apiKey);
+  
+  let contextPrompt = '';
+  
+  if (verifiedDependencies && verifiedDependencies.length > 0) {
+    contextPrompt += `\n\n[CONTEXT] The following packages have been verified and corrected for use in this project: ${verifiedDependencies.join(', ')}. Please use these exact names in your <edward_install> tag.`;
+  }
+  
+  if (framework) {
+    contextPrompt += `\n\n[ENVIRONMENT] You are working in a ${framework} project. For a successful build, you MUST include the required entry point files as specified in the <code_completion_requirements> section.`;
+  }
+
+  const fullSystemPrompt = customSystemPrompt || (SYSTEM_PROMPT + contextPrompt);
 
   try {
     if (type === Provider.OPENAI) {
@@ -50,7 +69,7 @@ export async function* streamResponse(apiKey: string, content: string, signal?: 
       const stream = await openai.chat.completions.create({
         model,
         messages: [
-          { role: 'system', content: SYSTEM_PROMPT },
+          { role: 'system', content: fullSystemPrompt },
           { role: 'user', content }
         ],
         stream: true,
@@ -63,10 +82,13 @@ export async function* streamResponse(apiKey: string, content: string, signal?: 
       }
     } else {
       const genAI = client as GoogleGenerativeAI;
-      const geminiModel = genAI.getGenerativeModel({ model, systemInstruction: SYSTEM_PROMPT });
+      const geminiModel = genAI.getGenerativeModel({ model, systemInstruction: fullSystemPrompt });
 
       const result = await geminiModel.generateContentStream({
-        contents: [{ role: 'user', parts: [{ text: content }] }]
+        contents: [{ role: 'user', parts: [{ text: content }] }],
+        generationConfig: {
+            maxOutputTokens: 16384,
+        }
       }, { signal });
 
       for await (const chunk of result.stream) {
@@ -86,7 +108,12 @@ export async function* streamResponse(apiKey: string, content: string, signal?: 
   }
 }
 
-export async function generateResponse(apiKey: string, content: string): Promise<string> {
+export async function generateResponse(
+  apiKey: string, 
+  content: string,
+  verifiedDependencies?: string[],
+  customSystemPrompt?: string
+): Promise<string> {
   if (!apiKey || typeof apiKey !== 'string' || apiKey.trim().length === 0) {
     throw new Error('Invalid API key: API key must be a non-empty string');
   }
@@ -96,6 +123,11 @@ export async function generateResponse(apiKey: string, content: string): Promise
   }
 
   const { type, client, model } = getClient(apiKey);
+  const contextPrompt = verifiedDependencies && verifiedDependencies.length > 0
+    ? `\n\n[CONTEXT] The following packages have been verified and corrected for use in this project: ${verifiedDependencies.join(', ')}. Please use these exact names in your <edward_install> tag.`
+    : '';
+
+  const fullSystemPrompt = customSystemPrompt || (SYSTEM_PROMPT + contextPrompt);
 
   try {
     if (type === Provider.OPENAI) {
@@ -103,14 +135,14 @@ export async function generateResponse(apiKey: string, content: string): Promise
       const completion = await openai.chat.completions.create({
         model,
         messages: [
-          { role: 'system', content: SYSTEM_PROMPT },
+          { role: 'system', content: fullSystemPrompt },
           { role: 'user', content }
         ],
       });
       return completion.choices[0]?.message?.content || '';
     } else {
       const genAI = client as GoogleGenerativeAI;
-      const geminiModel = genAI.getGenerativeModel({ model, systemInstruction: SYSTEM_PROMPT });
+      const geminiModel = genAI.getGenerativeModel({ model, systemInstruction: fullSystemPrompt });
 
       const result = await geminiModel.generateContent({
         contents: [{ role: 'user', parts: [{ text: content }] }]
