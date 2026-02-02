@@ -35,7 +35,7 @@ async function runContainerCommand(
 async function validateSyntax(containerId: string, _sandboxId: string): Promise<ValidationResult> {
     const result = await runContainerCommand(containerId, [
         'sh', '-c',
-        'find src -name "*.ts" -o -name "*.tsx" -o -name "*.js" -o -name "*.jsx" 2>/dev/null | head -20 | xargs -I{} node --check {} 2>&1'
+        'find src -name "*.ts" -o -name "*.tsx" -o -name "*.js" -o -name "*.jsx" 2>/dev/null | xargs -I{} node --check {} 2>&1'
     ]);
 
     const output = result.stdout + result.stderr;

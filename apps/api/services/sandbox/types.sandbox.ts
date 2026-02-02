@@ -5,6 +5,7 @@ export interface SandboxInstance {
     userId: string;
     chatId: string;
     scaffoldedFramework?: string;
+    requestedPackages?: string[];
 }
 
 export interface ExecResult {

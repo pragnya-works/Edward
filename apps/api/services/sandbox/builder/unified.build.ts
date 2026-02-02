@@ -1,4 +1,4 @@
-import { connectToNetwork } from '../docker.sandbox.js';
+import { connectToNetwork, getContainer, execCommand, CONTAINER_WORKDIR } from '../docker.sandbox.js';
 import { getSandboxState } from '../state.sandbox.js';
 import { logger } from '../../../utils/logger.js';
 import { ensureError } from '../../../utils/error.js';
@@ -6,7 +6,8 @@ import { runUnifiedBuild, BuildOptions } from '../../builder.service.js';
 import { uploadBuildFilesToS3, uploadSpaFallback } from '../upload.sandbox.js';
 import { buildPreviewUrl } from '../../preview.service.js';
 import { disconnectContainerFromNetwork } from '../utils.sandbox.js';
-import { Framework } from './base-path.injector.js';
+import { Framework } from '../../planning/schemas.js';
+import { mergeAndInstallDependencies } from '../templates/dependency.merger.js';
 
 export interface BuildResult {
   success: boolean;
@@ -33,6 +34,39 @@ export async function buildAndUploadUnified(sandboxId: string): Promise<BuildRes
 
   try {
     await connectToNetwork(containerId);
+    const container = getContainer(containerId);
+    const requestedPackages = sandbox.requestedPackages || [];
+
+    const nodeModulesCheck = await execCommand(
+      container,
+      ['test', '-d', 'node_modules'],
+      false,
+      5000,
+      undefined,
+      CONTAINER_WORKDIR
+    );
+
+    if (nodeModulesCheck.exitCode !== 0 || requestedPackages.length > 0) {
+      if (nodeModulesCheck.exitCode !== 0) {
+        logger.warn({ sandboxId }, 'node_modules missing before build, triggering installation');
+      } else {
+        logger.info({ sandboxId, packageCount: requestedPackages.length }, 'Verifying/Installing requested dependencies');
+      }
+
+      const installResult = await mergeAndInstallDependencies(containerId, requestedPackages, sandboxId);
+      if (!installResult.success) {
+        await disconnectContainerFromNetwork(containerId, sandboxId);
+        return {
+          success: false,
+          buildDirectory: null,
+          error: `Dependency installation failed: ${installResult.error}`,
+          previewUploaded: false,
+          previewUrl: null
+        };
+      }
+
+      logger.info({ sandboxId }, 'Dependency verification/installation completed');
+    }
 
     const buildOptions: BuildOptions | undefined = userId && chatId
       ? { userId, chatId, framework: scaffoldedFramework }

@@ -1,0 +1,75 @@
+import { redis } from '../lib/redis.js';
+import { logger } from '../utils/logger.js';
+
+const MAX_CONCURRENT_PER_USER = 2;
+const SLOT_TTL_SECONDS = 300;
+
+function getUserSlotKey(userId: string): string {
+  return `user:concurrency:${userId}`;
+}
+
+export async function acquireUserSlot(userId: string): Promise<boolean> {
+  const key = getUserSlotKey(userId);
+  
+  try {
+    const current = await redis.incr(key);
+    
+    if (current === 1) {
+      await redis.expire(key, SLOT_TTL_SECONDS);
+    }
+    
+    if (current > MAX_CONCURRENT_PER_USER) {
+      await redis.decr(key);
+      logger.warn({ userId, current: current - 1, max: MAX_CONCURRENT_PER_USER }, 
+        'User at max concurrency, request rejected');
+      return false;
+    }
+    
+    logger.debug({ userId, slots: current, max: MAX_CONCURRENT_PER_USER }, 
+      'Acquired user concurrency slot');
+    return true;
+  } catch (error) {
+    logger.error({ error, userId }, 'Failed to acquire user slot');
+    return true;
+  }
+}
+
+export async function releaseUserSlot(userId: string): Promise<void> {
+  const key = getUserSlotKey(userId);
+  
+  try {
+    const current = await redis.decr(key);
+    
+    if (current <= 0) {
+      await redis.del(key);
+    }
+    
+    logger.debug({ userId, slots: Math.max(0, current) }, 
+      'Released user concurrency slot');
+  } catch (error) {
+    logger.error({ error, userId }, 'Failed to release user slot');
+  }
+}
+
+export async function getUserConcurrency(userId: string): Promise<number> {
+  const key = getUserSlotKey(userId);
+  const count = await redis.get(key);
+  return count ? parseInt(count, 10) : 0;
+}
+
+export async function withUserSlot<T>(
+  userId: string, 
+  fn: () => Promise<T>
+): Promise<T> {
+  const acquired = await acquireUserSlot(userId);
+  
+  if (!acquired) {
+    throw new Error('Too many concurrent requests. Please wait and try again.');
+  }
+  
+  try {
+    return await fn();
+  } finally {
+    await releaseUserSlot(userId);
+  }
+}

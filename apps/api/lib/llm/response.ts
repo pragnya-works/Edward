@@ -37,7 +37,9 @@ export async function* streamResponse(
   apiKey: string, 
   content: string, 
   signal?: AbortSignal,
-  verifiedDependencies?: string[]
+  verifiedDependencies?: string[],
+  customSystemPrompt?: string,
+  framework?: string
 ): AsyncGenerator<string> {
   if (!apiKey || typeof apiKey !== 'string' || apiKey.trim().length === 0) {
     throw new Error('Invalid API key: API key must be a non-empty string');
@@ -48,11 +50,18 @@ export async function* streamResponse(
   }
 
   const { type, client, model } = getClient(apiKey);
-  const contextPrompt = verifiedDependencies && verifiedDependencies.length > 0
-    ? `\n\n[CONTEXT] The following packages have been verified and corrected for use in this project: ${verifiedDependencies.join(', ')}. Please use these exact names in your <edward_install> tag.`
-    : '';
+  
+  let contextPrompt = '';
+  
+  if (verifiedDependencies && verifiedDependencies.length > 0) {
+    contextPrompt += `\n\n[CONTEXT] The following packages have been verified and corrected for use in this project: ${verifiedDependencies.join(', ')}. Please use these exact names in your <edward_install> tag.`;
+  }
+  
+  if (framework) {
+    contextPrompt += `\n\n[ENVIRONMENT] You are working in a ${framework} project. For a successful build, you MUST include the required entry point files as specified in the <code_completion_requirements> section.`;
+  }
 
-  const fullSystemPrompt = SYSTEM_PROMPT + contextPrompt;
+  const fullSystemPrompt = customSystemPrompt || (SYSTEM_PROMPT + contextPrompt);
 
   try {
     if (type === Provider.OPENAI) {
@@ -102,7 +111,8 @@ export async function* streamResponse(
 export async function generateResponse(
   apiKey: string, 
   content: string,
-  verifiedDependencies?: string[]
+  verifiedDependencies?: string[],
+  customSystemPrompt?: string
 ): Promise<string> {
   if (!apiKey || typeof apiKey !== 'string' || apiKey.trim().length === 0) {
     throw new Error('Invalid API key: API key must be a non-empty string');
@@ -117,7 +127,7 @@ export async function generateResponse(
     ? `\n\n[CONTEXT] The following packages have been verified and corrected for use in this project: ${verifiedDependencies.join(', ')}. Please use these exact names in your <edward_install> tag.`
     : '';
 
-  const fullSystemPrompt = SYSTEM_PROMPT + contextPrompt;
+  const fullSystemPrompt = customSystemPrompt || (SYSTEM_PROMPT + contextPrompt);
 
   try {
     if (type === Provider.OPENAI) {

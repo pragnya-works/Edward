@@ -1,9 +1,9 @@
 import { getContainer, execCommand, CONTAINER_WORKDIR } from '../docker.sandbox.js';
 import { logger } from '../../../utils/logger.js';
 import { sanitizePathComponent } from '../../storage.service.js';
+import { Framework } from '../../planning/schemas.js';
 
 export type DeploymentType = 'path' | 'subdomain';
-export type Framework = 'nextjs' | 'vite-react' | 'vanilla';
 
 export interface BasePathConfig {
     userId: string;
@@ -100,6 +100,9 @@ export function generateViteConfig(runtimeConfig: RuntimeConfig): string {
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import path from 'path'
+import { fileURLToPath } from 'url'
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 export default defineConfig({
   base: ${baseValue},
@@ -114,6 +117,7 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist',
+    emptyOutDir: true,
     rollupOptions: {
       input: path.resolve(__dirname, 'index.html'),
       output: {
@@ -176,6 +180,9 @@ export async function injectBasePathConfigs(
             case 'nextjs': {
                 const nextConfig = generateNextConfig(runtimeConfig);
                 await writeFileToContainer(containerId, 'next.config.ts', nextConfig, sandboxId);
+
+                const eslintConfig = `// ESLint disabled for sandbox builds\nexport default [];\n`;
+                await writeFileToContainer(containerId, 'eslint.config.mjs', eslintConfig, sandboxId);
                 break;
             }
             case 'vite-react': {

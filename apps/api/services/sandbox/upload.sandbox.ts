@@ -4,8 +4,9 @@ import { buildS3Key, uploadFile, isS3Configured } from '../storage.service.js';
 import { logger } from '../../utils/logger.js';
 import { ensureError } from '../../utils/error.js';
 import tar from 'tar-stream';
-import { generateRuntimeConfig, Framework } from './builder/base-path.injector.js';
+import { generateRuntimeConfig } from './builder/base-path.injector.js';
 import { generateSpaFallbackHtml, injectRuntimeScriptIntoHtml } from './builder/spa-fallback.js';
+import { Framework } from '../planning/schemas.js';
 
 export async function uploadBuildFilesToS3(
     sandbox: SandboxInstance,

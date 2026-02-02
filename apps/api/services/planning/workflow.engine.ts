@@ -18,6 +18,8 @@ import { runValidationPipeline } from '../validation/pipeline.js';
 import { provisionSandbox, cleanupSandbox, getActiveSandbox } from '../sandbox/lifecycle.sandbox.js';
 import { getSandboxState } from '../sandbox/state.sandbox.js';
 import { buildAndUploadUnified } from '../sandbox/builder/unified.build.js';
+import { getDecryptedApiKey } from '../apiKey.service.js';
+import { mergeAndInstallDependencies } from '../sandbox/templates/dependency.merger.js';
 
 const WORKFLOW_PREFIX = 'edward:workflow:';
 const LOCK_PREFIX = 'edward:lock:';
@@ -27,6 +29,7 @@ const LOCK_TTL_SECONDS = 300;
 const PHASE_CONFIGS: PhaseConfig[] = [
     { name: 'ANALYZE', executor: 'llm', maxRetries: 2, timeoutMs: 30000 },
     { name: 'RESOLVE_PACKAGES', executor: 'worker', maxRetries: 3, timeoutMs: 60000 },
+    { name: 'INSTALL_PACKAGES', executor: 'worker', maxRetries: 3, timeoutMs: 120000 },
     { name: 'GENERATE', executor: 'hybrid', maxRetries: 2, timeoutMs: 120000 },
     { name: 'BUILD', executor: 'worker', maxRetries: 3, timeoutMs: 180000 },
     { name: 'DEPLOY', executor: 'worker', maxRetries: 2, timeoutMs: 60000 },
@@ -180,6 +183,81 @@ export async function ensureSandbox(
     return sandboxId;
 }
 
+export async function executeInstallPhase(state: WorkflowState): Promise<StepResult> {
+    const startTime = Date.now();
+
+    if (!state.sandboxId) {
+        return {
+            step: 'INSTALL_PACKAGES',
+            success: false,
+            error: 'No sandbox available for installation',
+            durationMs: Date.now() - startTime,
+            retryCount: 0
+        };
+    }
+
+    try {
+        const sandbox = await getSandboxState(state.sandboxId);
+        if (!sandbox) {
+            return {
+                step: 'INSTALL_PACKAGES',
+                success: false,
+                error: 'Sandbox state not found',
+                durationMs: Date.now() - startTime,
+                retryCount: 0
+            };
+        }
+
+        const packageNames = (state.context.resolvedPackages || [])
+            .filter(pkg => pkg.valid)
+            .map(pkg => pkg.name);
+
+        logger.info({ 
+            workflowId: state.id, 
+            sandboxId: state.sandboxId, 
+            packageCount: packageNames.length 
+        }, 'Installing packages in container');
+
+        const result = await mergeAndInstallDependencies(
+            sandbox.containerId,
+            packageNames,
+            state.sandboxId
+        );
+
+        if (!result.success) {
+            return {
+                step: 'INSTALL_PACKAGES',
+                success: false,
+                error: result.error,
+                durationMs: Date.now() - startTime,
+                retryCount: 0
+            };
+        }
+
+        logger.info({ 
+            workflowId: state.id, 
+            sandboxId: state.sandboxId,
+            warnings: result.warnings 
+        }, 'Package installation completed');
+
+        return {
+            step: 'INSTALL_PACKAGES',
+            success: true,
+            data: { installed: packageNames.length, warnings: result.warnings },
+            durationMs: Date.now() - startTime,
+            retryCount: 0
+        };
+    } catch (error) {
+        return {
+            step: 'INSTALL_PACKAGES',
+            success: false,
+            error: error instanceof Error ? error.message : 'Installation failed',
+            durationMs: Date.now() - startTime,
+            retryCount: 0
+        };
+    }
+}
+
 export async function executeBuildPhase(state: WorkflowState): Promise<StepResult> {
     const startTime = Date.now();
 
@@ -273,7 +351,8 @@ export async function executeBuildPhase(state: WorkflowState): Promise<StepResul
 export async function executeAnalyzePhase(state: WorkflowState, userRequest: string): Promise<StepResult> {
     const startTime = Date.now();
     try {
-        const analysis = analyzeIntent(userRequest);
+        const apiKey = await getDecryptedApiKey(state.userId);
+        const analysis = await analyzeIntent(userRequest, apiKey);
         state.context.intent = analysis as IntentAnalysis;
         state.context.framework = (analysis as IntentAnalysis).suggestedFramework;
 
@@ -320,6 +399,9 @@ async function executeStep(
 
         case 'ANALYZE':
             return executeAnalyzePhase(state, input as string || '');
+
+        case 'INSTALL_PACKAGES':
+            return executeInstallPhase(state);
 
         case 'BUILD':
             return executeBuildPhase(state);
@@ -405,13 +487,20 @@ export async function advanceWorkflow(
             state.status = 'failed';
         }
     } else {
-        const stepOrder: WorkflowStepType[] = ['ANALYZE', 'RESOLVE_PACKAGES', 'GENERATE', 'BUILD', 'DEPLOY'];
-        const currentIndex = stepOrder.indexOf(state.currentStep);
+        const stepOrder: WorkflowStepType[] = ['ANALYZE', 'RESOLVE_PACKAGES', 'INSTALL_PACKAGES', 'GENERATE', 'BUILD', 'DEPLOY'];
+        let currentIndex = stepOrder.indexOf(state.currentStep);
+
+        if (currentIndex === -1 && state.currentStep === 'RECOVER') {
+            const lastSuccess = state.history.findLast(h => h.success && h.step !== 'RECOVER');
+            currentIndex = lastSuccess ? stepOrder.indexOf(lastSuccess.step) : -1;
+        }
 
         if (currentIndex === stepOrder.length - 1 || state.currentStep === 'DEPLOY') {
             state.status = 'completed';
         } else if (currentIndex >= 0 && currentIndex + 1 < stepOrder.length) {
             state.currentStep = stepOrder[currentIndex + 1]!;
+        } else {
+            state.status = 'completed';
         }
     }
 

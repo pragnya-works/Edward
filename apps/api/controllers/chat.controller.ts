@@ -13,14 +13,15 @@ import { createStreamParser } from '../lib/llm/parser.js';
 import { getDecryptedApiKey } from '../services/apiKey.service.js';
 import { HttpStatus, ERROR_MESSAGES } from '../utils/constants.js';
 import { sendError as sendStandardError, sendSuccess } from '../utils/response.js';
-import { cleanupSandbox, getActiveSandbox, provisionSandbox } from '../services/sandbox/lifecycle.sandbox.js';
+import { cleanupSandbox, getActiveSandbox, provisionSandbox, addSandboxPackages } from '../services/sandbox/lifecycle.sandbox.js';
 import { prepareSandboxFile, writeSandboxFile, flushSandbox } from '../services/sandbox/writes.sandbox.js';
-import { backupSandbox } from '../services/sandbox/backup.sandbox.js';
-import { buildAndUploadUnified } from '../services/sandbox/builder/unified.build.js';
 import { ensureError } from '../utils/error.js';
 import { deleteFolder, buildS3Key } from '../services/storage.service.js';
 import { getOrCreateChat, saveMessage } from '../services/chat.service.js';
 import { createWorkflow, advanceWorkflow, ensureSandbox } from '../services/planning/workflow.engine.js';
+import { normalizeFramework } from '../services/sandbox/templates/template.registry.js';
+import { acquireUserSlot, releaseUserSlot } from '../services/concurrency.service.js';
+import { enqueueBuildJob, enqueueBackupJob } from '../services/queue.service.js';
 
 async function handleFileContent(
   sandboxId: string,
@@ -55,12 +56,21 @@ export async function unifiedSendMessage(
   req: AuthenticatedRequest,
   res: Response
 ): Promise<void> {
+  let slotAcquired = false;
+  let userId: string = '';
+
   try {
-    const userId = getAuthenticatedUserId(req);
+    userId = getAuthenticatedUserId(req);
     const validated = UnifiedSendMessageSchema.safeParse(req.body);
 
     if (!validated.success) {
       sendError(res, HttpStatus.BAD_REQUEST, validated.error.errors[0]?.message || ERROR_MESSAGES.VALIDATION_ERROR);
+      return;
+    }
+
+    slotAcquired = await acquireUserSlot(userId);
+    if (!slotAcquired) {
+      sendError(res, HttpStatus.TOO_MANY_REQUESTS, 'Too many concurrent requests. Please wait and try again.');
       return;
     }
 
@@ -114,7 +124,7 @@ export async function unifiedSendMessage(
 
     await advanceWorkflow(workflow, body.content);
 
-    const preVerifiedDeps = workflow.context.intent?.features || [];
+    const preVerifiedDeps = workflow.context.intent?.recommendedPackages || [];
 
     const parser = createStreamParser();
     let fullRawResponse = '';
@@ -137,7 +147,8 @@ export async function unifiedSendMessage(
     });
 
     try {
-      const stream = streamResponse(decryptedApiKey, body.content, abortController.signal, preVerifiedDeps);
+      const framework = workflow.context.framework;
+      const stream = streamResponse(decryptedApiKey, body.content, abortController.signal, preVerifiedDeps, undefined, framework);
 
       for await (const chunk of stream) {
         if (abortController.signal.aborted) break;
@@ -186,11 +197,22 @@ export async function unifiedSendMessage(
                 break;
 
               case ParserEventType.INSTALL_CONTENT: {
-                if (!workflow.sandboxId) await ensureSandbox(workflow);
+                if (event.framework) {
+                  const normalized = normalizeFramework(event.framework);
+                  if (normalized) {
+                    workflow.context.framework = normalized;
+                  }
+                }
+                if (!workflow.sandboxId) {
+                  await ensureSandbox(workflow, workflow.context.framework);
+                }
 
                 const rawDependencies = event.dependencies || [];
                 if (rawDependencies.length > 0) {
                   await advanceWorkflow(workflow, rawDependencies);
+                  if (workflow.sandboxId) {
+                    await addSandboxPackages(workflow.sandboxId, rawDependencies);
+                  }
                 }
                 break;
               }
@@ -245,9 +267,6 @@ export async function unifiedSendMessage(
                 await flushSandbox(workflow.sandboxId).catch((err: unknown) =>
                   logger.error(ensureError(err), `Flush failed during SANDBOX_END: ${workflow.sandboxId}`)
                 );
-                void backupSandbox(workflow.sandboxId).catch((err: unknown) =>
-                  logger.error(ensureError(err), `Backup failed during SANDBOX_END: ${workflow.sandboxId}`)
-                );
               }
               break;
           }
@@ -263,21 +282,18 @@ export async function unifiedSendMessage(
           logger.error(ensureError(err), `Final flush failed for sandbox: ${workflow.sandboxId}`)
         );
 
-        void buildAndUploadUnified(workflow.sandboxId)
-          .then((buildResult: any) => {
-            if (buildResult.success) {
-              logger.info({ sandboxId: workflow.sandboxId, url: buildResult.previewUrl }, '[Chat] Build successful');
-            } else {
-              logger.error({
-                sandboxId: workflow.sandboxId,
-                chatId,
-                error: buildResult.error,
-              }, 'Build did not complete successfully');
-            }
-          })
-          .catch((err: unknown) =>
-            logger.error(ensureError(err), `Build and preview upload failed for sandbox: ${workflow.sandboxId}`)
-          );
+        try {
+          await enqueueBuildJob({ sandboxId: workflow.sandboxId, userId, chatId });
+          logger.info({ sandboxId: workflow.sandboxId, chatId }, '[Chat] Build job enqueued');
+        } catch (queueErr) {
+          logger.error(ensureError(queueErr), `Failed to enqueue build job for sandbox: ${workflow.sandboxId}`);
+        }
+
+        try {
+          await enqueueBackupJob({ sandboxId: workflow.sandboxId, userId });
+        } catch (backupErr) {
+          logger.error(ensureError(backupErr), `Failed to enqueue backup job for sandbox: ${workflow.sandboxId}`);
+        }
       } else {
         logger.warn({ chatId }, '[Chat] No sandbox ID available, skipping build');
       }
@@ -313,6 +329,12 @@ export async function unifiedSendMessage(
   } catch (error) {
     logger.error(ensureError(error), 'unifiedSendMessage error');
     sendError(res, HttpStatus.INTERNAL_SERVER_ERROR, ERROR_MESSAGES.INTERNAL_SERVER_ERROR);
+  } finally {
+    if (slotAcquired && userId) {
+      await releaseUserSlot(userId).catch((err: unknown) =>
+        logger.error(ensureError(err), `Failed to release user slot for ${userId}`)
+      );
+    }
   }
 }
 
