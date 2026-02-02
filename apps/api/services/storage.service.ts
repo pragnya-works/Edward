@@ -253,7 +253,6 @@ export async function uploadFile(
             errorName: err.name,
             errorMessage: err.message,
             errorStack: err.stack,
-            errorDetails: JSON.stringify(error, Object.getOwnPropertyNames(error))
         }, 'S3 upload failed');
         return { success: false, key, error: err };
     }

@@ -97,7 +97,7 @@ const worker = new Worker<JobPayload>(
       case JobType.CLEANUP:
         return processCleanupJob(payload);
       default:
-        logger.error({ payload }, '[Worker] Unknown job type');
+        logger.error({ type: (payload as JobPayload).type }, '[Worker] Unknown job type');
         throw new Error(`Unknown job type: ${(payload as JobPayload).type}`);
     }
   },
