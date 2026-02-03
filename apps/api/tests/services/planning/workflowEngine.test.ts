@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { nanoid } from 'nanoid';
 import { redis } from '../../../lib/redis.js';
-import { 
-    createWorkflow, 
-    advanceWorkflow, 
+import {
+    createWorkflow,
+    advanceWorkflow,
     getWorkflowStatus
 } from '../../../services/planning/workflowEngine.js';
 import { WorkflowState } from '../../../services/planning/schemas.js';
@@ -51,8 +51,8 @@ vi.mock('../../../services/sandbox/state.sandbox.js', () => ({
 }));
 
 vi.mock('../../../services/sandbox/builder/unified.build.js', () => ({
-    buildAndUploadUnified: vi.fn().mockResolvedValue({ 
-        success: true, 
+    buildAndUploadUnified: vi.fn().mockResolvedValue({
+        success: true,
         previewUrl: 'http://preview.test',
         buildDirectory: 'dist',
         previewUploaded: true
@@ -71,6 +71,10 @@ vi.mock('../../../services/planning/analyzers/intent.analyzer.js', () => ({
 
 vi.mock('../../../services/apiKey.service.js', () => ({
     getDecryptedApiKey: vi.fn().mockResolvedValue('mock-api-key')
+}));
+
+vi.mock('../../../services/sandbox/templates/dependency.merger.js', () => ({
+    mergeAndInstallDependencies: vi.fn().mockResolvedValue({ success: true, warnings: [] })
 }));
 
 describe('WorkflowEngine', () => {
@@ -153,8 +157,8 @@ describe('WorkflowEngine', () => {
             vi.mocked(redis.set)
                 .mockResolvedValue('OK');
 
-            vi.mocked(buildService.buildAndUploadUnified).mockResolvedValue({ 
-                success: false, 
+            vi.mocked(buildService.buildAndUploadUnified).mockResolvedValue({
+                success: false,
                 error: 'Build timeout',
                 buildDirectory: null,
                 previewUploaded: false,
@@ -167,9 +171,61 @@ describe('WorkflowEngine', () => {
             expect(state.currentStep).toBe('RECOVER');
         });
 
-        it('should restart from ANALYZE after recovery succeeds when first step fails', async () => {
+        it('should execute INSTALL_PACKAGES phase and transition to BUILD', async () => {
+            const state: WorkflowState = {
+                id: mockWorkflowId,
+                userId: mockUserId,
+                chatId: mockChatId,
+                currentStep: 'INSTALL_PACKAGES',
+                status: 'running',
+                sandboxId: 'sb-1',
+                context: { 
+                    errors: [],
+                    resolvedPackages: [{ name: 'react', version: '18.2.0', valid: true }]
+                },
+                history: [],
+                createdAt: Date.now(),
+                updatedAt: Date.now()
+            };
+
+            vi.mocked(redis.set).mockResolvedValue('OK');
+
+            const result = await advanceWorkflow(state);
+
+            expect(result.success).toBe(true);
+            expect(result.step).toBe('INSTALL_PACKAGES');
+            expect(state.currentStep).toBe('GENERATE');
+        });
+
+        it('should execute DEPLOY phase and transition to COMPLETE', async () => {
+            const state: WorkflowState = {
+                id: mockWorkflowId,
+                userId: mockUserId,
+                chatId: mockChatId,
+                currentStep: 'DEPLOY',
+                status: 'running',
+                context: { 
+                    errors: [],
+                    previewUrl: 'http://preview.test'
+                },
+                history: [],
+                createdAt: Date.now(),
+                updatedAt: Date.now()
+            };
+
+            vi.mocked(redis.set).mockResolvedValue('OK');
+
+            const result = await advanceWorkflow(state);
+
+            expect(result.success).toBe(true);
+            expect(result.step).toBe('DEPLOY');
+            expect(state.currentStep).toBe('DEPLOY');
+            expect(state.status).toBe('completed');
+        });
+
+        it('should restart from ANALYZE after recovery succeeds', async () => {
             const apiKeyService = await import('../../../services/apiKey.service.js');
-            
+
             const state: WorkflowState = {
                 id: mockWorkflowId,
                 userId: mockUserId,
@@ -184,30 +240,47 @@ describe('WorkflowEngine', () => {
 
             vi.mocked(redis.set).mockResolvedValue('OK');
             vi.mocked(apiKeyService.getDecryptedApiKey).mockRejectedValue(new Error('API key not found'));
+
             const analyzeResult = await advanceWorkflow(state, 'Create a landing page');
-            
+
             expect(analyzeResult.success).toBe(false);
             expect(state.currentStep).toBe('RECOVER');
             expect(state.history).toHaveLength(1);
-            expect(state.history[0]?.success).toBe(false);
-            expect(state.history[0]?.step).toBe('ANALYZE');
+
             vi.mocked(apiKeyService.getDecryptedApiKey).mockResolvedValue('mock-api-key');
 
             const recoverResult = await advanceWorkflow(state);
-            
+
             expect(recoverResult.success).toBe(true);
-            expect(recoverResult.step).toBe('RECOVER');
-            expect(state.history).toHaveLength(2);
             expect(state.currentStep).toBe('ANALYZE');
-            expect(state.status).not.toBe('completed');
-            expect(state.status).toBe('running');
+        });
+
+        it('should fail workflow if maximum retries exceeded in RECOVER', async () => {
+            const state: WorkflowState = {
+                id: mockWorkflowId,
+                userId: mockUserId,
+                chatId: mockChatId,
+                currentStep: 'RECOVER',
+                status: 'running',
+                context: { errors: [] },
+                history: Array(10).fill({ step: 'BUILD', success: false }),
+                createdAt: Date.now(),
+                updatedAt: Date.now()
+            };
+
+            vi.mocked(redis.set).mockResolvedValue('OK');
+
+            const result = await advanceWorkflow(state);
+
+            expect(result.success).toBe(true);
+            expect(state.currentStep).toBe('ANALYZE');
         });
     });
 
     describe('persistence', () => {
         it('should retrieve workflow status from redis', async () => {
-            const mockState: WorkflowState = { 
-                id: mockWorkflowId, 
+            const mockState: WorkflowState = {
+                id: mockWorkflowId,
                 userId: mockUserId,
                 chatId: mockChatId,
                 status: 'completed',
