@@ -1,22 +1,26 @@
 import { z } from 'zod';
 
-const WorkflowStepTypeSchema = z.enum([
-    'ANALYZE',
-    'RESOLVE_PACKAGES',
-    'INSTALL_PACKAGES',
-    'GENERATE',
-    'BUILD',
-    'DEPLOY',
-    'RECOVER'
-]);
+export const WorkflowStep = {
+    ANALYZE: 'ANALYZE',
+    RESOLVE_PACKAGES: 'RESOLVE_PACKAGES',
+    INSTALL_PACKAGES: 'INSTALL_PACKAGES',
+    GENERATE: 'GENERATE',
+    BUILD: 'BUILD',
+    DEPLOY: 'DEPLOY',
+    RECOVER: 'RECOVER'
+} as const;
 
-const WorkflowStatusSchema = z.enum([
-    'pending',
-    'running',
-    'paused',
-    'completed',
-    'failed'
-]);
+const WorkflowStepTypeSchema = z.nativeEnum(WorkflowStep);
+
+export const WorkflowStatus = {
+    PENDING: 'pending',
+    RUNNING: 'running',
+    PAUSED: 'paused',
+    COMPLETED: 'completed',
+    FAILED: 'failed'
+} as const;
+
+const WorkflowStatusSchema = z.nativeEnum(WorkflowStatus);
 
 const ExecutorTypeSchema = z.enum(['llm', 'worker', 'hybrid']);
 
