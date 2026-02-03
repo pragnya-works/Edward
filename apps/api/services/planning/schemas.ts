@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 export const WorkflowStep = {
     ANALYZE: 'ANALYZE',
+    PLAN: 'PLAN',
     RESOLVE_PACKAGES: 'RESOLVE_PACKAGES',
     INSTALL_PACKAGES: 'INSTALL_PACKAGES',
     GENERATE: 'GENERATE',
@@ -27,6 +28,23 @@ const ExecutorTypeSchema = z.enum(['llm', 'worker', 'hybrid']);
 const FrameworkSchema = z.enum(['nextjs', 'vite-react', 'vanilla']);
 
 const ComplexitySchema = z.enum(['simple', 'moderate', 'complex']);
+
+export const PlanStatusSchema = z.enum(['pending', 'in_progress', 'done', 'blocked', 'failed']);
+
+export const PlanStepSchema = z.object({
+    id: z.string(),
+    title: z.string(),
+    description: z.string().optional(),
+    status: PlanStatusSchema,
+});
+
+export const PlanSchema = z.object({
+    summary: z.string(),
+    steps: z.array(PlanStepSchema).min(1),
+    decisions: z.array(z.string()).default([]),
+    assumptions: z.array(z.string()).default([]),
+    lastUpdatedAt: z.number(),
+});
 
 const PackageInfoSchema = z.object({
     name: z.string(),
@@ -58,6 +76,7 @@ const WorkflowContextSchema = z.object({
     userRequest: z.string().optional(),
     intent: IntentAnalysisSchema.optional(),
     framework: FrameworkSchema.optional(),
+    plan: PlanSchema.optional(),
     resolvedPackages: z.array(PackageInfoSchema).optional(),
     generatedFiles: z.array(z.string()).optional(),
     buildDirectory: z.string().optional(),
@@ -88,6 +107,9 @@ const PhaseConfigSchema = z.object({
 export type WorkflowStepType = z.infer<typeof WorkflowStepTypeSchema>;
 export type Framework = z.infer<typeof FrameworkSchema>;
 export type Complexity = z.infer<typeof ComplexitySchema>;
+export type PlanStatus = z.infer<typeof PlanStatusSchema>;
+export type PlanStep = z.infer<typeof PlanStepSchema>;
+export type Plan = z.infer<typeof PlanSchema>;
 export type IntentAnalysis = z.infer<typeof IntentAnalysisSchema>;
 export type PackageInfo = z.infer<typeof PackageInfoSchema>;
 export type StepResult = z.infer<typeof StepResultSchema>;

@@ -35,7 +35,7 @@ export async function analyzeIntent(input: string, apiKey: string): Promise<Inte
         const parsed = JSON.parse(jsonMatch[0]);
         return IntentAnalysisSchema.parse(parsed);
     } catch (error) {
-        logger.error(error, 'Intent analysis failed');
+        logger.warn(error, 'Intent analysis failed, using fallback');
         return IntentAnalysisSchema.parse({
             type: 'custom',
             complexity: 'moderate',

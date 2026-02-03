@@ -94,6 +94,7 @@ describe('WorkflowEngine', () => {
             expect(workflow.id).toBe(mockWorkflowId);
             expect(workflow.userId).toBe(mockUserId);
             expect(workflow.status).toBe('pending');
+            expect(workflow.currentStep).toBe('PLAN');
             expect(redis.set).toHaveBeenCalled();
         });
     });
@@ -232,7 +233,16 @@ describe('WorkflowEngine', () => {
                 chatId: mockChatId,
                 currentStep: 'ANALYZE',
                 status: 'pending',
-                context: { errors: [] },
+                context: { 
+                    errors: [],
+                    plan: {
+                        summary: 'Test plan',
+                        steps: [{ id: '1', title: 'Analyze request', status: 'pending' }],
+                        decisions: [],
+                        assumptions: [],
+                        lastUpdatedAt: Date.now(),
+                    },
+                },
                 history: [],
                 createdAt: Date.now(),
                 updatedAt: Date.now()
@@ -262,7 +272,16 @@ describe('WorkflowEngine', () => {
                 chatId: mockChatId,
                 currentStep: 'RECOVER',
                 status: 'running',
-                context: { errors: [] },
+                context: { 
+                    errors: [],
+                    plan: {
+                        summary: 'Test plan',
+                        steps: [{ id: '1', title: 'Analyze request', status: 'pending' }],
+                        decisions: [],
+                        assumptions: [],
+                        lastUpdatedAt: Date.now(),
+                    },
+                },
                 history: Array(10).fill({ step: 'BUILD', success: false }),
                 createdAt: Date.now(),
                 updatedAt: Date.now()

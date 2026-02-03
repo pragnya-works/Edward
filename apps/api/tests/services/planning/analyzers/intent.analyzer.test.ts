@@ -9,6 +9,7 @@ vi.mock('../../../../lib/llm/response.js', () => ({
 vi.mock('../../../../utils/logger.js', () => ({
     logger: {
         error: vi.fn(),
+        warn: vi.fn(),
     },
 }));
 

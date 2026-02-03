@@ -9,7 +9,8 @@ import {
     PackageInfo,
     IntentAnalysis,
     WorkflowStep,
-    WorkflowStatus
+    WorkflowStatus,
+    Plan
 } from './schemas.js';
 import { analyzeIntent } from './analyzers/intent.analyzer.js';
 import { resolvePackages } from '../registry/package.registry.js';
@@ -23,6 +24,7 @@ import { mergeAndInstallDependencies } from '../sandbox/templates/dependency.mer
 import { PHASE_CONFIGS } from './workflow/config.js';
 import { getWorkflow, saveWorkflow, deleteWorkflow } from './workflow/store.js';
 import { acquireLock, releaseLock } from './workflow/locks.js';
+import { updatePlanForWorkflowStep, markPlanInProgressForWorkflowStep } from './workflow/plan.js';
 
 export async function createWorkflow(
     userId: string,
@@ -34,7 +36,7 @@ export async function createWorkflow(
         userId,
         chatId,
         status: WorkflowStatus.PENDING,
-        currentStep: WorkflowStep.ANALYZE,
+        currentStep: WorkflowStep.PLAN,
         context: { errors: [], ...initialContext },
         history: [],
         createdAt: Date.now(),
@@ -43,6 +45,32 @@ export async function createWorkflow(
 
     await saveWorkflow(state);
     return state;
+}
+
+export async function executePlanPhase(state: WorkflowState, plan?: Plan): Promise<StepResult> {
+    const startTime = Date.now();
+
+    if (plan) {
+        state.context.plan = plan;
+    }
+
+    if (!state.context.plan) {
+        return {
+            step: WorkflowStep.PLAN,
+            success: false,
+            error: 'Plan not available',
+            durationMs: Date.now() - startTime,
+            retryCount: 0
+        };
+    }
+
+    return {
+        step: WorkflowStep.PLAN,
+        success: true,
+        data: { steps: state.context.plan.steps.length },
+        durationMs: Date.now() - startTime,
+        retryCount: 0
+    };
 }
 
 export async function executePackageResolution(
@@ -303,6 +331,9 @@ async function executeStep(
     const startTime = Date.now();
 
     switch (step) {
+        case WorkflowStep.PLAN:
+            return executePlanPhase(state, input as Plan | undefined);
+
         case WorkflowStep.RESOLVE_PACKAGES: {
             const lockId = await acquireLock(`resolve:${state.id}`);
             if (!lockId) return { step, success: false, error: 'Resolution already in progress', durationMs: 0, retryCount: 0 };
@@ -346,7 +377,7 @@ async function withRetry(
     fn: () => Promise<StepResult>,
     maxRetries: number,
 ): Promise<StepResult> {
-    let result: StepResult = { step: WorkflowStep.ANALYZE, success: false, error: 'No attempts made', durationMs: 0, retryCount: 0 };
+    let result: StepResult = { step: WorkflowStep.PLAN, success: false, error: 'No attempts made', durationMs: 0, retryCount: 0 };
     let retryCount = 0;
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
@@ -380,6 +411,11 @@ export async function advanceWorkflow(
     }
 
     state.status = WorkflowStatus.RUNNING;
+
+    if (state.context.plan) {
+        state.context.plan = markPlanInProgressForWorkflowStep(state.context.plan, state.currentStep);
+    }
+
     await saveWorkflow(state);
 
     const config = PHASE_CONFIGS.find(p => p.name === state.currentStep);
@@ -392,6 +428,10 @@ export async function advanceWorkflow(
 
     state.history.push(result);
 
+    if (state.context.plan) {
+        state.context.plan = updatePlanForWorkflowStep(state.context.plan, state.currentStep, result.success);
+    }
+
     if (!result.success) {
         const isRecoverable = state.currentStep !== WorkflowStep.RECOVER && result.retryCount < maxRetries;
         if (isRecoverable) {
@@ -401,6 +441,7 @@ export async function advanceWorkflow(
         }
     } else {
         const stepOrder: WorkflowStepType[] = [
+            WorkflowStep.PLAN,
             WorkflowStep.ANALYZE, 
             WorkflowStep.RESOLVE_PACKAGES, 
             WorkflowStep.INSTALL_PACKAGES, 
@@ -413,6 +454,10 @@ export async function advanceWorkflow(
         if (currentIndex === -1 && state.currentStep === WorkflowStep.RECOVER) {
             const lastSuccess = state.history.findLast(h => h.success && h.step !== WorkflowStep.RECOVER);
             currentIndex = lastSuccess ? stepOrder.indexOf(lastSuccess.step) : -1;
+            if (currentIndex === -1) {
+                const fallbackStep = state.context.plan ? WorkflowStep.ANALYZE : WorkflowStep.PLAN;
+                currentIndex = stepOrder.indexOf(fallbackStep) - 1;
+            }
         }
 
         if (currentIndex === stepOrder.length - 1 || state.currentStep === WorkflowStep.DEPLOY) {

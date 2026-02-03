@@ -15,6 +15,7 @@ import { ensureError } from '../utils/error.js';
 import { deleteFolder } from '../services/storage.service.js';
 import { getOrCreateChat, saveMessage } from '../services/chat.service.js';
 import { createWorkflow, advanceWorkflow } from '../services/planning/workflowEngine.js';
+import { generatePlan } from '../services/planning/analyzers/plan.analyzer.js';
 import { acquireUserSlot, releaseUserSlot } from '../services/concurrency.service.js';
 import { runStreamSession } from './chat/streamSession.js';
 import { getActiveSandbox, provisionSandbox } from '../services/sandbox/lifecycle/provisioning.js';
@@ -100,6 +101,18 @@ export async function unifiedSendMessage(
     const workflow = await createWorkflow(userId, chatId, {
       userRequest: body.content,
     });
+
+    const plan = await generatePlan(body.content, decryptedApiKey);
+    await advanceWorkflow(workflow, plan);
+
+    res.write(`data: ${JSON.stringify({
+      type: ParserEventType.PLAN,
+      plan
+    })}\n\n`);
+    res.write(`data: ${JSON.stringify({
+      type: ParserEventType.TODO_UPDATE,
+      todos: plan.steps
+    })}\n\n`);
 
     await advanceWorkflow(workflow, body.content);
 

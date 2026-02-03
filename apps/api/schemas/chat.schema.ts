@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { PlanSchema } from '../services/planning/schemas.js';
 
 export const NPM_PACKAGE_REGEX = /^(?:@[a-z0-9-~][a-z0-9-._~]*\/)?[a-z0-9-~][a-z0-9-._~]*$/i;
 export const MAX_DEPENDENCIES = 50;
@@ -25,6 +26,9 @@ export enum ParserEventType {
   INSTALL_START = 'install_start',
   INSTALL_CONTENT = 'install_content',
   INSTALL_END = 'install_end',
+  PLAN = 'plan',
+  PLAN_UPDATE = 'plan_update',
+  TODO_UPDATE = 'todo_update',
   ERROR = 'error',
   META = 'meta',
 }
@@ -73,6 +77,17 @@ export const ParserEventSchema = z.discriminatedUnion('type', [
     framework: z.enum(['nextjs', 'vite-react', 'vanilla', 'next', 'react', 'vite', 'next.js']).optional()
   }),
   z.object({ type: z.literal(ParserEventType.INSTALL_END) }),
+  z.object({ type: z.literal(ParserEventType.PLAN), plan: PlanSchema }),
+  z.object({ type: z.literal(ParserEventType.PLAN_UPDATE), plan: PlanSchema }),
+  z.object({
+    type: z.literal(ParserEventType.TODO_UPDATE),
+    todos: z.array(z.object({
+      id: z.string(),
+      title: z.string(),
+      description: z.string().optional(),
+      status: z.enum(['pending', 'in_progress', 'done', 'blocked', 'failed'])
+    }))
+  }),
   z.object({ type: z.literal(ParserEventType.ERROR), message: z.string() }),
   z.object({ type: z.literal(ParserEventType.META), chatId: z.string(), userMessageId: z.string(), assistantMessageId: z.string(), isNewChat: z.boolean() }),
 ]);
