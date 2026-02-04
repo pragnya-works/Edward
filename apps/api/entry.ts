@@ -8,6 +8,7 @@ import { initSandboxService, shutdownSandboxService } from './services/sandbox/l
 import { redis } from './lib/redis.js';
 import { apiKeyRouter } from './routes/apiKey.routes.js';
 import { chatRouter } from './routes/chat.routes.js';
+import { githubRouter } from './routes/github.routes.js';
 import { authMiddleware } from './middleware/auth.js';
 import { apiKeyRateLimiter } from './middleware/rateLimit.js';
 import { Environment, createLogger } from './utils/logger.js';
@@ -100,6 +101,7 @@ if (!isProd) {
 
 app.use('/api-key', apiKeyRateLimiter, authMiddleware, apiKeyRouter);
 app.use('/chat', authMiddleware, chatRouter);
+app.use('/github', authMiddleware, githubRouter);
 
 app.get('/health', function healthCheckRoute(_req: Request, res: Response) {
   res.status(HttpStatus.OK).json({

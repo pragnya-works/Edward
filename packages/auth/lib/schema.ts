@@ -7,10 +7,10 @@ export const attachmentTypeEnum = pgEnum("attachment_type", ["image", "pdf", "fi
 export const messageRoleEnum = pgEnum("message_role", ["system", "user", "assistant", "data"]);
 
 export enum MessageRole {
-  System = "system",
-  User = "user",
-  Assistant = "assistant",
-  Data = "data",
+	System = "system",
+	User = "user",
+	Assistant = "assistant",
+	Data = "data",
 }
 
 export const user = pgTable("user", {
@@ -67,6 +67,7 @@ export const chat = pgTable("chat", {
 	description: text("description"),
 	visibility: boolean("visibility").default(false),
 	githubRepoId: text("github_repo_id"),
+	githubRepoFullName: text("github_repo_full_name"),
 	isFavourite: boolean("is_favourite").default(false),
 	originalChatId: text("original_chat_id"),
 	rootChatId: text("root_chat_id"),

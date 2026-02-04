@@ -1,0 +1,1 @@
+ALTER TABLE "chat" ADD COLUMN "github_repo_full_name" text;

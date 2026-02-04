@@ -43,6 +43,13 @@
       "when": 1769438502873,
       "tag": "0005_cultured_jack_power",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1770131502630,
+      "tag": "0006_fixed_blizzard",
+      "breakpoints": true
     }
   ]
 }
