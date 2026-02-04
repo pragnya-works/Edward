@@ -1,6 +1,6 @@
 import * as React from "react"
 
-interface SlotProps {
+interface SlotProps extends React.HTMLAttributes<HTMLElement> {
   children?: React.ReactNode
 }
 
@@ -8,10 +8,14 @@ export const Slot = React.forwardRef<HTMLElement, SlotProps>((props, ref) => {
   const { children, ...slotProps } = props
 
   if (React.isValidElement(children)) {
-    return React.cloneElement(children, {
-      ...mergeProps(slotProps, children.props),
-      ref: ref ? composeRefs(ref, (children as any).ref) : (children as any).ref,
-    } as any)
+    const child = children as React.ReactElement<React.HTMLAttributes<HTMLElement>> & {
+      ref?: React.Ref<HTMLElement>
+    }
+
+    return React.cloneElement(child, {
+      ...mergeProps(slotProps, child.props),
+      ref: ref ? composeRefs(ref, child.ref) : child.ref,
+    } as React.HTMLAttributes<HTMLElement> & React.RefAttributes<HTMLElement>)
   }
 
   return React.Children.count(children) > 1 ? React.Children.only(null) : null
@@ -19,39 +23,35 @@ export const Slot = React.forwardRef<HTMLElement, SlotProps>((props, ref) => {
 
 Slot.displayName = "Slot"
 
-function mergeProps(slotProps: any, childProps: any) {
-  // all child props should override slot props
-  const overrideProps = { ...childProps }
+function mergeProps(
+  slotProps: React.HTMLAttributes<HTMLElement>,
+  childProps: React.HTMLAttributes<HTMLElement>
+): React.HTMLAttributes<HTMLElement> {
+  const result: React.HTMLAttributes<HTMLElement> = { ...slotProps, ...childProps }
 
-  for (const propName in childProps) {
-    const slotPropValue = slotProps[propName]
-    const childPropValue = childProps[propName]
+  if (slotProps.className && childProps.className) {
+    result.className = `${slotProps.className} ${childProps.className}`
+  }
+  if (slotProps.style && childProps.style) {
+    result.style = { ...slotProps.style, ...childProps.style }
+  }
 
-    const isHandler = /^on[A-Z]/.test(propName)
-    if (isHandler) {
-      // if the handler exists on both, we compose them
-      if (slotPropValue && childPropValue) {
-        overrideProps[propName] = (...args: any[]) => {
-          childPropValue(...args)
-          slotPropValue(...args)
+  for (const key in slotProps) {
+    if (key.startsWith("on") && key in childProps) {
+      const slotHandler = slotProps[key as keyof React.HTMLAttributes<HTMLElement>]
+      const childHandler = childProps[key as keyof React.HTMLAttributes<HTMLElement>]
+
+      if (typeof slotHandler === "function" && typeof childHandler === "function") {
+        const mergedHandler = (event: React.SyntheticEvent) => {
+          (childHandler as React.EventHandler<React.SyntheticEvent>)(event);
+          (slotHandler as React.EventHandler<React.SyntheticEvent>)(event);
         }
-      } else if (slotPropValue) {
-        overrideProps[propName] = slotPropValue
+        (result as Record<string, typeof mergedHandler>)[key] = mergedHandler
       }
-    } else if (propName === "style") {
-      if (slotPropValue && childPropValue) {
-        overrideProps[propName] = { ...slotPropValue, ...childPropValue }
-      } else if (slotPropValue) {
-        overrideProps[propName] = slotPropValue
-      }
-    } else if (propName === "className") {
-      overrideProps[propName] = [slotPropValue, childPropValue]
-        .filter(Boolean)
-        .join(" ")
     }
   }
 
-  return { ...slotProps, ...overrideProps }
+  return result
 }
 
 function composeRefs<T>(...refs: (React.Ref<T> | undefined)[]) {
@@ -59,8 +59,8 @@ function composeRefs<T>(...refs: (React.Ref<T> | undefined)[]) {
     refs.forEach((ref) => {
       if (typeof ref === "function") {
         ref(node)
-      } else if (ref != null) {
-        ;(ref as React.MutableRefObject<T>).current = node
+      } else if (ref != null && typeof ref === "object" && "current" in ref) {
+          (ref as React.MutableRefObject<T>).current = node
       }
     })
   }

@@ -11,13 +11,14 @@ function getEnvVariable(name: string): string {
 }
 
 export const auth = betterAuth({
-    database: drizzleAdapter(db, {
-        provider: "pg",
-    }),
-    socialProviders: {
-        github: {
-          clientId: getEnvVariable("GITHUB_CLIENT_ID"),
-          clientSecret: getEnvVariable("GITHUB_CLIENT_SECRET"),
-        },
-      },
+  database: drizzleAdapter(db, {
+    provider: "pg",
+  }),
+  socialProviders: {
+    github: {
+      clientId: getEnvVariable("GITHUB_CLIENT_ID"),
+      clientSecret: getEnvVariable("GITHUB_CLIENT_SECRET"),
+      scope: ["repo", "user"],
+    },
+  },
 });

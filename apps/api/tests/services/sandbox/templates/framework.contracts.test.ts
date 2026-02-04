@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { validateFrameworkContract, getFrameworkContract } from '../../../../services/sandbox/templates/framework.contracts.js';
+import { Framework } from '../../../../services/planning/schemas.js';
 
 describe('FrameworkContracts', () => {
     describe('nextjs contract', () => {
@@ -111,7 +112,7 @@ describe('FrameworkContracts', () => {
 
     describe('getFrameworkContract', () => {
         it('should return vanilla for unknown frameworks', () => {
-            const contract = getFrameworkContract('unknown' as any);
+            const contract = getFrameworkContract('unknown' as Framework);
             expect(contract.framework).toBe('vanilla');
         });
     });

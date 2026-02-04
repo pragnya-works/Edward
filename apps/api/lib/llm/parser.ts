@@ -389,7 +389,7 @@ export function createStreamParser() {
           events.push({ type: ParserEventType.SANDBOX_END });
           break;
 
-        case StreamState.INSTALL:
+        case StreamState.INSTALL: {
           const content = buffer.trim();
           if (content) {
             const parsed = parseInstallContent(content);
@@ -401,6 +401,7 @@ export function createStreamParser() {
           }
           events.push({ type: ParserEventType.INSTALL_END });
           break;
+        }
       }
       buffer = '';
     }

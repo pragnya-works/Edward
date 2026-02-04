@@ -85,7 +85,7 @@ export function useApiKey() {
       }
       return res.json() as Promise<ApiKeySaveResponse>;
     },
-    onSuccess: function (responseData, variables) {
+    onSuccess: function (responseData) {
       queryClient.setQueryData(["apiKey", userId], function (old: ApiKeyResponse | undefined) {
         if (!old) return old;
         return {

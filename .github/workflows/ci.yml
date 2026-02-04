@@ -43,7 +43,7 @@ jobs:
         run: pnpm turbo typecheck
 
       - name: Lint
-        run: pnpm turbo lint --filter=!web
+        run: pnpm turbo lint
 
       - name: Test with Coverage
         run: pnpm --filter api test:coverage

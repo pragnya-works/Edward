@@ -19,7 +19,8 @@ export async function backupSandboxInstance(sandbox: SandboxInstance): Promise<v
         const container = getContainer(sandbox.containerId);
         try {
             await container.inspect();
-        } catch {
+        } catch (error) {
+            logger.debug({ error: ensureError(error), sandboxId }, 'Container not found during backup, skipping');
             return;
         }
 

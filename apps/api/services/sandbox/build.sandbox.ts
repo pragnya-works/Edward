@@ -202,7 +202,8 @@ export async function buildAndUploadPreview(sandboxId: string): Promise<BuildRes
         const container = getContainer(containerId);
         try {
             await container.inspect();
-        } catch {
+        } catch (error) {
+            logger.warn({ error: ensureError(error), sandboxId }, 'Container not found during build process');
             result.error = 'Container not found';
             return result;
         }

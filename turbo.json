@@ -53,13 +53,17 @@
         "AWS_SECRET_ACCESS_KEY",
         "AWS_BUCKET_NAME",
         "CLOUDFRONT_DISTRIBUTION_URL",
-        "EDWARD_DEPLOYMENT_TYPE"
+        "EDWARD_DEPLOYMENT_TYPE",
+        "DOCKER_REGISTRY_BASE"
       ]
     },
     "typecheck": {
       "dependsOn": ["^build"]
     },
     "lint": {
+      "dependsOn": ["^build"]
+    },
+    "lint:fix": {
       "dependsOn": ["^build"]
     },
     "api#lint": {
@@ -82,7 +86,8 @@
         "BETTER_AUTH_URL",
         "GITHUB_CLIENT_ID",
         "GITHUB_CLIENT_SECRET",
-        "CLOUDFRONT_DISTRIBUTION_URL"
+        "CLOUDFRONT_DISTRIBUTION_URL",
+        "DOCKER_REGISTRY_BASE"
       ]
     }
   }

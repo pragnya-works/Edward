@@ -1,5 +1,7 @@
 import { CONTAINER_WORKDIR, getContainer, execCommand } from './docker.sandbox.js';
 import { doesFileExist, doesDirectoryExist, TIMEOUT_CHECK_MS } from './utils.sandbox.js';
+import { logger } from '../../utils/logger.js';
+import { ensureError } from '../../utils/error.js';
 
 export type PackageManager = 'pnpm' | 'npm' | 'yarn';
 
@@ -34,7 +36,8 @@ export async function isPackageManagerInstalled(containerId: string, packageMana
         const container = getContainer(containerId);
         const result = await execCommand(container, ['which', packageManager], false, TIMEOUT_CHECK_MS);
         return result.exitCode === 0;
-    } catch {
+    } catch (error) {
+        logger.debug({ error: ensureError(error), packageManager }, 'Error checking if package manager is installed');
         return false;
     }
 }
@@ -74,7 +77,7 @@ export async function predictBuildDirectory(containerId: string): Promise<string
             if (deps['react-scripts']) return 'build';
         }
     } catch (error) {
-        // Silently continue if package.json doesn't exist
+        logger.debug({ error: ensureError(error) }, 'Could not predict build directory from package.json');
     }
 
     if (await isStaticSite(containerId)) {
