@@ -85,9 +85,11 @@ export async function syncChatToGithub(
     const container = getContainer(sandbox.containerId);
     try {
       const { uploadStream, completion } = await createBackupArchive(container);
-      const extractedFiles = await extractFilesFromStream(uploadStream);
+      const [extractedFiles] = await Promise.all([
+        extractFilesFromStream(uploadStream),
+        completion,
+      ]);
       files.push(...extractedFiles);
-      await completion;
     } catch (err) {
       logger.error(ensureError(err), 'Sandbox file extraction failed');
       throw new Error('Failed to extract files from the project sandbox');
