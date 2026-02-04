@@ -79,7 +79,7 @@ async function getBranch(octokit: Octokit, owner: string, repo: string, branch: 
       branch,
     });
     return data;
-  } catch (error) {
+  } catch {
     return null;
   }
 }

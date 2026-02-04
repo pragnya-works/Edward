@@ -4,8 +4,10 @@ import {
     generateRuntimeConfig,
     generateNextConfig,
     generateViteConfig,
-    detectDeploymentType
+    detectDeploymentType,
+    BasePathConfig
 } from '../../../../services/sandbox/builder/basePathInjector.js';
+import { Framework } from '../../../../services/planning/schemas.js';
 
 describe('BasePathInjector', () => {
     describe('calculateBasePath', () => {
@@ -26,14 +28,14 @@ describe('BasePathInjector', () => {
 
     describe('generateRuntimeConfig', () => {
         it('should generate correct config for path deployment', () => {
-            const config = { userId: 'u', chatId: 'c', framework: 'nextjs' as any, deploymentType: 'path' as any };
+            const config: BasePathConfig = { userId: 'u', chatId: 'c', framework: 'nextjs' as Framework, deploymentType: 'path' };
             const result = generateRuntimeConfig(config);
             expect(result.basePath).toBe('/u/c/preview');
             expect(result.assetPrefix).toBe('/u/c/preview/');
         });
 
         it('should generate correct config for subdomain deployment', () => {
-            const config = { userId: 'u', chatId: 'c', framework: 'nextjs' as any, deploymentType: 'subdomain' as any };
+            const config: BasePathConfig = { userId: 'u', chatId: 'c', framework: 'nextjs' as Framework, deploymentType: 'subdomain' };
             const result = generateRuntimeConfig(config);
             expect(result.basePath).toBe('');
             expect(result.assetPrefix).toBe('');
@@ -77,16 +79,16 @@ describe('BasePathInjector', () => {
         });
 
         it('should use config value if provided', () => {
-            expect(detectDeploymentType({ deploymentType: 'subdomain' } as any)).toBe('subdomain');
+            expect(detectDeploymentType({ deploymentType: 'subdomain' } as BasePathConfig)).toBe('subdomain');
         });
 
         it('should use env variable if config is missing', () => {
             process.env.EDWARD_DEPLOYMENT_TYPE = 'subdomain';
-            expect(detectDeploymentType({} as any)).toBe('subdomain');
+            expect(detectDeploymentType({} as BasePathConfig)).toBe('subdomain');
         });
 
         it('should default to path', () => {
-            expect(detectDeploymentType({} as any)).toBe('path');
+            expect(detectDeploymentType({} as BasePathConfig)).toBe('path');
         });
     });
 });

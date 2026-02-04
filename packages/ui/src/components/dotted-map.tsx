@@ -38,9 +38,10 @@ export const DottedMap = React.memo(function DottedMap({
     )
 
     // Memoize processed markers
-    // @ts-ignore - svg-dotted-map types might be missing or incomplete
-    const processedMarkers = React.useMemo(
-        () => addMarkers(markers),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const processedMarkers: any[] = React.useMemo(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        () => (addMarkers as any)(markers),
         [addMarkers, markers]
     )
 
@@ -74,6 +75,7 @@ export const DottedMap = React.memo(function DottedMap({
             className={cn("text-gray-500 dark:text-gray-500", className)}
             style={{ width: "100%", height: "100%", ...style }}
         >
+            {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
             {points.map((point: any, index: number) => {
                 const rowIndex = yToRowIndex.get(point.y) ?? 0
                 const offsetX = stagger && rowIndex % 2 === 1 ? xStep / 2 : 0
@@ -87,6 +89,7 @@ export const DottedMap = React.memo(function DottedMap({
                     />
                 )
             })}
+            {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
             {processedMarkers.map((marker: any, index: number) => {
                 const rowIndex = yToRowIndex.get(marker.y) ?? 0
                 const offsetX = stagger && rowIndex % 2 === 1 ? xStep / 2 : 0

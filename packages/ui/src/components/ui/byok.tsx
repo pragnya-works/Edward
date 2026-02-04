@@ -135,10 +135,6 @@ export function BYOK({
     setShowPassword((prev) => !prev);
   }
 
-  const selectedProviderConfig = PROVIDERS_CONFIG.find(
-    (p) => p.id === selectedProvider
-  );
-
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-md">

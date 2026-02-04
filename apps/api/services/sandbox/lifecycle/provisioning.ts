@@ -1,5 +1,6 @@
 import { nanoid } from 'nanoid';
 import { logger } from '../../../utils/logger.js';
+import { ensureError } from '../../../utils/error.js';
 import { SandboxInstance } from '../types.sandbox.js';
 import { saveSandboxState, getActiveSandboxState, refreshSandboxExpiry, deleteSandboxState } from '../state.sandbox.js';
 import { createContainer, getContainer } from '../docker.sandbox.js';
@@ -48,9 +49,10 @@ export async function getActiveSandbox(chatId: string): Promise<string | undefin
     await refreshSandboxExpiry(sandbox);
 
     return sandbox.id;
-  } catch {
+  } catch (error) {
+    const err = ensureError(error);
     containerStatusCache.set(sandbox.containerId, { alive: false, timestamp: Date.now() });
-    logger.warn({ sandboxId: sandbox.id, chatId }, 'Active sandbox container not found, cleaning up');
+    logger.warn({ error: err, sandboxId: sandbox.id, chatId }, 'Active sandbox container not found or error inspecting, cleaning up');
     await deleteSandboxState(sandbox.id, chatId);
     return undefined;
   }

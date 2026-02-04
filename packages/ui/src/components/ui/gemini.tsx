@@ -1,7 +1,7 @@
-import type { SVGProps } from "react";
+import * as React from "react";
 
-const Gemini = (props: SVGProps<SVGSVGElement>) => (
-  <svg {...(props as any)} viewBox="0 0 296 298" fill="none">
+const Gemini = (props: React.SVGProps<SVGSVGElement>) => (
+  <svg {...props} viewBox="0 0 296 298" fill="none">
     <mask
       id="gemini__a"
       width="296"

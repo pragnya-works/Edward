@@ -13,7 +13,8 @@ export async function doesFileExist(containerId: string, filePath: string): Prom
         const container = getContainer(containerId);
         const result = await execCommand(container, ['test', '-f', filePath], false, TIMEOUT_CHECK_MS);
         return result.exitCode === 0;
-    } catch {
+    } catch (error) {
+        logger.debug({ error: ensureError(error), filePath }, 'Error checking if file exists');
         return false;
     }
 }
@@ -23,7 +24,8 @@ export async function doesDirectoryExist(containerId: string, directoryPath: str
         const container = getContainer(containerId);
         const result = await execCommand(container, ['test', '-d', directoryPath], false, TIMEOUT_CHECK_MS);
         return result.exitCode === 0;
-    } catch {
+    } catch (error) {
+        logger.debug({ error: ensureError(error), directoryPath }, 'Error checking if directory exists');
         return false;
     }
 }

@@ -11,7 +11,7 @@ export const WorkflowStep = {
     RECOVER: 'RECOVER'
 } as const;
 
-const WorkflowStepTypeSchema = z.nativeEnum(WorkflowStep);
+export const WorkflowStepTypeSchema = z.nativeEnum(WorkflowStep);
 
 export const WorkflowStatus = {
     PENDING: 'pending',
@@ -21,13 +21,13 @@ export const WorkflowStatus = {
     FAILED: 'failed'
 } as const;
 
-const WorkflowStatusSchema = z.nativeEnum(WorkflowStatus);
+export const WorkflowStatusSchema = z.nativeEnum(WorkflowStatus);
 
-const ExecutorTypeSchema = z.enum(['llm', 'worker', 'hybrid']);
+export const ExecutorTypeSchema = z.enum(['llm', 'worker', 'hybrid']);
 
-const FrameworkSchema = z.enum(['nextjs', 'vite-react', 'vanilla']);
+export const FrameworkSchema = z.enum(['nextjs', 'vite-react', 'vanilla']);
 
-const ComplexitySchema = z.enum(['simple', 'moderate', 'complex']);
+export const ComplexitySchema = z.enum(['simple', 'moderate', 'complex']);
 
 export const PlanStatusSchema = z.enum(['pending', 'in_progress', 'done', 'blocked', 'failed']);
 
@@ -46,7 +46,7 @@ export const PlanSchema = z.object({
     lastUpdatedAt: z.number(),
 });
 
-const PackageInfoSchema = z.object({
+export const PackageInfoSchema = z.object({
     name: z.string(),
     version: z.string(),
     valid: z.boolean(),
@@ -63,7 +63,7 @@ export const IntentAnalysisSchema = z.object({
     reasoning: z.string()
 });
 
-const StepResultSchema = z.object({
+export const StepResultSchema = z.object({
     step: WorkflowStepTypeSchema,
     success: z.boolean(),
     data: z.unknown().optional(),
@@ -72,7 +72,7 @@ const StepResultSchema = z.object({
     retryCount: z.number().default(0)
 });
 
-const WorkflowContextSchema = z.object({
+export const WorkflowContextSchema = z.object({
     userRequest: z.string().optional(),
     intent: IntentAnalysisSchema.optional(),
     framework: FrameworkSchema.optional(),
@@ -97,7 +97,7 @@ export const WorkflowStateSchema = z.object({
     updatedAt: z.number()
 });
 
-const PhaseConfigSchema = z.object({
+export const PhaseConfigSchema = z.object({
     name: WorkflowStepTypeSchema,
     executor: ExecutorTypeSchema,
     maxRetries: z.number().default(3),

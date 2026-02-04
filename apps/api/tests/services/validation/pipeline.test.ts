@@ -21,7 +21,7 @@ describe('ValidationPipeline', () => {
 
     beforeEach(() => {
         vi.clearAllMocks();
-        vi.mocked(getContainer).mockReturnValue({} as any);
+        vi.mocked(getContainer).mockReturnValue({} as ReturnType<typeof getContainer>);
     });
 
     it('should pass if all stages succeed', async () => {

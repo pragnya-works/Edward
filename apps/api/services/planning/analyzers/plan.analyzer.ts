@@ -1,6 +1,7 @@
 import { nanoid } from 'nanoid';
 import { generateResponse } from '../../../lib/llm/response.js';
 import { logger } from '../../../utils/logger.js';
+import { ensureError } from '../../../utils/error.js';
 import { PlanSchema, type Plan } from '../schemas.js';
 import { createFallbackPlan, normalizePlan, mergePlanUpdate } from '../workflow/plan.js';
 
@@ -61,7 +62,8 @@ function safeParsePlan(raw: string): Plan | null {
     if (!Array.isArray(parsed.assumptions)) parsed.assumptions = [];
 
     return PlanSchema.parse(parsed);
-  } catch {
+  } catch (error) {
+    logger.debug({ error: ensureError(error), raw }, 'Failed to parse plan JSON');
     return null;
   }
 }

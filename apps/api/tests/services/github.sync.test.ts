@@ -77,14 +77,14 @@ describe('github sync service', () => {
             const callCount = dbMock.mock.calls.length;
             if (callCount === 1) return Promise.resolve([{ accessToken: 'mock-token' }]);
             return Promise.resolve([{ repo: 'owner/repo' }]);
-        }) as any);
+        }) as () => Promise<{ accessToken: string }[] | { repo: string }[]>);
     });
 
     it('should sync from active sandbox if available', async () => {
         vi.mocked(provisioning.getActiveSandbox).mockResolvedValue('sandbox-789');
 
         vi.mocked(archive.createBackupArchive).mockResolvedValue({
-            uploadStream: new Readable({ read() { this.push(null); } }) as any,
+            uploadStream: new Readable({ read() { this.push(null); } }),
             completion: Promise.resolve(true),
         });
 
@@ -97,7 +97,7 @@ describe('github sync service', () => {
 
     it('should fallback to S3 if no active sandbox is found', async () => {
         vi.mocked(provisioning.getActiveSandbox).mockResolvedValue(undefined);
-        vi.mocked(storage.downloadFile).mockResolvedValue(new Readable({ read() { this.push(null); } }) as any);
+        vi.mocked(storage.downloadFile).mockResolvedValue(new Readable({ read() { this.push(null); } }));
 
         const result = await syncChatToGithub(mockChatId, mockUserId, mockBranch, mockMessage);
 
