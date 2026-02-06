@@ -12,7 +12,7 @@ import {
     WorkflowStatus,
     Plan
 } from './schemas.js';
-import { analyzeIntent } from './analyzers/intent.analyzer.js';
+import { analyzeIntent } from './analyzers/intentAnalyzer.js';
 import { resolvePackages } from '../registry/package.registry.js';
 import { runValidationPipeline } from '../validation/pipeline.js';
 import { cleanupSandbox } from '../sandbox/lifecycle/cleanup.js';

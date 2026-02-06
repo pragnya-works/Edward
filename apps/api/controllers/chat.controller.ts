@@ -15,7 +15,7 @@ import { ensureError } from '../utils/error.js';
 import { deleteFolder } from '../services/storage.service.js';
 import { getOrCreateChat, saveMessage } from '../services/chat.service.js';
 import { createWorkflow, advanceWorkflow } from '../services/planning/workflowEngine.js';
-import { generatePlan } from '../services/planning/analyzers/plan.analyzer.js';
+import { generatePlan } from '../services/planning/analyzers/planAnalyzer.js';
 import { acquireUserSlot, releaseUserSlot } from '../services/concurrency.service.js';
 import { runStreamSession } from './chat/streamSession.js';
 import { getActiveSandbox, provisionSandbox } from '../services/sandbox/lifecycle/provisioning.js';

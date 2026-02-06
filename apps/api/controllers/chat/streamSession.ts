@@ -15,9 +15,10 @@ import { logger } from '../../utils/logger.js';
 import { MessageRole } from '@edward/auth';
 import type { WorkflowState } from '../../services/planning/schemas.js';
 import { resolveDependencies, suggestAlternatives } from '../../services/planning/resolvers/dependency.resolver.js';
-import { reflectPlan } from '../../services/planning/analyzers/plan.analyzer.js';
+import { reflectPlan } from '../../services/planning/analyzers/planAnalyzer.js';
 import { appendPlanDecision, markPlanStepInProgress, updatePlanStepStatus, createFallbackPlan } from '../../services/planning/workflow/plan.js';
 import { saveWorkflow } from '../../services/planning/workflow/store.js';
+import { validateGeneratedOutput } from '../../services/planning/validators/postgenValidator.js';
 
 const MAX_RESPONSE_SIZE = 10 * 1024 * 1024;
 const MAX_STREAM_DURATION_MS = 5 * 60 * 1000;
@@ -78,6 +79,9 @@ export async function runStreamSession(params: StreamSessionParams): Promise<voi
   let isFirstFileChunk = false;
   let streamTimer: NodeJS.Timeout | null = null;
 
+  const generatedFiles = new Map<string, string>();
+  const declaredPackages: string[] = [];
+
   if (!workflow.context.plan) {
     workflow.context.plan = createFallbackPlan();
     await saveWorkflow(workflow);
@@ -110,6 +114,7 @@ export async function runStreamSession(params: StreamSessionParams): Promise<voi
 
   try {
     const framework = workflow.context.framework;
+    const complexity = workflow.context.intent?.complexity;
     const stream = streamResponse(
       decryptedApiKey,
       userContent,
@@ -117,6 +122,7 @@ export async function runStreamSession(params: StreamSessionParams): Promise<voi
       preVerifiedDeps,
       undefined,
       framework,
+      complexity,
     );
 
     for await (const chunk of stream) {
@@ -152,6 +158,7 @@ export async function runStreamSession(params: StreamSessionParams): Promise<voi
             case ParserEventType.FILE_CONTENT:
               if (!workflow.sandboxId || !currentFilePath) break;
               await handleFileContent(workflow.sandboxId, currentFilePath, event.content, isFirstFileChunk);
+              generatedFiles.set(currentFilePath, (generatedFiles.get(currentFilePath) || '') + event.content);
               if (isFirstFileChunk) isFirstFileChunk = false;
               break;
 
@@ -171,6 +178,9 @@ export async function runStreamSession(params: StreamSessionParams): Promise<voi
               break;
 
             case ParserEventType.INSTALL_CONTENT: {
+              if (event.dependencies) {
+                declaredPackages.push(...event.dependencies);
+              }
               if (event.framework) {
                 const normalized = normalizeFramework(event.framework);
                 if (normalized) {
@@ -292,6 +302,24 @@ export async function runStreamSession(params: StreamSessionParams): Promise<voi
     }
 
     if (workflow.sandboxId) {
+      if (generatedFiles.size > 0) {
+        const validation = validateGeneratedOutput({
+          framework: workflow.context.framework,
+          files: generatedFiles,
+          declaredPackages,
+        });
+        if (!validation.valid) {
+          const errorViolations = validation.violations.filter(v => v.severity === 'error');
+          logger.warn({ violations: errorViolations, chatId }, 'Post-gen validation found build-breaking issues');
+          for (const violation of validation.violations) {
+            res.write(`data: ${JSON.stringify({
+              type: ParserEventType.ERROR,
+              message: `[Validation] ${violation.message}`,
+            })}\n\n`);
+          }
+        }
+      }
+
       await flushSandbox(workflow.sandboxId, true).catch((err: unknown) =>
         logger.error(ensureError(err), `Final flush failed for sandbox: ${workflow.sandboxId}`)
       );

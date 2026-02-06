@@ -59,7 +59,7 @@ vi.mock('../../../services/sandbox/builder/unified.build.js', () => ({
     })
 }));
 
-vi.mock('../../../services/planning/analyzers/intent.analyzer.js', () => ({
+vi.mock('../../../services/planning/analyzers/intentAnalyzer.js', () => ({
     analyzeIntent: vi.fn().mockReturnValue({
         type: 'landing',
         complexity: 'simple',

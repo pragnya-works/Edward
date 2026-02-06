@@ -2,36 +2,34 @@ import { IntentAnalysisSchema, IntentAnalysis } from '../schemas.js';
 import { generateResponse } from '../../../lib/llm/response.js';
 import { logger } from '../../../utils/logger.js';
 
-const ANALYSIS_SYSTEM_PROMPT = `You are a technical architect analyzer. Analyze the user request and determine the best project structure.
-Respond ONLY with a JSON object.
+const ANALYSIS_SYSTEM_PROMPT = `You are a technical architect. Analyze the user request and return a JSON object with this exact structure:
 
-Allowed Values:
-- type: 'landing', 'dashboard', 'portfolio', 'ecommerce', 'blog', 'custom'
-- complexity: 'simple', 'moderate', 'complex'
-- suggestedFramework: 'nextjs', 'vite-react', 'vanilla'
-
-Return exact JSON structure:
 {
-  "type": string,
-  "complexity": string,
-  "features": string[],
-  "recommendedPackages": string[],
-  "suggestedFramework": string,
-  "reasoning": string
-}`;
+  "type": "landing" | "dashboard" | "portfolio" | "ecommerce" | "blog" | "custom",
+  "complexity": "simple" | "moderate" | "complex",
+  "features": ["feature1", "feature2"],
+  "recommendedPackages": ["package-name"],
+  "suggestedFramework": "nextjs" | "vite-react" | "vanilla",
+  "reasoning": "Brief explanation"
+}
+
+}
+ 
+Respond with ONLY the JSON object.`;
 
 export async function analyzeIntent(input: string, apiKey: string): Promise<IntentAnalysis> {
     try {
         const response = await generateResponse(
-            apiKey, 
-            `User Request: "${input}"`, 
-            [], 
-            ANALYSIS_SYSTEM_PROMPT
+            apiKey,
+            `Analyze this request: "${input}"`,
+            [],
+            ANALYSIS_SYSTEM_PROMPT,
+            { jsonMode: true }
         );
 
         const jsonMatch = response.match(/\{[\s\S]*\}/);
         if (!jsonMatch) throw new Error('No JSON found in LLM response');
-        
+
         const parsed = JSON.parse(jsonMatch[0]);
         return IntentAnalysisSchema.parse(parsed);
     } catch (error) {

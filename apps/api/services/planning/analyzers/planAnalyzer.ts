@@ -5,38 +5,32 @@ import { ensureError } from '../../../utils/error.js';
 import { PlanSchema, type Plan } from '../schemas.js';
 import { createFallbackPlan, normalizePlan, mergePlanUpdate } from '../workflow/plan.js';
 
-const PLAN_SYSTEM_PROMPT = `You are a senior technical planner. Produce a concise execution plan BEFORE any tools are used.
-Respond ONLY with JSON and nothing else.
+const PLAN_SYSTEM_PROMPT = `You are a technical planner. Create an execution plan as a JSON object.
 
-JSON Schema:
+Required JSON structure:
 {
-  "summary": string,
+  "summary": "One sentence describing what will be built",
   "steps": [
-    {
-      "id": string,
-      "title": string,
-      "description": string,
-      "status": "pending" | "in_progress" | "done" | "blocked" | "failed"
-    }
+    { "id": "step-1", "title": "Verb + action", "description": "Details", "status": "pending" }
   ],
-  "assumptions": string[],
-  "decisions": string[],
-  "lastUpdatedAt": number
+  "assumptions": ["assumption1"],
+  "decisions": [],
+  "lastUpdatedAt": 0
 }
 
 Rules:
-- 5 to 8 steps
-- Start titles with verbs (Analyze, Resolve, Generate, Validate, Deliver, etc.)
-- All statuses MUST be "pending"
-- lastUpdatedAt MUST be a number (milliseconds)
-- Be explicit, production-oriented, and efficient
-`;
+- 5 to 8 steps, titles start with verbs (Analyze, Generate, Validate, etc.)
+- All statuses must be "pending"
+- lastUpdatedAt must be 0 (will be set by system)
+- Be concise and production-oriented
 
-const REFLECT_SYSTEM_PROMPT = `You are a senior planner revising a plan due to a decision point.
-Respond ONLY with JSON and nothing else.
-Use the same schema as the original plan.
-Update steps only if needed and keep completed steps as done when possible.
-Keep the plan concise and actionable.`;
+Respond with ONLY the JSON object.`;
+
+const REFLECT_SYSTEM_PROMPT = `You are a planner revising an execution plan. Update the plan based on the decision context.
+Use the same JSON schema. Keep completed steps as "done". Be concise.
+Respond with ONLY the JSON object.`;
+
+const RETRY_PROMPT = `Your previous response was not valid JSON. Respond with ONLY a valid JSON object matching the schema described in the system prompt. No markdown, no explanation, just the raw JSON.`;
 
 function safeParsePlan(raw: string): Plan | null {
   const jsonMatch = raw.match(/\{[\s\S]*\}/);
@@ -70,11 +64,17 @@ function safeParsePlan(raw: string): Plan | null {
 
 export async function generatePlan(userRequest: string, apiKey: string): Promise<Plan> {
   try {
-    const response = await generateResponse(apiKey, userRequest, [], PLAN_SYSTEM_PROMPT);
+    const response = await generateResponse(apiKey, userRequest, [], PLAN_SYSTEM_PROMPT, { jsonMode: true });
     const parsed = safeParsePlan(response);
-    if (!parsed) return createFallbackPlan();
+    if (parsed) return normalizePlan(parsed);
 
-    return normalizePlan(parsed);
+    logger.info('Plan generation: first attempt failed to parse, retrying with nudge');
+    const retryResponse = await generateResponse(apiKey, RETRY_PROMPT + '\n\nOriginal request: ' + userRequest, [], PLAN_SYSTEM_PROMPT, { jsonMode: true });
+    const retryParsed = safeParsePlan(retryResponse);
+    if (retryParsed) return normalizePlan(retryParsed);
+
+    logger.warn('Plan generation: both attempts failed, using fallback');
+    return createFallbackPlan();
   } catch (error) {
     logger.error(error, 'Plan generation failed');
     return createFallbackPlan();
@@ -88,7 +88,7 @@ export async function reflectPlan(
 ): Promise<Plan> {
   try {
     const prompt = `Current Plan:\n${JSON.stringify(currentPlan, null, 2)}\n\nDecision Context:\n${decisionContext}`;
-    const response = await generateResponse(apiKey, prompt, [], REFLECT_SYSTEM_PROMPT);
+    const response = await generateResponse(apiKey, prompt, [], REFLECT_SYSTEM_PROMPT, { jsonMode: true });
     const parsed = safeParsePlan(response);
     if (!parsed) return currentPlan;
 

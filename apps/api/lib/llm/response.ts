@@ -1,11 +1,17 @@
 import OpenAI from 'openai';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { Provider, API_KEY_REGEX } from '@edward/shared/constants';
-import { SYSTEM_PROMPT } from "./systemPrompt.js";
+import { composePrompt, type ComposeOptions } from './compose.js';
 import { createLogger } from "../../utils/logger.js";
 import { ensureError } from "../../utils/error.js";
 
 const logger = createLogger('LLM');
+
+const GENERATION_CONFIG = {
+  temperature: 0.2,
+  topP: 0.95,
+  geminiMaxOutputTokens: 65536,
+} as const;
 
 function getClient(apiKey: string) {
   if (API_KEY_REGEX[Provider.OPENAI].test(apiKey)) {
@@ -33,13 +39,24 @@ function getClient(apiKey: string) {
   }
 }
 
+export interface StreamOptions {
+  apiKey: string;
+  content: string;
+  signal?: AbortSignal;
+  verifiedDependencies?: string[];
+  customSystemPrompt?: string;
+  framework?: string;
+  complexity?: string;
+}
+
 export async function* streamResponse(
   apiKey: string, 
   content: string, 
   signal?: AbortSignal,
   verifiedDependencies?: string[],
   customSystemPrompt?: string,
-  framework?: string
+  framework?: string,
+  complexity?: string
 ): AsyncGenerator<string> {
   if (!apiKey || typeof apiKey !== 'string' || apiKey.trim().length === 0) {
     throw new Error('Invalid API key: API key must be a non-empty string');
@@ -51,17 +68,11 @@ export async function* streamResponse(
 
   const { type, client, model } = getClient(apiKey);
   
-  let contextPrompt = '';
-  
-  if (verifiedDependencies && verifiedDependencies.length > 0) {
-    contextPrompt += `\n\n[CONTEXT] The following packages have been verified and corrected for use in this project: ${verifiedDependencies.join(', ')}. Please use these exact names in your <edward_install> tag.`;
-  }
-  
-  if (framework) {
-    contextPrompt += `\n\n[ENVIRONMENT] You are working in a ${framework} project. For a successful build, you MUST include the required entry point files as specified in the <code_completion_requirements> section.`;
-  }
-
-  const fullSystemPrompt = customSystemPrompt || (SYSTEM_PROMPT + contextPrompt);
+  const fullSystemPrompt = customSystemPrompt || composePrompt({
+    framework: framework as ComposeOptions['framework'],
+    complexity: (complexity || 'moderate') as ComposeOptions['complexity'],
+    verifiedDependencies,
+  });
 
   try {
     if (type === Provider.OPENAI) {
@@ -73,6 +84,8 @@ export async function* streamResponse(
           { role: 'user', content }
         ],
         stream: true,
+        temperature: GENERATION_CONFIG.temperature,
+        top_p: GENERATION_CONFIG.topP,
       }, { signal });
 
       for await (const chunk of stream) {
@@ -87,7 +100,9 @@ export async function* streamResponse(
       const result = await geminiModel.generateContentStream({
         contents: [{ role: 'user', parts: [{ text: content }] }],
         generationConfig: {
-            maxOutputTokens: 16384,
+          maxOutputTokens: GENERATION_CONFIG.geminiMaxOutputTokens,
+          temperature: GENERATION_CONFIG.temperature,
+          topP: GENERATION_CONFIG.topP,
         }
       }, { signal });
 
@@ -112,7 +127,8 @@ export async function generateResponse(
   apiKey: string, 
   content: string,
   verifiedDependencies?: string[],
-  customSystemPrompt?: string
+  customSystemPrompt?: string,
+  options?: { jsonMode?: boolean }
 ): Promise<string> {
   if (!apiKey || typeof apiKey !== 'string' || apiKey.trim().length === 0) {
     throw new Error('Invalid API key: API key must be a non-empty string');
@@ -123,11 +139,12 @@ export async function generateResponse(
   }
 
   const { type, client, model } = getClient(apiKey);
-  const contextPrompt = verifiedDependencies && verifiedDependencies.length > 0
-    ? `\n\n[CONTEXT] The following packages have been verified and corrected for use in this project: ${verifiedDependencies.join(', ')}. Please use these exact names in your <edward_install> tag.`
-    : '';
+  
+  const fullSystemPrompt = customSystemPrompt || composePrompt({
+    verifiedDependencies,
+  });
 
-  const fullSystemPrompt = customSystemPrompt || (SYSTEM_PROMPT + contextPrompt);
+  const jsonMode = options?.jsonMode ?? false;
 
   try {
     if (type === Provider.OPENAI) {
@@ -138,14 +155,22 @@ export async function generateResponse(
           { role: 'system', content: fullSystemPrompt },
           { role: 'user', content }
         ],
+        temperature: GENERATION_CONFIG.temperature,
+        ...(jsonMode && { response_format: { type: 'json_object' } }),
       });
       return completion.choices[0]?.message?.content || '';
     } else {
       const genAI = client as GoogleGenerativeAI;
-      const geminiModel = genAI.getGenerativeModel({ model, systemInstruction: fullSystemPrompt });
 
-      const result = await geminiModel.generateContent({
-        contents: [{ role: 'user', parts: [{ text: content }] }]
+      const result = await genAI.getGenerativeModel({
+        model,
+        systemInstruction: fullSystemPrompt,
+        ...(jsonMode && { generationConfig: { responseMimeType: 'application/json' } }),
+      }).generateContent({
+        contents: [{ role: 'user', parts: [{ text: content }] }],
+        generationConfig: {
+          temperature: GENERATION_CONFIG.temperature,
+        },
       });
       return result.response.text();
     }
