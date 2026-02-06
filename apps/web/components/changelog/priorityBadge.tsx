@@ -1,6 +1,6 @@
 import { Badge } from "@edward/ui/components/badge";
 import { cn } from "@edward/ui/lib/utils";
-import { AlertTriangle, ArrowUp, ArrowRight, ArrowDown, Minus } from "lucide-react";
+import { AlertTriangle, ArrowUp, ArrowRight, ArrowDown } from "lucide-react";
 import { memo } from "react";
 
 interface PriorityBadgeProps {

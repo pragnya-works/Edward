@@ -1,0 +1,31 @@
+{
+  "name": "@edward/octokit",
+  "version": "1.0.0",
+  "description": "Shared GitHub client for Edward workspace",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsup index.ts --format esm --dts",
+    "dev": "tsup index.ts --format esm --watch --dts",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint . --max-warnings 0",
+    "lint:fix": "eslint . --fix"
+  },
+  "devDependencies": {
+    "@edward/eslint-config": "workspace:*",
+    "@edward/typescript-config": "workspace:*",
+    "tsup": "^8.3.5",
+    "typescript": "5.7.3",
+    "eslint": "^9.16.0"
+  },
+  "dependencies": {
+    "octokit": "^4.0.2"
+  }
+}

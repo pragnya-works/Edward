@@ -6,7 +6,7 @@ RUN npm install -g pnpm
 WORKDIR /home/node/edward
 
 # Copy ONLY essential config files (no pre-installed deps)
-COPY tsconfig.json next.config.ts eslint.config.mjs ./
+COPY tsconfig.json next.config.ts eslint.config.mjs postcss.config.mjs ./
 
 # Create minimal package.json with only scripts (deps installed dynamically)
 RUN echo '{"name":"edward-nextjs","version":"1.0.0","private":true,"scripts":{"dev":"next dev","build":"next build","start":"next start"},"dependencies":{},"devDependencies":{}}' > package.json

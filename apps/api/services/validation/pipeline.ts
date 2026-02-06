@@ -13,15 +13,15 @@ const ValidationErrorSchema = z.object({
     ruleId: z.string().optional()
 });
 
-const ValidationResultSchema = z.object({
+export type ValidationResult = z.infer<typeof ValidationResultSchema>;
+export const ValidationResultSchema = z.object({
     valid: z.boolean(),
     stage: ValidationStageSchema.optional(),
     errors: z.array(ValidationErrorSchema).default([]),
     retryPrompt: z.string().optional()
 });
 
-type ValidationError = z.infer<typeof ValidationErrorSchema>;
-type ValidationResult = z.infer<typeof ValidationResultSchema>;
+export type ValidationError = z.infer<typeof ValidationErrorSchema>;
 
 async function runContainerCommand(
     containerId: string,
@@ -32,14 +32,14 @@ async function runContainerCommand(
     return execCommand(container, command, false, timeoutMs, undefined, CONTAINER_WORKDIR);
 }
 
-async function validateSyntax(containerId: string, _sandboxId: string): Promise<ValidationResult> {
+async function validateSyntax(containerId: string): Promise<ValidationResult> {
     const result = await runContainerCommand(containerId, [
         'sh', '-c',
         'find src -name "*.ts" -o -name "*.tsx" -o -name "*.js" -o -name "*.jsx" 2>/dev/null | xargs -I{} node --check {} 2>&1'
     ]);
 
     const output = result.stdout + result.stderr;
-    
+
     if (output && (result.exitCode !== 0 || output.includes('SyntaxError'))) {
         const errors = parseSyntaxErrors(output);
         if (errors.length > 0) {
@@ -71,7 +71,7 @@ function parseSyntaxErrors(output: string): ValidationError[] {
     return errors;
 }
 
-async function validateTypes(containerId: string, _sandboxId: string): Promise<ValidationResult> {
+async function validateTypes(containerId: string): Promise<ValidationResult> {
     const result = await runContainerCommand(containerId, [
         'sh', '-c',
         'if [ -f tsconfig.json ]; then set -o pipefail; pnpm tsc --noEmit 2>&1 | head -50; else echo "no-ts"; fi'
@@ -109,7 +109,7 @@ function parseTypeErrors(output: string): ValidationError[] {
     return errors;
 }
 
-async function validateBuild(_containerId: string, _sandboxId: string): Promise<ValidationResult> {
+async function validateBuild(): Promise<ValidationResult> {
     return { valid: true, errors: [] };
 }
 
@@ -144,7 +144,7 @@ export async function runValidationPipeline(
 
     try {
         for (const stage of stages) {
-            const result = await stage.validate(containerId, sandboxId);
+            const result = await stage.validate(containerId);
 
             if (!result.valid) {
                 logger.warn({ sandboxId, stage: stage.name, errorCount: result.errors.length }, 'Validation failed');

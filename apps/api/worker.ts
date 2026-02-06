@@ -23,6 +23,21 @@ async function processBuildJob(payload: BuildJobPayload): Promise<void> {
   
   try {
     const result = await buildAndUploadUnified(sandboxId);
+    if (result.success) {
+      logger.info({
+        sandboxId,
+        buildDirectory: result.buildDirectory,
+        previewUploaded: result.previewUploaded,
+        previewUrl: result.previewUrl
+      }, '[Worker] Build job completed with preview');
+    } else {
+      logger.warn({
+        sandboxId,
+        buildDirectory: result.buildDirectory,
+        previewUploaded: result.previewUploaded,
+        error: result.error
+      }, '[Worker] Build job completed without preview');
+    }
     
     if (!result.success) {
       throw new Error(result.error ?? 'Build failed without error message');

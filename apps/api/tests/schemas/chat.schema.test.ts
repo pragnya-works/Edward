@@ -30,6 +30,9 @@ describe('chat schemas', () => {
       expect(ParserEventType.FILE_START).toBe('file_start');
       expect(ParserEventType.FILE_CONTENT).toBe('file_content');
       expect(ParserEventType.FILE_END).toBe('file_end');
+      expect(ParserEventType.PLAN).toBe('plan');
+      expect(ParserEventType.PLAN_UPDATE).toBe('plan_update');
+      expect(ParserEventType.TODO_UPDATE).toBe('todo_update');
       expect(ParserEventType.ERROR).toBe('error');
       expect(ParserEventType.META).toBe('meta');
     });
@@ -267,6 +270,33 @@ describe('chat schemas', () => {
         userMessageId: 'msg-1',
         assistantMessageId: 'msg-2',
         isNewChat: true,
+      });
+
+      expect(result.success).toBe(true);
+    });
+
+    it('should validate PLAN event', () => {
+      const result = ParserEventSchema.safeParse({
+        type: ParserEventType.PLAN,
+        plan: {
+          summary: 'Test plan',
+          steps: [{ id: '1', title: 'Analyze', status: 'pending' }],
+          decisions: [],
+          assumptions: [],
+          lastUpdatedAt: Date.now(),
+        },
+      });
+
+      expect(result.success).toBe(true);
+    });
+
+    it('should validate TODO_UPDATE event', () => {
+      const result = ParserEventSchema.safeParse({
+        type: ParserEventType.TODO_UPDATE,
+        todos: [
+          { id: '1', title: 'Analyze', status: 'pending' },
+          { id: '2', title: 'Generate', status: 'in_progress', description: 'Write code' },
+        ],
       });
 
       expect(result.success).toBe(true);

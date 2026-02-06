@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { redis } from '../../lib/redis.js';
 import { logger } from '../../utils/logger.js';
+import { ensureError } from '../../utils/error.js';
 
 const CACHE_TTL_SECONDS = 86400;
 const CACHE_PREFIX = 'edward:pkg:';
@@ -49,7 +50,8 @@ async function getCachedResult(name: string): Promise<ValidationResult | null> {
         const cached = await redis.get(`${CACHE_PREFIX}${name}`);
         if (!cached) return null;
         return ValidationResultSchema.parse(JSON.parse(cached));
-    } catch {
+    } catch (error) {
+        logger.debug({ error: ensureError(error), name }, 'Failed to get cached validation result');
         return null;
     }
 }

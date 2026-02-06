@@ -1,30 +1,52 @@
 import { z } from 'zod';
 
-const WorkflowStepTypeSchema = z.enum([
-    'ANALYZE',
-    'RESOLVE_PACKAGES',
-    'INSTALL_PACKAGES',
-    'GENERATE',
-    'BUILD',
-    'DEPLOY',
-    'RECOVER'
-]);
+export const WorkflowStep = {
+    ANALYZE: 'ANALYZE',
+    PLAN: 'PLAN',
+    RESOLVE_PACKAGES: 'RESOLVE_PACKAGES',
+    INSTALL_PACKAGES: 'INSTALL_PACKAGES',
+    GENERATE: 'GENERATE',
+    BUILD: 'BUILD',
+    DEPLOY: 'DEPLOY',
+    RECOVER: 'RECOVER'
+} as const;
 
-const WorkflowStatusSchema = z.enum([
-    'pending',
-    'running',
-    'paused',
-    'completed',
-    'failed'
-]);
+export const WorkflowStepTypeSchema = z.nativeEnum(WorkflowStep);
 
-const ExecutorTypeSchema = z.enum(['llm', 'worker', 'hybrid']);
+export const WorkflowStatus = {
+    PENDING: 'pending',
+    RUNNING: 'running',
+    PAUSED: 'paused',
+    COMPLETED: 'completed',
+    FAILED: 'failed'
+} as const;
 
-const FrameworkSchema = z.enum(['nextjs', 'vite-react', 'vanilla']);
+export const WorkflowStatusSchema = z.nativeEnum(WorkflowStatus);
 
-const ComplexitySchema = z.enum(['simple', 'moderate', 'complex']);
+export const ExecutorTypeSchema = z.enum(['llm', 'worker', 'hybrid']);
 
-const PackageInfoSchema = z.object({
+export const FrameworkSchema = z.enum(['nextjs', 'vite-react', 'vanilla']);
+
+export const ComplexitySchema = z.enum(['simple', 'moderate', 'complex']);
+
+export const PlanStatusSchema = z.enum(['pending', 'in_progress', 'done', 'blocked', 'failed']);
+
+export const PlanStepSchema = z.object({
+    id: z.string(),
+    title: z.string(),
+    description: z.string().optional(),
+    status: PlanStatusSchema,
+});
+
+export const PlanSchema = z.object({
+    summary: z.string(),
+    steps: z.array(PlanStepSchema).min(1),
+    decisions: z.array(z.string()).default([]),
+    assumptions: z.array(z.string()).default([]),
+    lastUpdatedAt: z.number(),
+});
+
+export const PackageInfoSchema = z.object({
     name: z.string(),
     version: z.string(),
     valid: z.boolean(),
@@ -41,7 +63,7 @@ export const IntentAnalysisSchema = z.object({
     reasoning: z.string()
 });
 
-const StepResultSchema = z.object({
+export const StepResultSchema = z.object({
     step: WorkflowStepTypeSchema,
     success: z.boolean(),
     data: z.unknown().optional(),
@@ -50,10 +72,11 @@ const StepResultSchema = z.object({
     retryCount: z.number().default(0)
 });
 
-const WorkflowContextSchema = z.object({
+export const WorkflowContextSchema = z.object({
     userRequest: z.string().optional(),
     intent: IntentAnalysisSchema.optional(),
     framework: FrameworkSchema.optional(),
+    plan: PlanSchema.optional(),
     resolvedPackages: z.array(PackageInfoSchema).optional(),
     generatedFiles: z.array(z.string()).optional(),
     buildDirectory: z.string().optional(),
@@ -74,7 +97,7 @@ export const WorkflowStateSchema = z.object({
     updatedAt: z.number()
 });
 
-const PhaseConfigSchema = z.object({
+export const PhaseConfigSchema = z.object({
     name: WorkflowStepTypeSchema,
     executor: ExecutorTypeSchema,
     maxRetries: z.number().default(3),
@@ -84,6 +107,9 @@ const PhaseConfigSchema = z.object({
 export type WorkflowStepType = z.infer<typeof WorkflowStepTypeSchema>;
 export type Framework = z.infer<typeof FrameworkSchema>;
 export type Complexity = z.infer<typeof ComplexitySchema>;
+export type PlanStatus = z.infer<typeof PlanStatusSchema>;
+export type PlanStep = z.infer<typeof PlanStepSchema>;
+export type Plan = z.infer<typeof PlanSchema>;
 export type IntentAnalysis = z.infer<typeof IntentAnalysisSchema>;
 export type PackageInfo = z.infer<typeof PackageInfoSchema>;
 export type StepResult = z.infer<typeof StepResultSchema>;

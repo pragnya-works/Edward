@@ -14,6 +14,11 @@ import { ensureError } from '../../utils/error.js';
 import { logger } from '../../utils/logger.js';
 import { MessageRole } from '@edward/auth';
 import type { WorkflowState } from '../../services/planning/schemas.js';
+import { resolveDependencies, suggestAlternatives } from '../../services/planning/resolvers/dependency.resolver.js';
+import { reflectPlan } from '../../services/planning/analyzers/planAnalyzer.js';
+import { appendPlanDecision, markPlanStepInProgress, updatePlanStepStatus, createFallbackPlan } from '../../services/planning/workflow/plan.js';
+import { saveWorkflow } from '../../services/planning/workflow/store.js';
+import { validateGeneratedOutput } from '../../services/planning/validators/postgenValidator.js';
 
 const MAX_RESPONSE_SIZE = 10 * 1024 * 1024;
 const MAX_STREAM_DURATION_MS = 5 * 60 * 1000;
@@ -35,6 +40,12 @@ async function handleFileContent(
   if (processedContent) {
     await writeSandboxFile(sandboxId, filePath, processedContent);
   }
+}
+
+function emitPlanUpdate(res: Response, plan: WorkflowState['context']['plan']): void {
+  if (!plan || res.writableEnded) return;
+  res.write(`data: ${JSON.stringify({ type: ParserEventType.PLAN_UPDATE, plan })}\n\n`);
+  res.write(`data: ${JSON.stringify({ type: ParserEventType.TODO_UPDATE, todos: plan.steps })}\n\n`);
 }
 
 export interface StreamSessionParams {
@@ -68,6 +79,27 @@ export async function runStreamSession(params: StreamSessionParams): Promise<voi
   let isFirstFileChunk = false;
   let streamTimer: NodeJS.Timeout | null = null;
 
+  const generatedFiles = new Map<string, string>();
+  const declaredPackages: string[] = [];
+
+  if (!workflow.context.plan) {
+    workflow.context.plan = createFallbackPlan();
+    await saveWorkflow(workflow);
+    emitPlanUpdate(res, workflow.context.plan);
+  }
+
+  async function updatePlanWithDecision(decisionContext: string): Promise<void> {
+    if (!workflow.context.plan) return;
+    try {
+      const updated = await reflectPlan(workflow.context.plan, decisionContext, decryptedApiKey);
+      workflow.context.plan = appendPlanDecision(updated, decisionContext);
+      await saveWorkflow(workflow);
+      emitPlanUpdate(res, workflow.context.plan);
+    } catch (error) {
+      logger.warn({ error, chatId }, 'Failed to reflect plan on decision point');
+    }
+  }
+
   const abortController = new AbortController();
   streamTimer = setTimeout(() => {
     logger.warn({ chatId }, 'Stream timeout reached');
@@ -82,6 +114,7 @@ export async function runStreamSession(params: StreamSessionParams): Promise<voi
 
   try {
     const framework = workflow.context.framework;
+    const complexity = workflow.context.intent?.complexity;
     const stream = streamResponse(
       decryptedApiKey,
       userContent,
@@ -89,6 +122,7 @@ export async function runStreamSession(params: StreamSessionParams): Promise<voi
       preVerifiedDeps,
       undefined,
       framework,
+      complexity,
     );
 
     for await (const chunk of stream) {
@@ -107,6 +141,11 @@ export async function runStreamSession(params: StreamSessionParams): Promise<voi
               if (!workflow.sandboxId) {
                 await ensureSandbox(workflow);
               }
+              if (workflow.context.plan) {
+                workflow.context.plan = markPlanStepInProgress(workflow.context.plan, 'Generate');
+                await saveWorkflow(workflow);
+                emitPlanUpdate(res, workflow.context.plan);
+              }
               break;
 
             case ParserEventType.FILE_START:
@@ -119,6 +158,7 @@ export async function runStreamSession(params: StreamSessionParams): Promise<voi
             case ParserEventType.FILE_CONTENT:
               if (!workflow.sandboxId || !currentFilePath) break;
               await handleFileContent(workflow.sandboxId, currentFilePath, event.content, isFirstFileChunk);
+              generatedFiles.set(currentFilePath, (generatedFiles.get(currentFilePath) || '') + event.content);
               if (isFirstFileChunk) isFirstFileChunk = false;
               break;
 
@@ -138,6 +178,9 @@ export async function runStreamSession(params: StreamSessionParams): Promise<voi
               break;
 
             case ParserEventType.INSTALL_CONTENT: {
+              if (event.dependencies) {
+                declaredPackages.push(...event.dependencies);
+              }
               if (event.framework) {
                 const normalized = normalizeFramework(event.framework);
                 if (normalized) {
@@ -150,9 +193,46 @@ export async function runStreamSession(params: StreamSessionParams): Promise<voi
 
               const rawDependencies = event.dependencies || [];
               if (rawDependencies.length > 0) {
+                if (workflow.context.plan) {
+                  workflow.context.plan = markPlanStepInProgress(workflow.context.plan, 'Resolve');
+                  await saveWorkflow(workflow);
+                  emitPlanUpdate(res, workflow.context.plan);
+                }
+
+                const frameworkForResolution = workflow.context.framework || 'vanilla';
+                const resolution = await resolveDependencies(rawDependencies, frameworkForResolution);
+                const validDeps = resolution.resolved.map(dep => dep.name);
+
+                if (resolution.failed.length > 0) {
+                  const failures = resolution.failed.map(dep => dep.name).join(', ');
+                  const suggestions = resolution.failed
+                    .flatMap(dep => suggestAlternatives(dep.name))
+                    .filter(Boolean);
+
+                  const message = `Invalid dependencies detected: ${failures}` + (suggestions.length > 0
+                    ? ` (suggested alternatives: ${Array.from(new Set(suggestions)).join(', ')})`
+                    : '');
+
+                  await updatePlanWithDecision(`Dependency validation failed: ${message}`);
+
+                  res.write(`data: ${JSON.stringify({
+                    type: ParserEventType.ERROR,
+                    message
+                  })}\n\n`);
+                }
+
+                if (resolution.warnings.length > 0) {
+                  await updatePlanWithDecision(`Dependency warnings: ${resolution.warnings.join('; ')}`);
+                }
+
                 await advanceWorkflow(workflow, rawDependencies);
-                if (workflow.sandboxId) {
-                  await addSandboxPackages(workflow.sandboxId, rawDependencies);
+                if (workflow.sandboxId && validDeps.length > 0) {
+                  await addSandboxPackages(workflow.sandboxId, validDeps);
+                  if (workflow.context.plan) {
+                    workflow.context.plan = updatePlanStepStatus(workflow.context.plan, step => step.title.toLowerCase().includes('resolve'), 'done');
+                    await saveWorkflow(workflow);
+                    emitPlanUpdate(res, workflow.context.plan);
+                  }
                 }
               }
               break;
@@ -163,6 +243,7 @@ export async function runStreamSession(params: StreamSessionParams): Promise<voi
           }
         } catch (sandboxError) {
           logger.error(ensureError(sandboxError), 'Sandbox operation failed during streaming');
+          await updatePlanWithDecision(`Sandbox operation failed during streaming: ${ensureError(sandboxError).message}`);
           res.write(`data: ${JSON.stringify({
             type: ParserEventType.ERROR,
             message: 'Sandbox execution failed'
@@ -196,6 +277,7 @@ export async function runStreamSession(params: StreamSessionParams): Promise<voi
           case ParserEventType.FILE_CONTENT:
             if (workflow.sandboxId && currentFilePath) {
               await handleFileContent(workflow.sandboxId, currentFilePath, event.content, isFirstFileChunk);
+              generatedFiles.set(currentFilePath, (generatedFiles.get(currentFilePath) || '') + event.content);
               if (isFirstFileChunk) isFirstFileChunk = false;
             }
             break;
@@ -214,20 +296,45 @@ export async function runStreamSession(params: StreamSessionParams): Promise<voi
         }
       } catch (sandboxError) {
         logger.error(ensureError(sandboxError), 'Final sandbox operation failed');
+        await updatePlanWithDecision(`Final sandbox operation failed: ${ensureError(sandboxError).message}`);
         continue;
       }
       res.write(`data: ${JSON.stringify(event)}\n\n`);
     }
 
     if (workflow.sandboxId) {
+      if (generatedFiles.size > 0) {
+        const validation = validateGeneratedOutput({
+          framework: workflow.context.framework,
+          files: generatedFiles,
+          declaredPackages,
+        });
+        if (!validation.valid) {
+          const errorViolations = validation.violations.filter(v => v.severity === 'error');
+          logger.warn({ violations: errorViolations, chatId }, 'Post-gen validation found build-breaking issues');
+          for (const violation of validation.violations) {
+            res.write(`data: ${JSON.stringify({
+              type: ParserEventType.ERROR,
+              message: `[Validation] ${violation.message}`,
+            })}\n\n`);
+          }
+        }
+      }
+
       await flushSandbox(workflow.sandboxId, true).catch((err: unknown) =>
         logger.error(ensureError(err), `Final flush failed for sandbox: ${workflow.sandboxId}`)
       );
 
       try {
         await enqueueBuildJob({ sandboxId: workflow.sandboxId, userId, chatId });
+        if (workflow.context.plan) {
+          workflow.context.plan = markPlanStepInProgress(workflow.context.plan, 'Validate');
+          await saveWorkflow(workflow);
+          emitPlanUpdate(res, workflow.context.plan);
+        }
       } catch (queueErr) {
         logger.error(ensureError(queueErr), `Failed to enqueue build job for sandbox: ${workflow.sandboxId}`);
+        await updatePlanWithDecision('Failed to enqueue build job; build may not complete.');
       }
 
       try {
@@ -237,6 +344,12 @@ export async function runStreamSession(params: StreamSessionParams): Promise<voi
       }
     } else {
       logger.warn({ chatId }, '[Chat] No sandbox ID available, skipping build');
+    }
+
+    if (workflow.context.plan) {
+      workflow.context.plan = updatePlanStepStatus(workflow.context.plan, step => step.title.toLowerCase().includes('generate'), 'done');
+      await saveWorkflow(workflow);
+      emitPlanUpdate(res, workflow.context.plan);
     }
 
     await saveMessage(chatId, userId, MessageRole.Assistant, fullRawResponse, assistantMessageId);
@@ -251,6 +364,8 @@ export async function runStreamSession(params: StreamSessionParams): Promise<voi
     }
 
     logger.error(error, 'Streaming error');
+
+    await updatePlanWithDecision(`Streaming error: ${error.message}`);
 
     res.write(`data: ${JSON.stringify({
       type: ParserEventType.ERROR,
