@@ -41,7 +41,7 @@ export function calculateBasePath(
 
     const safeUserId = sanitizePathComponent(userId);
     const safeChatId = sanitizePathComponent(chatId);
-    return `/${safeUserId}/${safeChatId}/preview`;
+    return `/${safeUserId}/${safeChatId}`;
 }
 
 export function generateRuntimeConfig(config: BasePathConfig): RuntimeConfig {
@@ -56,11 +56,10 @@ export function generateRuntimeConfig(config: BasePathConfig): RuntimeConfig {
 
 export function generateNextConfig(runtimeConfig: RuntimeConfig): string {
     const basePathValue = runtimeConfig.basePath || '';
-    const assetPrefixValue = runtimeConfig.assetPrefix || '';
+    const assetPrefixValue = basePathValue ? `${basePathValue}/preview/` : '';
 
     const configLines: string[] = [
         `  output: 'export',`,
-        `  distDir: 'dist',`,
     ];
 
     if (basePathValue) {
@@ -170,6 +169,19 @@ export async function injectBasePathConfigs(
     try {
         switch (config.framework) {
             case 'nextjs': {
+                const container = getContainer(containerId);
+                await execCommand(
+                    container,
+                    ['rm', '-f', 'next.config.js', 'next.config.mjs'],
+                    false,
+                    5000,
+                    undefined,
+                    CONTAINER_WORKDIR
+                ).catch(err => logger.warn({ sandboxId, err }, 'Failed to delete conflicting next.config files'));
+
+                const postcssConfig = `export default {\n  plugins: {\n    '@tailwindcss/postcss': {},\n  },\n};\n`;
+                await writeFileToContainer(containerId, 'postcss.config.mjs', postcssConfig, sandboxId);
+
                 const nextConfig = generateNextConfig(runtimeConfig);
                 await writeFileToContainer(containerId, 'next.config.ts', nextConfig, sandboxId);
 

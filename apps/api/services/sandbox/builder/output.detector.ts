@@ -10,7 +10,7 @@ export interface BuildOutputInfo {
 type Framework = 'nextjs' | 'vite' | 'vanilla';
 
 const FRAMEWORK_OUTPUT_DIRS: Record<Framework, string[]> = {
-    nextjs: ['dist', 'out', '.next'],
+    nextjs: ['out', 'dist', '.next'],
     vite: ['dist'],
     vanilla: ['dist', 'build', 'out', '.next', '.output'],
 };
