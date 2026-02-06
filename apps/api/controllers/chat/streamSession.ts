@@ -277,6 +277,7 @@ export async function runStreamSession(params: StreamSessionParams): Promise<voi
           case ParserEventType.FILE_CONTENT:
             if (workflow.sandboxId && currentFilePath) {
               await handleFileContent(workflow.sandboxId, currentFilePath, event.content, isFirstFileChunk);
+              generatedFiles.set(currentFilePath, (generatedFiles.get(currentFilePath) || '') + event.content);
               if (isFirstFileChunk) isFirstFileChunk = false;
             }
             break;

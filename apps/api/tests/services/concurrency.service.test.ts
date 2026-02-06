@@ -9,10 +9,7 @@ import {
 
 vi.mock('../../lib/redis.js', () => ({
   redis: {
-    incr: vi.fn(),
-    decr: vi.fn(),
-    expire: vi.fn(),
-    del: vi.fn(),
+    eval: vi.fn(),
     get: vi.fn()
   }
 }));
@@ -35,54 +32,49 @@ describe('ConcurrencyService', () => {
 
   describe('acquireUserSlot', () => {
     it('should acquire slot successfully when under limit', async () => {
-      vi.mocked(redis.incr).mockResolvedValue(1);
-      vi.mocked(redis.expire).mockResolvedValue(1);
+      vi.mocked(redis.eval).mockResolvedValue(1);
 
       const result = await acquireUserSlot(mockUserId);
 
       expect(result).toBe(true);
-      expect(redis.incr).toHaveBeenCalledWith(`user:concurrency:${mockUserId}`);
-      expect(redis.expire).toHaveBeenCalledWith(`user:concurrency:${mockUserId}`, 300);
+      expect(redis.eval).toHaveBeenCalledWith(
+        expect.stringContaining('redis.call(\'INCR\', key)'),
+        1,
+        `user:concurrency:${mockUserId}`,
+        MAX_CONCURRENT_PER_USER,
+        300
+      );
     });
 
     it('should acquire slot when at limit but not over', async () => {
-      vi.mocked(redis.incr).mockResolvedValue(MAX_CONCURRENT_PER_USER);
+      vi.mocked(redis.eval).mockResolvedValue(MAX_CONCURRENT_PER_USER);
 
       const result = await acquireUserSlot(mockUserId);
 
       expect(result).toBe(true);
-      expect(redis.decr).not.toHaveBeenCalled();
     });
 
-    it('should reject when over concurrency limit', async () => {
-      vi.mocked(redis.incr).mockResolvedValue(MAX_CONCURRENT_PER_USER + 1);
-      vi.mocked(redis.decr).mockResolvedValue(MAX_CONCURRENT_PER_USER);
+    it('should reject when over concurrency limit and log warning', async () => {
+      vi.mocked(redis.eval).mockResolvedValue(0);
+      vi.mocked(redis.get).mockResolvedValue('3');
+      const { logger } = await import('../../utils/logger.js');
 
       const result = await acquireUserSlot(mockUserId);
 
       expect(result).toBe(false);
-      expect(redis.decr).toHaveBeenCalledWith(`user:concurrency:${mockUserId}`);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: mockUserId,
+          current: 3,
+          max: MAX_CONCURRENT_PER_USER
+        }),
+        'User at max concurrency, request rejected'
+      );
     });
 
-    it('should set TTL only on first acquisition', async () => {
-      vi.mocked(redis.incr).mockResolvedValue(2);
 
-      await acquireUserSlot(mockUserId);
-
-      expect(redis.expire).not.toHaveBeenCalled();
-    });
-
-    it('should fail closed when Redis incr fails', async () => {
-      vi.mocked(redis.incr).mockRejectedValue(new Error('Redis connection failed'));
-
-      const result = await acquireUserSlot(mockUserId);
-
-      expect(result).toBe(false);
-    });
-
-    it('should fail closed when Redis expire fails', async () => {
-      vi.mocked(redis.incr).mockResolvedValue(1);
-      vi.mocked(redis.expire).mockRejectedValue(new Error('Redis connection failed'));
+    it('should fail closed when Redis eval fails', async () => {
+      vi.mocked(redis.eval).mockRejectedValue(new Error('Redis connection failed'));
 
       const result = await acquireUserSlot(mockUserId);
 
@@ -90,7 +82,7 @@ describe('ConcurrencyService', () => {
     });
 
     it('should fail closed on network timeout', async () => {
-      vi.mocked(redis.incr).mockRejectedValue(new Error('ETIMEDOUT'));
+      vi.mocked(redis.eval).mockRejectedValue(new Error('ETIMEDOUT'));
 
       const result = await acquireUserSlot(mockUserId);
 
@@ -98,7 +90,7 @@ describe('ConcurrencyService', () => {
     });
 
     it('should fail closed on Redis unavailable', async () => {
-      vi.mocked(redis.incr).mockRejectedValue(new Error('ECONNREFUSED'));
+      vi.mocked(redis.eval).mockRejectedValue(new Error('ECONNREFUSED'));
 
       const result = await acquireUserSlot(mockUserId);
 
@@ -108,34 +100,19 @@ describe('ConcurrencyService', () => {
 
   describe('releaseUserSlot', () => {
     it('should release slot successfully', async () => {
-      vi.mocked(redis.decr).mockResolvedValue(1);
+      vi.mocked(redis.eval).mockResolvedValue(1);
 
       await releaseUserSlot(mockUserId);
 
-      expect(redis.decr).toHaveBeenCalledWith(`user:concurrency:${mockUserId}`);
-      expect(redis.del).not.toHaveBeenCalled();
-    });
-
-    it('should delete key when count reaches zero', async () => {
-      vi.mocked(redis.decr).mockResolvedValue(0);
-      vi.mocked(redis.del).mockResolvedValue(1);
-
-      await releaseUserSlot(mockUserId);
-
-      expect(redis.del).toHaveBeenCalledWith(`user:concurrency:${mockUserId}`);
-    });
-
-    it('should delete key when count goes negative', async () => {
-      vi.mocked(redis.decr).mockResolvedValue(-1);
-      vi.mocked(redis.del).mockResolvedValue(1);
-
-      await releaseUserSlot(mockUserId);
-
-      expect(redis.del).toHaveBeenCalledWith(`user:concurrency:${mockUserId}`);
+      expect(redis.eval).toHaveBeenCalledWith(
+        expect.stringContaining('redis.call(\'DECR\', key)'),
+        1,
+        `user:concurrency:${mockUserId}`
+      );
     });
 
     it('should handle Redis errors gracefully', async () => {
-      vi.mocked(redis.decr).mockRejectedValue(new Error('Redis connection failed'));
+      vi.mocked(redis.eval).mockRejectedValue(new Error('Redis connection failed'));
 
       await expect(releaseUserSlot(mockUserId)).resolves.not.toThrow();
     });
@@ -170,23 +147,18 @@ describe('ConcurrencyService', () => {
 
   describe('withUserSlot', () => {
     it('should execute function when slot is acquired', async () => {
-      vi.mocked(redis.incr).mockResolvedValue(1);
-      vi.mocked(redis.expire).mockResolvedValue(1);
-      vi.mocked(redis.decr).mockResolvedValue(0);
-      vi.mocked(redis.del).mockResolvedValue(1);
+      vi.mocked(redis.eval).mockResolvedValue(1);
 
       const mockFn = vi.fn().mockResolvedValue('result');
       const result = await withUserSlot(mockUserId, mockFn);
 
       expect(result).toBe('result');
       expect(mockFn).toHaveBeenCalled();
-      expect(redis.incr).toHaveBeenCalled();
-      expect(redis.decr).toHaveBeenCalled();
+      expect(redis.eval).toHaveBeenCalledTimes(2); // Acquire and Release
     });
 
     it('should throw error when slot cannot be acquired', async () => {
-      vi.mocked(redis.incr).mockResolvedValue(MAX_CONCURRENT_PER_USER + 1);
-      vi.mocked(redis.decr).mockResolvedValue(MAX_CONCURRENT_PER_USER);
+      vi.mocked(redis.eval).mockResolvedValue(0);
 
       const mockFn = vi.fn();
 
@@ -197,19 +169,16 @@ describe('ConcurrencyService', () => {
     });
 
     it('should release slot even if function throws', async () => {
-      vi.mocked(redis.incr).mockResolvedValue(1);
-      vi.mocked(redis.expire).mockResolvedValue(1);
-      vi.mocked(redis.decr).mockResolvedValue(0);
-      vi.mocked(redis.del).mockResolvedValue(1);
+      vi.mocked(redis.eval).mockResolvedValue(1);
 
       const mockFn = vi.fn().mockRejectedValue(new Error('Function failed'));
 
       await expect(withUserSlot(mockUserId, mockFn)).rejects.toThrow('Function failed');
-      expect(redis.decr).toHaveBeenCalled();
+      expect(redis.eval).toHaveBeenCalledTimes(2); // Acquire and Release
     });
 
     it('should throw error when Redis is unavailable (fail closed)', async () => {
-      vi.mocked(redis.incr).mockRejectedValue(new Error('Redis connection failed'));
+      vi.mocked(redis.eval).mockRejectedValue(new Error('Redis connection failed'));
 
       const mockFn = vi.fn();
 
@@ -220,10 +189,7 @@ describe('ConcurrencyService', () => {
     });
 
     it('should propagate function return value', async () => {
-      vi.mocked(redis.incr).mockResolvedValue(1);
-      vi.mocked(redis.expire).mockResolvedValue(1);
-      vi.mocked(redis.decr).mockResolvedValue(0);
-      vi.mocked(redis.del).mockResolvedValue(1);
+      vi.mocked(redis.eval).mockResolvedValue(1);
 
       const complexResult = { data: [1, 2, 3], status: 'success' };
       const mockFn = vi.fn().mockResolvedValue(complexResult);
@@ -237,36 +203,24 @@ describe('ConcurrencyService', () => {
   describe('concurrency limit enforcement', () => {
     it('should allow up to MAX_CONCURRENT_PER_USER simultaneous requests', async () => {
       let currentCount = 0;
-      vi.mocked(redis.incr).mockImplementation(async () => {
+      vi.mocked(redis.eval).mockImplementation(async () => {
         currentCount++;
-        return currentCount;
+        return currentCount <= MAX_CONCURRENT_PER_USER ? currentCount : 0;
       });
-      vi.mocked(redis.expire).mockResolvedValue(1);
 
       const result1 = await acquireUserSlot(mockUserId);
       const result2 = await acquireUserSlot(mockUserId);
 
       expect(result1).toBe(true);
       expect(result2).toBe(true);
-      expect(currentCount).toBe(MAX_CONCURRENT_PER_USER);
     });
 
     it('should reject third concurrent request', async () => {
-      let currentCount = MAX_CONCURRENT_PER_USER;
-      vi.mocked(redis.incr).mockImplementation(async () => {
-        currentCount++;
-        return currentCount;
-      });
-      vi.mocked(redis.decr).mockImplementation(async () => {
-        currentCount--;
-        return currentCount;
-      });
+      vi.mocked(redis.eval).mockResolvedValue(0);
 
       const result = await acquireUserSlot(mockUserId);
 
       expect(result).toBe(false);
-      expect(redis.decr).toHaveBeenCalled();
-      expect(currentCount).toBe(MAX_CONCURRENT_PER_USER);
     });
   });
 });

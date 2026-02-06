@@ -94,7 +94,7 @@ export async function buildAndUploadUnified(sandboxId: string): Promise<BuildRes
 
     await disconnectContainerFromNetwork(containerId, sandboxId);
 
-    const previewUrl = buildPreviewUrl(userId, chatId);
+    const previewUrl = userId && chatId ? buildPreviewUrl(userId, chatId) : null;
     const allSuccessful = uploadResult.totalFiles === uploadResult.successful;
 
     return {
