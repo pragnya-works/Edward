@@ -41,7 +41,7 @@ export function calculateBasePath(
 
     const safeUserId = sanitizePathComponent(userId);
     const safeChatId = sanitizePathComponent(chatId);
-    return `/${safeUserId}/${safeChatId}`;
+    return `/${safeUserId}/${safeChatId}/preview`;
 }
 
 export function generateRuntimeConfig(config: BasePathConfig): RuntimeConfig {
@@ -56,7 +56,7 @@ export function generateRuntimeConfig(config: BasePathConfig): RuntimeConfig {
 
 export function generateNextConfig(runtimeConfig: RuntimeConfig): string {
     const basePathValue = runtimeConfig.basePath || '';
-    const assetPrefixValue = basePathValue ? `${basePathValue}/preview/` : '';
+    const assetPrefixValue = runtimeConfig.assetPrefix || '';
 
     const configLines: string[] = [
         `  output: 'export',`,
