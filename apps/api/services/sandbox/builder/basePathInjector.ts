@@ -17,6 +17,13 @@ export interface RuntimeConfig {
     assetPrefix: string;
 }
 
+interface PackageJson {
+    dependencies?: Record<string, string>;
+    devDependencies?: Record<string, string>;
+}
+
+type TailwindVersion = 'v4' | 'v3' | 'none';
+
 const DEFAULT_DEPLOYMENT_TYPE: DeploymentType = 'path';
 
 export function detectDeploymentType(config: BasePathConfig): DeploymentType {
@@ -159,6 +166,49 @@ async function writeFileToContainer(
     }
 }
 
+async function readPackageJson(
+    containerId: string,
+    sandboxId: string
+): Promise<PackageJson | null> {
+    const container = getContainer(containerId);
+
+    try {
+        const result = await execCommand(
+            container,
+            ['cat', 'package.json'],
+            false,
+            5000,
+            undefined,
+            CONTAINER_WORKDIR
+        );
+
+        if (result.exitCode !== 0) {
+            logger.debug({ sandboxId }, 'No package.json found');
+            return null;
+        }
+
+        return JSON.parse(result.stdout) as PackageJson;
+    } catch (error) {
+        logger.warn({ sandboxId, error }, 'Failed to read or parse package.json');
+        return null;
+    }
+}
+
+function hasDependency(packageJson: PackageJson | null, dep: string): boolean {
+    if (!packageJson) return false;
+    return Boolean(packageJson.dependencies?.[dep] || packageJson.devDependencies?.[dep]);
+}
+
+function detectTailwindVersion(packageJson: PackageJson | null): TailwindVersion {
+    if (hasDependency(packageJson, '@tailwindcss/postcss')) {
+        return 'v4';
+    }
+    if (hasDependency(packageJson, 'tailwindcss')) {
+        return 'v3';
+    }
+    return 'none';
+}
+
 export async function injectBasePathConfigs(
     containerId: string,
     config: BasePathConfig,
@@ -179,8 +229,20 @@ export async function injectBasePathConfigs(
                     CONTAINER_WORKDIR
                 ).catch(err => logger.warn({ sandboxId, err }, 'Failed to delete conflicting next.config files'));
 
-                const postcssConfig = `export default {\n  plugins: {\n    '@tailwindcss/postcss': {},\n  },\n};\n`;
-                await writeFileToContainer(containerId, 'postcss.config.mjs', postcssConfig, sandboxId);
+                const packageJson = await readPackageJson(containerId, sandboxId);
+                const tailwindVersion = detectTailwindVersion(packageJson);
+
+                if (tailwindVersion === 'v4') {
+                    const postcssConfig = `export default {\n  plugins: {\n    '@tailwindcss/postcss': {},\n  },\n};\n`;
+                    await writeFileToContainer(containerId, 'postcss.config.mjs', postcssConfig, sandboxId);
+                    logger.debug({ sandboxId }, 'Injected Tailwind CSS v4 PostCSS config');
+                } else if (tailwindVersion === 'v3') {
+                    const postcssConfig = `export default {\n  plugins: {\n    tailwindcss: {},\n    autoprefixer: {},\n  },\n};\n`;
+                    await writeFileToContainer(containerId, 'postcss.config.mjs', postcssConfig, sandboxId);
+                    logger.debug({ sandboxId }, 'Injected Tailwind CSS v3 PostCSS config');
+                } else {
+                    logger.debug({ sandboxId }, 'No Tailwind CSS detected, skipping PostCSS config injection');
+                }
 
                 const nextConfig = generateNextConfig(runtimeConfig);
                 await writeFileToContainer(containerId, 'next.config.ts', nextConfig, sandboxId);
