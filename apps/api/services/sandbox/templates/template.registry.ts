@@ -11,7 +11,7 @@ export const TEMPLATE_REGISTRY: Record<string, TemplateConfig> = {
     nextjs: {
         image: `${REGISTRY_BASE}/nextjs-sandbox:latest`,
         templateDir: 'nextjs',
-        outputDir: '.next',
+        outputDir: 'out',
         protectedFiles: [
             'package.json', 'tsconfig.json', 'next.config.ts', 'next.config.mjs', 'next.config.js',
             'tailwind.config.ts', 'tailwind.config.js', 'postcss.config.mjs', 'postcss.config.js',
