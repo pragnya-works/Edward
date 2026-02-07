@@ -1,19 +1,26 @@
 import type { Response } from 'express';
 import { AuthenticatedRequest } from '../../middleware/auth.js';
-import { ParserEventType } from '../../schemas/chat.schema.js';
+import { ParserEventType, type ParserEvent } from '../../schemas/chat.schema.js';
 import { createStreamParser } from '../../lib/llm/parser.js';
 import { streamResponse } from '../../lib/llm/response.js';
 import { advanceWorkflow, ensureSandbox } from '../../services/planning/workflowEngine.js';
 import { cleanupSandbox } from '../../services/sandbox/lifecycle/cleanup.js';
 import { addSandboxPackages } from '../../services/sandbox/lifecycle/packages.js';
 import { prepareSandboxFile, writeSandboxFile, flushSandbox } from '../../services/sandbox/writes.sandbox.js';
-import { enqueueBuildJob, enqueueBackupJob } from '../../services/queue/enqueue.js';
+import { enqueueBuildJob } from '../../services/queue/enqueue.js';
 import { saveMessage } from '../../services/chat.service.js';
+import { executeSandboxCommand } from '../../services/sandbox/command.sandbox.js';
+import { getSandboxState } from '../../services/sandbox/state.sandbox.js';
 import { normalizeFramework } from '../../services/sandbox/templates/template.registry.js';
 import { ensureError } from '../../utils/error.js';
 import { logger } from '../../utils/logger.js';
 import { MessageRole } from '@edward/auth';
-import type { WorkflowState } from '../../services/planning/schemas.js';
+import {
+  ChatAction,
+  type WorkflowState,
+  type ChatAction as ChatActionType,
+  type Framework,
+} from '../../services/planning/schemas.js';
 import { resolveDependencies, suggestAlternatives } from '../../services/planning/resolvers/dependency.resolver.js';
 import { reflectPlan } from '../../services/planning/analyzers/planAnalyzer.js';
 import { appendPlanDecision, markPlanStepInProgress, updatePlanStepStatus, createFallbackPlan } from '../../services/planning/workflow/plan.js';
@@ -22,6 +29,82 @@ import { validateGeneratedOutput } from '../../services/planning/validators/post
 
 const MAX_RESPONSE_SIZE = 10 * 1024 * 1024;
 const MAX_STREAM_DURATION_MS = 5 * 60 * 1000;
+const MAX_AGENT_TURNS = 5;
+
+interface CommandResult {
+  command: string;
+  args: string[];
+  stdout: string;
+  stderr: string;
+}
+
+interface TurnResult {
+  rawResponse: string;
+  commands: Array<{ command: string; args: string[] }>;
+}
+
+export async function processLLMStream(
+  stream: AsyncIterable<string>,
+  parser: ReturnType<typeof createStreamParser>,
+  sendSSE: (event: ParserEvent) => void,
+  abortSignal?: AbortSignal,
+): Promise<TurnResult> {
+  let rawResponse = '';
+  const commands: TurnResult['commands'] = [];
+
+  for await (const text of stream) {
+    if (abortSignal?.aborted) break;
+    if (!text) continue;
+
+    rawResponse += text;
+
+    for (const event of parser.process(text)) {
+      sendSSE(event);
+      if (event.type === ParserEventType.COMMAND && 'command' in event) {
+        commands.push({ command: event.command, args: event.args ?? [] });
+      }
+    }
+  }
+
+  for (const event of parser.flush()) {
+    sendSSE(event);
+    if (event.type === ParserEventType.COMMAND && 'command' in event) {
+      commands.push({ command: event.command, args: event.args ?? [] });
+    }
+  }
+
+  return { rawResponse, commands };
+}
+
+export async function executeCommands(
+  sandboxId: string,
+  commands: TurnResult['commands'],
+): Promise<CommandResult[]> {
+  return Promise.all(
+    commands.map(async (cmd) => {
+      try {
+        const r = await executeSandboxCommand(sandboxId, cmd);
+        return { ...cmd, stdout: r.stdout ?? '', stderr: r.stderr ?? '' };
+      } catch (err) {
+        return {
+          ...cmd,
+          stdout: '',
+          stderr: `Command failed: ${err instanceof Error ? err.message : String(err)}`,
+        };
+      }
+    }),
+  );
+}
+
+export function formatCommandResults(results: CommandResult[]): string {
+  return results
+    .map((r) => {
+      let out = `$ ${r.command} ${r.args.join(' ')}\n${r.stdout}`;
+      if (r.stderr) out += `\nSTDERR: ${r.stderr}`;
+      return out;
+    })
+    .join('\n---\n');
+}
 
 async function handleFileContent(
   sandboxId: string,
@@ -58,6 +141,9 @@ export interface StreamSessionParams {
   userContent: string;
   assistantMessageId: string;
   preVerifiedDeps: string[];
+  isFollowUp?: boolean;
+  intent?: ChatActionType;
+  conversationContext?: string;
 }
 
 export async function runStreamSession(params: StreamSessionParams): Promise<void> {
@@ -71,18 +157,19 @@ export async function runStreamSession(params: StreamSessionParams): Promise<voi
     userContent,
     assistantMessageId,
     preVerifiedDeps,
+    isFollowUp = false,
+    intent = ChatAction.GENERATE,
+    conversationContext,
   } = params;
 
-  const parser = createStreamParser();
   let fullRawResponse = '';
+  let committedMessageContent: string | null = null;
   let currentFilePath: string | undefined;
-  let isFirstFileChunk = false;
-  let streamTimer: NodeJS.Timeout | null = null;
-
+  let isFirstFileChunk = true;
   const generatedFiles = new Map<string, string>();
   const declaredPackages: string[] = [];
 
-  if (!workflow.context.plan) {
+  if (!workflow.context.plan && !isFollowUp) {
     workflow.context.plan = createFallbackPlan();
     await saveWorkflow(workflow);
     emitPlanUpdate(res, workflow.context.plan);
@@ -96,12 +183,13 @@ export async function runStreamSession(params: StreamSessionParams): Promise<voi
       await saveWorkflow(workflow);
       emitPlanUpdate(res, workflow.context.plan);
     } catch (error) {
-      logger.warn({ error, chatId }, 'Failed to reflect plan on decision point');
+      const err = error instanceof Error ? error.message : String(error);
+      logger.error({ error: err, userId, chatId }, 'Failed to reflect plan on decision point');
     }
   }
 
   const abortController = new AbortController();
-  streamTimer = setTimeout(() => {
+  const streamTimer = setTimeout(() => {
     logger.warn({ chatId }, 'Stream timeout reached');
     abortController.abort();
   }, MAX_STREAM_DURATION_MS);
@@ -113,16 +201,50 @@ export async function runStreamSession(params: StreamSessionParams): Promise<voi
   });
 
   try {
-    const framework = workflow.context.framework;
+    let framework: Framework | undefined = workflow.context.framework || workflow.context.intent?.suggestedFramework;
     const complexity = workflow.context.intent?.complexity;
+    const mode = intent === ChatAction.FIX ? 'fix' : intent === ChatAction.EDIT ? 'edit' : 'generate';
+
+    const fullUserContent = isFollowUp && conversationContext
+      ? `${conversationContext}\n\nUSER REQUEST: ${userContent}`
+      : userContent;
+
+    if (!workflow.sandboxId) {
+      await ensureSandbox(workflow, framework, isFollowUp);
+    }
+
+    if (!framework && workflow.sandboxId) {
+      const sandboxState = await getSandboxState(workflow.sandboxId);
+      if (sandboxState?.scaffoldedFramework) {
+        const recovered = normalizeFramework(sandboxState.scaffoldedFramework);
+        if (recovered) {
+          framework = recovered;
+          workflow.context.framework = framework;
+          await saveWorkflow(workflow);
+        }
+      }
+    }
+
+    let agentUserContent = fullUserContent;
+    let agentTurn = 0;
+
+    agentLoop: while (agentTurn < MAX_AGENT_TURNS) {
+      agentTurn++;
+      const parser = createStreamParser();
+      const commandResultsThisTurn: CommandResult[] = [];
+      let turnRawResponse = '';
+      currentFilePath = undefined;
+      isFirstFileChunk = true;
+
     const stream = streamResponse(
       decryptedApiKey,
-      userContent,
+      agentUserContent,
       abortController.signal,
       preVerifiedDeps,
       undefined,
       framework,
       complexity,
+      mode,
     );
 
     for await (const chunk of stream) {
@@ -132,14 +254,16 @@ export async function runStreamSession(params: StreamSessionParams): Promise<voi
         throw new Error('Response size exceeded maximum limit');
       }
       fullRawResponse += chunk;
+      turnRawResponse += chunk;
       const events = parser.process(chunk);
 
       for (const event of events) {
+        let handled = false;
         try {
           switch (event.type) {
             case ParserEventType.SANDBOX_START:
               if (!workflow.sandboxId) {
-                await ensureSandbox(workflow);
+                await ensureSandbox(workflow, undefined, isFollowUp);
               }
               if (workflow.context.plan) {
                 workflow.context.plan = markPlanStepInProgress(workflow.context.plan, 'Generate');
@@ -149,7 +273,7 @@ export async function runStreamSession(params: StreamSessionParams): Promise<voi
               break;
 
             case ParserEventType.FILE_START:
-              if (!workflow.sandboxId) await ensureSandbox(workflow);
+              if (!workflow.sandboxId) await ensureSandbox(workflow, undefined, isFollowUp);
               currentFilePath = event.path;
               isFirstFileChunk = true;
               await prepareSandboxFile(workflow.sandboxId!, currentFilePath);
@@ -174,9 +298,6 @@ export async function runStreamSession(params: StreamSessionParams): Promise<voi
               }
               break;
 
-            case ParserEventType.INSTALL_START:
-              break;
-
             case ParserEventType.INSTALL_CONTENT: {
               if (event.dependencies) {
                 declaredPackages.push(...event.dependencies);
@@ -188,7 +309,7 @@ export async function runStreamSession(params: StreamSessionParams): Promise<voi
                 }
               }
               if (!workflow.sandboxId) {
-                await ensureSandbox(workflow, workflow.context.framework);
+                await ensureSandbox(workflow, workflow.context.framework, isFollowUp);
               }
 
               const rawDependencies = event.dependencies || [];
@@ -238,8 +359,42 @@ export async function runStreamSession(params: StreamSessionParams): Promise<voi
               break;
             }
 
-            case ParserEventType.INSTALL_END:
+            case ParserEventType.COMMAND: {
+              if (!workflow.sandboxId) await ensureSandbox(workflow, undefined, isFollowUp);
+              const { command: cmd, args: cmdArgs = [] } = event;
+              try {
+                const result = await executeSandboxCommand(
+                  workflow.sandboxId!,
+                  { command: cmd, args: cmdArgs }
+                );
+                commandResultsThisTurn.push({
+                  command: cmd,
+                  args: cmdArgs,
+                  stdout: result.stdout ?? '',
+                  stderr: result.stderr ?? '',
+                });
+                res.write(`data: ${JSON.stringify({
+                  type: ParserEventType.COMMAND,
+                  command: cmd,
+                  args: cmdArgs,
+                  ...result
+                })}\n\n`);
+              } catch (cmdError) {
+                const err = ensureError(cmdError);
+                commandResultsThisTurn.push({
+                  command: cmd,
+                  args: cmdArgs,
+                  stdout: '',
+                  stderr: `Command failed: ${err.message}`,
+                });
+                res.write(`data: ${JSON.stringify({
+                  type: ParserEventType.ERROR,
+                  message: `Command failed: ${err.message}`
+                })}\n\n`);
+              }
+              handled = true;
               break;
+            }
           }
         } catch (sandboxError) {
           logger.error(ensureError(sandboxError), 'Sandbox operation failed during streaming');
@@ -251,7 +406,9 @@ export async function runStreamSession(params: StreamSessionParams): Promise<voi
           continue;
         }
 
-        res.write(`data: ${JSON.stringify(event)}\n\n`);
+        if (!handled) {
+          res.write(`data: ${JSON.stringify(event)}\n\n`);
+        }
       }
     }
 
@@ -302,12 +459,29 @@ export async function runStreamSession(params: StreamSessionParams): Promise<voi
       res.write(`data: ${JSON.stringify(event)}\n\n`);
     }
 
+    if (commandResultsThisTurn.length > 0 && agentTurn < MAX_AGENT_TURNS && !abortController.signal.aborted) {
+      const formattedResults = formatCommandResults(commandResultsThisTurn);
+      const prevSummary = turnRawResponse.length > 4000
+        ? turnRawResponse.slice(0, 4000) + '\n...[truncated]'
+        : turnRawResponse;
+      agentUserContent = `ORIGINAL REQUEST:\n${fullUserContent}\n\nYOUR PREVIOUS RESPONSE:\n${prevSummary}\n\nCOMMAND RESULTS:\n${formattedResults}\n\nContinue with the task. If you wrote fixes, verify by running the build. If you need more information, use <edward_command>. Do not stop until the task is complete.`;
+      logger.info({ chatId, turn: agentTurn, commandCount: commandResultsThisTurn.length }, 'Agent loop: continuing with command results');
+      continue agentLoop;
+    }
+
+    break;
+    }
+
+    committedMessageContent = fullRawResponse;
+    await saveMessage(chatId, userId, MessageRole.Assistant, fullRawResponse, assistantMessageId);
+
     if (workflow.sandboxId) {
       if (generatedFiles.size > 0) {
         const validation = validateGeneratedOutput({
           framework: workflow.context.framework,
           files: generatedFiles,
           declaredPackages,
+          mode,
         });
         if (!validation.valid) {
           const errorViolations = validation.violations.filter(v => v.severity === 'error');
@@ -326,7 +500,7 @@ export async function runStreamSession(params: StreamSessionParams): Promise<voi
       );
 
       try {
-        await enqueueBuildJob({ sandboxId: workflow.sandboxId, userId, chatId });
+        await enqueueBuildJob({ sandboxId: workflow.sandboxId, userId, chatId, messageId: assistantMessageId });
         if (workflow.context.plan) {
           workflow.context.plan = markPlanStepInProgress(workflow.context.plan, 'Validate');
           await saveWorkflow(workflow);
@@ -336,12 +510,8 @@ export async function runStreamSession(params: StreamSessionParams): Promise<voi
         logger.error(ensureError(queueErr), `Failed to enqueue build job for sandbox: ${workflow.sandboxId}`);
         await updatePlanWithDecision('Failed to enqueue build job; build may not complete.');
       }
-
-      try {
-        await enqueueBackupJob({ sandboxId: workflow.sandboxId, userId });
-      } catch (backupErr) {
-        logger.error(ensureError(backupErr), `Failed to enqueue backup job for sandbox: ${workflow.sandboxId}`);
-      }
+      // Backup is enqueued by the worker AFTER the build completes,
+      // ensuring the backup captures the correct package.json with installed deps.
     } else {
       logger.warn({ chatId }, '[Chat] No sandbox ID available, skipping build');
     }
@@ -352,7 +522,6 @@ export async function runStreamSession(params: StreamSessionParams): Promise<voi
       emitPlanUpdate(res, workflow.context.plan);
     }
 
-    await saveMessage(chatId, userId, MessageRole.Assistant, fullRawResponse, assistantMessageId);
     res.write('data: [DONE]\n\n');
     res.end();
   } catch (streamError) {
@@ -375,9 +544,17 @@ export async function runStreamSession(params: StreamSessionParams): Promise<voi
     res.end();
 
     try {
-      await saveMessage(chatId, userId, MessageRole.Assistant, fullRawResponse || `Error: ${error.message}`, assistantMessageId);
-    } catch (dbError) {
-      logger.error(ensureError(dbError), 'Failed to save error message to database');
+      if (committedMessageContent === null) {
+        await saveMessage(
+          chatId,
+          userId,
+          MessageRole.Assistant,
+          fullRawResponse || `Error: ${error.message}`,
+          assistantMessageId
+        );
+      }
+    } catch (cleanupErr) {
+      logger.error({ cleanupErr }, 'Failed during error cleanup');
     }
   } finally {
     if (streamTimer) clearTimeout(streamTimer);

@@ -31,6 +31,7 @@ export enum ParserEventType {
   TODO_UPDATE = 'todo_update',
   ERROR = 'error',
   META = 'meta',
+  COMMAND = 'command',
 }
 
 export const ChatIdParamSchema = z.object({
@@ -89,7 +90,15 @@ export const ParserEventSchema = z.discriminatedUnion('type', [
     }))
   }),
   z.object({ type: z.literal(ParserEventType.ERROR), message: z.string() }),
-  z.object({ type: z.literal(ParserEventType.META), chatId: z.string(), userMessageId: z.string(), assistantMessageId: z.string(), isNewChat: z.boolean() }),
+  z.object({ type: z.literal(ParserEventType.META), chatId: z.string(), userMessageId: z.string(), assistantMessageId: z.string(), isNewChat: z.boolean(), intent: z.enum(['generate', 'fix', 'edit']).optional() }),
+  z.object({
+    type: z.literal(ParserEventType.COMMAND),
+    command: z.string(),
+    args: z.array(z.string()).optional(),
+    exitCode: z.number().optional(),
+    stdout: z.string().optional(),
+    stderr: z.string().optional(),
+  }),
 ]);
 
 export type ParserEvent = z.infer<typeof ParserEventSchema>;

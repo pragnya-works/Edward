@@ -29,6 +29,15 @@ export const FrameworkSchema = z.enum(['nextjs', 'vite-react', 'vanilla']);
 
 export const ComplexitySchema = z.enum(['simple', 'moderate', 'complex']);
 
+export const ChatAction = {
+    GENERATE: 'generate',
+    FIX: 'fix',
+    EDIT: 'edit'
+} as const;
+
+export const ChatActionSchema = z.nativeEnum(ChatAction);
+export type ChatAction = z.infer<typeof ChatActionSchema>;
+
 export const PlanStatusSchema = z.enum(['pending', 'in_progress', 'done', 'blocked', 'failed']);
 
 export const PlanStepSchema = z.object({
@@ -55,6 +64,7 @@ export const PackageInfoSchema = z.object({
 });
 
 export const IntentAnalysisSchema = z.object({
+    action: ChatActionSchema.default(ChatAction.GENERATE),
     type: z.enum(['landing', 'dashboard', 'portfolio', 'ecommerce', 'blog', 'custom']),
     complexity: ComplexitySchema,
     features: z.array(z.string()),
@@ -81,7 +91,8 @@ export const WorkflowContextSchema = z.object({
     generatedFiles: z.array(z.string()).optional(),
     buildDirectory: z.string().optional(),
     previewUrl: z.string().optional(),
-    errors: z.array(z.string()).default([])
+    errors: z.array(z.string()).default([]),
+    mode: ChatActionSchema.optional(),
 });
 
 export const WorkflowStateSchema = z.object({

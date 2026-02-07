@@ -79,7 +79,7 @@ export async function uploadBuildFilesToS3(
                             originalPath: relativePath,
                             uploadTimestamp,
                             buildDirectory,
-                        }, fileBuffer.length);
+                        }, fileBuffer.length, 'no-cache, no-store, must-revalidate');
 
                         if (result.success) {
                             uploadResults.successful++;
@@ -154,7 +154,8 @@ export async function uploadSpaFallback(
                 originalPath: '404.html',
                 uploadTimestamp: new Date().toISOString()
             },
-            fallbackHtml.length
+            fallbackHtml.length,
+            'no-cache, no-store, must-revalidate'
         );
 
         return { success: result.success, error: result.error?.message };

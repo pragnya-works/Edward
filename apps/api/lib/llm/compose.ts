@@ -1,15 +1,19 @@
-import { CORE_SYSTEM_PROMPT } from './systemPrompt.js';
+import { CORE_SYSTEM_PROMPT, MODE_PROMPTS } from './systemPrompt.js';
 import { getSkillsForContext, type Framework, type Complexity } from './skills/index.js';
 
 export interface ComposeOptions {
   framework?: Framework;
   complexity?: Complexity;
   verifiedDependencies?: string[];
+  mode?: 'generate' | 'fix' | 'edit';
 }
 
 export function composePrompt(options: ComposeOptions = {}): string {
-  const { framework, complexity, verifiedDependencies } = options;
+  const { framework, complexity, verifiedDependencies, mode = 'generate' } = options;
   const parts: string[] = [CORE_SYSTEM_PROMPT];
+
+  if (mode === 'fix') parts.push(MODE_PROMPTS.fix);
+  if (mode === 'edit') parts.push(MODE_PROMPTS.edit);
 
   const skills = getSkillsForContext(framework, complexity);
   parts.push(...skills);

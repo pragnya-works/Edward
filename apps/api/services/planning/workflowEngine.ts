@@ -17,10 +17,13 @@ import { resolvePackages } from '../registry/package.registry.js';
 import { runValidationPipeline } from '../validation/pipeline.js';
 import { cleanupSandbox } from '../sandbox/lifecycle/cleanup.js';
 import { provisionSandbox, getActiveSandbox } from '../sandbox/lifecycle/provisioning.js';
-import { getSandboxState } from '../sandbox/state.sandbox.js';
+import { getSandboxState, getChatFramework } from '../sandbox/state.sandbox.js';
+import { hasBackup, hasBackupOnS3 } from '../sandbox/backup.sandbox.js';
 import { buildAndUploadUnified } from '../sandbox/builder/unified.build.js';
 import { getDecryptedApiKey } from '../apiKey.service.js';
 import { mergeAndInstallDependencies } from '../sandbox/templates/dependency.merger.js';
+import { connectToNetwork } from '../sandbox/docker.sandbox.js';
+import { disconnectContainerFromNetwork } from '../sandbox/utils.sandbox.js';
 import { PHASE_CONFIGS } from './workflow/config.js';
 import { getWorkflow, saveWorkflow, deleteWorkflow } from './workflow/store.js';
 import { acquireLock, releaseLock } from './workflow/locks.js';
@@ -126,13 +129,40 @@ export async function executePackageResolution(
 
 export async function ensureSandbox(
     state: WorkflowState,
-    framework?: Framework
+    framework?: Framework,
+    shouldRestore: boolean = false
 ): Promise<string> {
     let sandboxId = await getActiveSandbox(state.chatId);
 
-    if (!sandboxId) {
-        sandboxId = await provisionSandbox(state.userId, state.chatId, framework || state.context.framework, false);
+    if (sandboxId) {
+        state.sandboxId = sandboxId;
+        await saveWorkflow(state);
+        return sandboxId;
     }
+
+    let effectiveFramework = framework || state.context.framework;
+    if (!effectiveFramework) {
+        const cachedFramework = await getChatFramework(state.chatId);
+        if (cachedFramework) {
+            effectiveFramework = cachedFramework as Framework;
+            logger.info({ chatId: state.chatId, framework: effectiveFramework }, 'Recovered framework from Redis cache for sandbox provisioning');
+        }
+    }
+
+    let effectiveRestore = false;
+    if (shouldRestore) {
+        effectiveRestore = await hasBackup(state.chatId);
+        if (!effectiveRestore) {
+            effectiveRestore = await hasBackupOnS3(state.chatId, state.userId);
+            if (effectiveRestore) {
+                logger.info({ chatId: state.chatId }, 'Backup flag missing in Redis but found on S3, restoring');
+            } else {
+                logger.debug({ chatId: state.chatId }, 'shouldRestore requested but no backup exists, skipping restore');
+            }
+        }
+    }
+
+    sandboxId = await provisionSandbox(state.userId, state.chatId, effectiveFramework, effectiveRestore);
 
     state.sandboxId = sandboxId;
     await saveWorkflow(state);
@@ -168,29 +198,44 @@ export async function executeInstallPhase(state: WorkflowState): Promise<StepRes
             .filter(pkg => pkg.valid)
             .map(pkg => pkg.name);
 
-        const result = await mergeAndInstallDependencies(
-            sandbox.containerId,
-            packageNames,
-            state.sandboxId
-        );
+        await connectToNetwork(sandbox.containerId);
 
-        if (!result.success) {
+        try {
+            const result = await mergeAndInstallDependencies(
+                sandbox.containerId,
+                packageNames,
+                state.sandboxId
+            );
+
+            await disconnectContainerFromNetwork(sandbox.containerId, state.sandboxId);
+
+            if (!result.success) {
+                return {
+                    step: WorkflowStep.INSTALL_PACKAGES,
+                    success: false,
+                    error: result.error,
+                    durationMs: Date.now() - startTime,
+                    retryCount: 0
+                };
+            }
+
+            return {
+                step: WorkflowStep.INSTALL_PACKAGES,
+                success: true,
+                data: { installed: packageNames.length, warnings: result.warnings },
+                durationMs: Date.now() - startTime,
+                retryCount: 0
+            };
+        } catch (error) {
+            await disconnectContainerFromNetwork(sandbox.containerId, state.sandboxId).catch(() => { });
             return {
                 step: WorkflowStep.INSTALL_PACKAGES,
                 success: false,
-                error: result.error,
+                error: error instanceof Error ? error.message : 'Installation failed',
                 durationMs: Date.now() - startTime,
                 retryCount: 0
             };
         }
-
-        return {
-            step: WorkflowStep.INSTALL_PACKAGES,
-            success: true,
-            data: { installed: packageNames.length, warnings: result.warnings },
-            durationMs: Date.now() - startTime,
-            retryCount: 0
-        };
     } catch (error) {
         return {
             step: WorkflowStep.INSTALL_PACKAGES,
@@ -442,11 +487,11 @@ export async function advanceWorkflow(
     } else {
         const stepOrder: WorkflowStepType[] = [
             WorkflowStep.PLAN,
-            WorkflowStep.ANALYZE, 
-            WorkflowStep.RESOLVE_PACKAGES, 
-            WorkflowStep.INSTALL_PACKAGES, 
-            WorkflowStep.GENERATE, 
-            WorkflowStep.BUILD, 
+            WorkflowStep.ANALYZE,
+            WorkflowStep.RESOLVE_PACKAGES,
+            WorkflowStep.INSTALL_PACKAGES,
+            WorkflowStep.GENERATE,
+            WorkflowStep.BUILD,
             WorkflowStep.DEPLOY
         ];
         let currentIndex = stepOrder.indexOf(state.currentStep);

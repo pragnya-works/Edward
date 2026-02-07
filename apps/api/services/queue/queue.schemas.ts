@@ -11,6 +11,7 @@ export const BuildJobPayloadSchema = z.object({
   sandboxId: z.string(),
   userId: z.string(),
   chatId: z.string(),
+  messageId: z.string(),
 });
 export type BuildJobPayload = z.infer<typeof BuildJobPayloadSchema>;
 

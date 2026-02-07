@@ -77,6 +77,17 @@ vi.mock('../../../services/sandbox/templates/dependency.merger.js', () => ({
     mergeAndInstallDependencies: vi.fn().mockResolvedValue({ success: true, warnings: [] })
 }));
 
+vi.mock('../../../services/sandbox/docker.sandbox.js', () => ({
+    connectToNetwork: vi.fn().mockResolvedValue(undefined),
+    getContainer: vi.fn(),
+    execCommand: vi.fn(),
+    CONTAINER_WORKDIR: '/home/node/edward'
+}));
+
+vi.mock('../../../services/sandbox/utils.sandbox.js', () => ({
+    disconnectContainerFromNetwork: vi.fn().mockResolvedValue(undefined)
+}));
+
 describe('WorkflowEngine', () => {
     const mockUserId = 'user-1';
     const mockChatId = 'chat-1';
