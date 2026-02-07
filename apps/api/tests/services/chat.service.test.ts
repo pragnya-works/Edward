@@ -1,10 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { db, MessageRole } from '@edward/auth';
+import { db, MessageRole, chat, message } from '@edward/auth';
 import {
   getOrCreateChat,
   saveMessage,
 } from '../../services/chat.service.js';
-
 
 vi.mock('@edward/auth', async () => {
   const actual = await vi.importActual<typeof import('@edward/auth')>('@edward/auth');
@@ -15,11 +14,14 @@ vi.mock('@edward/auth', async () => {
       from: vi.fn().mockReturnThis(),
       where: vi.fn().mockReturnThis(),
       limit: vi.fn(),
-      insert: vi.fn().mockReturnThis(),
-      values: vi.fn().mockResolvedValue([]),
+      insert: vi.fn().mockReturnValue({
+        values: vi.fn().mockReturnValue({
+          onConflictDoUpdate: vi.fn().mockResolvedValue([]),
+        }),
+      }),
     },
-    chat: {},
-    message: {},
+    chat: { id: 'chat_id' },
+    message: { id: 'message_id' },
     MessageRole: {
       System: 'system',
       User: 'user',
@@ -29,8 +31,6 @@ vi.mock('@edward/auth', async () => {
     eq: vi.fn(),
   };
 });
-
-
 
 vi.mock('nanoid', () => ({
   nanoid: vi.fn().mockReturnValue('mock-nanoid-32chars-long-id'),
@@ -46,7 +46,9 @@ describe('chat service', () => {
 
   describe('getOrCreateChat', () => {
     it('should create new chat when chatId is not provided', async () => {
-      vi.mocked(db.values).mockResolvedValue([]);
+      vi.mocked(db.insert).mockReturnValue({
+        values: vi.fn().mockResolvedValue([]),
+      });
 
       const result = await getOrCreateChat(mockUserId, undefined, {
         title: 'New Chat',
@@ -57,16 +59,19 @@ describe('chat service', () => {
       expect(result.chatId).toBeDefined();
       expect(result.isNewChat).toBe(true);
       expect(result.error).toBeUndefined();
-      expect(db.insert).toHaveBeenCalled();
+      expect(db.insert).toHaveBeenCalledWith(chat);
     });
 
     it('should create new chat with default values', async () => {
-      vi.mocked(db.values).mockResolvedValue([]);
+      const mockValues = vi.fn().mockResolvedValue([]);
+      vi.mocked(db.insert).mockReturnValue({
+        values: mockValues,
+      });
 
       const result = await getOrCreateChat(mockUserId, undefined, {});
 
       expect(result.isNewChat).toBe(true);
-      expect(db.values).toHaveBeenCalledWith(
+      expect(mockValues).toHaveBeenCalledWith(
         expect.objectContaining({
           title: 'New Chat',
           visibility: false,
@@ -82,6 +87,7 @@ describe('chat service', () => {
       expect(result.chatId).toBe(mockChatId);
       expect(result.isNewChat).toBe(false);
       expect(result.error).toBeUndefined();
+      expect(db.select).toHaveBeenCalled();
     });
 
     it('should return 404 error when chat not found', async () => {
@@ -113,14 +119,20 @@ describe('chat service', () => {
   });
 
   describe('saveMessage', () => {
+    function mockInsertChain(onConflictImpl: ReturnType<typeof vi.fn>) {
+      const mockValues = vi.fn().mockReturnValue({ onConflictDoUpdate: onConflictImpl });
+      vi.mocked(db.insert).mockReturnValue({ values: mockValues } as unknown as ReturnType<typeof db.insert>);
+      return mockValues;
+    }
+
     it('should save user message and return message ID', async () => {
-      vi.mocked(db.values).mockResolvedValue([]);
+      const mockValues = mockInsertChain(vi.fn().mockResolvedValue([]));
 
       const result = await saveMessage(mockChatId, mockUserId, MessageRole.User, 'Hello');
 
       expect(result).toBe('mock-nanoid-32chars-long-id');
-      expect(db.insert).toHaveBeenCalled();
-      expect(db.values).toHaveBeenCalledWith(
+      expect(db.insert).toHaveBeenCalledWith(message);
+      expect(mockValues).toHaveBeenCalledWith(
         expect.objectContaining({
           chatId: mockChatId,
           userId: mockUserId,
@@ -131,11 +143,11 @@ describe('chat service', () => {
     });
 
     it('should save assistant message', async () => {
-      vi.mocked(db.values).mockResolvedValue([]);
+      const mockValues = mockInsertChain(vi.fn().mockResolvedValue([]));
 
       await saveMessage(mockChatId, mockUserId, MessageRole.Assistant, 'Response');
 
-      expect(db.values).toHaveBeenCalledWith(
+      expect(mockValues).toHaveBeenCalledWith(
         expect.objectContaining({
           role: MessageRole.Assistant,
           content: 'Response',
@@ -144,7 +156,7 @@ describe('chat service', () => {
     });
 
     it('should use provided message ID', async () => {
-      vi.mocked(db.values).mockResolvedValue([]);
+      mockInsertChain(vi.fn().mockResolvedValue([]));
       const customId = 'custom-message-id';
 
       const result = await saveMessage(mockChatId, mockUserId, MessageRole.User, 'Hello', customId);
@@ -152,12 +164,11 @@ describe('chat service', () => {
       expect(result).toBe(customId);
     });
 
-    it('should throw error when database insert fails', async () => {
-      vi.mocked(db.values).mockRejectedValue(new Error('Insert failed'));
+    it('should handle database error', async () => {
+      mockInsertChain(vi.fn().mockRejectedValue(new Error('DB error')));
 
-      await expect(
-        saveMessage(mockChatId, mockUserId, MessageRole.User, 'Hello')
-      ).rejects.toThrow('Failed to save message to database');
+      await expect(saveMessage(mockChatId, mockUserId, MessageRole.User, 'Hello'))
+        .rejects.toThrow('Failed to save message to database');
     });
   });
 });

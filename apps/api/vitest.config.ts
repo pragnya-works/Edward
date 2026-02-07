@@ -25,6 +25,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@edward/auth': path.resolve(__dirname, '../../packages/auth/dist/index.js'),
+      '@edward/shared/constants': path.resolve(__dirname, '../../packages/shared/dist/constants.js'),
       '@edward/shared': path.resolve(__dirname, '../../packages/shared/dist/index.js'),
     },
   },

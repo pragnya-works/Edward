@@ -5,7 +5,7 @@ import { ExecResult } from './types.sandbox.js';
 import path from 'path';
 
 const docker = new Docker();
-const PREWARM_IMAGE = 'node:20-slim';
+const PREWARM_IMAGE = process.env.PREWARM_SANDBOX_IMAGE || 'node:20-slim';
 export const CONTAINER_WORKDIR = '/home/node/edward';
 export const SANDBOX_LABEL = 'com.edward.sandbox';
 const EXEC_TIMEOUT_MS = 10000;

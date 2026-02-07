@@ -2,12 +2,17 @@ import { nanoid } from 'nanoid';
 import { logger } from '../../../utils/logger.js';
 import { ensureError } from '../../../utils/error.js';
 import { SandboxInstance } from '../types.sandbox.js';
-import { saveSandboxState, getActiveSandboxState, refreshSandboxExpiry, deleteSandboxState } from '../state.sandbox.js';
-import { createContainer, getContainer } from '../docker.sandbox.js';
+import {
+  saveSandboxState,
+  getActiveSandboxState,
+  refreshSandboxTTL,
+  deleteSandboxState
+} from '../state.sandbox.js';
+import { createContainer, getContainer, listContainers } from '../docker.sandbox.js';
 import { restoreSandboxInstance } from '../backup.sandbox.js';
 import { redis } from '../../../lib/redis.js';
 import { getTemplateConfig, getDefaultImage, isValidFramework } from '../templates/template.registry.js';
-import { PROVISIONING_TIMEOUT_MS, SANDBOX_TTL, CONTAINER_STATUS_CACHE_MS, containerStatusCache } from './state.js';
+import { PROVISIONING_TIMEOUT_MS, SANDBOX_TTL, CONTAINER_STATUS_CACHE_MS, SANDBOX_DOCKER_LABEL, containerStatusCache } from './state.js';
 
 async function releaseLock(lockKey: string, lockValue: string): Promise<void> {
   const script = `if redis.call("get", KEYS[1]) == ARGV[1] then return redis.call("del", KEYS[1]) else return 0 end`;
@@ -32,30 +37,67 @@ async function waitForProvisioning(chatId: string): Promise<string | null> {
 
 export async function getActiveSandbox(chatId: string): Promise<string | undefined> {
   const sandbox = await getActiveSandboxState(chatId);
-  if (!sandbox) return undefined;
+  if (sandbox) {
+    const cached = containerStatusCache.get(sandbox.containerId);
+    if (cached && (Date.now() - cached.timestamp < CONTAINER_STATUS_CACHE_MS)) {
+      if (!cached.alive) {
+        // Redis state exists but container is known dead — fall through to Docker label recovery
+      } else {
+        await refreshSandboxTTL(sandbox.id, sandbox.chatId);
+        return sandbox.id;
+      }
+    } else {
+      try {
+        const container = getContainer(sandbox.containerId);
+        await container.inspect();
 
-  const cached = containerStatusCache.get(sandbox.containerId);
-  if (cached && (Date.now() - cached.timestamp < CONTAINER_STATUS_CACHE_MS)) {
-    if (!cached.alive) return undefined;
-    await refreshSandboxExpiry(sandbox);
-    return sandbox.id;
+        containerStatusCache.set(sandbox.containerId, { alive: true, timestamp: Date.now() });
+        await refreshSandboxTTL(sandbox.id, sandbox.chatId);
+
+        return sandbox.id;
+      } catch (error) {
+        const err = ensureError(error);
+        containerStatusCache.set(sandbox.containerId, { alive: false, timestamp: Date.now() });
+        logger.warn({ error: err, sandboxId: sandbox.id, chatId }, 'Active sandbox container not found or error inspecting, cleaning up');
+        await deleteSandboxState(sandbox.id, chatId);
+      }
+    }
   }
 
   try {
-    const container = getContainer(sandbox.containerId);
-    await container.inspect();
+    const containers = await listContainers();
+    const chatContainer = containers.find(
+      (c) =>
+        c.Labels?.[SANDBOX_DOCKER_LABEL] === 'true' &&
+        c.Labels?.['com.edward.chat'] === chatId &&
+        c.State === 'running'
+    );
 
-    containerStatusCache.set(sandbox.containerId, { alive: true, timestamp: Date.now() });
-    await refreshSandboxExpiry(sandbox);
+    if (chatContainer) {
+      const sandboxId = chatContainer.Labels?.['com.edward.sandboxId'];
+      const userId = chatContainer.Labels?.['com.edward.user'];
+      if (sandboxId && userId) {
+        logger.info({ sandboxId, chatId, containerId: chatContainer.Id }, 'Recovered running container via Docker labels, rehydrating Redis state');
 
-    return sandbox.id;
+        const recovered: SandboxInstance = {
+          id: sandboxId,
+          containerId: chatContainer.Id,
+          expiresAt: Date.now() + SANDBOX_TTL,
+          userId,
+          chatId,
+          scaffoldedFramework: chatContainer.Labels?.['com.edward.framework'] || undefined,
+        };
+
+        await saveSandboxState(recovered);
+        containerStatusCache.set(chatContainer.Id, { alive: true, timestamp: Date.now() });
+        return sandboxId;
+      }
+    }
   } catch (error) {
-    const err = ensureError(error);
-    containerStatusCache.set(sandbox.containerId, { alive: false, timestamp: Date.now() });
-    logger.warn({ error: err, sandboxId: sandbox.id, chatId }, 'Active sandbox container not found or error inspecting, cleaning up');
-    await deleteSandboxState(sandbox.id, chatId);
-    return undefined;
+    logger.warn({ error: ensureError(error), chatId }, 'Docker label-based container recovery failed');
   }
+
+  return undefined;
 }
 
 export async function provisionSandbox(userId: string, chatId: string, framework?: string, shouldRestore: boolean = false): Promise<string> {

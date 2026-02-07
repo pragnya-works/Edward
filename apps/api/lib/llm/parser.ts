@@ -10,6 +10,7 @@ const TAGS = {
   FILE_END: '</file>',
   INSTALL_START: '<edward_install>',
   INSTALL_END: '</edward_install>',
+  COMMAND: '<edward_command',
 } as const;
 
 const LOOKAHEAD_LIMIT = 256;
@@ -61,6 +62,7 @@ export function createStreamParser() {
       { idx: buffer.indexOf(TAGS.THINKING_START), tag: TAGS.THINKING_START, state: StreamState.THINKING, event: ParserEventType.THINKING_START },
       { idx: buffer.indexOf(TAGS.SANDBOX_START), tag: TAGS.SANDBOX_START, state: StreamState.SANDBOX, event: null },
       { idx: buffer.indexOf(TAGS.INSTALL_START), tag: TAGS.INSTALL_START, state: StreamState.INSTALL, event: ParserEventType.INSTALL_START },
+      { idx: buffer.indexOf(TAGS.COMMAND), tag: TAGS.COMMAND, state: StreamState.TEXT, event: ParserEventType.COMMAND },
     ].filter(c => c.idx !== -1);
 
     if (candidates.length === 0) {
@@ -85,9 +87,36 @@ export function createStreamParser() {
     } else if (buffer.startsWith(TAGS.SANDBOX_START)) {
       processSandboxOpenTag(events);
     } else if (buffer.startsWith(TAGS.INSTALL_START)) {
-      buffer = buffer.slice(TAGS.INSTALL_START.length);
-      state = StreamState.INSTALL;
-      events.push({ type: ParserEventType.INSTALL_START });
+      const startTagEnd = buffer.indexOf('>');
+      if (startTagEnd !== -1) {
+        buffer = buffer.slice(startTagEnd + 1);
+        state = StreamState.INSTALL;
+        events.push({ type: ParserEventType.INSTALL_START });
+      }
+    } else if (buffer.startsWith('<edward_command')) {
+      const closeAngle = buffer.indexOf('>');
+      if (closeAngle === -1) return; // incomplete tag, wait for more data
+
+      const tagContent = buffer.slice(0, closeAngle + 1);
+      buffer = buffer.slice(closeAngle + 1);
+
+      const commandMatch = tagContent.match(/command="([^"]+)"/);
+      if (!commandMatch || !commandMatch[1]) {
+        events.push({
+          type: ParserEventType.ERROR,
+          message: 'edward_command tag missing required "command" attribute',
+        });
+      } else {
+        const command = commandMatch[1];
+        let args: string[] = [];
+        const argsMatch = tagContent.match(/args='([^']*)'/);
+        if (argsMatch && argsMatch[1]) {
+          try {
+            args = JSON.parse(argsMatch[1]);
+          } catch { /* malformed JSON — keep empty args */ }
+        }
+        events.push({ type: ParserEventType.COMMAND, command, args });
+      }
     }
   }
 
@@ -204,6 +233,8 @@ export function createStreamParser() {
     buffer = buffer.slice(closeIdx + 1);
     state = StreamState.SANDBOX;
   }
+
+
 
   function processFileOpenTag(events: ParserEvent[], fileIdx: number): void {
     const closeIdx = buffer.indexOf('>', fileIdx);

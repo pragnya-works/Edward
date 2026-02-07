@@ -23,7 +23,8 @@ export async function uploadFile(
     key: string,
     content: StreamingBlobPayloadInputTypes,
     metadata: UploadMetadata,
-    contentLength?: number
+    contentLength?: number,
+    cacheControl?: string
 ): Promise<UploadResult> {
     if (!BUCKET_NAME) {
         logger.warn({ key }, 'S3 upload skipped: bucket not configured');
@@ -34,7 +35,7 @@ export async function uploadFile(
         validateS3Key(key);
 
         const contentType = getContentType(key);
-        await uploadWithRetry(key, content, contentType, metadata, contentLength);
+        await uploadWithRetry(key, content, contentType, metadata, contentLength, cacheControl);
 
         return { success: true, key };
     } catch (error) {
@@ -95,7 +96,11 @@ export async function downloadFile(key: string): Promise<NodeJS.ReadableStream |
         const response = await s3Client.send(command);
         return (response.Body as NodeJS.ReadableStream) || null;
     } catch (error) {
-        logger.error({ error, key }, 'Failed to download file from S3');
+        if (error instanceof Error && error.name === 'NoSuchKey') {
+            logger.debug({ key }, 'S3 key does not exist');
+        } else {
+            logger.error({ error, key }, 'Failed to download file from S3');
+        }
         return null;
     }
 }

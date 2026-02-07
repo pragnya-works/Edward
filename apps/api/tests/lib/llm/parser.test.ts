@@ -67,6 +67,24 @@ describe('createStreamParser', () => {
       ]);
     });
 
+    it('should handle COMMAND tags', () => {
+      const parser = createStreamParser();
+      const events = parser.process('<edward_command command="ls" args=\'["-la"]\'>');
+
+      expect(events).toEqual([
+        { type: ParserEventType.COMMAND, command: 'ls', args: ['-la'] },
+      ]);
+    });
+
+    it('should handle COMMAND tags with non-JSON args gracefully', () => {
+      const parser = createStreamParser();
+      const events = parser.process('<edward_command command="grep" args=\'useEffect .\'>');
+
+      expect(events).toEqual([
+        { type: ParserEventType.COMMAND, command: 'grep', args: [] },
+      ]);
+    });
+
     it('should handle FILE tags', () => {
       const parser = createStreamParser();
       parser.process('<edward_sandbox>');
@@ -229,6 +247,64 @@ describe('createStreamParser', () => {
         { type: ParserEventType.THINKING_START },
         { type: ParserEventType.THINKING_END },
       ]);
+    });
+  });
+
+  describe('edward_command parsing', () => {
+    it('parses <edward_install> followed by <edward_command> in same stream', () => {
+      const parser = createStreamParser();
+
+      // Stream install tag in parts
+      const e1 = parser.process('<edward_install>');
+      const e2 = parser.process('npm install react');
+      const e3 = parser.process('</edward_install>');
+      // Then stream a command tag
+      const e4 = parser.process('<edward_command command="cat" args=\'["src/App.tsx"]\'>');
+      const e5 = parser.flush();
+
+      const all = [...e1, ...e2, ...e3, ...e4, ...e5];
+
+      expect(all.some((e) => e.type === ParserEventType.INSTALL_START)).toBe(true);
+      const cmd = all.find((e) => e.type === ParserEventType.COMMAND);
+      expect(cmd).toBeDefined();
+      if (cmd && 'command' in cmd) {
+        expect(cmd.command).toBe('cat');
+        expect(cmd.args).toEqual(['src/App.tsx']);
+      }
+    });
+
+    it('emits error for <edward_command> missing command attribute', () => {
+      const parser = createStreamParser();
+      const events = [...parser.process('<edward_command args=\'["file"]\'>'), ...parser.flush()];
+
+      const err = events.find((e) => e.type === ParserEventType.ERROR);
+      expect(err).toBeDefined();
+      if (err && 'message' in err) {
+        expect(err.message).toContain('missing required "command" attribute');
+      }
+    });
+
+    it('does not parse <edward_command> inside <edward_sandbox>', () => {
+      const parser = createStreamParser();
+      const e1 = parser.process('<edward_sandbox project="test">');
+      const e2 = parser.process('<edward_command command="cat" args=\'["x"]\'>');
+      const e3 = parser.process('some code');
+      const e4 = parser.process('</edward_sandbox>');
+      const all = [...e1, ...e2, ...e3, ...e4, ...parser.flush()];
+
+      expect(all.some((e) => e.type === ParserEventType.COMMAND)).toBe(false);
+    });
+
+    it('parses multiple sequential <edward_command> tags', () => {
+      const parser = createStreamParser();
+      const e1 = parser.process('<edward_command command="cat" args=\'["a.ts"]\'>');
+      const e2 = parser.process('<edward_command command="ls" args=\'["-la"]\'>');
+      const e3 = parser.process('<edward_command command="grep" args=\'["-rn", "x", "src/"]\'>');
+      const all = [...e1, ...e2, ...e3, ...parser.flush()];
+
+      const cmds = all.filter((e) => e.type === ParserEventType.COMMAND);
+      expect(cmds).toHaveLength(3);
+      expect(cmds.map((c) => 'command' in c ? c.command : '')).toEqual(['cat', 'ls', 'grep']);
     });
   });
 });

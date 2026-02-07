@@ -150,10 +150,12 @@ export async function writeSandboxFile(
     const filesSetKey = `${BUFFER_FILES_SET_PREFIX}${sandboxId}`;
 
     try {
-        await redis.append(bufferKey, content);
-        await redis.sadd(filesSetKey, normalizedPath);
-        await redis.pexpire(bufferKey, 30 * 60 * 1000);
-        await redis.pexpire(filesSetKey, 30 * 60 * 1000);
+        const pipeline = redis.pipeline();
+        pipeline.append(bufferKey, content);
+        pipeline.sadd(filesSetKey, normalizedPath);
+        pipeline.pexpire(bufferKey, 30 * 60 * 1000);
+        pipeline.pexpire(filesSetKey, 30 * 60 * 1000);
+        await pipeline.exec();
     } catch (error) {
         logger.error({ error, sandboxId, filePath: normalizedPath }, 'Redis write failed');
         throw new Error(`Failed to buffer file content: ${error instanceof Error ? error.message : String(error)}`);
@@ -178,6 +180,7 @@ export async function writeSandboxFile(
         }, WRITE_DEBOUNCE_MS)
     );
 }
+
 
 export async function prepareSandboxFile(sandboxId: string, filePath: string): Promise<void> {
     const sandbox = await getSandboxState(sandboxId);

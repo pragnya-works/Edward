@@ -14,13 +14,20 @@ import { sendError as sendStandardError, sendSuccess } from '../utils/response.j
 import { ensureError } from '../utils/error.js';
 import { deleteFolder } from '../services/storage.service.js';
 import { getOrCreateChat, saveMessage } from '../services/chat.service.js';
-import { createWorkflow, advanceWorkflow } from '../services/planning/workflowEngine.js';
+
+import { createWorkflow, advanceWorkflow, ensureSandbox } from '../services/planning/workflowEngine.js';
 import { generatePlan } from '../services/planning/analyzers/planAnalyzer.js';
 import { acquireUserSlot, releaseUserSlot } from '../services/concurrency.service.js';
 import { runStreamSession } from './chat/streamSession.js';
 import { getActiveSandbox, provisionSandbox } from '../services/sandbox/lifecycle/provisioning.js';
 import { cleanupSandbox } from '../services/sandbox/lifecycle/cleanup.js';
 import { buildS3Key } from '../services/storage/key.utils.js';
+import { buildConversationContext } from '../lib/llm/context.js';
+import { refreshSandboxTTL, getChatFramework } from '../services/sandbox/state.sandbox.js';
+import { analyzeIntent } from '../services/planning/analyzers/intentAnalyzer.js';
+import {
+  ChatAction
+} from '../services/planning/schemas.js';
 
 function sendError(res: Response, status: HttpStatus, error: string): void {
   if (res.headersSent) {
@@ -83,6 +90,10 @@ export async function unifiedSendMessage(
 
     const { chatId, isNewChat } = chatResult;
 
+    const analysis = await analyzeIntent(body.content, decryptedApiKey);
+    const intent = isNewChat ? ChatAction.GENERATE : analysis.action;
+    const isFollowUp = intent !== ChatAction.GENERATE;
+
     const userMessageId = await saveMessage(chatId, userId, MessageRole.User, body.content);
     const assistantMessageId = nanoid(32);
 
@@ -95,12 +106,25 @@ export async function unifiedSendMessage(
       chatId,
       userMessageId,
       assistantMessageId,
-      isNewChat
+      isNewChat,
+      intent
     })}\n\n`);
 
     const workflow = await createWorkflow(userId, chatId, {
       userRequest: body.content,
+      mode: intent,
+      intent: analysis,
     });
+
+    let conversationContext = '';
+    if (isFollowUp) {
+      try {
+        await ensureSandbox(workflow, undefined, true);
+      } catch (err) {
+        logger.warn({ err: ensureError(err), chatId }, 'Early sandbox provisioning for context failed, will retry during stream');
+      }
+      conversationContext = await buildConversationContext(chatId);
+    }
 
     const plan = await generatePlan(body.content, decryptedApiKey);
     await advanceWorkflow(workflow, plan);
@@ -128,6 +152,9 @@ export async function unifiedSendMessage(
       userContent: body.content,
       assistantMessageId,
       preVerifiedDeps,
+      isFollowUp,
+      intent,
+      conversationContext,
     });
 
   } catch (error) {
@@ -185,9 +212,21 @@ export async function getChatHistory(
       messages,
     });
 
-    void provisionSandbox(chatData.userId, chatId, undefined, true).catch((err) =>
-      logger.error({ err, chatId }, 'Background sandbox restoration failed')
-    );
+    void (async () => {
+      try {
+        const existingId = await getActiveSandbox(chatId);
+        if (existingId) {
+          await refreshSandboxTTL(existingId, chatId);
+          return;
+        }
+        const { hasBackup } = await import('../services/sandbox/backup.sandbox.js');
+        const backupExists = await hasBackup(chatId);
+        const cachedFramework = await getChatFramework(chatId) || undefined;
+        await provisionSandbox(chatData.userId, chatId, cachedFramework, backupExists);
+      } catch (err) {
+        logger.error({ err, chatId }, 'Background sandbox restoration failed');
+      }
+    })();
 
   } catch (error) {
     logger.error(ensureError(error), 'getChatHistory error');
@@ -245,3 +284,5 @@ export async function deleteChat(
     sendError(res, HttpStatus.INTERNAL_SERVER_ERROR, ERROR_MESSAGES.INTERNAL_SERVER_ERROR);
   }
 }
+
+

@@ -15,34 +15,97 @@ import { buildAndUploadUnified } from './services/sandbox/builder/unified.build.
 import { backupSandboxInstance } from './services/sandbox/backup.sandbox.js';
 import { getSandboxState } from './services/sandbox/state.sandbox.js';
 import { cleanupSandbox } from './services/sandbox/lifecycle/cleanup.js';
+import { createBuild, updateBuild } from '@edward/auth';
+import { enqueueBackupJob } from './services/queue/enqueue.js';
+import { Redis } from 'ioredis';
 
 const logger = createLogger('WORKER');
+const pubClient = new Redis(process.env.REDIS_URL || 'redis://localhost:6379');
 
 async function processBuildJob(payload: BuildJobPayload): Promise<void> {
-  const { sandboxId } = payload;
-  
+  const { sandboxId, chatId, messageId, userId } = payload;
+  const startTime = Date.now();
+
+  const buildRecord = await createBuild({
+    chatId,
+    messageId,
+    status: 'building',
+  });
+
+  let handled = false;
+
   try {
     const result = await buildAndUploadUnified(sandboxId);
+    const duration = Date.now() - startTime;
+
     if (result.success) {
+      await updateBuild(buildRecord.id, {
+        status: 'success',
+        previewUrl: result.previewUrl,
+        buildDuration: duration,
+      });
+
+      await pubClient.publish(`edward:build-status:${chatId}`, JSON.stringify({
+        buildId: buildRecord.id,
+        status: 'success',
+        previewUrl: result.previewUrl,
+      }));
+
       logger.info({
         sandboxId,
         buildDirectory: result.buildDirectory,
         previewUploaded: result.previewUploaded,
         previewUrl: result.previewUrl
       }, '[Worker] Build job completed with preview');
+      handled = true;
     } else {
+      const errorLog = result.error?.slice(-2000) || 'Unknown build error';
+      await updateBuild(buildRecord.id, {
+        status: 'failed',
+        errorLog,
+        buildDuration: duration,
+      });
+
+      await pubClient.publish(`edward:build-status:${chatId}`, JSON.stringify({
+        buildId: buildRecord.id,
+        status: 'failed',
+        errorLog,
+      }));
+
       logger.warn({
         sandboxId,
         buildDirectory: result.buildDirectory,
         previewUploaded: result.previewUploaded,
         error: result.error
       }, '[Worker] Build job completed without preview');
+      handled = true;
     }
-    
+
     if (!result.success) {
       throw new Error(result.error ?? 'Build failed without error message');
     }
+
+    try {
+      await enqueueBackupJob({ sandboxId, userId });
+      logger.debug({ sandboxId }, '[Worker] Backup job enqueued after successful build');
+    } catch (backupErr) {
+      logger.warn({ error: backupErr, sandboxId }, '[Worker] Failed to enqueue post-build backup (non-fatal)');
+    }
   } catch (error) {
+    if (!handled) {
+      const err = error instanceof Error ? error.message : String(error);
+      await updateBuild(buildRecord.id, {
+        status: 'failed',
+        errorLog: err.slice(-2000),
+      }).catch(() => { });
+
+      await pubClient.publish(`edward:build-status:${chatId}`, JSON.stringify({
+        buildId: buildRecord.id,
+        status: 'failed',
+        errorLog: err.slice(-2000),
+      })).catch(() => { });
+    }
+
     logger.error({ error, sandboxId }, '[Worker] Build job failed');
     throw error;
   }
@@ -50,14 +113,14 @@ async function processBuildJob(payload: BuildJobPayload): Promise<void> {
 
 async function processBackupJob(payload: BackupJobPayload): Promise<void> {
   const { sandboxId } = payload;
-  
+
   try {
     const sandbox = await getSandboxState(sandboxId);
     if (!sandbox) {
       logger.warn({ sandboxId }, '[Worker] Sandbox not found for backup');
       return;
     }
-    
+
     await backupSandboxInstance(sandbox);
   } catch (error) {
     logger.error({ error, sandboxId }, '[Worker] Backup job failed');
@@ -67,7 +130,7 @@ async function processBackupJob(payload: BackupJobPayload): Promise<void> {
 
 async function processCleanupJob(payload: CleanupJobPayload): Promise<void> {
   const { sandboxId } = payload;
-  
+
   try {
     await cleanupSandbox(sandboxId);
   } catch (error) {
@@ -80,7 +143,7 @@ const worker = new Worker<JobPayload>(
   QUEUE_NAME,
   async (job) => {
     const payload = JobPayloadSchema.parse(job.data);
-    
+
     switch (payload.type) {
       case JobType.BUILD:
         return processBuildJob(payload);

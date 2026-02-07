@@ -14,13 +14,34 @@ process.env.GITHUB_CLIENT_SECRET = 'test-client-secret';
 process.env.CORS_ORIGIN = 'http://localhost:3000';
 process.env.EDWARD_API_PORT = '3001';
 
-vi.mock('../lib/redis.js', () => ({
-  redis: {
+vi.mock('../lib/redis.js', () => {
+  const mockRedis = {
+    get: vi.fn(),
+    set: vi.fn(),
+    del: vi.fn(),
+    smembers: vi.fn(),
+    sadd: vi.fn(),
+    srem: vi.fn(),
+    pexpire: vi.fn(),
+    append: vi.fn(),
+    strlen: vi.fn(),
+    eval: vi.fn(),
     call: vi.fn(),
     on: vi.fn(),
     quit: vi.fn(),
-  },
-}));
+    pipeline: vi.fn(() => ({
+      get: vi.fn().mockReturnThis(),
+      set: vi.fn().mockReturnThis(),
+      del: vi.fn().mockReturnThis(),
+      sadd: vi.fn().mockReturnThis(),
+      srem: vi.fn().mockReturnThis(),
+      pexpire: vi.fn().mockReturnThis(),
+      append: vi.fn().mockReturnThis(),
+      exec: vi.fn().mockResolvedValue([]),
+    })),
+  };
+  return { redis: mockRedis };
+});
 
 vi.mock('bullmq', () => ({
   Queue: vi.fn().mockImplementation(() => ({

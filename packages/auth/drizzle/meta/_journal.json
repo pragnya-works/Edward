@@ -50,6 +50,13 @@
       "when": 1770131502630,
       "tag": "0006_fixed_blizzard",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1770450644911,
+      "tag": "0007_skinny_havok",
+      "breakpoints": true
     }
   ]
 }

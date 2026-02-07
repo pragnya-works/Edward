@@ -18,6 +18,7 @@ interface GeneratedOutput {
   framework?: string;
   files: Map<string, string>;
   declaredPackages: string[];
+  mode?: 'generate' | 'fix' | 'edit';
 }
 
 const REQUIRED_ENTRY_POINTS: Record<string, string[]> = {
@@ -51,7 +52,7 @@ const IMPORT_TO_PACKAGE: Record<string, string> = {
 export function validateGeneratedOutput(output: GeneratedOutput): ValidationResult {
   const violations: ValidationViolation[] = [];
 
-  if (output.framework) {
+  if (output.framework && output.mode !== 'edit' && output.mode !== 'fix') {
     const required = REQUIRED_ENTRY_POINTS[output.framework];
     if (required) {
       for (const entryPoint of required) {
@@ -67,7 +68,7 @@ export function validateGeneratedOutput(output: GeneratedOutput): ValidationResu
     }
   }
 
-  if (output.framework) {
+  if (output.framework && output.mode !== 'edit' && output.mode !== 'fix') {
     const cssRule = REQUIRED_CSS_IMPORTS[output.framework];
     if (cssRule) {
       const { file, importPattern } = cssRule;
