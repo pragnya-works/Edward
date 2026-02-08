@@ -29,6 +29,8 @@ import { getWorkflow, saveWorkflow, deleteWorkflow } from './workflow/store.js';
 import { acquireLock, releaseLock } from './workflow/locks.js';
 import { updatePlanForWorkflowStep, markPlanInProgressForWorkflowStep } from './workflow/plan.js';
 
+let sandboxProvisionCounter = 0;
+
 export async function createWorkflow(
     userId: string,
     chatId: string,
@@ -58,6 +60,7 @@ export async function executePlanPhase(state: WorkflowState, plan?: Plan): Promi
     }
 
     if (!state.context.plan) {
+        logger.debug({ workflowId: state.id }, 'executePlanPhase: No plan available');
         return {
             step: WorkflowStep.PLAN,
             success: false,
@@ -67,10 +70,32 @@ export async function executePlanPhase(state: WorkflowState, plan?: Plan): Promi
         };
     }
 
+    const validationErrors: string[] = [];
+    if (!state.context.plan.summary) validationErrors.push('Missing plan summary');
+    if (!state.context.plan.steps || state.context.plan.steps.length === 0) validationErrors.push('No steps defined');
+
+    if (validationErrors.length > 0) {
+        logger.warn({ workflowId: state.id, validationErrors }, 'executePlanPhase: Plan validation failed');
+        return {
+            step: WorkflowStep.PLAN,
+            success: false,
+            error: validationErrors.join('; '),
+            durationMs: Date.now() - startTime,
+            retryCount: 0
+        };
+    }
+
+    const stepCount = state.context.plan.steps.length;
+    logger.info({ workflowId: state.id, stepCount, summary: state.context.plan.summary?.slice(0, 100) }, 'executePlanPhase: Plan validated and ready');
     return {
         step: WorkflowStep.PLAN,
         success: true,
-        data: { steps: state.context.plan.steps.length },
+        data: {
+            steps: stepCount,
+            summary: state.context.plan.summary,
+            assumptions: state.context.plan.assumptions,
+            decisions: state.context.plan.decisions
+        },
         durationMs: Date.now() - startTime,
         retryCount: 0
     };
@@ -132,9 +157,13 @@ export async function ensureSandbox(
     framework?: Framework,
     shouldRestore: boolean = false
 ): Promise<string> {
+    const callId = ++sandboxProvisionCounter;
+    logger.info({ workflowId: state.id, chatId: state.chatId, callId }, 'ensureSandbox called');
+
     let sandboxId = await getActiveSandbox(state.chatId);
 
     if (sandboxId) {
+        logger.info({ workflowId: state.id, sandboxId, callId }, 'ensureSandbox: Reused existing sandbox');
         state.sandboxId = sandboxId;
         await saveWorkflow(state);
         return sandboxId;
@@ -164,6 +193,7 @@ export async function ensureSandbox(
 
     sandboxId = await provisionSandbox(state.userId, state.chatId, effectiveFramework, effectiveRestore);
 
+    logger.info({ workflowId: state.id, sandboxId, callId, framework: effectiveFramework, restored: effectiveRestore }, 'ensureSandbox: New sandbox provisioned');
     state.sandboxId = sandboxId;
     await saveWorkflow(state);
     return sandboxId;
@@ -429,15 +459,20 @@ async function withRetry(
         result = await fn();
         result.retryCount = retryCount;
 
-        if (result.success) return result;
+        if (result.success) {
+            logger.debug({ step: result.step, attempt }, 'withRetry: Step succeeded');
+            return result;
+        }
 
         retryCount++;
+        logger.warn({ step: result.step, attempt, maxRetries, error: result.error }, 'withRetry: Step failed, will retry');
         if (attempt < maxRetries) {
             const backoff = Math.min(1000 * Math.pow(2, attempt - 1), 10000);
             await new Promise(resolve => setTimeout(resolve, backoff));
         }
     }
 
+    logger.error({ step: result.step, totalRetries: retryCount, error: result.error }, 'withRetry: All retries exhausted');
     return result;
 }
 
@@ -485,15 +520,10 @@ export async function advanceWorkflow(
             state.status = WorkflowStatus.FAILED;
         }
     } else {
-        const stepOrder: WorkflowStepType[] = [
-            WorkflowStep.PLAN,
-            WorkflowStep.ANALYZE,
-            WorkflowStep.RESOLVE_PACKAGES,
-            WorkflowStep.INSTALL_PACKAGES,
-            WorkflowStep.GENERATE,
-            WorkflowStep.BUILD,
-            WorkflowStep.DEPLOY
-        ];
+        const stepOrder = PHASE_CONFIGS
+            .filter(c => c.name !== 'RECOVER')
+            .map(c => c.name);
+
         let currentIndex = stepOrder.indexOf(state.currentStep);
 
         if (currentIndex === -1 && state.currentStep === WorkflowStep.RECOVER) {

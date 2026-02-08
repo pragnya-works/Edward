@@ -167,22 +167,3 @@ export async function runValidationPipeline(
         };
     }
 }
-
-export async function quickSyntaxCheck(
-    containerId: string,
-    filePath: string
-): Promise<{ valid: boolean; error?: string }> {
-    try {
-        const result = await runContainerCommand(containerId, [
-            'node', '--check', `${CONTAINER_WORKDIR}/${filePath}`
-        ]);
-
-        if (result.exitCode !== 0) {
-            return { valid: false, error: result.stderr || result.stdout };
-        }
-
-        return { valid: true };
-    } catch (error) {
-        return { valid: false, error: error instanceof Error ? error.message : 'Syntax check failed' };
-    }
-}

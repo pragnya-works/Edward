@@ -51,13 +51,6 @@ export async function updateBuild(id: string, data: Partial<{
 	return result[0];
 }
 
-export async function getBuildsByChatId(chatId: string) {
-	return await db.query.build.findMany({
-		where: eq(build.chatId, chatId),
-		orderBy: [desc(build.createdAt)],
-	});
-}
-
 export async function getLatestBuildByChatId(chatId: string) {
 	const result = await db.query.build.findFirst({
 		where: eq(build.chatId, chatId),

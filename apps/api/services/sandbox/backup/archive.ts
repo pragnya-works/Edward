@@ -7,7 +7,7 @@ interface DockerContainer {
   getArchive(options: { path: string }): Promise<NodeJS.ReadableStream>;
 }
 
-export interface BackupArchive {
+interface BackupArchive {
   uploadStream: Readable;
   completion: Promise<unknown>;
 }

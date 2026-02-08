@@ -9,11 +9,11 @@ import { NEXTJS_PATTERNS_SKILL } from './nextjsPatternsSkill.js';
 import { VITE_PATTERNS_SKILL } from './vitePatternsSkill.js';
 import { VANILLA_PATTERNS_SKILL } from './vanillaPatternsSkill.js';
 import { CODE_QUALITY_SKILL } from './codeQualitySkill.js';
+import { Framework } from '../../../services/planning/schemas.js';
 
-export type Framework = 'nextjs' | 'vite-react' | 'vanilla' | undefined;
 export type Complexity = 'simple' | 'moderate' | 'complex' | undefined;
 
-export function getSkillsForContext(framework: Framework, complexity: Complexity): string[] {
+export function getSkillsForContext(framework?: Framework, complexity: Complexity = 'simple'): string[] {
   const skills: string[] = [];
   skills.push(UI_DESIGN_SKILL);
 

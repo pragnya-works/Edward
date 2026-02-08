@@ -1,7 +1,6 @@
 import { ListObjectsV2Command, GetObjectCommand, DeleteObjectsCommand } from '@aws-sdk/client-s3';
 import { StreamingBlobPayloadInputTypes } from '@smithy/types';
 import { logger } from '../utils/logger.js';
-import { S3File } from './sandbox/types.sandbox.js';
 import { s3Client, BUCKET_NAME } from './storage/config.js';
 import { getContentType, validateS3Key } from './storage/key.utils.js';
 import { uploadWithRetry } from './storage/upload.js';
@@ -48,39 +47,6 @@ export async function uploadFile(
             errorStack: err.stack,
         }, 'S3 upload failed');
         return { success: false, key, error: err };
-    }
-}
-
-export async function listFolder(prefix: string): Promise<S3File[]> {
-    if (!BUCKET_NAME) return [];
-
-    const files: S3File[] = [];
-    let continuationToken: string | undefined;
-
-    try {
-        do {
-            const command = new ListObjectsV2Command({
-                Bucket: BUCKET_NAME,
-                Prefix: prefix,
-                ContinuationToken: continuationToken,
-            });
-
-            const response = await s3Client.send(command);
-            const batch = (response.Contents || [])
-                .filter(item => item.Key)
-                .map(item => ({
-                    Key: item.Key!,
-                    Size: item.Size ?? 0,
-                }));
-
-            files.push(...batch);
-            continuationToken = response.NextContinuationToken;
-        } while (continuationToken);
-
-        return files;
-    } catch (error) {
-        logger.error({ error, prefix }, 'Failed to list S3 folder');
-        return [];
     }
 }
 

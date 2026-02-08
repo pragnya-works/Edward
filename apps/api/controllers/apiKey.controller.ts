@@ -45,9 +45,6 @@ export async function getApiKey(
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       logger.error(`[API Key] Decryption failed for user ${userData.id}: ${errorMessage}`);
     }
-
-
-
     sendSuccess(res, HttpStatus.OK, 'API key status retrieved successfully', {
       hasApiKey: true,
       keyPreview,

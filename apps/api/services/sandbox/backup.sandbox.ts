@@ -1,6 +1,5 @@
 import { getContainer, CONTAINER_WORKDIR } from './docker.sandbox.js';
 import { SandboxInstance } from './types.sandbox.js';
-import { getSandboxState } from './state.sandbox.js';
 import { uploadFile, downloadFile } from '../storage.service.js';
 import { logger } from '../../utils/logger.js';
 import { ensureError } from '../../utils/error.js';
@@ -16,7 +15,7 @@ import { HeadObjectCommand } from '@aws-sdk/client-s3';
 const BACKUP_EXISTS_PREFIX = 'edward:backup:exists:';
 const BACKUP_EXISTS_TTL = 7 * 24 * 60 * 60; // 7 days in seconds
 
-export async function markBackupExists(chatId: string): Promise<void> {
+async function markBackupExists(chatId: string): Promise<void> {
     try {
         await redis.set(`${BACKUP_EXISTS_PREFIX}${chatId}`, '1', 'EX', BACKUP_EXISTS_TTL);
     } catch (error) {
@@ -83,12 +82,6 @@ export async function backupSandboxInstance(sandbox: SandboxInstance): Promise<v
     } catch (error) {
         logger.error({ error: ensureError(error), sandboxId }, 'Source backup failed');
     }
-}
-
-export async function backupSandbox(sandboxId: string): Promise<void> {
-    const sandbox = await getSandboxState(sandboxId);
-    if (!sandbox) return;
-    return backupSandboxInstance(sandbox);
 }
 
 export async function restoreSandboxInstance(sandbox: SandboxInstance): Promise<void> {
