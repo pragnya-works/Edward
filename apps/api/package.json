@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "dev": "concurrently -n \"API,WORKER\" -c \"cyan,magenta\" \"pnpm dev:api\" \"pnpm dev:worker\"",
+    "dev:clear": "concurrently -n \"API,WORKER\" -c \"green,magenta\" \"pnpm dev:api\" \"pnpm dev:worker\"",
     "dev:api": "tsx watch entry.ts",
     "dev:worker": "tsx watch worker.ts",
     "start": "node dist/entry.js",
