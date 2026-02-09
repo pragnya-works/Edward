@@ -1,23 +1,39 @@
 import { CORE_SYSTEM_PROMPT, MODE_PROMPTS } from './systemPrompt.js';
 import { getSkillsForContext, type Complexity } from './skills/index.js';
-import { Framework } from '../../services/planning/schemas.js';
+import { Framework, ChatAction, PlanStatus, type Plan } from '../../services/planning/schemas.js';
 
 export interface ComposeOptions {
   framework?: Framework;
   complexity?: Complexity;
   verifiedDependencies?: string[];
-  mode?: 'generate' | 'fix' | 'edit';
+  mode?: typeof ChatAction[keyof typeof ChatAction];
+  plan?: Plan;
+}
+
+function formatPlanForLLM(plan: Plan): string {
+  const stepsBlock = plan.steps
+    .map(step => {
+      const statusIcon = step.status === PlanStatus.DONE ? '✅' : step.status === PlanStatus.IN_PROGRESS ? '🔄' : step.status === PlanStatus.FAILED ? '❌' : '⬜';
+      return `  - [${statusIcon} ${step.status.toUpperCase()}] step_id="${step.id}" | ${step.title}${step.description ? ': ' + step.description : ''}`;
+    })
+    .join('\n');
+
+  return `\n[ACTIVE PLAN — YOU MUST TRACK THIS]\nSummary: ${plan.summary}\nSteps:\n${stepsBlock}\n\nIMPORTANT: Use <edward_plan_check step_id="..." status="done"> to mark each step as you complete it. Do NOT emit <edward_done /> until ALL steps are "done" or "failed".`;
 }
 
 export function composePrompt(options: ComposeOptions = {}): string {
-  const { framework, complexity, verifiedDependencies, mode = 'generate' } = options;
+  const { framework, complexity, verifiedDependencies, mode = ChatAction.GENERATE, plan } = options;
   const parts: string[] = [CORE_SYSTEM_PROMPT];
 
-  if (mode === 'fix') parts.push(MODE_PROMPTS.fix);
-  if (mode === 'edit') parts.push(MODE_PROMPTS.edit);
+  if (mode === ChatAction.FIX) parts.push(MODE_PROMPTS.fix);
+  if (mode === ChatAction.EDIT) parts.push(MODE_PROMPTS.edit);
 
   const skills = getSkillsForContext(framework, complexity);
   parts.push(...skills);
+
+  if (plan) {
+    parts.push(formatPlanForLLM(plan));
+  }
 
   if (verifiedDependencies && verifiedDependencies.length > 0) {
     parts.push(

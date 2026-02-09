@@ -1,13 +1,13 @@
 import { nanoid } from 'nanoid';
-import type { Plan, PlanStep, PlanStatus, WorkflowStepType } from '../schemas.js';
-import { WorkflowStep } from '../schemas.js';
+import type { Plan, PlanStep, PlanStatus as PlanStatusType, PlanStepKey as PlanStepKeyType, WorkflowStepType } from '../schemas.js';
+import { PlanStatus, PlanStepKey, WORKFLOW_STEP_TO_PLAN_KEY } from '../schemas.js';
 
 const DEFAULT_STEPS: Array<Omit<PlanStep, 'id'>> = [
-  { title: 'Analyze request', description: 'Understand requirements and constraints', status: 'pending' },
-  { title: 'Resolve dependencies', description: 'Validate and select required packages', status: 'pending' },
-  { title: 'Generate code', description: 'Create files and update sandbox', status: 'pending' },
-  { title: 'Validate & build', description: 'Run validation and build preview', status: 'pending' },
-  { title: 'Deliver preview', description: 'Make output available and summarize', status: 'pending' },
+  { title: 'Analyze request', description: 'Understand requirements and constraints', status: PlanStatus.PENDING, key: PlanStepKey.ANALYZE },
+  { title: 'Resolve dependencies', description: 'Validate and select required packages', status: PlanStatus.PENDING, key: PlanStepKey.RESOLVE_DEPS },
+  { title: 'Generate code', description: 'Create files and update sandbox', status: PlanStatus.PENDING, key: PlanStepKey.GENERATE },
+  { title: 'Validate & build', description: 'Run validation and build preview', status: PlanStatus.PENDING, key: PlanStepKey.VALIDATE_BUILD },
+  { title: 'Deliver preview', description: 'Make output available and summarize', status: PlanStatus.PENDING, key: PlanStepKey.DELIVER },
 ];
 
 export function createFallbackPlan(): Plan {
@@ -27,7 +27,7 @@ export function normalizePlan(input: Partial<Plan>): Plan {
         id: step.id || nanoid(8),
         title: step.title,
         description: step.description,
-        status: step.status || 'pending',
+        status: step.status || PlanStatus.PENDING,
       }))
     : base.steps;
 
@@ -55,57 +55,30 @@ export function updatePlanStepStatus(plan: Plan, matcher: (step: PlanStep) => bo
 }
 
 export function updatePlanForWorkflowStep(plan: Plan, workflowStep: WorkflowStepType, success: boolean): Plan {
-  const status: PlanStatus = success ? 'done' : 'failed';
-  const mapping: Record<WorkflowStepType, string[]> = {
-    [WorkflowStep.PLAN]: ['Analyze request'],
-    [WorkflowStep.ANALYZE]: ['Analyze request'],
-    [WorkflowStep.RESOLVE_PACKAGES]: ['Resolve dependencies'],
-    [WorkflowStep.INSTALL_PACKAGES]: ['Resolve dependencies'],
-    [WorkflowStep.GENERATE]: ['Generate code'],
-    [WorkflowStep.BUILD]: ['Validate & build'],
-    [WorkflowStep.DEPLOY]: ['Deliver preview'],
-    [WorkflowStep.RECOVER]: [],
-  };
-
-  const targets = mapping[workflowStep] || [];
-  if (targets.length === 0) return plan;
+  const status: PlanStatusType = success ? PlanStatus.DONE : PlanStatus.FAILED;
+  const targetKey = WORKFLOW_STEP_TO_PLAN_KEY[workflowStep];
+  if (!targetKey) return plan;
 
   return updatePlanStepStatus(
     plan,
-    step => targets.some(target => step.title.toLowerCase().includes(target.toLowerCase())),
+    step => step.key === targetKey,
     status
   );
 }
 
-export function markPlanStepInProgress(plan: Plan, titleIncludes: string): Plan {
+export function markPlanStepInProgress(plan: Plan, stepKey: PlanStepKeyType): Plan {
   return updatePlanStepStatus(
     plan,
-    step => step.title.toLowerCase().includes(titleIncludes.toLowerCase()),
-    'in_progress'
+    step => step.key === stepKey,
+    PlanStatus.IN_PROGRESS
   );
 }
 
 export function markPlanInProgressForWorkflowStep(plan: Plan, workflowStep: WorkflowStepType): Plan {
-  const mapping: Record<WorkflowStepType, string[]> = {
-    [WorkflowStep.PLAN]: ['Analyze request'],
-    [WorkflowStep.ANALYZE]: ['Analyze request'],
-    [WorkflowStep.RESOLVE_PACKAGES]: ['Resolve dependencies'],
-    [WorkflowStep.INSTALL_PACKAGES]: ['Resolve dependencies'],
-    [WorkflowStep.GENERATE]: ['Generate code'],
-    [WorkflowStep.BUILD]: ['Validate & build'],
-    [WorkflowStep.DEPLOY]: ['Deliver preview'],
-    [WorkflowStep.RECOVER]: [],
-  };
+  const targetKey = WORKFLOW_STEP_TO_PLAN_KEY[workflowStep];
+  if (!targetKey) return plan;
 
-  const targets = mapping[workflowStep] || [];
-  if (targets.length === 0) return plan;
-
-  let updated = plan;
-  for (const target of targets) {
-    updated = markPlanStepInProgress(updated, target);
-  }
-
-  return updated;
+  return markPlanStepInProgress(plan, targetKey);
 }
 
 export function appendPlanDecision(plan: Plan, decision: string): Plan {
@@ -128,7 +101,7 @@ export function mergePlanUpdate(existing: Plan, update: Plan): Plan {
       steps.push({
         ...step,
         id: match.id,
-        status: match.status === 'done' ? 'done' : step.status,
+        status: match.status === PlanStatus.DONE ? PlanStatus.DONE : step.status,
       });
     } else {
       steps.push({ ...step, id: step.id || nanoid(8) });
@@ -142,4 +115,98 @@ export function mergePlanUpdate(existing: Plan, update: Plan): Plan {
     assumptions: update.assumptions.length > 0 ? update.assumptions : existing.assumptions,
     lastUpdatedAt: Date.now(),
   };
+}
+
+export function isPlanComplete(plan: Plan | undefined | null): boolean {
+  if (!plan || !plan.steps || plan.steps.length === 0) {
+    return true;
+  }
+  
+  return plan.steps.every(step => 
+    step.status === PlanStatus.DONE || step.status === PlanStatus.FAILED
+  );
+}
+
+export function getIncompleteSteps(plan: Plan | undefined | null): PlanStep[] {
+  if (!plan || !plan.steps || plan.steps.length === 0) {
+    return [];
+  }
+  
+  return plan.steps.filter(step => 
+    step.status === PlanStatus.PENDING || 
+    step.status === PlanStatus.IN_PROGRESS || 
+    step.status === PlanStatus.BLOCKED
+  );
+}
+
+export function markRemainingStepsAsFailed(plan: Plan, reason: string): Plan {
+  const incompleteSteps = getIncompleteSteps(plan);
+  
+  if (incompleteSteps.length === 0) {
+    return plan;
+  }
+  
+  let updatedPlan = plan;
+  
+  for (const incompleteStep of incompleteSteps) {
+    updatedPlan = updatePlanStepStatus(
+      updatedPlan,
+      step => step.id === incompleteStep.id,
+      PlanStatus.FAILED
+    );
+  }
+  
+  updatedPlan = appendPlanDecision(updatedPlan, `${incompleteSteps.length} step(s) not completed: ${reason}`);
+  return updatedPlan;
+}
+
+export function hasCriticalFailures(plan: Plan | undefined | null): boolean {
+  if (!plan || !plan.steps || plan.steps.length === 0) {
+    return false;
+  }
+  
+  const criticalStepKeys: PlanStepKeyType[] = [PlanStepKey.GENERATE, PlanStepKey.VALIDATE_BUILD];
+  
+  return plan.steps.some(step => 
+    step.status === PlanStatus.FAILED && 
+    step.key != null &&
+    criticalStepKeys.includes(step.key)
+  );
+}
+
+export function getPlanCompletionSummary(plan: Plan | undefined | null): {
+  isComplete: boolean;
+  totalSteps: number;
+  done: number;
+  failed: number;
+  pending: number;
+  inProgress: number;
+  blocked: number;
+  hasCriticalFailures: boolean;
+} {
+  if (!plan || !plan.steps || plan.steps.length === 0) {
+    return {
+      isComplete: true,
+      totalSteps: 0,
+      done: 0,
+      failed: 0,
+      pending: 0,
+      inProgress: 0,
+      blocked: 0,
+      hasCriticalFailures: false,
+    };
+  }
+  
+  const summary = {
+    isComplete: isPlanComplete(plan),
+    totalSteps: plan.steps.length,
+    done: plan.steps.filter(s => s.status === PlanStatus.DONE).length,
+    failed: plan.steps.filter(s => s.status === PlanStatus.FAILED).length,
+    pending: plan.steps.filter(s => s.status === PlanStatus.PENDING).length,
+    inProgress: plan.steps.filter(s => s.status === PlanStatus.IN_PROGRESS).length,
+    blocked: plan.steps.filter(s => s.status === PlanStatus.BLOCKED).length,
+    hasCriticalFailures: hasCriticalFailures(plan),
+  };
+  
+  return summary;
 }

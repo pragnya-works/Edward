@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { PlanSchema } from '../services/planning/schemas.js';
+import { PlanSchema, PlanStatusSchema, ChatActionSchema, PlanStepKeySchema } from '../services/planning/schemas.js';
 
 export const NPM_PACKAGE_REGEX = /^(?:@[a-z0-9-~][a-z0-9-._~]*\/)?[a-z0-9-~][a-z0-9-._~]*$/i;
 export const MAX_DEPENDENCIES = 50;
@@ -32,6 +32,7 @@ export enum ParserEventType {
   ERROR = 'error',
   META = 'meta',
   COMMAND = 'command',
+  PLAN_STEP_COMPLETE = 'plan_step_complete',
 }
 
 export const ChatIdParamSchema = z.object({
@@ -86,11 +87,12 @@ export const ParserEventSchema = z.discriminatedUnion('type', [
       id: z.string(),
       title: z.string(),
       description: z.string().optional(),
-      status: z.enum(['pending', 'in_progress', 'done', 'blocked', 'failed'])
+      status: PlanStatusSchema,
+      key: PlanStepKeySchema.optional(),
     }))
   }),
   z.object({ type: z.literal(ParserEventType.ERROR), message: z.string() }),
-  z.object({ type: z.literal(ParserEventType.META), chatId: z.string(), userMessageId: z.string(), assistantMessageId: z.string(), isNewChat: z.boolean(), intent: z.enum(['generate', 'fix', 'edit']).optional() }),
+  z.object({ type: z.literal(ParserEventType.META), chatId: z.string(), userMessageId: z.string(), assistantMessageId: z.string(), isNewChat: z.boolean(), intent: ChatActionSchema.optional() }),
   z.object({
     type: z.literal(ParserEventType.COMMAND),
     command: z.string(),
@@ -98,6 +100,11 @@ export const ParserEventSchema = z.discriminatedUnion('type', [
     exitCode: z.number().optional(),
     stdout: z.string().optional(),
     stderr: z.string().optional(),
+  }),
+  z.object({
+    type: z.literal(ParserEventType.PLAN_STEP_COMPLETE),
+    stepId: z.string(),
+    status: PlanStatusSchema.default('done'),
   }),
 ]);
 

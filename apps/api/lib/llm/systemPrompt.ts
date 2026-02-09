@@ -72,6 +72,62 @@ Examples:
   <edward_command command="ls" args='["-la", "src/components"]'>
 `;
 
+const PLAN_TRACKING_FORMAT = `
+## PLAN TRACKING (CRITICAL)
+
+You will be given a plan with steps to follow. You MUST track your progress against this plan.
+
+### How to mark a step as done:
+After completing a plan step, emit:
+  <edward_plan_check step_id="STEP_ID" status="done">
+
+### How to mark a step as in-progress:
+When starting work on a plan step, emit:
+  <edward_plan_check step_id="STEP_ID" status="in_progress">
+
+### How to mark a step as failed:
+If a step cannot be completed, emit:
+  <edward_plan_check step_id="STEP_ID" status="failed">
+
+### Rules:
+1. You MUST check off every plan step by emitting <edward_plan_check> as you complete each one
+2. Work through steps IN ORDER — mark each "in_progress" when you start, "done" when you finish
+3. Do NOT skip steps or leave them unchecked
+4. If the plan has steps like "Generate code" or "Create components", mark them done AFTER you emit the corresponding <file> tags
+5. Emit plan checks OUTSIDE of <edward_sandbox> tags (in the text/response section)
+6. You are NOT done until ALL steps are marked as "done" or "failed"
+7. After all steps are checked, emit <edward_done />
+
+### Example workflow:
+<edward_plan_check step_id="step-1" status="in_progress">
+
+I'll start by analyzing the requirements...
+
+<edward_plan_check step_id="step-1" status="done">
+<edward_plan_check step_id="step-2" status="in_progress">
+
+<edward_install>
+framework: nextjs
+packages: lucide-react, clsx
+</edward_install>
+
+<edward_plan_check step_id="step-2" status="done">
+<edward_plan_check step_id="step-3" status="in_progress">
+
+<edward_sandbox project="My App" base="node">
+<file path="src/app/page.tsx">
+// ... code ...
+</file>
+</edward_sandbox>
+
+<edward_plan_check step_id="step-3" status="done">
+<edward_plan_check step_id="step-4" status="done">
+<edward_plan_check step_id="step-5" status="done">
+
+<edward_done />
+`;
+
+
 const SANDBOX_FORMAT = `
 <edward_sandbox_format>
 Use <edward_sandbox> for multi-file projects (the primary output mode).
@@ -218,6 +274,7 @@ export const CORE_SYSTEM_PROMPT = [
    FRAMEWORK_SELECTION,
    INSTALL_FORMAT,
    COMMAND_FORMAT,
+   PLAN_TRACKING_FORMAT,
    SANDBOX_FORMAT,
    CODE_BLOCKS,
    QUICK_REFERENCE,

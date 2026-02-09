@@ -11,6 +11,7 @@ const TAGS = {
   INSTALL_START: '<edward_install>',
   INSTALL_END: '</edward_install>',
   COMMAND: '<edward_command',
+  PLAN_CHECK: '<edward_plan_check',
 } as const;
 
 const LOOKAHEAD_LIMIT = 256;
@@ -63,6 +64,7 @@ export function createStreamParser() {
       { idx: buffer.indexOf(TAGS.SANDBOX_START), tag: TAGS.SANDBOX_START, state: StreamState.SANDBOX, event: null },
       { idx: buffer.indexOf(TAGS.INSTALL_START), tag: TAGS.INSTALL_START, state: StreamState.INSTALL, event: ParserEventType.INSTALL_START },
       { idx: buffer.indexOf(TAGS.COMMAND), tag: TAGS.COMMAND, state: StreamState.TEXT, event: ParserEventType.COMMAND },
+      { idx: buffer.indexOf(TAGS.PLAN_CHECK), tag: TAGS.PLAN_CHECK, state: StreamState.TEXT, event: ParserEventType.PLAN_STEP_COMPLETE },
     ].filter(c => c.idx !== -1);
 
     if (candidates.length === 0) {
@@ -116,6 +118,29 @@ export function createStreamParser() {
           } catch { /* malformed JSON — keep empty args */ }
         }
         events.push({ type: ParserEventType.COMMAND, command, args });
+      }
+    } else if (buffer.startsWith('<edward_plan_check')) {
+      const closeAngle = buffer.indexOf('>');
+      if (closeAngle === -1) return;
+
+      const tagContent = buffer.slice(0, closeAngle + 1);
+      buffer = buffer.slice(closeAngle + 1);
+
+      const stepIdMatch = tagContent.match(/step_id="([^"]+)"/);
+      const statusMatch = tagContent.match(/status="([^"]+)"/);
+      if (stepIdMatch && stepIdMatch[1]) {
+        const stepId = stepIdMatch[1];
+        const status = (statusMatch && statusMatch[1]) || 'done';
+        events.push({
+          type: ParserEventType.PLAN_STEP_COMPLETE,
+          stepId,
+          status: status as 'done' | 'in_progress' | 'failed',
+        });
+      } else {
+        events.push({
+          type: ParserEventType.ERROR,
+          message: 'edward_plan_check tag missing required "step_id" attribute',
+        });
       }
     }
   }
