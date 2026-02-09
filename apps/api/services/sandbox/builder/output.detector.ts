@@ -1,97 +1,133 @@
-import { getContainer, execCommand, CONTAINER_WORKDIR } from '../docker.sandbox.js';
-import { logger } from '../../../utils/logger.js';
-import type Docker from 'dockerode';
+import {
+  getContainer,
+  execCommand,
+  CONTAINER_WORKDIR,
+} from "../docker.sandbox.js";
+import { logger } from "../../../utils/logger.js";
+import type Docker from "dockerode";
+import type { Framework } from "../../planning/schemas.js";
 
 export interface BuildOutputInfo {
-    directory: string;
-    type: 'static' | 'ssr' | 'hybrid' | 'vanilla';
+  directory: string;
+  type: "static" | "ssr" | "hybrid" | "vanilla";
 }
 
-type Framework = 'nextjs' | 'vite' | 'vanilla';
-
 const FRAMEWORK_OUTPUT_DIRS: Record<Framework, string[]> = {
-    nextjs: ['out', 'dist', '.next'],
-    vite: ['dist'],
-    vanilla: ['dist', 'build', 'out', '.next', '.output'],
+  nextjs: ["out", "dist", ".next"],
+  "vite-react": ["dist"],
+  vanilla: ["dist", "build", "out", ".next", ".output"],
 };
 
-const COMMON_OUTPUT_DIRS = ['dist', 'build', 'out', '.next', '.output'];
+const COMMON_OUTPUT_DIRS = ["dist", "build", "out", ".next", ".output"];
 
-async function directoryExists(container: Docker.Container, path: string): Promise<boolean> {
-    const result = await execCommand(container, ['test', '-d', path], false, undefined, undefined, CONTAINER_WORKDIR);
-    return result.exitCode === 0;
+async function directoryExists(
+  container: Docker.Container,
+  path: string,
+): Promise<boolean> {
+  const result = await execCommand(
+    container,
+    ["test", "-d", path],
+    false,
+    undefined,
+    undefined,
+    CONTAINER_WORKDIR,
+  );
+  return result.exitCode === 0;
 }
 
 function detectFramework(pkg: Record<string, unknown>): Framework {
-    const dependencies = (pkg.dependencies as Record<string, string>) || {};
-    const devDependencies = (pkg.devDependencies as Record<string, string>) || {};
+  const dependencies = (pkg.dependencies as Record<string, string>) || {};
+  const devDependencies = (pkg.devDependencies as Record<string, string>) || {};
 
-    if (dependencies.next) return 'nextjs';
-    if (devDependencies.vite || dependencies.vite) return 'vite';
-    return 'vanilla';
+  if (dependencies.next) return "nextjs";
+  if (devDependencies.vite || dependencies.vite) return "vite-react";
+  return "vanilla";
 }
 
 async function findFirstExistingDirectory(
-    container: Docker.Container,
-    directories: string[]
+  container: Docker.Container,
+  directories: string[],
 ): Promise<string | null> {
-    for (const dir of directories) {
-        if (await directoryExists(container, dir)) {
-            return dir;
-        }
+  for (const dir of directories) {
+    if (await directoryExists(container, dir)) {
+      return dir;
     }
-    return null;
+  }
+  return null;
 }
 
 export async function detectBuildOutput(
-    containerId: string,
-    sandboxId: string
+  containerId: string,
+  sandboxId: string,
 ): Promise<BuildOutputInfo> {
-    const container = getContainer(containerId);
+  const container = getContainer(containerId);
 
-    try {
-        const pkgResult = await execCommand(container, ['cat', 'package.json'], false, undefined, undefined, CONTAINER_WORKDIR);
+  try {
+    const pkgResult = await execCommand(
+      container,
+      ["cat", "package.json"],
+      false,
+      undefined,
+      undefined,
+      CONTAINER_WORKDIR,
+    );
 
-        if (pkgResult.exitCode !== 0) {
-            logger.warn({ sandboxId, stderr: pkgResult.stderr }, 'Failed to read package.json');
-            return { directory: '.', type: 'vanilla' };
-        }
-
-        const pkg = JSON.parse(pkgResult.stdout);
-        const framework = detectFramework(pkg);
-        if (framework === 'nextjs') {
-            const foundDir = await findFirstExistingDirectory(container, FRAMEWORK_OUTPUT_DIRS.nextjs);
-
-            if (foundDir === 'dist' || foundDir === 'out') {
-                return { directory: foundDir, type: 'static' };
-            }
-
-            if (foundDir === '.next') {
-                return { directory: '.next', type: 'hybrid' };
-            }
-
-            throw new Error('Next.js build artifacts (dist, out, or .next) not found. Build likely failed.');
-        }
-
-        if (framework === 'vite') {
-            const foundDir = await findFirstExistingDirectory(container, FRAMEWORK_OUTPUT_DIRS.vite);
-
-            if (foundDir) {
-                return { directory: foundDir, type: 'static' };
-            }
-
-            throw new Error('Vite build artifacts (dist) not found. Build likely failed.');
-        }
-
-        const foundDir = await findFirstExistingDirectory(container, COMMON_OUTPUT_DIRS);
-
-        if (foundDir) {
-            return { directory: foundDir, type: foundDir === '.next' ? 'hybrid' : 'static' };
-        }
-
-        return { directory: '.', type: 'vanilla' };
-    } catch (error) {
-        logger.error({ error, sandboxId }, 'Build output detection failed');
-        throw error;
+    if (pkgResult.exitCode !== 0) {
+      logger.warn(
+        { sandboxId, stderr: pkgResult.stderr },
+        "Failed to read package.json",
+      );
+      return { directory: ".", type: "vanilla" };
     }
+
+    const pkg = JSON.parse(pkgResult.stdout);
+    const framework = detectFramework(pkg);
+    if (framework === "nextjs") {
+      const foundDir = await findFirstExistingDirectory(
+        container,
+        FRAMEWORK_OUTPUT_DIRS.nextjs,
+      );
+
+      if (foundDir === "dist" || foundDir === "out") {
+        return { directory: foundDir, type: "static" };
+      }
+
+      if (foundDir === ".next") {
+        return { directory: ".next", type: "hybrid" };
+      }
+
+      throw new Error(
+        "Next.js build artifacts (dist, out, or .next) not found. Build likely failed.",
+      );
+    }
+
+    if (framework === "vite-react") {
+      const foundDir = await findFirstExistingDirectory(
+        container,
+        FRAMEWORK_OUTPUT_DIRS["vite-react"],
+      );
+
+      if (foundDir) {
+        return { directory: foundDir, type: "static" };
+      }
+
+      throw new Error(
+        "Vite build artifacts (dist) not found. Build likely failed.",
+      );
+    }
+
+    const foundDir = await findFirstExistingDirectory(
+      container,
+      COMMON_OUTPUT_DIRS,
+    );
+
+    if (foundDir) {
+      return { directory: foundDir, type: "vanilla" };
+    }
+
+    return { directory: ".", type: "vanilla" };
+  } catch (error) {
+    logger.error({ error, sandboxId }, "Error detecting build output");
+    return { directory: ".", type: "vanilla" };
+  }
 }

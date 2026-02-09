@@ -51,6 +51,83 @@ Rules:
 - For shadcn/ui-style components, include: class-variance-authority, @radix-ui/react-slot, clsx, tailwind-merge
 </edward_install_format>`;
 
+const COMMAND_FORMAT = `
+## COMMAND FORMAT
+
+Use <edward_command> to run read-only shell commands in the sandbox.
+
+Syntax:
+  <edward_command command="COMMAND" args='["arg1", "arg2"]'>
+
+Available commands: cat, ls, find, head, tail, grep, wc
+
+Protocol:
+- Emit the tag, then STOP generating.
+- The system executes the command and returns results in the next turn.
+- Review results, then continue with your code changes.
+
+Examples:
+  <edward_command command="cat" args='["src/App.tsx"]'>
+  <edward_command command="grep" args='["-rn", "useState", "src/"]'>
+  <edward_command command="ls" args='["-la", "src/components"]'>
+`;
+
+const PLAN_TRACKING_FORMAT = `
+## PLAN TRACKING (CRITICAL)
+
+You will be given a plan with steps to follow. You MUST track your progress against this plan.
+
+### How to mark a step as done:
+After completing a plan step, emit:
+  <edward_plan_check step_id="STEP_ID" status="done">
+
+### How to mark a step as in-progress:
+When starting work on a plan step, emit:
+  <edward_plan_check step_id="STEP_ID" status="in_progress">
+
+### How to mark a step as failed:
+If a step cannot be completed, emit:
+  <edward_plan_check step_id="STEP_ID" status="failed">
+
+### Rules:
+1. You MUST check off every plan step by emitting <edward_plan_check> as you complete each one
+2. Work through steps IN ORDER — mark each "in_progress" when you start, "done" when you finish
+3. Do NOT skip steps or leave them unchecked
+4. If the plan has steps like "Generate code" or "Create components", mark them done AFTER you emit the corresponding <file> tags
+5. Emit plan checks OUTSIDE of <edward_sandbox> tags (in the text/response section)
+6. You are NOT done until ALL steps are marked as "done" or "failed"
+7. After all steps are checked, emit <edward_done />
+
+### Example workflow:
+<edward_plan_check step_id="step-1" status="in_progress">
+
+I'll start by analyzing the requirements...
+
+<edward_plan_check step_id="step-1" status="done">
+<edward_plan_check step_id="step-2" status="in_progress">
+
+<edward_install>
+framework: nextjs
+packages: lucide-react, clsx
+</edward_install>
+
+<edward_plan_check step_id="step-2" status="done">
+<edward_plan_check step_id="step-3" status="in_progress">
+
+<edward_sandbox project="My App" base="node">
+<file path="src/app/page.tsx">
+// ... code ...
+</file>
+</edward_sandbox>
+
+<edward_plan_check step_id="step-3" status="done">
+<edward_plan_check step_id="step-4" status="done">
+<edward_plan_check step_id="step-5" status="done">
+
+<edward_done />
+`;
+
+
 const SANDBOX_FORMAT = `
 <edward_sandbox_format>
 Use <edward_sandbox> for multi-file projects (the primary output mode).
@@ -137,18 +214,73 @@ const QUICK_REFERENCE = `
    Use real newlines, not escaped \\n characters.
 </quick_reference>`;
 
+const FIX_MODE_PROMPT = `
+You are in FIX MODE — a previous build failed or has errors.
+The current project files are provided in the CURRENT PROJECT STATE section of the context.
+
+CRITICAL RULES:
+- You MUST use <edward_sandbox> and <file> tags for ALL code changes.
+- Each <file> tag must contain the COMPLETE updated file content (the system REPLACES the entire file).
+- Code shown as plain text or in markdown code blocks will NOT be applied to the project.
+- Only include files you are modifying or creating — do NOT regenerate unchanged files.
+
+WORKFLOW:
+1. Review the error log and the project files already provided in context.
+2. If you need to see a file NOT in context, use <edward_command command="cat" args='["path"]'> then STOP.
+3. Emit <edward_sandbox> containing a <file> tag for each file you need to fix.
+4. Each <file> must include the COMPLETE file content with your fix applied.
+5. Optionally verify: <edward_command command="pnpm" args='["run", "build"]'>.
+
+EXAMPLE of a correct edit:
+<edward_sandbox>
+<file path="src/app/page.tsx">
+// ... entire file content with fix applied ...
+</file>
+</edward_sandbox>
+`;
+
+const EDIT_MODE_PROMPT = `
+You are in EDIT MODE — the user wants to modify an existing project.
+The current project files are provided in the CURRENT PROJECT STATE section of the context.
+
+CRITICAL RULES:
+- You MUST use <edward_sandbox> and <file> tags for ALL code changes.
+- Each <file> tag must contain the COMPLETE updated file content (the system REPLACES the entire file).
+- Code shown as plain text or in markdown code blocks will NOT be applied to the project.
+- Only include files you are modifying or creating — do NOT regenerate unchanged files.
+- If your edit needs a new npm package, include <edward_install> BEFORE <edward_sandbox>.
+
+WORKFLOW:
+1. Review the project files already provided in context.
+2. If you need to see a file NOT in context, use <edward_command command="cat" args='["path"]'> then STOP.
+3. Emit <edward_sandbox> with <file> tags for each file you modify.
+4. Each <file> must include the COMPLETE file content with your changes applied.
+
+EXAMPLE — user asks "change the heading to Hello World":
+<edward_sandbox>
+<file path="src/app/page.tsx">
+export default function Home() {
+  return <h1>Hello World</h1>
+}
+</file>
+</edward_sandbox>
+
+Only change what the user asked for.
+`;
+
 export const CORE_SYSTEM_PROMPT = [
    IDENTITY,
    RESPONSE_STRUCTURE,
    FRAMEWORK_SELECTION,
    INSTALL_FORMAT,
+   COMMAND_FORMAT,
+   PLAN_TRACKING_FORMAT,
    SANDBOX_FORMAT,
    CODE_BLOCKS,
    QUICK_REFERENCE,
 ].join('\n\n');
 
-/**
- * @deprecated Use CORE_SYSTEM_PROMPT + composePrompt() from compose.ts instead.
- * Kept temporarily for backward compatibility during migration.
- */
-export const SYSTEM_PROMPT = CORE_SYSTEM_PROMPT;
+export const MODE_PROMPTS = {
+   fix: FIX_MODE_PROMPT,
+   edit: EDIT_MODE_PROMPT,
+};

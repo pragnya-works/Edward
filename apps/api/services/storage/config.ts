@@ -1,7 +1,8 @@
-import { S3Client } from '@aws-sdk/client-s3';
+import { S3Client } from "@aws-sdk/client-s3";
+import { config } from "../../config.js";
 
-export const BUCKET_NAME = process.env.AWS_BUCKET_NAME;
-export const REGION = process.env.AWS_REGION;
+export const BUCKET_NAME = config.aws.s3Bucket;
+export const REGION = config.aws.region;
 export const MAX_RETRIES = 3;
 export const RETRY_BASE_DELAY_MS = 1000;
 export const MAX_KEY_LENGTH = 1024;

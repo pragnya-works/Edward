@@ -1,23 +1,25 @@
-import { Redis } from 'ioredis';
-import { logger } from '../utils/logger.js';
-
-const redisHost = process.env.REDIS_HOST;
-const redisPort = Number(process.env.REDIS_PORT);
-
-if (!redisHost || !redisPort) {
-    throw new Error('REDIS_HOST or REDIS_PORT not defined. Cannot initialize Redis.');
-}
+import { Redis } from "ioredis";
+import { logger } from "../utils/logger.js";
+import { config } from "../config.js";
 
 export const redis = new Redis({
-    host: redisHost,
-    port: redisPort,
+  host: config.redis.host,
+  port: config.redis.port,
+  maxRetriesPerRequest: null,
+});
+
+redis.on("error", (error) => {
+  logger.error(error, "Redis Connection Error");
+});
+
+redis.on("connect", () => {
+  logger.info("Connected to Redis");
+});
+
+export function createRedisClient(): Redis {
+  return new Redis({
+    host: config.redis.host,
+    port: config.redis.port,
     maxRetriesPerRequest: null,
-});
-
-redis.on('error', (error) => {
-    logger.error(error, 'Redis Connection Error');
-});
-
-redis.on('connect', () => {
-    logger.info('Connected to Redis');
-});
+  });
+}

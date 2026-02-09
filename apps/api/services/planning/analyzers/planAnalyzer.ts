@@ -2,7 +2,7 @@ import { nanoid } from 'nanoid';
 import { generateResponse } from '../../../lib/llm/response.js';
 import { logger } from '../../../utils/logger.js';
 import { ensureError } from '../../../utils/error.js';
-import { PlanSchema, type Plan } from '../schemas.js';
+import { PlanSchema, PlanStatus, type Plan } from '../schemas.js';
 import { createFallbackPlan, normalizePlan, mergePlanUpdate } from '../workflow/plan.js';
 
 const PLAN_SYSTEM_PROMPT = `You are a technical planner. Create an execution plan as a JSON object.
@@ -44,7 +44,7 @@ function safeParsePlan(raw: string): Plan | null {
         id: typeof step.id === 'string' && step.id ? step.id : nanoid(8),
         title: step.title,
         description: step.description,
-        status: typeof step.status === 'string' ? step.status : 'pending',
+        status: typeof step.status === 'string' ? step.status : PlanStatus.PENDING,
       }));
     }
 

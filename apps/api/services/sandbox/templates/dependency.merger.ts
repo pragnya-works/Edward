@@ -1,6 +1,6 @@
-import { getContainer, execCommand, CONTAINER_WORKDIR, connectToNetwork } from '../docker.sandbox.js';
+import { getContainer, execCommand, CONTAINER_WORKDIR } from '../docker.sandbox.js';
 import { logger } from '../../../utils/logger.js';
-import { TIMEOUT_DEPENDENCY_INSTALL_MS, disconnectContainerFromNetwork } from '../utils.sandbox.js';
+import { TIMEOUT_DEPENDENCY_INSTALL_MS } from '../utils.sandbox.js';
 import { getSandboxState } from '../state.sandbox.js';
 import { getFrameworkContract, validateFrameworkContract, type PackageJson } from './framework.contracts.js';
 import { Framework } from '../../planning/schemas.js';
@@ -29,8 +29,6 @@ export async function mergeAndInstallDependencies(
             return { success: true };
         }
 
-        await connectToNetwork(containerId);
-
         if (allRuntimeDeps.length > 0) {
             const depsResult = await execCommand(
                 container,
@@ -49,8 +47,6 @@ export async function mergeAndInstallDependencies(
                     stdout: depsResult.stdout.slice(0, 500),
                     stderr: depsResult.stderr.slice(0, 500)
                 }, 'Runtime dependency installation failed');
-
-                await disconnectContainerFromNetwork(containerId, sandboxId);
 
                 return {
                     success: false,
@@ -80,8 +76,6 @@ export async function mergeAndInstallDependencies(
                     stderr: devResult.stderr.slice(0, 500)
                 }, 'Development dependency installation failed');
 
-                await disconnectContainerFromNetwork(containerId, sandboxId);
-
                 return {
                     success: false,
                     error: `Failed to install dev dependencies: ${devResult.stderr || devResult.stdout}`.slice(0, 300)
@@ -89,8 +83,6 @@ export async function mergeAndInstallDependencies(
             }
             
         }
-
-        await disconnectContainerFromNetwork(containerId, sandboxId);
 
         try {
             const packageJsonResult = await execCommand(
@@ -138,7 +130,6 @@ export async function mergeAndInstallDependencies(
         };
         
     } catch (error) {
-        await disconnectContainerFromNetwork(containerId, sandboxId).catch(() => { });
         logger.error({ error, sandboxId }, 'Dependency merger error');
         return {
             success: false,

@@ -1,30 +1,54 @@
-import { vi } from 'vitest';
+import { vi } from "vitest";
 
-process.env.NODE_ENV = 'test';
-process.env.ENCRYPTION_KEY = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
-process.env.REDIS_HOST = 'localhost';
-process.env.REDIS_PORT = '6379';
-process.env.DATABASE_URL = 'postgresql://test:test@localhost:5432/test';
-process.env.AWS_BUCKET_NAME = 'test-bucket';
-process.env.AWS_REGION = 'us-east-1';
-process.env.OPENAI_MODEL = 'gpt-4';
-process.env.GEMINI_MODEL = 'gemini-pro';
-process.env.GITHUB_CLIENT_ID = 'test-client-id';
-process.env.GITHUB_CLIENT_SECRET = 'test-client-secret';
-process.env.CORS_ORIGIN = 'http://localhost:3000';
-process.env.EDWARD_API_PORT = '3001';
+process.env.NODE_ENV = "test";
+process.env.ENCRYPTION_KEY =
+  "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+process.env.REDIS_HOST = "localhost";
+process.env.REDIS_PORT = "6379";
+process.env.DATABASE_URL = "postgresql://test:test@localhost:5432/test";
+process.env.AWS_BUCKET_NAME = "test-bucket";
+process.env.AWS_REGION = "us-east-1";
+process.env.OPENAI_MODEL = "gpt-4";
+process.env.GEMINI_MODEL = "gemini-pro";
+process.env.GITHUB_CLIENT_ID = "test-client-id";
+process.env.GITHUB_CLIENT_SECRET = "test-client-secret";
+process.env.CORS_ORIGIN = "http://localhost:3000";
+process.env.EDWARD_API_PORT = "3001";
+process.env.PREWARM_SANDBOX_IMAGE = "test-image:latest";
+process.env.DOCKER_REGISTRY_BASE = "registry.example.com";
 
-vi.mock('../lib/redis.js', () => ({
-  redis: {
+vi.mock("../lib/redis.js", () => {
+  const mockRedis = {
+    get: vi.fn(),
+    set: vi.fn(),
+    del: vi.fn(),
+    smembers: vi.fn(),
+    sadd: vi.fn(),
+    srem: vi.fn(),
+    pexpire: vi.fn(),
+    append: vi.fn(),
+    strlen: vi.fn(),
+    eval: vi.fn(),
     call: vi.fn(),
     on: vi.fn(),
     quit: vi.fn(),
-  },
-}));
+    pipeline: vi.fn(() => ({
+      get: vi.fn().mockReturnThis(),
+      set: vi.fn().mockReturnThis(),
+      del: vi.fn().mockReturnThis(),
+      sadd: vi.fn().mockReturnThis(),
+      srem: vi.fn().mockReturnThis(),
+      pexpire: vi.fn().mockReturnThis(),
+      append: vi.fn().mockReturnThis(),
+      exec: vi.fn().mockResolvedValue([]),
+    })),
+  };
+  return { redis: mockRedis };
+});
 
-vi.mock('bullmq', () => ({
+vi.mock("bullmq", () => ({
   Queue: vi.fn().mockImplementation(() => ({
-    add: vi.fn().mockResolvedValue({ id: 'test-job-id' }),
+    add: vi.fn().mockResolvedValue({ id: "test-job-id" }),
     close: vi.fn().mockResolvedValue(undefined),
   })),
   Worker: vi.fn().mockImplementation(() => ({
@@ -34,8 +58,9 @@ vi.mock('bullmq', () => ({
   Job: vi.fn(),
 }));
 
-vi.mock('@edward/auth', async () => {
-  const actual = await vi.importActual<typeof import('@edward/auth')>('@edward/auth');
+vi.mock("@edward/auth", async () => {
+  const actual =
+    await vi.importActual<typeof import("@edward/auth")>("@edward/auth");
   return {
     ...actual,
     auth: {
@@ -63,10 +88,10 @@ vi.mock('@edward/auth', async () => {
   };
 });
 
-vi.mock('dockerode', () => ({
+vi.mock("dockerode", () => ({
   default: vi.fn().mockImplementation(() => ({
     createContainer: vi.fn().mockResolvedValue({
-      id: 'test-container-id',
+      id: "test-container-id",
       start: vi.fn().mockResolvedValue(undefined),
       exec: vi.fn().mockResolvedValue({
         start: vi.fn().mockResolvedValue({
@@ -88,7 +113,7 @@ vi.mock('dockerode', () => ({
   })),
 }));
 
-vi.mock('@aws-sdk/client-s3', () => ({
+vi.mock("@aws-sdk/client-s3", () => ({
   S3Client: vi.fn().mockImplementation(() => ({
     send: vi.fn().mockResolvedValue({}),
   })),
@@ -97,13 +122,17 @@ vi.mock('@aws-sdk/client-s3', () => ({
   DeleteObjectsCommand: vi.fn(),
 }));
 
-vi.mock('@aws-sdk/lib-storage', () => ({
+vi.mock("@aws-sdk/lib-storage", () => ({
   Upload: vi.fn().mockImplementation(() => ({
-    done: vi.fn().mockResolvedValue({ Location: 'https://test-bucket.s3.amazonaws.com/test-key' }),
+    done: vi
+      .fn()
+      .mockResolvedValue({
+        Location: "https://test-bucket.s3.amazonaws.com/test-key",
+      }),
   })),
 }));
 
-vi.mock('../utils/logger.js', () => ({
+vi.mock("../utils/logger.js", () => ({
   createLogger: vi.fn().mockReturnValue({
     info: vi.fn(),
     error: vi.fn(),
@@ -117,8 +146,8 @@ vi.mock('../utils/logger.js', () => ({
     debug: vi.fn(),
   },
   Environment: {
-    Development: 'development',
-    Production: 'production',
-    Test: 'test',
+    Development: "development",
+    Production: "production",
+    Test: "test",
   },
 }));

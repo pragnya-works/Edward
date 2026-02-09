@@ -29,13 +29,52 @@ export const FrameworkSchema = z.enum(['nextjs', 'vite-react', 'vanilla']);
 
 export const ComplexitySchema = z.enum(['simple', 'moderate', 'complex']);
 
-export const PlanStatusSchema = z.enum(['pending', 'in_progress', 'done', 'blocked', 'failed']);
+export const ChatAction = {
+    GENERATE: 'generate',
+    FIX: 'fix',
+    EDIT: 'edit'
+} as const;
+
+export const ChatActionSchema = z.nativeEnum(ChatAction);
+export type ChatAction = z.infer<typeof ChatActionSchema>;
+
+export const PlanStatus = {
+    PENDING: 'pending',
+    IN_PROGRESS: 'in_progress',
+    DONE: 'done',
+    BLOCKED: 'blocked',
+    FAILED: 'failed',
+} as const;
+
+export const PlanStatusSchema = z.nativeEnum(PlanStatus);
+
+export const PlanStepKey = {
+    ANALYZE: 'analyze',
+    RESOLVE_DEPS: 'resolve_deps',
+    GENERATE: 'generate',
+    VALIDATE_BUILD: 'validate_build',
+    DELIVER: 'deliver',
+} as const;
+
+export const PlanStepKeySchema = z.nativeEnum(PlanStepKey);
+
+export const WORKFLOW_STEP_TO_PLAN_KEY: Record<WorkflowStepType, (typeof PlanStepKey)[keyof typeof PlanStepKey] | null> = {
+    [WorkflowStep.PLAN]: PlanStepKey.ANALYZE,
+    [WorkflowStep.ANALYZE]: PlanStepKey.ANALYZE,
+    [WorkflowStep.RESOLVE_PACKAGES]: PlanStepKey.RESOLVE_DEPS,
+    [WorkflowStep.INSTALL_PACKAGES]: PlanStepKey.RESOLVE_DEPS,
+    [WorkflowStep.GENERATE]: PlanStepKey.GENERATE,
+    [WorkflowStep.BUILD]: PlanStepKey.VALIDATE_BUILD,
+    [WorkflowStep.DEPLOY]: PlanStepKey.DELIVER,
+    [WorkflowStep.RECOVER]: null,
+};
 
 export const PlanStepSchema = z.object({
     id: z.string(),
     title: z.string(),
     description: z.string().optional(),
     status: PlanStatusSchema,
+    key: PlanStepKeySchema.optional(),
 });
 
 export const PlanSchema = z.object({
@@ -55,6 +94,7 @@ export const PackageInfoSchema = z.object({
 });
 
 export const IntentAnalysisSchema = z.object({
+    action: ChatActionSchema.default(ChatAction.GENERATE),
     type: z.enum(['landing', 'dashboard', 'portfolio', 'ecommerce', 'blog', 'custom']),
     complexity: ComplexitySchema,
     features: z.array(z.string()),
@@ -81,7 +121,8 @@ export const WorkflowContextSchema = z.object({
     generatedFiles: z.array(z.string()).optional(),
     buildDirectory: z.string().optional(),
     previewUrl: z.string().optional(),
-    errors: z.array(z.string()).default([])
+    errors: z.array(z.string()).default([]),
+    mode: ChatActionSchema.optional(),
 });
 
 export const WorkflowStateSchema = z.object({
@@ -108,6 +149,7 @@ export type WorkflowStepType = z.infer<typeof WorkflowStepTypeSchema>;
 export type Framework = z.infer<typeof FrameworkSchema>;
 export type Complexity = z.infer<typeof ComplexitySchema>;
 export type PlanStatus = z.infer<typeof PlanStatusSchema>;
+export type PlanStepKey = z.infer<typeof PlanStepKeySchema>;
 export type PlanStep = z.infer<typeof PlanStepSchema>;
 export type Plan = z.infer<typeof PlanSchema>;
 export type IntentAnalysis = z.infer<typeof IntentAnalysisSchema>;

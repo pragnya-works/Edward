@@ -30,7 +30,7 @@ export function generateSpaFallbackHtml(runtimeConfig: RuntimeConfig): string {
 </html>`;
 }
 
-export function generateRuntimeScript(runtimeConfig: RuntimeConfig): string {
+function generateRuntimeScript(runtimeConfig: RuntimeConfig): string {
   const config = {
     basePath: runtimeConfig.basePath,
     assetPrefix: runtimeConfig.assetPrefix

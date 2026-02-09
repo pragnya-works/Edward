@@ -64,12 +64,19 @@ export async function saveMessage(
       content,
       createdAt: now,
       updatedAt: now,
+    }).onConflictDoUpdate({
+      target: message.id,
+      set: {
+        content,
+        updatedAt: now,
+      }
     });
 
     return messageId;
   } catch (error) {
-    logger.error({ error, userId, chatId, role }, 'Failed to save message');
-    throw new Error('Failed to save message to database');
+    const err = error instanceof Error ? error.message : String(error);
+    logger.error({ error: err, userId, chatId, role }, 'Failed to save message');
+    throw new Error(`Failed to save message to database: ${err}`);
   }
 }
 

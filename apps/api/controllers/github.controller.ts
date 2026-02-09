@@ -1,92 +1,110 @@
-import type { Response } from 'express';
-import { type AuthenticatedRequest, getAuthenticatedUserId } from '../middleware/auth.js';
+import type { Response } from "express";
 import {
-    ConnectRepoSchema,
-    CreateBranchSchema,
-    SyncRepoSchema,
-} from '../schemas/github.schema.js';
-import { HttpStatus } from '../utils/constants.js';
-import { sendError, sendSuccess } from '../utils/response.js';
-import { ensureError } from '../utils/error.js';
-import { logger } from '../utils/logger.js';
-import { connectChatToRepo, createChatBranch, syncChatToGithub } from '../services/github.service.js';
+  type AuthenticatedRequest,
+  getAuthenticatedUserId,
+} from "../middleware/auth.js";
+import { HttpStatus } from "../utils/constants.js";
+import { sendSuccess } from "../utils/response.js";
 
-function mapGithubErrorToStatus(message: string): number {
-    const lower = message.toLowerCase();
-    if (lower.includes('bad credentials') || lower.includes('authentication')) {
-        return HttpStatus.UNAUTHORIZED;
-    }
-    if (lower.includes('permission denied') || lower.includes('permission error') || lower.includes('scope')) {
-        return HttpStatus.FORBIDDEN;
-    }
-    if (lower.includes('not found')) {
-        return HttpStatus.NOT_FOUND;
-    }
-    if (lower.includes('invalid') || lower.includes('required') || lower.includes('validation')) {
-        return HttpStatus.BAD_REQUEST;
-    }
-    return HttpStatus.INTERNAL_SERVER_ERROR;
+import {
+  connectChatToRepo,
+  createChatBranch,
+  syncChatToGithub,
+} from "../services/github.service.js";
+import { asyncHandlerWithCustomError } from "../utils/controller.js";
+
+function mapGithubErrorToStatus(error: Error): {
+  status: HttpStatus;
+  message: string;
+} {
+  const message = error.message.toLowerCase();
+  if (
+    message.includes("bad credentials") ||
+    message.includes("authentication")
+  ) {
+    return { status: HttpStatus.UNAUTHORIZED, message: error.message };
+  }
+  if (
+    message.includes("permission denied") ||
+    message.includes("permission error") ||
+    message.includes("scope")
+  ) {
+    return { status: HttpStatus.FORBIDDEN, message: error.message };
+  }
+  if (message.includes("not found")) {
+    return { status: HttpStatus.NOT_FOUND, message: error.message };
+  }
+  if (
+    message.includes("invalid") ||
+    message.includes("required") ||
+    message.includes("validation")
+  ) {
+    return { status: HttpStatus.BAD_REQUEST, message: error.message };
+  }
+  return { status: HttpStatus.INTERNAL_SERVER_ERROR, message: error.message };
 }
 
-export async function connectRepo(req: AuthenticatedRequest, res: Response): Promise<void> {
-    try {
-        const userId = getAuthenticatedUserId(req);
-        const validated = ConnectRepoSchema.safeParse(req.body);
+async function connectRepoHandler(
+  req: AuthenticatedRequest,
+  res: Response,
+): Promise<void> {
+  const userId = getAuthenticatedUserId(req);
+  const { chatId, repoFullName, repoName } = req.body;
+  const result = await connectChatToRepo(
+    chatId,
+    userId,
+    repoFullName,
+    repoName,
+  );
 
-        if (!validated.success) {
-            sendError(res, HttpStatus.BAD_REQUEST, validated.error.errors[0]?.message || 'Validation error');
-            return;
-        }
-
-        const { chatId, repoFullName, repoName } = validated.data;
-        const result = await connectChatToRepo(chatId, userId, repoFullName, repoName);
-
-        sendSuccess(res, HttpStatus.OK, `Repository '${result.repoFullName}' connected successfully`, result);
-    } catch (err) {
-        const error = ensureError(err);
-        logger.error(error, 'connectRepo error');
-        sendError(res, mapGithubErrorToStatus(error.message), error.message);
-    }
+  sendSuccess(
+    res,
+    HttpStatus.OK,
+    `Repository '${result.repoFullName}' connected successfully`,
+    result,
+  );
 }
 
-export async function createBranch(req: AuthenticatedRequest, res: Response): Promise<void> {
-    try {
-        const userId = getAuthenticatedUserId(req);
-        const validated = CreateBranchSchema.safeParse(req.body);
+async function createBranchHandler(
+  req: AuthenticatedRequest,
+  res: Response,
+): Promise<void> {
+  const userId = getAuthenticatedUserId(req);
+  const { chatId, branchName, baseBranch } = req.body;
+  await createChatBranch(chatId, userId, branchName, baseBranch);
 
-        if (!validated.success) {
-            sendError(res, HttpStatus.BAD_REQUEST, validated.error.errors[0]?.message || 'Validation error');
-            return;
-        }
-
-        const { chatId, branchName, baseBranch } = validated.data;
-        await createChatBranch(chatId, userId, branchName, baseBranch);
-
-        sendSuccess(res, HttpStatus.OK, `Branch '${branchName}' created successfully`);
-    } catch (err) {
-        const error = ensureError(err);
-        logger.error(error, 'createBranch error');
-        sendError(res, mapGithubErrorToStatus(error.message), error.message);
-    }
+  sendSuccess(
+    res,
+    HttpStatus.OK,
+    `Branch '${branchName}' created successfully`,
+  );
 }
 
-export async function syncRepo(req: AuthenticatedRequest, res: Response): Promise<void> {
-    try {
-        const userId = getAuthenticatedUserId(req);
-        const validated = SyncRepoSchema.safeParse(req.body);
+async function syncRepoHandler(
+  req: AuthenticatedRequest,
+  res: Response,
+): Promise<void> {
+  const userId = getAuthenticatedUserId(req);
+  const { chatId, branch, commitMessage } = req.body;
+  const result = await syncChatToGithub(chatId, userId, branch, commitMessage);
 
-        if (!validated.success) {
-            sendError(res, HttpStatus.BAD_REQUEST, validated.error.errors[0]?.message || 'Validation error');
-            return;
-        }
-
-        const { chatId, branch, commitMessage } = validated.data;
-        const result = await syncChatToGithub(chatId, userId, branch, commitMessage);
-
-        sendSuccess(res, HttpStatus.OK, 'Changes synced to GitHub successfully', result);
-    } catch (err) {
-        const error = ensureError(err);
-        logger.error(error, 'syncRepo error');
-        sendError(res, mapGithubErrorToStatus(error.message), error.message);
-    }
+  sendSuccess(
+    res,
+    HttpStatus.OK,
+    "Changes synced to GitHub successfully",
+    result,
+  );
 }
+
+export const connectRepo = asyncHandlerWithCustomError(
+  connectRepoHandler,
+  mapGithubErrorToStatus,
+);
+export const createBranch = asyncHandlerWithCustomError(
+  createBranchHandler,
+  mapGithubErrorToStatus,
+);
+export const syncRepo = asyncHandlerWithCustomError(
+  syncRepoHandler,
+  mapGithubErrorToStatus,
+);

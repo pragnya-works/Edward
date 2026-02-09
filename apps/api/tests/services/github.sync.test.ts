@@ -40,7 +40,6 @@ vi.mock('../../services/storage.service.js', async () => {
     return {
         uploadFile: vi.fn(),
         downloadFile: vi.fn(),
-        listFolder: vi.fn(),
         deleteFolder: vi.fn(),
     };
 });

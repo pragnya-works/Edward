@@ -5,6 +5,7 @@ import { logger } from '../../../utils/logger.js';
 const ANALYSIS_SYSTEM_PROMPT = `You are a technical architect. Analyze the user request and return a JSON object with this exact structure:
 
 {
+  "action": "generate" | "fix" | "edit",
   "type": "landing" | "dashboard" | "portfolio" | "ecommerce" | "blog" | "custom",
   "complexity": "simple" | "moderate" | "complex",
   "features": ["feature1", "feature2"],
@@ -13,8 +14,11 @@ const ANALYSIS_SYSTEM_PROMPT = `You are a technical architect. Analyze the user 
   "reasoning": "Brief explanation"
 }
 
-}
- 
+Action Rules:
+- "fix": If the user reports an error, bug, build failure, or something not working.
+- "edit": If the user wants to change, update, or add features to an existing project.
+- "generate": Default for new projects or complete regenerations.
+
 Respond with ONLY the JSON object.`;
 
 export async function analyzeIntent(input: string, apiKey: string): Promise<IntentAnalysis> {
