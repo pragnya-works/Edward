@@ -80,7 +80,8 @@ export async function uploadWithRetry(
   body: StreamingBlobPayloadInputTypes,
   contentType: string,
   metadata: Record<string, string>,
-  contentLength?: number
+  contentLength?: number,
+  cacheControl?: string
 ): Promise<void> {
   let lastError: Error | null = null;
 
@@ -104,6 +105,7 @@ export async function uploadWithRetry(
           ContentType: contentType,
           Metadata: metadata,
           ContentLength: contentLength,
+          ...(cacheControl ? { CacheControl: cacheControl } : {}),
         },
         leavePartsOnError: false,
       });

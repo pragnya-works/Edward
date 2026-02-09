@@ -1,22 +1,28 @@
-import path from 'path';
-import { StreamState, ParserEventType, type ParserEvent } from '../../schemas/chat.schema.js';
+import path from "path";
+import {
+  StreamState,
+  ParserEventType,
+  type ParserEvent,
+} from "../../schemas/chat.schema.js";
+import { NPM_PACKAGE_REGEX } from "../../utils/sharedConstants.js";
+import type { Framework } from "../../services/planning/schemas.js";
 
 const TAGS = {
-  THINKING_START: '<Thinking>',
-  THINKING_END: '</Thinking>',
-  SANDBOX_START: '<edward_sandbox',
-  SANDBOX_END: '</edward_sandbox>',
-  FILE_START: '<file',
-  FILE_END: '</file>',
-  INSTALL_START: '<edward_install>',
-  INSTALL_END: '</edward_install>',
+  THINKING_START: "<Thinking>",
+  THINKING_END: "</Thinking>",
+  SANDBOX_START: "<edward_sandbox",
+  SANDBOX_END: "</edward_sandbox>",
+  FILE_START: "<file",
+  FILE_END: "</file>",
+  INSTALL_START: "<edward_install>",
+  INSTALL_END: "</edward_install>",
+  COMMAND: "<edward_command",
+  PLAN_CHECK: "<edward_plan_check",
 } as const;
 
 const LOOKAHEAD_LIMIT = 256;
 const MAX_BUFFER_SIZE = 1024 * 10;
 const MAX_ITERATIONS = 1000;
-
-const NPM_PACKAGE_REGEX = /^(@[a-z0-9-~][a-z0-9-._~]*\/)?[a-z0-9-~][a-z0-9-._~]*$/i;
 
 interface TagCandidate {
   idx: number;
@@ -27,14 +33,14 @@ interface TagCandidate {
 
 interface ExitPoint {
   idx: number;
-  type: 'end' | 'sandbox' | 'install';
+  type: "end" | "sandbox" | "install";
 }
 
-type AllowedFramework = 'nextjs' | 'vite-react' | 'vanilla' | 'next' | 'react' | 'vite' | 'next.js';
+type AllowedFramework = Framework | "next" | "react" | "vite" | "next.js";
 
 export function createStreamParser() {
   let state: StreamState = StreamState.TEXT;
-  let buffer = '';
+  let buffer = "";
 
   function handleState(events: ParserEvent[]): void {
     switch (state) {
@@ -58,17 +64,44 @@ export function createStreamParser() {
 
   function handleTextState(events: ParserEvent[]): void {
     const candidates: TagCandidate[] = [
-      { idx: buffer.indexOf(TAGS.THINKING_START), tag: TAGS.THINKING_START, state: StreamState.THINKING, event: ParserEventType.THINKING_START },
-      { idx: buffer.indexOf(TAGS.SANDBOX_START), tag: TAGS.SANDBOX_START, state: StreamState.SANDBOX, event: null },
-      { idx: buffer.indexOf(TAGS.INSTALL_START), tag: TAGS.INSTALL_START, state: StreamState.INSTALL, event: ParserEventType.INSTALL_START },
-    ].filter(c => c.idx !== -1);
+      {
+        idx: buffer.indexOf(TAGS.THINKING_START),
+        tag: TAGS.THINKING_START,
+        state: StreamState.THINKING,
+        event: ParserEventType.THINKING_START,
+      },
+      {
+        idx: buffer.indexOf(TAGS.SANDBOX_START),
+        tag: TAGS.SANDBOX_START,
+        state: StreamState.SANDBOX,
+        event: null,
+      },
+      {
+        idx: buffer.indexOf(TAGS.INSTALL_START),
+        tag: TAGS.INSTALL_START,
+        state: StreamState.INSTALL,
+        event: ParserEventType.INSTALL_START,
+      },
+      {
+        idx: buffer.indexOf(TAGS.COMMAND),
+        tag: TAGS.COMMAND,
+        state: StreamState.TEXT,
+        event: ParserEventType.COMMAND,
+      },
+      {
+        idx: buffer.indexOf(TAGS.PLAN_CHECK),
+        tag: TAGS.PLAN_CHECK,
+        state: StreamState.TEXT,
+        event: ParserEventType.PLAN_STEP_COMPLETE,
+      },
+    ].filter((c) => c.idx !== -1);
 
     if (candidates.length === 0) {
       flushSafeContent(events, ParserEventType.TEXT);
       return;
     }
 
-    const next = candidates.reduce((min, c) => c.idx < min.idx ? c : min);
+    const next = candidates.reduce((min, c) => (c.idx < min.idx ? c : min));
 
     if (next.idx > 0) {
       const textContent = buffer.slice(0, next.idx);
@@ -85,25 +118,77 @@ export function createStreamParser() {
     } else if (buffer.startsWith(TAGS.SANDBOX_START)) {
       processSandboxOpenTag(events);
     } else if (buffer.startsWith(TAGS.INSTALL_START)) {
-      buffer = buffer.slice(TAGS.INSTALL_START.length);
-      state = StreamState.INSTALL;
-      events.push({ type: ParserEventType.INSTALL_START });
+      const startTagEnd = buffer.indexOf(">");
+      if (startTagEnd !== -1) {
+        buffer = buffer.slice(startTagEnd + 1);
+        state = StreamState.INSTALL;
+        events.push({ type: ParserEventType.INSTALL_START });
+      }
+    } else if (buffer.startsWith("<edward_command")) {
+      const closeAngle = buffer.indexOf(">");
+      if (closeAngle === -1) return;
+
+      const tagContent = buffer.slice(0, closeAngle + 1);
+      buffer = buffer.slice(closeAngle + 1);
+
+      const commandMatch = tagContent.match(/command="([^"]+)"/);
+      if (!commandMatch || !commandMatch[1]) {
+        events.push({
+          type: ParserEventType.ERROR,
+          message: 'edward_command tag missing required "command" attribute',
+        });
+      } else {
+        const command = commandMatch[1];
+        let args: string[] = [];
+        const argsMatch = tagContent.match(/args='([^']*)'/);
+        if (argsMatch && argsMatch[1]) {
+          try {
+            args = JSON.parse(argsMatch[1]);
+          } catch {
+            /* malformed JSON — keep empty args */
+          }
+        }
+        events.push({ type: ParserEventType.COMMAND, command, args });
+      }
+    } else if (buffer.startsWith("<edward_plan_check")) {
+      const closeAngle = buffer.indexOf(">");
+      if (closeAngle === -1) return;
+
+      const tagContent = buffer.slice(0, closeAngle + 1);
+      buffer = buffer.slice(closeAngle + 1);
+
+      const stepIdMatch = tagContent.match(/step_id="([^"]+)"/);
+      const statusMatch = tagContent.match(/status="([^"]+)"/);
+      if (stepIdMatch && stepIdMatch[1]) {
+        const stepId = stepIdMatch[1];
+        const status = (statusMatch && statusMatch[1]) || "done";
+        events.push({
+          type: ParserEventType.PLAN_STEP_COMPLETE,
+          stepId,
+          status: status as "done" | "in_progress" | "failed",
+        });
+      } else {
+        events.push({
+          type: ParserEventType.ERROR,
+          message: 'edward_plan_check tag missing required "step_id" attribute',
+        });
+      }
     }
   }
 
   function handleThinkingState(events: ParserEvent[]): void {
     const exitPoints: ExitPoint[] = [
-      { idx: buffer.indexOf(TAGS.THINKING_END), type: 'end' as const },
-      { idx: buffer.indexOf(TAGS.SANDBOX_START), type: 'sandbox' as const },
-      { idx: buffer.indexOf(TAGS.INSTALL_START), type: 'install' as const },
-    ].filter(p => p.idx !== -1);
+      { idx: buffer.indexOf(TAGS.THINKING_END), type: "end" as const },
+      { idx: buffer.indexOf(TAGS.SANDBOX_START), type: "sandbox" as const },
+      { idx: buffer.indexOf(TAGS.INSTALL_START), type: "install" as const },
+    ].filter((p) => p.idx !== -1);
 
     if (exitPoints.length === 0) {
       flushSafeContent(events, ParserEventType.THINKING_CONTENT);
       return;
     }
 
-    const earliest = exitPoints.reduce((min, p) => p.idx < min.idx ? p : min);
+    const earliest = exitPoints.reduce((min, p) => (p.idx < min.idx ? p : min));
 
     if (earliest.idx > 0) {
       const content = buffer.slice(0, earliest.idx);
@@ -112,7 +197,7 @@ export function createStreamParser() {
       }
     }
 
-    if (earliest.type === 'end') {
+    if (earliest.type === "end") {
       buffer = buffer.slice(earliest.idx + TAGS.THINKING_END.length);
     } else {
       buffer = buffer.slice(earliest.idx);
@@ -146,12 +231,12 @@ export function createStreamParser() {
         const trimmed = content.trimEnd();
         const trimmedStart = content.trimStart();
 
-        if (trimmedStart.startsWith('```') && trimmed.endsWith('```')) {
-          const firstNewline = trimmedStart.indexOf('\n');
+        if (trimmedStart.startsWith("```") && trimmed.endsWith("```")) {
+          const firstNewline = trimmedStart.indexOf("\n");
           if (firstNewline !== -1) {
             const afterOpening = trimmedStart.slice(firstNewline + 1);
             const beforeClosing = afterOpening.trimEnd();
-            if (beforeClosing.endsWith('```')) {
+            if (beforeClosing.endsWith("```")) {
               content = beforeClosing.slice(0, -3).trimEnd();
             }
           }
@@ -189,7 +274,7 @@ export function createStreamParser() {
   }
 
   function processSandboxOpenTag(events: ParserEvent[]): void {
-    const closeIdx = buffer.indexOf('>');
+    const closeIdx = buffer.indexOf(">");
     if (closeIdx === -1) return;
 
     const tag = buffer.slice(0, closeIdx + 1);
@@ -199,14 +284,14 @@ export function createStreamParser() {
     events.push({
       type: ParserEventType.SANDBOX_START,
       project: projectMatch,
-      base: baseMatch
+      base: baseMatch,
     });
     buffer = buffer.slice(closeIdx + 1);
     state = StreamState.SANDBOX;
   }
 
   function processFileOpenTag(events: ParserEvent[], fileIdx: number): void {
-    const closeIdx = buffer.indexOf('>', fileIdx);
+    const closeIdx = buffer.indexOf(">", fileIdx);
     if (closeIdx === -1) return;
 
     if (fileIdx > 0) {
@@ -220,15 +305,23 @@ export function createStreamParser() {
     const rawPath = tag.match(/path="([^"]*)"/)?.[1];
 
     if (!rawPath?.trim()) {
-      events.push({ type: ParserEventType.ERROR, message: 'Invalid file tag: missing or empty path' });
+      events.push({
+        type: ParserEventType.ERROR,
+        message: "Invalid file tag: missing or empty path",
+      });
       buffer = buffer.slice(closeIdx + 1);
       return;
     }
 
-    const normalizedPath = path.posix.normalize(rawPath).replace(/^(\.\.{1,2}(\/|\\|$))+/, '');
+    const normalizedPath = path.posix
+      .normalize(rawPath)
+      .replace(/^(\.\.{1,2}(\/|\\|$))+/, "");
 
     if (!normalizedPath) {
-      events.push({ type: ParserEventType.ERROR, message: `Invalid file path after normalization: ${rawPath}` });
+      events.push({
+        type: ParserEventType.ERROR,
+        message: `Invalid file path after normalization: ${rawPath}`,
+      });
       buffer = buffer.slice(closeIdx + 1);
       return;
     }
@@ -240,9 +333,12 @@ export function createStreamParser() {
 
   function flushSafeContent(
     events: ParserEvent[],
-    type: ParserEventType.TEXT | ParserEventType.THINKING_CONTENT | ParserEventType.FILE_CONTENT
+    type:
+      | ParserEventType.TEXT
+      | ParserEventType.THINKING_CONTENT
+      | ParserEventType.FILE_CONTENT,
   ): void {
-    const lastLt = buffer.lastIndexOf('<');
+    const lastLt = buffer.lastIndexOf("<");
 
     if (lastLt !== -1 && buffer.length - lastLt < LOOKAHEAD_LIMIT) {
       if (lastLt > 0) {
@@ -251,12 +347,12 @@ export function createStreamParser() {
       }
     } else if (buffer.length > 0) {
       events.push({ type, content: buffer } as ParserEvent);
-      buffer = '';
+      buffer = "";
     }
   }
 
   function flushSandboxContent(events: ParserEvent[]): void {
-    const lastLt = buffer.lastIndexOf('<');
+    const lastLt = buffer.lastIndexOf("<");
 
     if (lastLt !== -1 && buffer.length - lastLt < LOOKAHEAD_LIMIT) {
       if (buffer.length > LOOKAHEAD_LIMIT && lastLt > 0) {
@@ -271,33 +367,49 @@ export function createStreamParser() {
       if (safeContent.trim()) {
         events.push({ type: ParserEventType.TEXT, content: safeContent });
       }
-      buffer = '';
+      buffer = "";
     }
   }
 
-  function parseInstallContent(content: string): { dependencies: string[]; framework?: AllowedFramework } {
-    const lines = content.split('\n').map(l => l.trim()).filter(Boolean);
+  function parseInstallContent(content: string): {
+    dependencies: string[];
+    framework?: AllowedFramework;
+  } {
+    const lines = content
+      .split("\n")
+      .map((l) => l.trim())
+      .filter(Boolean);
     let framework: AllowedFramework | undefined;
     const dependencies: string[] = [];
     let inPackagesList = false;
 
     for (const line of lines) {
-      if (line.includes('<') || line.includes('>')) {
+      if (line.includes("<") || line.includes(">")) {
         continue;
       }
 
-      const cleanLine = line.replace(/^\s*[-*]\s*/, '').trim();
+      const cleanLine = line.replace(/^\s*[-*]\s*/, "").trim();
 
-      if (cleanLine.startsWith('framework:')) {
-        const rawFramework = cleanLine.replace('framework:', '').trim();
-        const validFrameworks: AllowedFramework[] = ['nextjs', 'vite-react', 'vanilla', 'next', 'react', 'vite', 'next.js'];
-        framework = validFrameworks.includes(rawFramework as AllowedFramework) ? rawFramework as AllowedFramework : undefined;
+      if (cleanLine.startsWith("framework:")) {
+        const rawFramework = cleanLine.replace("framework:", "").trim();
+        const validFrameworks: AllowedFramework[] = [
+          "nextjs",
+          "vite-react",
+          "vanilla",
+          "next",
+          "react",
+          "vite",
+          "next.js",
+        ];
+        framework = validFrameworks.includes(rawFramework as AllowedFramework)
+          ? (rawFramework as AllowedFramework)
+          : undefined;
         inPackagesList = false;
         continue;
       }
 
-      if (cleanLine.startsWith('packages:')) {
-        const pkgs = cleanLine.replace('packages:', '').trim();
+      if (cleanLine.startsWith("packages:")) {
+        const pkgs = cleanLine.replace("packages:", "").trim();
         if (pkgs) {
           dependencies.push(...parsePackageList(pkgs));
           inPackagesList = false;
@@ -319,17 +431,22 @@ export function createStreamParser() {
 
   function parsePackageList(input: string): string[] {
     return input
-      .split(',')
-      .map(p => p.trim())
+      .split(",")
+      .map((p) => p.trim())
       .filter(isValidPackageName);
   }
 
   function isValidPackageName(name: string): boolean {
-    return Boolean(name) && !name.includes('<') && !name.includes('>') && NPM_PACKAGE_REGEX.test(name);
+    return (
+      Boolean(name) &&
+      !name.includes("<") &&
+      !name.includes(">") &&
+      NPM_PACKAGE_REGEX.test(name)
+    );
   }
 
   function process(chunk: string): ParserEvent[] {
-    if (!chunk || typeof chunk !== 'string') {
+    if (!chunk || typeof chunk !== "string") {
       return [];
     }
 
@@ -343,7 +460,11 @@ export function createStreamParser() {
     let prevLen = -1;
     let iterations = 0;
 
-    while (buffer.length > 0 && buffer.length !== prevLen && iterations < MAX_ITERATIONS) {
+    while (
+      buffer.length > 0 &&
+      buffer.length !== prevLen &&
+      iterations < MAX_ITERATIONS
+    ) {
       prevLen = buffer.length;
       handleState(events);
       iterations++;
@@ -352,9 +473,10 @@ export function createStreamParser() {
     if (iterations >= MAX_ITERATIONS) {
       events.push({
         type: ParserEventType.ERROR,
-        message: 'Parser exceeded maximum iterations - possible infinite loop detected'
+        message:
+          "Parser exceeded maximum iterations - possible infinite loop detected",
       });
-      buffer = '';
+      buffer = "";
       state = StreamState.TEXT;
     }
 
@@ -373,7 +495,7 @@ export function createStreamParser() {
         case StreamState.THINKING:
           events.push(
             { type: ParserEventType.THINKING_CONTENT, content: buffer },
-            { type: ParserEventType.THINKING_END }
+            { type: ParserEventType.THINKING_END },
           );
           break;
 
@@ -381,7 +503,7 @@ export function createStreamParser() {
           events.push(
             { type: ParserEventType.FILE_CONTENT, content: buffer },
             { type: ParserEventType.FILE_END },
-            { type: ParserEventType.SANDBOX_END }
+            { type: ParserEventType.SANDBOX_END },
           );
           break;
 
@@ -403,7 +525,7 @@ export function createStreamParser() {
           break;
         }
       }
-      buffer = '';
+      buffer = "";
     }
 
     state = StreamState.TEXT;

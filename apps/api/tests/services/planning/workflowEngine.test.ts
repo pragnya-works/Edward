@@ -25,7 +25,8 @@ vi.mock('../../../utils/logger.js', () => ({
     logger: {
         info: vi.fn(),
         error: vi.fn(),
-        warn: vi.fn()
+        warn: vi.fn(),
+        debug: vi.fn()
     }
 }));
 
@@ -75,6 +76,17 @@ vi.mock('../../../services/apiKey.service.js', () => ({
 
 vi.mock('../../../services/sandbox/templates/dependency.merger.js', () => ({
     mergeAndInstallDependencies: vi.fn().mockResolvedValue({ success: true, warnings: [] })
+}));
+
+vi.mock('../../../services/sandbox/docker.sandbox.js', () => ({
+    connectToNetwork: vi.fn().mockResolvedValue(undefined),
+    getContainer: vi.fn(),
+    execCommand: vi.fn(),
+    CONTAINER_WORKDIR: '/home/node/edward'
+}));
+
+vi.mock('../../../services/sandbox/utils.sandbox.js', () => ({
+    disconnectContainerFromNetwork: vi.fn().mockResolvedValue(undefined)
 }));
 
 describe('WorkflowEngine', () => {
@@ -180,7 +192,7 @@ describe('WorkflowEngine', () => {
                 currentStep: 'INSTALL_PACKAGES',
                 status: 'running',
                 sandboxId: 'sb-1',
-                context: { 
+                context: {
                     errors: [],
                     resolvedPackages: [{ name: 'react', version: '18.2.0', valid: true }]
                 },
@@ -205,7 +217,7 @@ describe('WorkflowEngine', () => {
                 chatId: mockChatId,
                 currentStep: 'DEPLOY',
                 status: 'running',
-                context: { 
+                context: {
                     errors: [],
                     previewUrl: 'http://preview.test'
                 },
@@ -233,7 +245,7 @@ describe('WorkflowEngine', () => {
                 chatId: mockChatId,
                 currentStep: 'ANALYZE',
                 status: 'pending',
-                context: { 
+                context: {
                     errors: [],
                     plan: {
                         summary: 'Test plan',
@@ -272,7 +284,7 @@ describe('WorkflowEngine', () => {
                 chatId: mockChatId,
                 currentStep: 'RECOVER',
                 status: 'running',
-                context: { 
+                context: {
                     errors: [],
                     plan: {
                         summary: 'Test plan',

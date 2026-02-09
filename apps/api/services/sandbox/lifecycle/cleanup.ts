@@ -43,15 +43,33 @@ export async function cleanupExpiredSandboxContainers(): Promise<void> {
     const containers = await listContainers();
     const sandboxes = containers.filter((info) => (info as { Labels?: Record<string, string> }).Labels?.[SANDBOX_DOCKER_LABEL] === 'true');
 
+    const chatContainerMap = new Map<string, typeof sandboxes>();
+    for (const info of sandboxes) {
+      const chatId = info.Labels?.['com.edward.chat'];
+      if (!chatId) continue;
+      const existing = chatContainerMap.get(chatId) || [];
+      existing.push(info);
+      chatContainerMap.set(chatId, existing);
+    }
+
     for (const info of sandboxes) {
       const sandboxId = info.Labels?.['com.edward.sandboxId'];
       if (!sandboxId) continue;
 
       const state = await getSandboxState(sandboxId);
       if (!state) {
-        await destroyContainer(info.Id).catch((err: unknown) =>
-          logger.error({ err, sandboxId }, 'Failed to cleanup orphaned container')
-        );
+        const chatId = info.Labels?.['com.edward.chat'];
+        const siblings = chatId ? chatContainerMap.get(chatId) : undefined;
+
+        if (!siblings || siblings.length > 1 || !chatId) {
+          logger.info({ sandboxId, containerId: info.Id, chatId }, 'Destroying orphaned sandbox container');
+          await destroyContainer(info.Id).catch((err: unknown) =>
+            logger.error({ err, sandboxId }, 'Failed to cleanup orphaned container')
+          );
+          containerStatusCache.delete(info.Id);
+        } else {
+          logger.debug({ sandboxId, containerId: info.Id, chatId }, 'Skipping lone orphan container (eligible for label recovery)');
+        }
       }
     }
   } catch (error) {

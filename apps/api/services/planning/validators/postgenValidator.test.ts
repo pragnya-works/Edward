@@ -37,7 +37,6 @@ describe('Post-Generation Validator', () => {
             declaredPackages: [],
         };
         const result = validateGeneratedOutput(output);
-        // Warning status for missing packages doesn't invalidate "valid" flag currently
         expect(result.violations.some(v => v.type === 'missing-package')).toBe(true);
     });
 

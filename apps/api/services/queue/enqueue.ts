@@ -4,10 +4,8 @@ import {
   JobType,
   BuildJobPayloadSchema,
   BackupJobPayloadSchema,
-  CleanupJobPayloadSchema,
   BuildJobPayload,
   BackupJobPayload,
-  CleanupJobPayload,
 } from './queue.schemas.js';
 
 const queue = getQueue();
@@ -49,25 +47,5 @@ export async function enqueueBackupJob(payload: Omit<BackupJobPayload, 'type'>):
   } catch (error) {
     logger.error(error, '[Queue] Failed to enqueue backup job');
     throw new Error('Failed to enqueue backup job');
-  }
-}
-
-export async function enqueueCleanupJob(payload: Omit<CleanupJobPayload, 'type'>): Promise<string> {
-  const fullPayload: CleanupJobPayload = { ...payload, type: JobType.CLEANUP };
-  const validated = CleanupJobPayloadSchema.parse(fullPayload);
-
-  try {
-    const job = await queue.add(JobType.CLEANUP, validated, {
-      jobId: createQueueJobId('cleanup', validated.sandboxId),
-      removeOnComplete: { count: 100 },
-      removeOnFail: { count: 20 },
-      attempts: 2,
-      delay: 1000,
-    });
-
-    return job.id!;
-  } catch (error) {
-    logger.error(error, '[Queue] Failed to enqueue cleanup job');
-    throw new Error('Failed to enqueue cleanup job');
   }
 }

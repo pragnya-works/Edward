@@ -1,10 +1,11 @@
-import { pgTable, text, timestamp, boolean, foreignKey, unique, pgEnum } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, boolean, foreignKey, unique, pgEnum, integer } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 
 export const roleEnum = pgEnum("role", ["viewer", "editor", "owner"]);
 export const inviteStatusEnum = pgEnum("invite_status", ["pending", "accepted", "rejected"]);
 export const attachmentTypeEnum = pgEnum("attachment_type", ["image", "pdf", "figma"]);
 export const messageRoleEnum = pgEnum("message_role", ["system", "user", "assistant", "data"]);
+export const buildStatusEnum = pgEnum("build_status", ["queued", "building", "success", "failed"]);
 
 export enum MessageRole {
 	System = "system",
@@ -120,6 +121,18 @@ export const message = pgTable("message", {
 	updatedAt: timestamp("updated_at").notNull().defaultNow().$onUpdate(() => new Date())
 });
 
+export const build = pgTable("build", {
+	id: text("id").primaryKey(),
+	chatId: text("chat_id").notNull().references(() => chat.id, { onDelete: "cascade" }),
+	messageId: text("message_id").notNull().references(() => message.id, { onDelete: "cascade" }),
+	status: buildStatusEnum("status").notNull().default("queued"),
+	errorLog: text("error_log"),
+	previewUrl: text("preview_url"),
+	buildDuration: integer("build_duration"),
+	createdAt: timestamp("created_at").notNull().defaultNow(),
+	updatedAt: timestamp("updated_at").notNull().defaultNow().$onUpdate(() => new Date())
+});
+
 export const attachment = pgTable("attachment", {
 	id: text("id").primaryKey(),
 	messageId: text("message_id").notNull().references(() => message.id, { onDelete: "cascade" }),
@@ -176,6 +189,7 @@ export const chatRelations = relations(chat, ({ one, many }) => ({
 	collaborators: many(chatCollaborator),
 	invites: many(chatInvite),
 	messages: many(message),
+	builds: many(build),
 }));
 
 export const chatCollaboratorRelations = relations(chatCollaborator, ({ one }) => ({
@@ -210,11 +224,23 @@ export const messageRelations = relations(message, ({ one, many }) => ({
 		references: [user.id],
 	}),
 	attachments: many(attachment),
+	builds: many(build),
 }));
 
 export const attachmentRelations = relations(attachment, ({ one }) => ({
 	message: one(message, {
 		fields: [attachment.messageId],
+		references: [message.id],
+	}),
+}));
+
+export const buildRelations = relations(build, ({ one }) => ({
+	chat: one(chat, {
+		fields: [build.chatId],
+		references: [chat.id],
+	}),
+	message: one(message, {
+		fields: [build.messageId],
 		references: [message.id],
 	}),
 }));

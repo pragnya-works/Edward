@@ -40,7 +40,7 @@ const REDACT_PATHS = [
 
 export const createLogger = (processName?: string) => {
   return pino({
-    level: isProduction ? 'info' : 'debug',
+    level: isProduction ? 'silent' : 'debug',
     redact: {
       paths: REDACT_PATHS,
       censor: '[REDACTED]',

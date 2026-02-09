@@ -4,6 +4,7 @@ import { Provider, API_KEY_REGEX } from '@edward/shared/constants';
 import { composePrompt, type ComposeOptions } from './compose.js';
 import { createLogger } from "../../utils/logger.js";
 import { ensureError } from "../../utils/error.js";
+import type { ChatAction, Plan } from '../../services/planning/schemas.js';
 
 const logger = createLogger('LLM');
 
@@ -12,6 +13,10 @@ const GENERATION_CONFIG = {
   topP: 0.95,
   geminiMaxOutputTokens: 65536,
 } as const;
+
+if (!process.env.GEMINI_MODEL && !process.env.OPENAI_MODEL) {
+  logger.warn('Neither GEMINI_MODEL nor OPENAI_MODEL is configured - LLM calls will fail');
+}
 
 function getClient(apiKey: string) {
   if (API_KEY_REGEX[Provider.OPENAI].test(apiKey)) {
@@ -47,16 +52,20 @@ export interface StreamOptions {
   customSystemPrompt?: string;
   framework?: string;
   complexity?: string;
+  mode?: ChatAction;
+  plan?: Plan;
 }
 
 export async function* streamResponse(
-  apiKey: string, 
-  content: string, 
+  apiKey: string,
+  content: string,
   signal?: AbortSignal,
   verifiedDependencies?: string[],
   customSystemPrompt?: string,
   framework?: string,
-  complexity?: string
+  complexity?: string,
+  mode?: ChatAction,
+  plan?: Plan,
 ): AsyncGenerator<string> {
   if (!apiKey || typeof apiKey !== 'string' || apiKey.trim().length === 0) {
     throw new Error('Invalid API key: API key must be a non-empty string');
@@ -67,11 +76,13 @@ export async function* streamResponse(
   }
 
   const { type, client, model } = getClient(apiKey);
-  
+
   const fullSystemPrompt = customSystemPrompt || composePrompt({
     framework: framework as ComposeOptions['framework'],
     complexity: (complexity || 'moderate') as ComposeOptions['complexity'],
     verifiedDependencies,
+    mode,
+    plan,
   });
 
   try {
@@ -84,8 +95,6 @@ export async function* streamResponse(
           { role: 'user', content }
         ],
         stream: true,
-        temperature: GENERATION_CONFIG.temperature,
-        top_p: GENERATION_CONFIG.topP,
       }, { signal });
 
       for await (const chunk of stream) {
@@ -101,8 +110,8 @@ export async function* streamResponse(
         contents: [{ role: 'user', parts: [{ text: content }] }],
         generationConfig: {
           maxOutputTokens: GENERATION_CONFIG.geminiMaxOutputTokens,
-          temperature: GENERATION_CONFIG.temperature,
           topP: GENERATION_CONFIG.topP,
+          temperature: GENERATION_CONFIG.temperature,
         }
       }, { signal });
 
@@ -124,7 +133,7 @@ export async function* streamResponse(
 }
 
 export async function generateResponse(
-  apiKey: string, 
+  apiKey: string,
   content: string,
   verifiedDependencies?: string[],
   customSystemPrompt?: string,
@@ -139,7 +148,7 @@ export async function generateResponse(
   }
 
   const { type, client, model } = getClient(apiKey);
-  
+
   const fullSystemPrompt = customSystemPrompt || composePrompt({
     verifiedDependencies,
   });
@@ -155,7 +164,6 @@ export async function generateResponse(
           { role: 'system', content: fullSystemPrompt },
           { role: 'user', content }
         ],
-        temperature: GENERATION_CONFIG.temperature,
         ...(jsonMode && { response_format: { type: 'json_object' } }),
       });
       return completion.choices[0]?.message?.content || '';
@@ -168,9 +176,6 @@ export async function generateResponse(
         ...(jsonMode && { generationConfig: { responseMimeType: 'application/json' } }),
       }).generateContent({
         contents: [{ role: 'user', parts: [{ text: content }] }],
-        generationConfig: {
-          temperature: GENERATION_CONFIG.temperature,
-        },
       });
       return result.response.text();
     }

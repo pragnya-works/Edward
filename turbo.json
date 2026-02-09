@@ -52,9 +52,13 @@
         "AWS_ACCESS_KEY_ID",
         "AWS_SECRET_ACCESS_KEY",
         "AWS_BUCKET_NAME",
+        "CLOUDFRONT_DOMAIN",
         "CLOUDFRONT_DISTRIBUTION_URL",
+        "CLOUDFRONT_DISTRIBUTION_ID",
         "EDWARD_DEPLOYMENT_TYPE",
-        "DOCKER_REGISTRY_BASE"
+        "PREWARM_SANDBOX_IMAGE",
+        "DOCKER_REGISTRY_BASE",
+        "REDIS_URL"
       ]
     },
     "typecheck": {
@@ -77,6 +81,7 @@
         "OPENAI_MODEL",
         "GEMINI_MODEL",
         "AWS_BUCKET_NAME",
+        "CLOUDFRONT_DOMAIN",
         "AWS_REGION",
         "AWS_ACCESS_KEY_ID",
         "AWS_SECRET_ACCESS_KEY",
@@ -87,7 +92,10 @@
         "GITHUB_CLIENT_ID",
         "GITHUB_CLIENT_SECRET",
         "CLOUDFRONT_DISTRIBUTION_URL",
-        "DOCKER_REGISTRY_BASE"
+        "CLOUDFRONT_DISTRIBUTION_ID",
+        "PREWARM_SANDBOX_IMAGE",
+        "DOCKER_REGISTRY_BASE",
+        "REDIS_URL"
       ]
     }
   }

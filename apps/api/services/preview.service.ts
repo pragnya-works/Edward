@@ -1,18 +1,15 @@
 import { sanitizePathComponent } from "./storage/key.utils.js";
+import { config } from "../config.js";
 
-const CLOUDFRONT_URL = process.env.CLOUDFRONT_DISTRIBUTION_URL?.replace(/\/$/, '');
-
-export function isCloudFrontConfigured(): boolean {
-    return Boolean(CLOUDFRONT_URL);
-}
+const CLOUDFRONT_URL = config.aws.cloudfrontDistributionUrl?.replace(/\/$/, "");
 
 export function buildPreviewUrl(userId: string, chatId: string): string | null {
-    if (!CLOUDFRONT_URL) return null;
+  if (!CLOUDFRONT_URL) return null;
 
-    const pathParts = [
-        sanitizePathComponent(userId),
-        sanitizePathComponent(chatId),
-    ];
+  const pathParts = [
+    sanitizePathComponent(userId),
+    sanitizePathComponent(chatId),
+  ];
 
-    return `${CLOUDFRONT_URL}/${pathParts.join('/')}/`;
+  return `${CLOUDFRONT_URL}/${pathParts.join("/")}/`;
 }
