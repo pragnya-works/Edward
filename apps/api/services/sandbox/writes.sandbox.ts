@@ -212,12 +212,21 @@ export async function writeSandboxFile(
     pipeline.pexpire(bufferKey, 30 * 60 * 1000);
     pipeline.pexpire(filesSetKey, 30 * 60 * 1000);
     const results = await pipeline.exec();
-    if (results) {
-      for (const [err] of results) {
-        if (err) {
-          throw err;
-        }
+    if (!results) {
+      throw new Error("Redis pipeline returned null results");
+    }
+    const errors: Error[] = [];
+    for (let i = 0; i < results.length; i++) {
+      const result = results[i];
+      if (result && result[0]) {
+        const err = result[0];
+        errors.push(err instanceof Error ? err : new Error(String(err)));
       }
+    }
+    if (errors.length > 0) {
+      throw new Error(
+        `Redis pipeline errors: ${errors.map((e) => e.message).join("; ")}`,
+      );
     }
   } catch (error) {
     logger.error(

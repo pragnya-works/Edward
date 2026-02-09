@@ -890,7 +890,14 @@ export async function runStreamSession(
     logger.error(error, "Streaming error");
 
     await updatePlanWithDecision(`Streaming error: ${error.message}`);
-    await finalizePlanBeforeCompletion(`Stream error: ${error.message}`);
+    try {
+      await finalizePlanBeforeCompletion(`Stream error: ${error.message}`);
+    } catch (finalizeErr) {
+      logger.error(
+        ensureError(finalizeErr),
+        "finalizePlanBeforeCompletion failed during error handling",
+      );
+    }
 
     res.write(
       `data: ${JSON.stringify({

@@ -283,57 +283,58 @@ export async function executeInstallPhase(
 
     await connectToNetwork(sandbox.containerId);
 
+    let installSuccess = false;
+    let installResult: {
+      success: boolean;
+      error?: string;
+      warnings?: string[];
+    } = { success: false };
+    let installError: Error | null = null;
+
     try {
-      const result = await mergeAndInstallDependencies(
+      installResult = await mergeAndInstallDependencies(
         sandbox.containerId,
         packageNames,
         state.sandboxId,
       );
-
-      if (!result.success) {
-        await disconnectContainerFromNetwork(
-          sandbox.containerId,
-          state.sandboxId,
-        ).catch(() => { });
-        return {
-          step: WorkflowStep.INSTALL_PACKAGES,
-          success: false,
-          error: result.error,
-          durationMs: Date.now() - startTime,
-          retryCount: 0,
-        };
-      }
-
-      await disconnectContainerFromNetwork(
-        sandbox.containerId,
-        state.sandboxId,
-      ).catch((err) => {
-        logger.warn(
-          { sandboxId: state.sandboxId, error: err },
-          "Failed to disconnect container after successful install",
-        );
-      });
-
-      return {
-        step: WorkflowStep.INSTALL_PACKAGES,
-        success: true,
-        data: { installed: packageNames.length, warnings: result.warnings },
-        durationMs: Date.now() - startTime,
-        retryCount: 0,
-      };
+      installSuccess = installResult.success;
     } catch (error) {
+      installError = error instanceof Error ? error : new Error(String(error));
+    }
+
+    try {
       await disconnectContainerFromNetwork(
         sandbox.containerId,
         state.sandboxId,
-      ).catch(() => { });
+      );
+    } catch (disconnectErr) {
+      logger.warn(
+        { sandboxId: state.sandboxId, error: disconnectErr, installSuccess },
+        "Failed to disconnect container after install",
+      );
+    }
+
+    if (!installSuccess) {
       return {
         step: WorkflowStep.INSTALL_PACKAGES,
         success: false,
-        error: error instanceof Error ? error.message : "Installation failed",
+        error:
+          installError?.message || installResult.error || "Installation failed",
         durationMs: Date.now() - startTime,
         retryCount: 0,
       };
     }
+
+    return {
+      step: WorkflowStep.INSTALL_PACKAGES,
+      success: true,
+      data: {
+        installed: packageNames.length,
+        warnings: installResult.warnings,
+      },
+      durationMs: Date.now() - startTime,
+      retryCount: 0,
+    };
   } catch (error) {
     return {
       step: WorkflowStep.INSTALL_PACKAGES,

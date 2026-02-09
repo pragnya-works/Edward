@@ -10,6 +10,8 @@ import { ensureError } from "../../../utils/error.js";
 import { runUnifiedBuild, BuildOptions } from "../../builder.service.js";
 import { uploadBuildFilesToS3, uploadSpaFallback } from "../upload.sandbox.js";
 import { buildPreviewUrl } from "../../preview.service.js";
+import { cleanupS3FolderExcept } from "../../storage.service.js";
+import { buildS3Key } from "../../storage/key.utils.js";
 import {
   disconnectContainerFromNetwork,
   TIMEOUT_DEPENDENCY_INSTALL_MS,
@@ -207,6 +209,23 @@ export async function buildAndUploadUnified(
     );
 
     const allSuccessful = uploadResult.totalFiles === uploadResult.successful;
+
+    if (allSuccessful && userId && chatId) {
+      const previewPrefix = buildS3Key(userId, chatId, "preview/");
+      if (framework !== "vanilla") {
+        const fallbackKey = buildS3Key(userId, chatId, "preview/404.html");
+        uploadResult.uploadedKeys.add(fallbackKey);
+      }
+      cleanupS3FolderExcept(previewPrefix, uploadResult.uploadedKeys).catch(
+        (err) => {
+          logger.warn(
+            { err, sandboxId },
+            "Failed to cleanup stale preview files (non-fatal)",
+          );
+        },
+      );
+    }
+
     if (framework !== "vanilla") {
       await uploadSpaFallback(sandbox, framework).catch((err) =>
         logger.warn({ err, sandboxId }, "SPA fallback upload failed"),

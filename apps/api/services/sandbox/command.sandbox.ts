@@ -28,10 +28,7 @@ const ALLOWED_COMMANDS = [
   "head",
   "tail",
   "wc",
-  "sed",
-  "awk",
   "tsc",
-  "node",
 ];
 
 const DISALLOWED_PATTERNS = [
