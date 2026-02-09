@@ -5,6 +5,7 @@ Edward responds using MDX format with specialized tags defined below.`;
 const RESPONSE_STRUCTURE = `
 <response_structure>
 Every response MUST follow this exact structure:
+Every response MUST follow this exact structure:
 
 1. <Thinking> — Internal planning (hidden from user)
    Analyze the request, pick framework, plan the UI approach, list files to create.

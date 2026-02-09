@@ -192,7 +192,7 @@ describe('WorkflowEngine', () => {
                 currentStep: 'INSTALL_PACKAGES',
                 status: 'running',
                 sandboxId: 'sb-1',
-                context: { 
+                context: {
                     errors: [],
                     resolvedPackages: [{ name: 'react', version: '18.2.0', valid: true }]
                 },
@@ -217,7 +217,7 @@ describe('WorkflowEngine', () => {
                 chatId: mockChatId,
                 currentStep: 'DEPLOY',
                 status: 'running',
-                context: { 
+                context: {
                     errors: [],
                     previewUrl: 'http://preview.test'
                 },
@@ -245,7 +245,7 @@ describe('WorkflowEngine', () => {
                 chatId: mockChatId,
                 currentStep: 'ANALYZE',
                 status: 'pending',
-                context: { 
+                context: {
                     errors: [],
                     plan: {
                         summary: 'Test plan',
@@ -284,7 +284,7 @@ describe('WorkflowEngine', () => {
                 chatId: mockChatId,
                 currentStep: 'RECOVER',
                 status: 'running',
-                context: { 
+                context: {
                     errors: [],
                     plan: {
                         summary: 'Test plan',

@@ -16,6 +16,8 @@
     "test:watch": "vitest",
     "lint": "eslint . --max-warnings 0",
     "lint:fix": "eslint . --fix",
+    "lint": "eslint . --max-warnings 0",
+    "lint:fix": "eslint . --fix",
     "test:coverage": "vitest run --coverage",
     "clean": "rm -rf dist"
   },
