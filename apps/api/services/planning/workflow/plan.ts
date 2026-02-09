@@ -65,6 +65,7 @@ export function normalizePlan(input: Partial<Plan>): Plan {
           title: step.title,
           description: step.description,
           status: step.status || PlanStatus.PENDING,
+          key: step.key,
         }))
       : base.steps;
 

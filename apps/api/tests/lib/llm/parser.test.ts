@@ -253,12 +253,9 @@ describe('createStreamParser', () => {
   describe('edward_command parsing', () => {
     it('parses <edward_install> followed by <edward_command> in same stream', () => {
       const parser = createStreamParser();
-
-      // Stream install tag in parts
       const e1 = parser.process('<edward_install>');
       const e2 = parser.process('npm install react');
       const e3 = parser.process('</edward_install>');
-      // Then stream a command tag
       const e4 = parser.process('<edward_command command="cat" args=\'["src/App.tsx"]\'>');
       const e5 = parser.flush();
 

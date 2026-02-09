@@ -4,7 +4,7 @@ import { createLogger } from '../../utils/logger.js';
 
 const logger = createLogger('READ_SANDBOX');
 
-const MAX_TOTAL_BYTES = 200 * 1024; // 200KB
+const MAX_TOTAL_BYTES = 200 * 1024;
 const MAX_FILES = 50;
 
 const EXCLUDED_DIRS = [

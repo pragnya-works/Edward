@@ -126,7 +126,7 @@ export function createStreamParser() {
       }
     } else if (buffer.startsWith("<edward_command")) {
       const closeAngle = buffer.indexOf(">");
-      if (closeAngle === -1) return; // incomplete tag, wait for more data
+      if (closeAngle === -1) return;
 
       const tagContent = buffer.slice(0, closeAngle + 1);
       buffer = buffer.slice(closeAngle + 1);

@@ -167,12 +167,25 @@ export async function cleanupS3FolderExcept(
           Bucket: BUCKET_NAME,
           Delete: {
             Objects: batch.map((key) => ({ Key: key })),
-            Quiet: true,
+            Quiet: false,
           },
         });
 
-        await s3Client.send(deleteCommand);
-        result.deleted += batch.length;
+        const deleteResponse = await s3Client.send(deleteCommand);
+        const deletedCount = deleteResponse.Deleted?.length ?? 0;
+        const errors = deleteResponse.Errors ?? [];
+        result.deleted += deletedCount;
+
+        for (const err of errors) {
+          const errorMsg = err.Message ?? "Unknown error";
+          result.errors.push(
+            `Failed to delete ${err.Key}: ${errorMsg} (Code: ${err.Code})`,
+          );
+          logger.error(
+            { key: err.Key, code: err.Code, message: err.Message },
+            "S3 delete object failed",
+          );
+        }
         logger.debug(
           {
             count: batch.length,

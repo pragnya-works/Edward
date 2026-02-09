@@ -19,10 +19,30 @@ function validatePort(name: string, value: string | undefined): number {
   return port;
 }
 
+function parseRedisUrl(url: string): { host: string; port: number } {
+  try {
+    const parsed = new URL(url);
+    const port = validatePort("REDIS_URL", parsed.port);
+    return { host: parsed.hostname, port };
+  } catch {
+    throw new Error(`Invalid REDIS_URL format: ${url}`);
+  }
+}
+
 export const config = {
   redis: {
-    host: validateEnvVar("REDIS_HOST", process.env.REDIS_HOST),
-    port: validatePort("REDIS_PORT", process.env.REDIS_PORT),
+    get host(): string {
+      if (process.env.REDIS_URL) {
+        return parseRedisUrl(process.env.REDIS_URL).host;
+      }
+      return validateEnvVar("REDIS_HOST", process.env.REDIS_HOST);
+    },
+    get port(): number {
+      if (process.env.REDIS_URL) {
+        return parseRedisUrl(process.env.REDIS_URL).port;
+      }
+      return validatePort("REDIS_PORT", process.env.REDIS_PORT);
+    },
     get url(): string {
       return process.env.REDIS_URL || `redis://${this.host}:${this.port}`;
     },

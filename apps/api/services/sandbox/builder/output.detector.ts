@@ -128,6 +128,6 @@ export async function detectBuildOutput(
     return { directory: ".", type: "vanilla" };
   } catch (error) {
     logger.error({ error, sandboxId }, "Error detecting build output");
-    return { directory: ".", type: "vanilla" };
+    throw error;
   }
 }

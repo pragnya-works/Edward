@@ -13,7 +13,7 @@ import { redis } from "../../lib/redis.js";
 import { HeadObjectCommand } from "@aws-sdk/client-s3";
 
 const BACKUP_EXISTS_PREFIX = "edward:backup:exists:";
-const BACKUP_EXISTS_TTL = 7 * 24 * 60 * 60; // 7 days in seconds
+const BACKUP_EXISTS_TTL = 7 * 24 * 60 * 60;
 
 async function markBackupExists(chatId: string): Promise<void> {
   try {

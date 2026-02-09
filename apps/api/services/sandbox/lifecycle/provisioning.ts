@@ -1,18 +1,32 @@
-import { nanoid } from 'nanoid';
-import { logger } from '../../../utils/logger.js';
-import { ensureError } from '../../../utils/error.js';
-import { SandboxInstance } from '../types.sandbox.js';
+import { nanoid } from "nanoid";
+import { logger } from "../../../utils/logger.js";
+import { ensureError } from "../../../utils/error.js";
+import { SandboxInstance } from "../types.sandbox.js";
 import {
   saveSandboxState,
   getActiveSandboxState,
   refreshSandboxTTL,
-  deleteSandboxState
-} from '../state.sandbox.js';
-import { createContainer, getContainer, listContainers } from '../docker.sandbox.js';
-import { restoreSandboxInstance } from '../backup.sandbox.js';
-import { redis } from '../../../lib/redis.js';
-import { getTemplateConfig, getDefaultImage, isValidFramework } from '../templates/template.registry.js';
-import { PROVISIONING_TIMEOUT_MS, SANDBOX_TTL, CONTAINER_STATUS_CACHE_MS, SANDBOX_DOCKER_LABEL, containerStatusCache } from './state.js';
+  deleteSandboxState,
+} from "../state.sandbox.js";
+import {
+  createContainer,
+  getContainer,
+  listContainers,
+} from "../docker.sandbox.js";
+import { restoreSandboxInstance } from "../backup.sandbox.js";
+import { redis } from "../../../lib/redis.js";
+import {
+  getTemplateConfig,
+  getDefaultImage,
+  isValidFramework,
+} from "../templates/template.registry.js";
+import {
+  PROVISIONING_TIMEOUT_MS,
+  SANDBOX_TTL,
+  CONTAINER_STATUS_CACHE_MS,
+  SANDBOX_DOCKER_LABEL,
+  containerStatusCache,
+} from "./state.js";
 
 async function releaseLock(lockKey: string, lockValue: string): Promise<void> {
   const script = `if redis.call("get", KEYS[1]) == ARGV[1] then return redis.call("del", KEYS[1]) else return 0 end`;
@@ -30,18 +44,25 @@ async function waitForProvisioning(chatId: string): Promise<string | null> {
     const isLocked = await redis.get(lockKey);
     if (!isLocked) return null;
 
-    await new Promise(resolve => setTimeout(resolve, 500));
+    await new Promise((resolve) => setTimeout(resolve, 500));
   }
   return null;
 }
 
-export async function getActiveSandbox(chatId: string): Promise<string | undefined> {
+export async function getActiveSandbox(
+  chatId: string,
+): Promise<string | undefined> {
   const sandbox = await getActiveSandboxState(chatId);
   if (sandbox) {
     const cached = containerStatusCache.get(sandbox.containerId);
-    if (cached && (Date.now() - cached.timestamp < CONTAINER_STATUS_CACHE_MS)) {
+    if (cached && Date.now() - cached.timestamp < CONTAINER_STATUS_CACHE_MS) {
       if (!cached.alive) {
-        // Redis state exists but container is known dead — fall through to Docker label recovery
+        logger.warn(
+          { sandboxId: sandbox.id, chatId },
+          "Cached container is dead, cleaning up stale Redis state",
+        );
+        await deleteSandboxState(sandbox.id, chatId);
+        containerStatusCache.delete(sandbox.containerId);
       } else {
         await refreshSandboxTTL(sandbox.id, sandbox.chatId);
         return sandbox.id;
@@ -51,14 +72,23 @@ export async function getActiveSandbox(chatId: string): Promise<string | undefin
         const container = getContainer(sandbox.containerId);
         await container.inspect();
 
-        containerStatusCache.set(sandbox.containerId, { alive: true, timestamp: Date.now() });
+        containerStatusCache.set(sandbox.containerId, {
+          alive: true,
+          timestamp: Date.now(),
+        });
         await refreshSandboxTTL(sandbox.id, sandbox.chatId);
 
         return sandbox.id;
       } catch (error) {
         const err = ensureError(error);
-        containerStatusCache.set(sandbox.containerId, { alive: false, timestamp: Date.now() });
-        logger.warn({ error: err, sandboxId: sandbox.id, chatId }, 'Active sandbox container not found or error inspecting, cleaning up');
+        containerStatusCache.set(sandbox.containerId, {
+          alive: false,
+          timestamp: Date.now(),
+        });
+        logger.warn(
+          { error: err, sandboxId: sandbox.id, chatId },
+          "Active sandbox container not found or error inspecting, cleaning up",
+        );
         await deleteSandboxState(sandbox.id, chatId);
       }
     }
@@ -68,16 +98,19 @@ export async function getActiveSandbox(chatId: string): Promise<string | undefin
     const containers = await listContainers();
     const chatContainer = containers.find(
       (c) =>
-        c.Labels?.[SANDBOX_DOCKER_LABEL] === 'true' &&
-        c.Labels?.['com.edward.chat'] === chatId &&
-        c.State === 'running'
+        c.Labels?.[SANDBOX_DOCKER_LABEL] === "true" &&
+        c.Labels?.["com.edward.chat"] === chatId &&
+        c.State === "running",
     );
 
     if (chatContainer) {
-      const sandboxId = chatContainer.Labels?.['com.edward.sandboxId'];
-      const userId = chatContainer.Labels?.['com.edward.user'];
+      const sandboxId = chatContainer.Labels?.["com.edward.sandboxId"];
+      const userId = chatContainer.Labels?.["com.edward.user"];
       if (sandboxId && userId) {
-        logger.info({ sandboxId, chatId, containerId: chatContainer.Id }, 'Recovered running container via Docker labels, rehydrating Redis state');
+        logger.info(
+          { sandboxId, chatId, containerId: chatContainer.Id },
+          "Recovered running container via Docker labels, rehydrating Redis state",
+        );
 
         const recovered: SandboxInstance = {
           id: sandboxId,
@@ -85,22 +118,34 @@ export async function getActiveSandbox(chatId: string): Promise<string | undefin
           expiresAt: Date.now() + SANDBOX_TTL,
           userId,
           chatId,
-          scaffoldedFramework: chatContainer.Labels?.['com.edward.framework'] || undefined,
+          scaffoldedFramework:
+            chatContainer.Labels?.["com.edward.framework"] || undefined,
         };
 
         await saveSandboxState(recovered);
-        containerStatusCache.set(chatContainer.Id, { alive: true, timestamp: Date.now() });
+        containerStatusCache.set(chatContainer.Id, {
+          alive: true,
+          timestamp: Date.now(),
+        });
         return sandboxId;
       }
     }
   } catch (error) {
-    logger.warn({ error: ensureError(error), chatId }, 'Docker label-based container recovery failed');
+    logger.warn(
+      { error: ensureError(error), chatId },
+      "Docker label-based container recovery failed",
+    );
   }
 
   return undefined;
 }
 
-export async function provisionSandbox(userId: string, chatId: string, framework?: string, shouldRestore: boolean = false): Promise<string> {
+export async function provisionSandbox(
+  userId: string,
+  chatId: string,
+  framework?: string,
+  shouldRestore: boolean = false,
+): Promise<string> {
   const lockKey = `edward:locking:provision:${chatId}`;
   const lockValue = nanoid(16);
   const MAX_ATTEMPTS = 10;
@@ -114,9 +159,11 @@ export async function provisionSandbox(userId: string, chatId: string, framework
       const existingId = await waitForProvisioning(chatId);
       if (existingId) return existingId;
 
-      const acquired = await redis.set(lockKey, lockValue, 'EX', 60, 'NX');
+      const acquired = await redis.set(lockKey, lockValue, "EX", 60, "NX");
       if (!acquired) {
-        await new Promise(resolve => setTimeout(resolve, 200 + Math.random() * 300));
+        await new Promise((resolve) =>
+          setTimeout(resolve, 200 + Math.random() * 300),
+        );
         continue;
       }
 
@@ -128,8 +175,15 @@ export async function provisionSandbox(userId: string, chatId: string, framework
         }
 
         const sandboxId = nanoid(12);
-        const image = framework ? (getTemplateConfig(framework)?.image || getDefaultImage()) : getDefaultImage();
-        const container = await createContainer(userId, chatId, sandboxId, image);
+        const image = framework
+          ? getTemplateConfig(framework)?.image || getDefaultImage()
+          : getDefaultImage();
+        const container = await createContainer(
+          userId,
+          chatId,
+          sandboxId,
+          image,
+        );
 
         const sandbox: SandboxInstance = {
           id: sandboxId,
@@ -144,7 +198,10 @@ export async function provisionSandbox(userId: string, chatId: string, framework
           try {
             await restoreSandboxInstance(sandbox);
           } catch (error) {
-            logger.error({ error, sandboxId, chatId }, 'Restoration failed during provisioning');
+            logger.error(
+              { error, sandboxId, chatId },
+              "Restoration failed during provisioning",
+            );
           }
         }
 
@@ -156,10 +213,10 @@ export async function provisionSandbox(userId: string, chatId: string, framework
         throw provisionError;
       }
     } catch (error) {
-      logger.error({ error, userId, chatId }, 'Failed to provision sandbox');
-      throw new Error('Could not provision sandbox environment');
+      logger.error({ error, userId, chatId }, "Failed to provision sandbox");
+      throw new Error("Could not provision sandbox environment");
     }
   }
 
-  throw new Error('Could not provision sandbox: lock acquisition timeout');
+  throw new Error("Could not provision sandbox: lock acquisition timeout");
 }

@@ -154,7 +154,7 @@ describe('ConcurrencyService', () => {
 
       expect(result).toBe('result');
       expect(mockFn).toHaveBeenCalled();
-      expect(redis.eval).toHaveBeenCalledTimes(2); // Acquire and Release
+      expect(redis.eval).toHaveBeenCalledTimes(2);
     });
 
     it('should throw error when slot cannot be acquired', async () => {
@@ -174,7 +174,7 @@ describe('ConcurrencyService', () => {
       const mockFn = vi.fn().mockRejectedValue(new Error('Function failed'));
 
       await expect(withUserSlot(mockUserId, mockFn)).rejects.toThrow('Function failed');
-      expect(redis.eval).toHaveBeenCalledTimes(2); // Acquire and Release
+      expect(redis.eval).toHaveBeenCalledTimes(2);
     });
 
     it('should throw error when Redis is unavailable (fail closed)', async () => {

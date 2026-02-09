@@ -22,7 +22,7 @@ describe('Agent Loop helpers', () => {
   beforeEach(() => vi.clearAllMocks());
 
   it('processLLMStream collects commands without executing', async () => {
-    const { processLLMStream } = await import('../../../controllers/chat/streamSession.js');
+    const { processLLMStream } = await import('../../../controllers/chat/command.utils.js');
     const parser = createStreamParser();
     const events: unknown[] = [];
 
@@ -39,7 +39,7 @@ describe('Agent Loop helpers', () => {
   });
 
   it('executeCommands returns results and handles failures', async () => {
-    const { executeCommands } = await import('../../../controllers/chat/streamSession.js');
+    const { executeCommands } = await import('../../../controllers/chat/command.utils.js');
 
     mockExec
       .mockResolvedValueOnce({ stdout: 'file content', stderr: '', exitCode: 0 } satisfies ExecResult)
@@ -56,7 +56,7 @@ describe('Agent Loop helpers', () => {
   });
 
   it('formatCommandResults produces readable output', async () => {
-    const { formatCommandResults } = await import('../../../controllers/chat/streamSession.js');
+    const { formatCommandResults } = await import('../../../controllers/chat/command.utils.js');
 
     const output = formatCommandResults([
       { command: 'cat', args: ['a.ts'], stdout: 'hello', stderr: '' },

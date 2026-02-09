@@ -42,7 +42,6 @@ import {
   refreshSandboxTTL,
   getChatFramework,
 } from "../services/sandbox/state.sandbox.js";
-import { analyzeIntent } from "../services/planning/analyzers/intentAnalyzer.js";
 import { ChatAction } from "../services/planning/schemas.js";
 
 function sendStreamError(
@@ -132,9 +131,8 @@ export async function unifiedSendMessage(
 
     const { chatId, isNewChat } = chatResult;
 
-    const analysis = await analyzeIntent(body.content, decryptedApiKey);
-    const intent = isNewChat ? ChatAction.GENERATE : analysis.action;
-    const isFollowUp = intent !== ChatAction.GENERATE;
+    const intent = isNewChat ? ChatAction.GENERATE : undefined;
+    const isFollowUp = !isNewChat;
 
     const userMessageId = await saveMessage(
       chatId,
@@ -162,7 +160,6 @@ export async function unifiedSendMessage(
     const workflow = await createWorkflow(userId, chatId, {
       userRequest: body.content,
       mode: intent,
-      intent: analysis,
     });
 
     let conversationContext = "";

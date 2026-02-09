@@ -50,7 +50,32 @@ function validateCommandArgs(command: string, args: string[]): void {
   }
 
   for (const arg of args) {
-    if (arg.startsWith("-")) continue;
+    if (arg.startsWith("-")) {
+      const equalIndex = arg.indexOf("=");
+      if (equalIndex !== -1) {
+        const value = arg.slice(equalIndex + 1);
+        if (value) {
+          const resolved = value.startsWith("/")
+            ? path.posix.normalize(value)
+            : path.posix.normalize(path.posix.join(CONTAINER_WORKDIR, value));
+
+          if (resolved === "/") {
+            throw new Error(`Refusing dangerous path in flag: ${arg}`);
+          }
+
+          if (!resolved.startsWith(CONTAINER_WORKDIR)) {
+            throw new Error(
+              `Path outside allowed directory in flag: ${arg} -> ${resolved}`,
+            );
+          }
+
+          if (command === "rm" && resolved === CONTAINER_WORKDIR) {
+            throw new Error("Refusing to rm workdir root");
+          }
+        }
+      }
+      continue;
+    }
 
     const resolved = arg.startsWith("/")
       ? path.posix.normalize(arg)

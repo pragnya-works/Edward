@@ -8,6 +8,7 @@ import {
   execCommand,
 } from "./docker.sandbox.js";
 import { logger } from "../../utils/logger.js";
+import { ensureError } from "../../utils/error.js";
 import { getTemplateConfig } from "./templates/template.registry.js";
 
 function isProtectedFile(filePath: string, framework?: string): boolean {
@@ -119,7 +120,7 @@ export async function flushSandbox(
         }
 
         const content = await redis.get(processingKey);
-        if (!content) {
+        if (content === null) {
           await redis.del(processingKey);
           continue;
         }
@@ -245,7 +246,12 @@ export async function writeSandboxFile(
 
   if (currentBufferSize > MAX_WRITE_BUFFER) {
     writeTimers.delete(sandboxId);
-    void flushSandbox(sandboxId);
+    flushSandbox(sandboxId).catch((err: unknown) =>
+      logger.error(
+        ensureError(err),
+        `Immediate flush failed for sandbox: ${sandboxId}`,
+      ),
+    );
     return;
   }
 
@@ -253,7 +259,12 @@ export async function writeSandboxFile(
     sandboxId,
     setTimeout(() => {
       writeTimers.delete(sandboxId);
-      void flushSandbox(sandboxId);
+      flushSandbox(sandboxId).catch((err: unknown) =>
+        logger.error(
+          ensureError(err),
+          `Debounced flush failed for sandbox: ${sandboxId}`,
+        ),
+      );
     }, WRITE_DEBOUNCE_MS),
   );
 }

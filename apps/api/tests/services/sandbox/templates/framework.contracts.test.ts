@@ -52,7 +52,7 @@ describe('FrameworkContracts', () => {
                     'next': 'latest'
                 },
                 scripts: {
-                    'dev': 'node dev.js' // Missing 'next'
+                    'dev': 'node dev.js'
                 }
             };
 

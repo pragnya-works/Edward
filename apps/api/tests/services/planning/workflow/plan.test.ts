@@ -24,7 +24,6 @@ describe('Plan Utilities', () => {
       expect(plan.assumptions).toEqual([]);
       expect(plan.lastUpdatedAt).toBeGreaterThan(0);
       
-      // Verify all steps have required fields
       plan.steps.forEach(step => {
         expect(step.id).toBeTruthy();
         expect(step.title).toBeTruthy();
@@ -61,7 +60,7 @@ describe('Plan Utilities', () => {
       
       const result = normalizePlan(input);
       
-      expect(result.steps).toHaveLength(5); // Should use default steps
+      expect(result.steps).toHaveLength(5);
     });
 
     it('should generate IDs for steps without them', () => {
@@ -253,7 +252,7 @@ describe('Plan Utilities', () => {
       
       expect(result.steps.length).toBeGreaterThanOrEqual(3);
       if (result.steps.length >= 3) {
-        expect(result.steps[0]!.status).toBe('done'); // Unchanged
+        expect(result.steps[0]!.status).toBe('done');
         expect(result.steps[1]!.status).toBe('failed');
         expect(result.steps[2]!.status).toBe('failed');
       }
@@ -275,7 +274,7 @@ describe('Plan Utilities', () => {
       
       const result = markRemainingStepsAsFailed(plan, 'Test reason');
       
-      expect(result).toBe(plan); // Should return same reference
+      expect(result).toBe(plan);
     });
 
     it('should add decision with count and reason', () => {
@@ -320,7 +319,6 @@ describe('Plan Utilities', () => {
         lastUpdatedAt: Date.now(),
       };
       
-      // 'Analyze' is not a critical step key
       expect(hasCriticalFailures(plan)).toBe(false);
     });
 
@@ -425,7 +423,7 @@ describe('Plan Utilities', () => {
       const summary = getPlanCompletionSummary(plan);
       
       expect(summary.isComplete).toBe(true);
-      expect(summary.hasCriticalFailures).toBe(true); // Generate failed
+      expect(summary.hasCriticalFailures).toBe(true);
     });
 
     it('should correctly identify critical failures', () => {
@@ -467,11 +465,8 @@ describe('Plan Utilities', () => {
     it('should handle workflow simulation: marking steps in progress then done', () => {
       let plan = createFallbackPlan();
       
-      // Start with all pending
       expect(isPlanComplete(plan)).toBe(false);
       expect(getIncompleteSteps(plan)).toHaveLength(5);
-      
-      // Mark first step in progress
       plan = markPlanStepInProgress(plan, PlanStepKey.ANALYZE);
       expect(plan.steps.length).toBeGreaterThan(0);
       if (plan.steps.length > 0) {
@@ -479,14 +474,12 @@ describe('Plan Utilities', () => {
       }
       expect(isPlanComplete(plan)).toBe(false);
       
-      // Complete first step
       plan = updatePlanStepStatus(plan, s => s.key === PlanStepKey.ANALYZE, 'done');
       if (plan.steps.length > 0) {
         expect(plan.steps[0]!.status).toBe('done');
       }
-      expect(isPlanComplete(plan)).toBe(false); // Still have 4 pending
+      expect(isPlanComplete(plan)).toBe(false);
       
-      // Fast forward: mark all remaining as done
       plan.steps.forEach((_, i) => {
         if (plan.steps[i] && plan.steps[i]!.status !== 'done') {
           plan = updatePlanStepStatus(plan, s => s.id === plan.steps[i]!.id, 'done');
@@ -500,19 +493,14 @@ describe('Plan Utilities', () => {
     it('should handle early termination scenario correctly', () => {
       let plan = createFallbackPlan();
       
-      // Simulate: only first 2 steps completed, then stream timeout
       plan = updatePlanStepStatus(plan, s => s.key === PlanStepKey.ANALYZE, 'done');
       plan = updatePlanStepStatus(plan, s => s.key === PlanStepKey.RESOLVE_DEPS, 'done');
       
-      // Verify incomplete
       expect(isPlanComplete(plan)).toBe(false);
       const incomplete = getIncompleteSteps(plan);
       expect(incomplete).toHaveLength(3);
-      
-      // Mark remaining as failed
       plan = markRemainingStepsAsFailed(plan, 'Stream timeout');
       
-      // Now should be complete
       expect(isPlanComplete(plan)).toBe(true);
       expect(getIncompleteSteps(plan)).toEqual([]);
       expect(plan.steps.filter(s => s.status === 'failed')).toHaveLength(3);
@@ -533,7 +521,7 @@ describe('Plan Utilities', () => {
       
       expect(result.decisions).toContain('Initial decision');
       expect(result.assumptions).toContain('Initial assumption');
-      expect(result.decisions.length).toBe(2); // Original + new one
+      expect(result.decisions.length).toBe(2);
     });
   });
 });

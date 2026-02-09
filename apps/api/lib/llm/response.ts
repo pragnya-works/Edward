@@ -95,8 +95,6 @@ export async function* streamResponse(
           { role: 'user', content }
         ],
         stream: true,
-        temperature: GENERATION_CONFIG.temperature,
-        top_p: GENERATION_CONFIG.topP,
       }, { signal });
 
       for await (const chunk of stream) {
@@ -113,6 +111,7 @@ export async function* streamResponse(
         generationConfig: {
           maxOutputTokens: GENERATION_CONFIG.geminiMaxOutputTokens,
           topP: GENERATION_CONFIG.topP,
+          temperature: GENERATION_CONFIG.temperature,
         }
       }, { signal });
 
