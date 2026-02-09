@@ -35,8 +35,6 @@ import {
   markPlanInProgressForWorkflowStep,
 } from "./workflow/plan.js";
 
-let sandboxProvisionCounter = 0;
-
 export async function createWorkflow(
   userId: string,
   chatId: string,
@@ -181,7 +179,7 @@ export async function ensureSandbox(
   framework?: Framework,
   shouldRestore: boolean = false,
 ): Promise<string> {
-  const callId = ++sandboxProvisionCounter;
+  const callId = nanoid(8);
   logger.info(
     { workflowId: state.id, chatId: state.chatId, callId },
     "ensureSandbox called",
@@ -296,7 +294,7 @@ export async function executeInstallPhase(
         await disconnectContainerFromNetwork(
           sandbox.containerId,
           state.sandboxId,
-        ).catch(() => {});
+        ).catch(() => { });
         return {
           step: WorkflowStep.INSTALL_PACKAGES,
           success: false,
@@ -327,7 +325,7 @@ export async function executeInstallPhase(
       await disconnectContainerFromNetwork(
         sandbox.containerId,
         state.sandboxId,
-      ).catch(() => {});
+      ).catch(() => { });
       return {
         step: WorkflowStep.INSTALL_PACKAGES,
         success: false,

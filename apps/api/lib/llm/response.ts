@@ -13,6 +13,10 @@ const GENERATION_CONFIG = {
   geminiMaxOutputTokens: 65536,
 } as const;
 
+if (!process.env.GEMINI_MODEL && !process.env.OPENAI_MODEL) {
+  logger.warn('Neither GEMINI_MODEL nor OPENAI_MODEL is configured - LLM calls will fail');
+}
+
 function getClient(apiKey: string) {
   if (API_KEY_REGEX[Provider.OPENAI].test(apiKey)) {
     const model = process.env.OPENAI_MODEL;

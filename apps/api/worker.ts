@@ -176,6 +176,7 @@ worker.on('error', (error) => {
 
 async function gracefulShutdown() {
   await worker.close();
+  await pubClient.quit();
   process.exit(0);
 }
 

@@ -31,6 +31,29 @@ export async function uploadBuildFilesToS3(
     const buildPath = `${CONTAINER_WORKDIR}/${buildDirectory}`;
     const uploadTimestamp = new Date().toISOString();
 
+    const MAX_CONCURRENT_UPLOADS = 15;
+    let activeUploads = 0;
+    const pendingUploads: (() => void)[] = [];
+
+    const acquireSlot = (): Promise<void> => {
+        if (activeUploads < MAX_CONCURRENT_UPLOADS) {
+            activeUploads++;
+            return Promise.resolve();
+        }
+        return new Promise((resolve) => {
+            pendingUploads.push(() => {
+                activeUploads++;
+                resolve();
+            });
+        });
+    };
+
+    const releaseSlot = (): void => {
+        activeUploads--;
+        const next = pendingUploads.shift();
+        if (next) next();
+    };
+
     try {
         const tarArchiveStream = await container.getArchive({ path: buildPath });
         const tarExtractor = tar.extract();
@@ -61,6 +84,7 @@ export async function uploadBuildFilesToS3(
                 uploadResults.totalFiles++;
                 const s3Key = buildS3Key(sandbox.userId, sandbox.chatId, `preview/${relativePath}`);
                 const uploadPromise = (async () => {
+                    await acquireSlot();
                     try {
                         const chunks: Buffer[] = [];
                         for await (const chunk of fileStream) {
@@ -103,6 +127,7 @@ export async function uploadBuildFilesToS3(
                             error: uploadErr
                         }, 'File upload threw exception');
                     } finally {
+                        releaseSlot();
                         nextEntry();
                     }
                 })();

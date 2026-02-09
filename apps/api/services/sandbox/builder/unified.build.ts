@@ -16,8 +16,6 @@ import {
 } from "../utils.sandbox.js";
 import { Framework } from "../../planning/schemas.js";
 import { mergeAndInstallDependencies } from "../templates/dependency.merger.js";
-import { deleteFolder } from "../../storage.service.js";
-import { buildS3Key } from "../../storage/key.utils.js";
 import { invalidatePreviewCache } from "../../storage/cdn.js";
 import { normalizeFramework } from "../templates/template.registry.js";
 
@@ -202,22 +200,13 @@ export async function buildAndUploadUnified(
 
     const framework = (scaffoldedFramework || "vanilla") as Framework;
 
-    if (userId && chatId) {
-      const previewPrefix = buildS3Key(userId, chatId, "preview/");
-      await deleteFolder(previewPrefix).catch((err) =>
-        logger.warn(
-          { err, sandboxId, previewPrefix },
-          "Failed to clean old preview files (non-fatal)",
-        ),
-      );
-    }
-
     const uploadResult = await uploadBuildFilesToS3(
       sandbox,
       buildDirectory,
       framework,
     );
 
+    const allSuccessful = uploadResult.totalFiles === uploadResult.successful;
     if (framework !== "vanilla") {
       await uploadSpaFallback(sandbox, framework).catch((err) =>
         logger.warn({ err, sandboxId }, "SPA fallback upload failed"),
@@ -237,7 +226,6 @@ export async function buildAndUploadUnified(
 
     const previewUrl =
       userId && chatId ? buildPreviewUrl(userId, chatId) : null;
-    const allSuccessful = uploadResult.totalFiles === uploadResult.successful;
 
     return {
       success: allSuccessful,

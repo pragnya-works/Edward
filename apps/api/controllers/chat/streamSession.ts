@@ -31,6 +31,12 @@ const MAX_RESPONSE_SIZE = 10 * 1024 * 1024;
 const MAX_STREAM_DURATION_MS = 5 * 60 * 1000;
 const MAX_AGENT_TURNS = 5;
 
+function safeSSEWrite(res: Response, data: string): boolean {
+  if (res.writableEnded || !res.writable) return false;
+  res.write(data);
+  return true;
+}
+
 interface CommandResult {
   command: string;
   args: string[];
@@ -127,8 +133,8 @@ async function handleFileContent(
 
 function emitPlanUpdate(res: Response, plan: WorkflowState['context']['plan']): void {
   if (!plan || res.writableEnded) return;
-  res.write(`data: ${JSON.stringify({ type: ParserEventType.PLAN_UPDATE, plan })}\n\n`);
-  res.write(`data: ${JSON.stringify({ type: ParserEventType.TODO_UPDATE, todos: plan.steps })}\n\n`);
+  safeSSEWrite(res, `data: ${JSON.stringify({ type: ParserEventType.PLAN_UPDATE, plan })}\n\n`);
+  safeSSEWrite(res, `data: ${JSON.stringify({ type: ParserEventType.TODO_UPDATE, todos: plan.steps })}\n\n`);
 }
 
 export interface StreamSessionParams {
@@ -236,54 +242,207 @@ export async function runStreamSession(params: StreamSessionParams): Promise<voi
       currentFilePath = undefined;
       isFirstFileChunk = true;
 
-    const stream = streamResponse(
-      decryptedApiKey,
-      agentUserContent,
-      abortController.signal,
-      preVerifiedDeps,
-      undefined,
-      framework,
-      complexity,
-      mode,
-    );
+      const stream = streamResponse(
+        decryptedApiKey,
+        agentUserContent,
+        abortController.signal,
+        preVerifiedDeps,
+        undefined,
+        framework,
+        complexity,
+        mode,
+      );
 
-    for await (const chunk of stream) {
-      if (abortController.signal.aborted) break;
+      for await (const chunk of stream) {
+        if (abortController.signal.aborted) break;
 
-      if (fullRawResponse.length + chunk.length > MAX_RESPONSE_SIZE) {
-        throw new Error('Response size exceeded maximum limit');
+        if (fullRawResponse.length + chunk.length > MAX_RESPONSE_SIZE) {
+          throw new Error('Response size exceeded maximum limit');
+        }
+        fullRawResponse += chunk;
+        turnRawResponse += chunk;
+        const events = parser.process(chunk);
+
+        for (const event of events) {
+          let handled = false;
+          try {
+            switch (event.type) {
+              case ParserEventType.SANDBOX_START:
+                if (!workflow.sandboxId) {
+                  await ensureSandbox(workflow, undefined, isFollowUp);
+                }
+                if (workflow.context.plan) {
+                  workflow.context.plan = markPlanStepInProgress(workflow.context.plan, 'Generate');
+                  await saveWorkflow(workflow);
+                  emitPlanUpdate(res, workflow.context.plan);
+                }
+                break;
+
+              case ParserEventType.FILE_START:
+                if (!workflow.sandboxId) await ensureSandbox(workflow, undefined, isFollowUp);
+                currentFilePath = event.path;
+                isFirstFileChunk = true;
+                await prepareSandboxFile(workflow.sandboxId!, currentFilePath);
+                break;
+
+              case ParserEventType.FILE_CONTENT:
+                if (!workflow.sandboxId || !currentFilePath) break;
+                await handleFileContent(workflow.sandboxId, currentFilePath, event.content, isFirstFileChunk);
+                generatedFiles.set(currentFilePath, (generatedFiles.get(currentFilePath) || '') + event.content);
+                if (isFirstFileChunk) isFirstFileChunk = false;
+                break;
+
+              case ParserEventType.FILE_END:
+                currentFilePath = undefined;
+                break;
+
+              case ParserEventType.SANDBOX_END:
+                if (workflow.sandboxId) {
+                  await flushSandbox(workflow.sandboxId).catch((err: unknown) =>
+                    logger.error(ensureError(err), `Flush failed during SANDBOX_END: ${workflow.sandboxId}`)
+                  );
+                }
+                break;
+
+              case ParserEventType.INSTALL_CONTENT: {
+                if (event.dependencies) {
+                  declaredPackages.push(...event.dependencies);
+                }
+                if (event.framework) {
+                  const normalized = normalizeFramework(event.framework);
+                  if (normalized) {
+                    workflow.context.framework = normalized;
+                  }
+                }
+                if (!workflow.sandboxId) {
+                  await ensureSandbox(workflow, workflow.context.framework, isFollowUp);
+                }
+
+                const rawDependencies = event.dependencies || [];
+                if (rawDependencies.length > 0) {
+                  if (workflow.context.plan) {
+                    workflow.context.plan = markPlanStepInProgress(workflow.context.plan, 'Resolve');
+                    await saveWorkflow(workflow);
+                    emitPlanUpdate(res, workflow.context.plan);
+                  }
+
+                  const frameworkForResolution = workflow.context.framework || 'vanilla';
+                  const resolution = await resolveDependencies(rawDependencies, frameworkForResolution);
+                  const validDeps = resolution.resolved.map(dep => dep.name);
+
+                  if (resolution.failed.length > 0) {
+                    const failures = resolution.failed.map(dep => dep.name).join(', ');
+                    const suggestions = resolution.failed
+                      .flatMap(dep => suggestAlternatives(dep.name))
+                      .filter(Boolean);
+
+                    const message = `Invalid dependencies detected: ${failures}` + (suggestions.length > 0
+                      ? ` (suggested alternatives: ${Array.from(new Set(suggestions)).join(', ')})`
+                      : '');
+
+                    await updatePlanWithDecision(`Dependency validation failed: ${message}`);
+
+                    res.write(`data: ${JSON.stringify({
+                      type: ParserEventType.ERROR,
+                      message
+                    })}\n\n`);
+                  }
+
+                  if (resolution.warnings.length > 0) {
+                    await updatePlanWithDecision(`Dependency warnings: ${resolution.warnings.join('; ')}`);
+                  }
+
+                  await advanceWorkflow(workflow, rawDependencies);
+                  if (workflow.sandboxId && validDeps.length > 0) {
+                    await addSandboxPackages(workflow.sandboxId, validDeps);
+                    if (workflow.context.plan) {
+                      workflow.context.plan = updatePlanStepStatus(workflow.context.plan, step => step.title.toLowerCase().includes('resolve'), 'done');
+                      await saveWorkflow(workflow);
+                      emitPlanUpdate(res, workflow.context.plan);
+                    }
+                  }
+                }
+                break;
+              }
+
+              case ParserEventType.COMMAND: {
+                if (!workflow.sandboxId) await ensureSandbox(workflow, undefined, isFollowUp);
+                const { command: cmd, args: cmdArgs = [] } = event;
+                try {
+                  const result = await executeSandboxCommand(
+                    workflow.sandboxId!,
+                    { command: cmd, args: cmdArgs }
+                  );
+                  commandResultsThisTurn.push({
+                    command: cmd,
+                    args: cmdArgs,
+                    stdout: result.stdout ?? '',
+                    stderr: result.stderr ?? '',
+                  });
+                  res.write(`data: ${JSON.stringify({
+                    type: ParserEventType.COMMAND,
+                    command: cmd,
+                    args: cmdArgs,
+                    ...result
+                  })}\n\n`);
+                } catch (cmdError) {
+                  const err = ensureError(cmdError);
+                  commandResultsThisTurn.push({
+                    command: cmd,
+                    args: cmdArgs,
+                    stdout: '',
+                    stderr: `Command failed: ${err.message}`,
+                  });
+                  res.write(`data: ${JSON.stringify({
+                    type: ParserEventType.ERROR,
+                    message: `Command failed: ${err.message}`
+                  })}\n\n`);
+                }
+                handled = true;
+                break;
+              }
+            }
+          } catch (sandboxError) {
+            logger.error(ensureError(sandboxError), 'Sandbox operation failed during streaming');
+            await updatePlanWithDecision(`Sandbox operation failed during streaming: ${ensureError(sandboxError).message}`);
+            res.write(`data: ${JSON.stringify({
+              type: ParserEventType.ERROR,
+              message: 'Sandbox execution failed'
+            })}\n\n`);
+            continue;
+          }
+
+          if (!handled) {
+            safeSSEWrite(res, `data: ${JSON.stringify(event)}\n\n`);
+          }
+        }
       }
-      fullRawResponse += chunk;
-      turnRawResponse += chunk;
-      const events = parser.process(chunk);
 
-      for (const event of events) {
-        let handled = false;
+      if (abortController.signal.aborted) {
+        res.end();
+        return;
+      }
+
+      const finalEvents = parser.flush();
+      for (const event of finalEvents) {
         try {
           switch (event.type) {
-            case ParserEventType.SANDBOX_START:
-              if (!workflow.sandboxId) {
-                await ensureSandbox(workflow, undefined, isFollowUp);
-              }
-              if (workflow.context.plan) {
-                workflow.context.plan = markPlanStepInProgress(workflow.context.plan, 'Generate');
-                await saveWorkflow(workflow);
-                emitPlanUpdate(res, workflow.context.plan);
-              }
-              break;
-
             case ParserEventType.FILE_START:
-              if (!workflow.sandboxId) await ensureSandbox(workflow, undefined, isFollowUp);
+              if (!workflow.sandboxId) {
+                logger.error('[Chat] FILE_START in flush without active sandbox');
+                break;
+              }
               currentFilePath = event.path;
               isFirstFileChunk = true;
-              await prepareSandboxFile(workflow.sandboxId!, currentFilePath);
+              await prepareSandboxFile(workflow.sandboxId, currentFilePath);
               break;
 
             case ParserEventType.FILE_CONTENT:
-              if (!workflow.sandboxId || !currentFilePath) break;
-              await handleFileContent(workflow.sandboxId, currentFilePath, event.content, isFirstFileChunk);
-              generatedFiles.set(currentFilePath, (generatedFiles.get(currentFilePath) || '') + event.content);
-              if (isFirstFileChunk) isFirstFileChunk = false;
+              if (workflow.sandboxId && currentFilePath) {
+                await handleFileContent(workflow.sandboxId, currentFilePath, event.content, isFirstFileChunk);
+                generatedFiles.set(currentFilePath, (generatedFiles.get(currentFilePath) || '') + event.content);
+                if (isFirstFileChunk) isFirstFileChunk = false;
+              }
               break;
 
             case ParserEventType.FILE_END:
@@ -297,179 +456,26 @@ export async function runStreamSession(params: StreamSessionParams): Promise<voi
                 );
               }
               break;
-
-            case ParserEventType.INSTALL_CONTENT: {
-              if (event.dependencies) {
-                declaredPackages.push(...event.dependencies);
-              }
-              if (event.framework) {
-                const normalized = normalizeFramework(event.framework);
-                if (normalized) {
-                  workflow.context.framework = normalized;
-                }
-              }
-              if (!workflow.sandboxId) {
-                await ensureSandbox(workflow, workflow.context.framework, isFollowUp);
-              }
-
-              const rawDependencies = event.dependencies || [];
-              if (rawDependencies.length > 0) {
-                if (workflow.context.plan) {
-                  workflow.context.plan = markPlanStepInProgress(workflow.context.plan, 'Resolve');
-                  await saveWorkflow(workflow);
-                  emitPlanUpdate(res, workflow.context.plan);
-                }
-
-                const frameworkForResolution = workflow.context.framework || 'vanilla';
-                const resolution = await resolveDependencies(rawDependencies, frameworkForResolution);
-                const validDeps = resolution.resolved.map(dep => dep.name);
-
-                if (resolution.failed.length > 0) {
-                  const failures = resolution.failed.map(dep => dep.name).join(', ');
-                  const suggestions = resolution.failed
-                    .flatMap(dep => suggestAlternatives(dep.name))
-                    .filter(Boolean);
-
-                  const message = `Invalid dependencies detected: ${failures}` + (suggestions.length > 0
-                    ? ` (suggested alternatives: ${Array.from(new Set(suggestions)).join(', ')})`
-                    : '');
-
-                  await updatePlanWithDecision(`Dependency validation failed: ${message}`);
-
-                  res.write(`data: ${JSON.stringify({
-                    type: ParserEventType.ERROR,
-                    message
-                  })}\n\n`);
-                }
-
-                if (resolution.warnings.length > 0) {
-                  await updatePlanWithDecision(`Dependency warnings: ${resolution.warnings.join('; ')}`);
-                }
-
-                await advanceWorkflow(workflow, rawDependencies);
-                if (workflow.sandboxId && validDeps.length > 0) {
-                  await addSandboxPackages(workflow.sandboxId, validDeps);
-                  if (workflow.context.plan) {
-                    workflow.context.plan = updatePlanStepStatus(workflow.context.plan, step => step.title.toLowerCase().includes('resolve'), 'done');
-                    await saveWorkflow(workflow);
-                    emitPlanUpdate(res, workflow.context.plan);
-                  }
-                }
-              }
-              break;
-            }
-
-            case ParserEventType.COMMAND: {
-              if (!workflow.sandboxId) await ensureSandbox(workflow, undefined, isFollowUp);
-              const { command: cmd, args: cmdArgs = [] } = event;
-              try {
-                const result = await executeSandboxCommand(
-                  workflow.sandboxId!,
-                  { command: cmd, args: cmdArgs }
-                );
-                commandResultsThisTurn.push({
-                  command: cmd,
-                  args: cmdArgs,
-                  stdout: result.stdout ?? '',
-                  stderr: result.stderr ?? '',
-                });
-                res.write(`data: ${JSON.stringify({
-                  type: ParserEventType.COMMAND,
-                  command: cmd,
-                  args: cmdArgs,
-                  ...result
-                })}\n\n`);
-              } catch (cmdError) {
-                const err = ensureError(cmdError);
-                commandResultsThisTurn.push({
-                  command: cmd,
-                  args: cmdArgs,
-                  stdout: '',
-                  stderr: `Command failed: ${err.message}`,
-                });
-                res.write(`data: ${JSON.stringify({
-                  type: ParserEventType.ERROR,
-                  message: `Command failed: ${err.message}`
-                })}\n\n`);
-              }
-              handled = true;
-              break;
-            }
           }
         } catch (sandboxError) {
-          logger.error(ensureError(sandboxError), 'Sandbox operation failed during streaming');
-          await updatePlanWithDecision(`Sandbox operation failed during streaming: ${ensureError(sandboxError).message}`);
-          res.write(`data: ${JSON.stringify({
-            type: ParserEventType.ERROR,
-            message: 'Sandbox execution failed'
-          })}\n\n`);
+          logger.error(ensureError(sandboxError), 'Final sandbox operation failed');
+          await updatePlanWithDecision(`Final sandbox operation failed: ${ensureError(sandboxError).message}`);
           continue;
         }
-
-        if (!handled) {
-          res.write(`data: ${JSON.stringify(event)}\n\n`);
-        }
+        safeSSEWrite(res, `data: ${JSON.stringify(event)}\n\n`);
       }
-    }
 
-    if (abortController.signal.aborted) {
-      res.end();
-      return;
-    }
-
-    const finalEvents = parser.flush();
-    for (const event of finalEvents) {
-      try {
-        switch (event.type) {
-          case ParserEventType.FILE_START:
-            if (!workflow.sandboxId) {
-              logger.error('[Chat] FILE_START in flush without active sandbox');
-              break;
-            }
-            currentFilePath = event.path;
-            isFirstFileChunk = true;
-            await prepareSandboxFile(workflow.sandboxId, currentFilePath);
-            break;
-
-          case ParserEventType.FILE_CONTENT:
-            if (workflow.sandboxId && currentFilePath) {
-              await handleFileContent(workflow.sandboxId, currentFilePath, event.content, isFirstFileChunk);
-              generatedFiles.set(currentFilePath, (generatedFiles.get(currentFilePath) || '') + event.content);
-              if (isFirstFileChunk) isFirstFileChunk = false;
-            }
-            break;
-
-          case ParserEventType.FILE_END:
-            currentFilePath = undefined;
-            break;
-
-          case ParserEventType.SANDBOX_END:
-            if (workflow.sandboxId) {
-              await flushSandbox(workflow.sandboxId).catch((err: unknown) =>
-                logger.error(ensureError(err), `Flush failed during SANDBOX_END: ${workflow.sandboxId}`)
-              );
-            }
-            break;
-        }
-      } catch (sandboxError) {
-        logger.error(ensureError(sandboxError), 'Final sandbox operation failed');
-        await updatePlanWithDecision(`Final sandbox operation failed: ${ensureError(sandboxError).message}`);
-        continue;
+      if (commandResultsThisTurn.length > 0 && agentTurn < MAX_AGENT_TURNS && !abortController.signal.aborted) {
+        const formattedResults = formatCommandResults(commandResultsThisTurn);
+        const prevSummary = turnRawResponse.length > 4000
+          ? turnRawResponse.slice(0, 4000) + '\n...[truncated]'
+          : turnRawResponse;
+        agentUserContent = `ORIGINAL REQUEST:\n${fullUserContent}\n\nYOUR PREVIOUS RESPONSE:\n${prevSummary}\n\nCOMMAND RESULTS:\n${formattedResults}\n\nContinue with the task. If you wrote fixes, verify by running the build. If you need more information, use <edward_command>. Do not stop until the task is complete.`;
+        logger.info({ chatId, turn: agentTurn, commandCount: commandResultsThisTurn.length }, 'Agent loop: continuing with command results');
+        continue agentLoop;
       }
-      res.write(`data: ${JSON.stringify(event)}\n\n`);
-    }
 
-    if (commandResultsThisTurn.length > 0 && agentTurn < MAX_AGENT_TURNS && !abortController.signal.aborted) {
-      const formattedResults = formatCommandResults(commandResultsThisTurn);
-      const prevSummary = turnRawResponse.length > 4000
-        ? turnRawResponse.slice(0, 4000) + '\n...[truncated]'
-        : turnRawResponse;
-      agentUserContent = `ORIGINAL REQUEST:\n${fullUserContent}\n\nYOUR PREVIOUS RESPONSE:\n${prevSummary}\n\nCOMMAND RESULTS:\n${formattedResults}\n\nContinue with the task. If you wrote fixes, verify by running the build. If you need more information, use <edward_command>. Do not stop until the task is complete.`;
-      logger.info({ chatId, turn: agentTurn, commandCount: commandResultsThisTurn.length }, 'Agent loop: continuing with command results');
-      continue agentLoop;
-    }
-
-    break;
+      break;
     }
 
     committedMessageContent = fullRawResponse;

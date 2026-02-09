@@ -27,6 +27,7 @@ describe('ValidationPipeline', () => {
     it('should pass if all stages succeed', async () => {
         vi.mocked(execCommand).mockResolvedValueOnce({ exitCode: 0, stdout: '', stderr: '' });
         vi.mocked(execCommand).mockResolvedValueOnce({ exitCode: 0, stdout: '', stderr: '' });
+        vi.mocked(execCommand).mockResolvedValueOnce({ exitCode: 0, stdout: 'EXIT_CODE:0', stderr: '' });
 
         const result = await runValidationPipeline(mockContainerId, mockSandboxId);
 
@@ -63,11 +64,12 @@ describe('ValidationPipeline', () => {
     it('should skip type checking if tsconfig.json is missing', async () => {
         vi.mocked(execCommand).mockResolvedValueOnce({ exitCode: 0, stdout: '', stderr: '' });
         vi.mocked(execCommand).mockResolvedValueOnce({ exitCode: 0, stdout: 'no-ts', stderr: '' });
+        vi.mocked(execCommand).mockResolvedValueOnce({ exitCode: 0, stdout: 'EXIT_CODE:0', stderr: '' });
 
         const result = await runValidationPipeline(mockContainerId, mockSandboxId);
 
         expect(result.valid).toBe(true);
-        expect(vi.mocked(execCommand)).toHaveBeenCalledTimes(2);
+        expect(vi.mocked(execCommand)).toHaveBeenCalledTimes(3);
     });
 
     it('should handle pipe failures in validation commands', async () => {

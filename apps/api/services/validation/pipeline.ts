@@ -109,7 +109,24 @@ function parseTypeErrors(output: string): ValidationError[] {
     return errors;
 }
 
-async function validateBuild(): Promise<ValidationResult> {
+async function validateBuild(containerId: string): Promise<ValidationResult> {
+    const result = await runContainerCommand(containerId, [
+        'sh', '-c',
+        'if [ -f package.json ]; then pnpm run build --if-present 2>&1 | tail -30; echo "EXIT_CODE:$?"; fi'
+    ], 120000);
+
+    const output = result.stdout + result.stderr;
+    const exitMatch = output.match(/EXIT_CODE:(\d+)/);
+    const exitCode = exitMatch?.[1] ? parseInt(exitMatch[1], 10) : result.exitCode;
+
+    if (exitCode !== 0) {
+        const errors: ValidationError[] = [{
+            stage: 'build',
+            message: output.replace(/EXIT_CODE:\d+/, '').trim().slice(-500)
+        }];
+        return { valid: false, stage: 'build', errors };
+    }
+
     return { valid: true, errors: [] };
 }
 
