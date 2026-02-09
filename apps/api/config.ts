@@ -19,10 +19,14 @@ function validatePort(name: string, value: string | undefined): number {
   return port;
 }
 
+const DEFAULT_REDIS_PORT = 6379;
+
 function parseRedisUrl(url: string): { host: string; port: number } {
   try {
     const parsed = new URL(url);
-    const port = validatePort("REDIS_URL", parsed.port);
+    const port = parsed.port
+      ? validatePort("REDIS_URL", parsed.port)
+      : DEFAULT_REDIS_PORT;
     return { host: parsed.hostname, port };
   } catch {
     throw new Error(`Invalid REDIS_URL format: ${url}`);

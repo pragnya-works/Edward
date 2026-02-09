@@ -50,10 +50,14 @@ function sendStreamError(
   error: string,
 ): void {
   if (res.headersSent) {
-    res.write(
-      `data: ${JSON.stringify({ type: ParserEventType.ERROR, message: error })}\n\n`,
-    );
-    res.end();
+    if (!res.writableEnded && res.writable) {
+      res.write(
+        `data: ${JSON.stringify({ type: ParserEventType.ERROR, message: error })}\n\n`,
+      );
+    }
+    if (!res.writableEnded) {
+      res.end();
+    }
     return;
   }
 
@@ -131,8 +135,10 @@ export async function unifiedSendMessage(
 
     const { chatId, isNewChat } = chatResult;
 
-    const intent = isNewChat ? ChatAction.GENERATE : undefined;
     const isFollowUp = !isNewChat;
+    let intent: (typeof ChatAction)[keyof typeof ChatAction] | undefined = isNewChat
+      ? ChatAction.GENERATE
+      : undefined;
 
     const userMessageId = await saveMessage(
       chatId,
@@ -192,6 +198,10 @@ export async function unifiedSendMessage(
     );
 
     await advanceWorkflow(workflow, body.content);
+
+    if (!intent && workflow.context.intent?.action) {
+      intent = workflow.context.intent.action;
+    }
 
     const preVerifiedDeps = workflow.context.intent?.recommendedPackages || [];
 

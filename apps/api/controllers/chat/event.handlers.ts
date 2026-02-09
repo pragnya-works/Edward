@@ -179,7 +179,7 @@ async function handleInstallContent(
         );
     }
 
-    await advanceWorkflow(ctx.workflow, rawDependencies);
+    await advanceWorkflow(ctx.workflow, validDeps);
     if (ctx.workflow.sandboxId && validDeps.length > 0) {
         await addSandboxPackages(ctx.workflow.sandboxId, validDeps);
         if (ctx.workflow.context.plan) {
