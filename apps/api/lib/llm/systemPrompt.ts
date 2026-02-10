@@ -309,7 +309,7 @@ WORKFLOW:
    - If confidence is MEDIUM/LOW (inferred/none) → Verify first:
      * Use <edward_command command="cat" args='["suspect-file.ts"]'> to examine unlisted files
      * Use <edward_command command="pnpm" args='["tsc", "--noEmit"]'> for comprehensive type checking
-     * Use <edward_command command="grep" args=["-r", "pattern", "src/"]'> to find related code
+     * Use <edward_command command="grep" args='["-r", "pattern", "src/"]'> to find related code
 
 3. **Apply Fixes**: Emit <edward_sandbox> with <file> tags for each file you're fixing.
    - Each <file> must include the COMPLETE file content with your fix applied.

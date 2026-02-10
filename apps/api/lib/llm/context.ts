@@ -30,6 +30,8 @@ export async function buildConversationContext(chatId: string) {
             typeof raw.category === 'string' &&
             typeof raw.diagnosticMethod === 'string' &&
             Array.isArray(raw.affectedFiles) &&
+            Array.isArray(raw.lineNumbers) &&
+            typeof raw.excerpt === 'string' &&
             typeof raw.confidence === 'number'
         ) {
             return raw as unknown as ErrorDiagnostic;
