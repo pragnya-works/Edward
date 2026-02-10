@@ -50,7 +50,7 @@ export async function mergeAndInstallDependencies(
 
                 return {
                     success: false,
-                    error: `Failed to install runtime dependencies: ${depsResult.stderr || depsResult.stdout}`.slice(0, 300)
+                    error: `Failed to install runtime dependencies: ${depsResult.stderr || depsResult.stdout}`
                 };
             }
             
@@ -78,7 +78,7 @@ export async function mergeAndInstallDependencies(
 
                 return {
                     success: false,
-                    error: `Failed to install dev dependencies: ${devResult.stderr || devResult.stdout}`.slice(0, 300)
+                    error: `Failed to install dev dependencies: ${devResult.stderr || devResult.stdout}`
                 };
             }
             

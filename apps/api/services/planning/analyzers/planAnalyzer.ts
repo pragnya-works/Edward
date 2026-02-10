@@ -5,7 +5,7 @@ import { ensureError } from '../../../utils/error.js';
 import { PlanSchema, PlanStatus, type Plan } from '../schemas.js';
 import { createFallbackPlan, normalizePlan, mergePlanUpdate } from '../workflow/plan.js';
 
-const PLAN_SYSTEM_PROMPT = `You are a technical planner. Create an execution plan as a JSON object.
+const PLAN_SYSTEM_PROMPT = `You are a technical planner for a FRONTEND-ONLY development assistant. Create an execution plan as a JSON object.
 
 Required JSON structure:
 {
@@ -24,10 +24,35 @@ Rules:
 - lastUpdatedAt must be 0 (will be set by system)
 - Be concise and production-oriented
 
+CRITICAL RESTRICTIONS - Steps must ONLY include FRONTEND tasks:
+✅ ALLOWED:
+- Analyze requirements
+- Generate UI components
+- Create pages and layouts
+- Implement forms and validation
+- Add styling and animations
+- Setup routing and navigation
+- Integrate API calls (consuming external APIs)
+- Test components
+- Optimize performance
+
+❌ FORBIDDEN - DO NOT include steps for:
+- Backend/API development (building API endpoints, GraphQL servers)
+- Database setup (Prisma, migrations, SQL schemas)
+- Authentication backends (JWT, session management, password hashing)
+- Server configuration (Express, Fastify, Node.js servers)
+- CI/CD setup (GitHub Actions, pipelines)
+- Deployment (Vercel, Docker, Kubernetes, cloud deployment)
+- Infrastructure (server provisioning, Nginx, load balancers)
+- DevOps tasks (monitoring, logging infrastructure)
+
+If the request involves backend/infrastructure, create a plan that focuses ONLY on the frontend UI that would consume such services.
+
 Respond with ONLY the JSON object.`;
 
-const REFLECT_SYSTEM_PROMPT = `You are a planner revising an execution plan. Update the plan based on the decision context.
+const REFLECT_SYSTEM_PROMPT = `You are a planner revising an execution plan for a FRONTEND-ONLY development assistant. Update the plan based on the decision context.
 Use the same JSON schema. Keep completed steps as "done". Be concise.
+REMEMBER: Only include FRONTEND tasks (UI, components, styling, client-side logic). NO backend, infrastructure, or deployment steps.
 Respond with ONLY the JSON object.`;
 
 const RETRY_PROMPT = `Your previous response was not valid JSON. Respond with ONLY a valid JSON object matching the schema described in the system prompt. No markdown, no explanation, just the raw JSON.`;

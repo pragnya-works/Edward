@@ -18,9 +18,49 @@ import { cleanupSandbox } from "./services/sandbox/lifecycle/cleanup.js";
 import { createBuild, updateBuild } from "@edward/auth";
 import { enqueueBackupJob } from "./services/queue/enqueue.js";
 import { createRedisClient } from "./lib/redis.js";
+import { enrichBuildError } from "./services/diagnostics/errorEnricher.js";
 
 const logger = createLogger("WORKER");
 const pubClient = createRedisClient();
+
+async function enrichErrorIfPossible(
+  sandboxId: string,
+  error: string | undefined,
+): Promise<{ errorLog: string; errorMetadata: unknown }> {
+  const errorLog = (error || "Unknown build error").slice(-2000);
+
+  const sandbox = await getSandboxState(sandboxId);
+  const containerId = sandbox?.containerId;
+
+  if (!containerId || !error) {
+    return { errorLog, errorMetadata: null };
+  }
+
+  try {
+    const enriched = await enrichBuildError(sandboxId, error, containerId, sandbox?.scaffoldedFramework);
+    
+    logger.info(
+      {
+        sandboxId,
+        category: enriched.structured.category,
+        primaryFile: enriched.structured.primaryFile,
+        confidence: enriched.structured.confidence,
+      },
+      "[Worker] Build error enriched with diagnostics",
+    );
+
+    return {
+      errorLog: enriched.rawError.slice(-2000),
+      errorMetadata: enriched.structured as unknown,
+    };
+  } catch (enrichErr) {
+    logger.warn(
+      { error: enrichErr, sandboxId },
+      "[Worker] Error enrichment failed, using raw error",
+    );
+    return { errorLog, errorMetadata: null };
+  }
+}
 
 async function processBuildJob(payload: BuildJobPayload): Promise<void> {
   const { sandboxId, chatId, messageId, userId } = payload;
@@ -65,10 +105,12 @@ async function processBuildJob(payload: BuildJobPayload): Promise<void> {
       );
       handled = true;
     } else {
-      const errorLog = result.error?.slice(-2000) || "Unknown build error";
+      const { errorLog, errorMetadata } = await enrichErrorIfPossible(sandboxId, result.error);
+
       await updateBuild(buildRecord.id, {
         status: "failed",
         errorLog,
+        errorMetadata: errorMetadata as Record<string, unknown> | null,
         buildDuration: duration,
       });
 
@@ -78,6 +120,7 @@ async function processBuildJob(payload: BuildJobPayload): Promise<void> {
           buildId: buildRecord.id,
           status: "failed",
           errorLog,
+          errorMetadata,
         }),
       );
 
@@ -112,9 +155,12 @@ async function processBuildJob(payload: BuildJobPayload): Promise<void> {
   } catch (error) {
     if (!handled) {
       const err = error instanceof Error ? error.message : String(error);
+      const { errorLog, errorMetadata } = await enrichErrorIfPossible(sandboxId, err);
+
       await updateBuild(buildRecord.id, {
         status: "failed",
-        errorLog: err.slice(-2000),
+        errorLog,
+        errorMetadata: errorMetadata as Record<string, unknown> | null,
       }).catch(() => {});
 
       await pubClient
@@ -123,7 +169,8 @@ async function processBuildJob(payload: BuildJobPayload): Promise<void> {
           JSON.stringify({
             buildId: buildRecord.id,
             status: "failed",
-            errorLog: err.slice(-2000),
+            errorLog,
+            errorMetadata,
           }),
         )
         .catch(() => {});

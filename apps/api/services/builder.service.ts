@@ -102,11 +102,7 @@ export async function runUnifiedBuild(
 
       return {
         success: false,
-        error:
-          `Build failed (exit ${buildResult.exitCode}): ${buildResult.stderr || buildResult.stdout}`.slice(
-            0,
-            500,
-          ),
+        error: `Build failed (exit ${buildResult.exitCode}): ${buildResult.stderr || buildResult.stdout}`,
       };
     }
 

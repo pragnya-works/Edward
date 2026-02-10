@@ -1,7 +1,8 @@
 import { db, message, eq, desc, getLatestBuildByChatId } from '@edward/auth';
 import { getActiveSandbox } from '../../services/sandbox/lifecycle/provisioning.js';
-import { readAllProjectFiles, formatProjectSnapshot } from '../../services/sandbox/read.sandbox.js';
+import { readAllProjectFiles, readSpecificFiles, formatProjectSnapshot } from '../../services/sandbox/read.sandbox.js';
 import { logger } from '../../utils/logger.js';
+import type { ErrorDiagnostic } from '../../services/diagnostics/types.js';
 
 const MAX_CONTEXT_BYTES = 150 * 1024;
 
@@ -21,19 +22,67 @@ export async function buildConversationContext(chatId: string) {
         context += `${msg.role.toUpperCase()}: ${msg.content}\n`;
     }
 
-    let buildError: string | undefined;
+    const buildError = latestBuild?.status === 'failed' ? (latestBuild.errorLog ?? undefined) : undefined;
+    const errorMetadata = (() => {
+        if (latestBuild?.status !== 'failed' || !latestBuild.errorMetadata) return null;
+        const raw = latestBuild.errorMetadata as Record<string, unknown>;
+        if (
+            typeof raw.category === 'string' &&
+            typeof raw.diagnosticMethod === 'string' &&
+            Array.isArray(raw.affectedFiles) &&
+            typeof raw.confidence === 'number'
+        ) {
+            return raw as unknown as ErrorDiagnostic;
+        }
+        logger.warn({ chatId }, 'Error metadata failed structural validation');
+        return null;
+    })();
+
     if (latestBuild && latestBuild.status === 'failed') {
-        buildError = latestBuild.errorLog ?? undefined;
-        context += `\nLATEST BUILD FAILED:\nError Log:\n${buildError}\n`;
+        if (errorMetadata?.primaryFile) {
+            context += `\nBUILD ERROR ANALYSIS:\n`;
+            context += `Category: ${errorMetadata.category}\n`;
+            context += `Primary Suspect: ${errorMetadata.primaryFile}\n`;
+
+            if (errorMetadata.affectedFiles.length > 0) {
+                context += `Affected Files: ${errorMetadata.affectedFiles.join(', ')}\n`;
+            }
+
+            if (errorMetadata.lineNumbers.length > 0) {
+                const locations = errorMetadata.lineNumbers
+                    .map(loc => `${loc.file}:${loc.line}${loc.column ? `:${loc.column}` : ''}`)
+                    .join(', ');
+                context += `Error Locations: ${locations}\n`;
+            }
+
+            if (errorMetadata.errorCode) {
+                context += `Error Code: ${errorMetadata.errorCode}\n`;
+            }
+
+            context += `Confidence: ${errorMetadata.confidence}%\n`;
+            context += `Diagnostic Method: ${errorMetadata.diagnosticMethod}\n`;
+            context += `\nError Excerpt:\n${errorMetadata.excerpt}\n`;
+        } else {
+            context += `\nLATEST BUILD FAILED:\nError Log:\n${buildError}\n`;
+        }
     }
 
     const sandboxId = await getActiveSandbox(chatId);
     if (sandboxId) {
         try {
-            let projectFiles = await readAllProjectFiles(sandboxId);
-
-            if (buildError && projectFiles.size > 0) {
+            let projectFiles: Map<string, string>;
+            if (errorMetadata && errorMetadata.affectedFiles.length > 0) {
+                logger.debug(
+                    { chatId, fileCount: errorMetadata.affectedFiles.length },
+                    'Using targeted file context from error metadata'
+                );
+                projectFiles = await readSpecificFiles(sandboxId, errorMetadata.affectedFiles);
+            } else if (buildError) {
+                logger.debug({ chatId }, 'Using full file context with reordering');
+                projectFiles = await readAllProjectFiles(sandboxId);
                 projectFiles = reorderByErrorRefs(projectFiles, buildError);
+            } else {
+                projectFiles = await readAllProjectFiles(sandboxId);
             }
 
             const snapshot = formatProjectSnapshot(projectFiles);

@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, boolean, foreignKey, unique, pgEnum, integer } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, boolean, foreignKey, unique, pgEnum, integer, jsonb } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 
 export const roleEnum = pgEnum("role", ["viewer", "editor", "owner"]);
@@ -127,6 +127,7 @@ export const build = pgTable("build", {
 	messageId: text("message_id").notNull().references(() => message.id, { onDelete: "cascade" }),
 	status: buildStatusEnum("status").notNull().default("queued"),
 	errorLog: text("error_log"),
+	errorMetadata: jsonb("error_metadata"),
 	previewUrl: text("preview_url"),
 	buildDuration: integer("build_duration"),
 	createdAt: timestamp("created_at").notNull().defaultNow(),

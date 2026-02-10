@@ -57,6 +57,13 @@
       "when": 1770450644911,
       "tag": "0007_skinny_havok",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1770734821132,
+      "tag": "0008_rapid_kabuki",
+      "breakpoints": true
     }
   ]
 }
