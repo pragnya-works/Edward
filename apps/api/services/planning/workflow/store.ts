@@ -3,6 +3,7 @@ import { logger } from '../../../utils/logger.js';
 import { WorkflowState, WorkflowStateSchema } from '../schemas.js';
 
 const WORKFLOW_PREFIX = 'edward:workflow:';
+const CHAT_WORKFLOW_PREFIX = 'edward:chat-workflow:';
 const WORKFLOW_TTL_SECONDS = 3600;
 
 export async function getWorkflow(id: string): Promise<WorkflowState | null> {
@@ -26,6 +27,12 @@ export async function getWorkflow(id: string): Promise<WorkflowState | null> {
   }
 }
 
+export async function getWorkflowByChatId(chatId: string): Promise<WorkflowState | null> {
+  const workflowId = await redis.get(`${CHAT_WORKFLOW_PREFIX}${chatId}`);
+  if (!workflowId) return null;
+  return getWorkflow(workflowId);
+}
+
 export async function saveWorkflow(state: WorkflowState): Promise<void> {
   state.updatedAt = Date.now();
   await redis.set(
@@ -34,8 +41,18 @@ export async function saveWorkflow(state: WorkflowState): Promise<void> {
     'EX',
     WORKFLOW_TTL_SECONDS
   );
+  await redis.set(
+    `${CHAT_WORKFLOW_PREFIX}${state.chatId}`,
+    state.id,
+    'EX',
+    WORKFLOW_TTL_SECONDS
+  );
 }
 
 export async function deleteWorkflow(id: string): Promise<void> {
+  const workflow = await getWorkflow(id);
+  if (workflow) {
+    await redis.del(`${CHAT_WORKFLOW_PREFIX}${workflow.chatId}`);
+  }
   await redis.del(`${WORKFLOW_PREFIX}${id}`);
 }

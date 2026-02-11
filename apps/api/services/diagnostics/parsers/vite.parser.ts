@@ -1,104 +1,116 @@
-import type { ErrorParser, ParsedError } from '../types.js';
+import { DiagnosticSeverity } from "../types.js";
+import type { ErrorParser, ParsedError } from "../types.js";
+
+const FILE_EXT = /\.(?:tsx?|jsx?|css|scss|less|json|vue|svelte)/;
 
 export const viteParser: ErrorParser = {
-  name: 'vite',
+  name: "vite",
 
   canHandle(errorText: string, framework?: string): boolean {
-    const lower = errorText.toLowerCase();
+    if (framework === "vite-react") return true;
     return (
-      framework === 'vite-react' ||
-      lower.includes('[vite]') ||
-      lower.includes('vite') ||
-      errorText.includes('✘ [ERROR]') ||
-      lower.includes('transform failed')
+      errorText.includes("[vite]") ||
+      errorText.includes("✘ [ERROR]") ||
+      /\btransform failed\b/i.test(errorText) ||
+      /\[plugin:vite/i.test(errorText)
     );
   },
 
   parse(errorText: string): ParsedError[] {
     const errors: ParsedError[] = [];
-    const lines = errorText.split('\n');
+    const lines = errorText.split("\n");
 
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
       if (!line) continue;
 
-      const errorHeader = line.match(/✘ \[ERROR\]/);
-      if (errorHeader && i + 1 < lines.length) {
+      if (/✘ \[ERROR\]/.test(line)) {
+        const messageMatch = line.match(/✘ \[ERROR\]\s*(.+)/);
         const nextLine = lines[i + 1];
         if (nextLine) {
-          const pathMatch = nextLine.match(/^(.+\.(?:tsx?|jsx?)):(\d+):(\d+):\s*ERROR:\s*(.+)$/);
+          const pathMatch = nextLine.match(
+            new RegExp(`^(.+${FILE_EXT.source}):(\\d+):(\\d+)`),
+          );
           if (pathMatch) {
-            const [, file, lineNum, col, message] = pathMatch;
-            if (file && lineNum && col && message) {
+            const [, file, lineNum, col] = pathMatch;
+            if (file && lineNum && col) {
               errors.push({
                 file: file.trim(),
                 line: parseInt(lineNum, 10),
                 column: parseInt(col, 10),
-                message: message.trim(),
-                severity: 'error',
+                message: messageMatch?.[1]?.trim() || "Build error",
+                severity: DiagnosticSeverity.Error,
               });
+              continue;
             }
-            continue;
           }
         }
+        if (messageMatch?.[1]) {
+          errors.push({ message: messageMatch[1].trim(), severity: DiagnosticSeverity.Error });
+        }
+        continue;
       }
 
-      const viteError = line.match(/\[vite\]\s*(.+?):\s*(.+)/i);
-      if (viteError) {
-        const [, errorType, message] = viteError;
+      const pluginError = line.match(
+        /\[plugin:(.+?)\]\s*(.+)/i,
+      );
+      if (pluginError) {
         errors.push({
-          message: `${errorType}: ${message}`.trim(),
-          severity: 'error',
+          message: `Plugin ${pluginError[1]}: ${pluginError[2]}`.trim(),
+          severity: DiagnosticSeverity.Error,
         });
         continue;
       }
 
-      const standardError = line.match(/^(.+\.(?:tsx?|jsx?)):(\d+):(\d+)\s*-\s*error:\s*(.+)$/i);
-      if (standardError) {
-        const [, file, lineNum, col, message] = standardError;
-        if (file && lineNum && col && message) {
-          errors.push({
-            file: file.trim(),
-            line: parseInt(lineNum, 10),
-            column: parseInt(col, 10),
-            message: message.trim(),
-            severity: 'error',
-          });
-        }
-        continue;
-      }
-
-      const importError = line.match(/Failed to resolve import\s+["'](.+?)["']\s+from\s+["'](.+?)["']/i);
+      const importError = line.match(
+        /Failed to resolve import\s+["'](.+?)["']\s+from\s+["'](.+?)["']/i,
+      );
       if (importError) {
         const [, moduleName, file] = importError;
         if (file) {
           errors.push({
             file: file.trim(),
             message: `Failed to resolve import "${moduleName}"`,
-            severity: 'error',
+            severity: DiagnosticSeverity.Error,
           });
         }
         continue;
       }
 
-      const transformError = line.match(/Transform failed with \d+ error/i);
-      if (transformError) {
+      const cssError = line.match(
+        /CssSyntaxError:\s*(.+)/i,
+      );
+      if (cssError?.[1]) {
+        const filePath = line.match(
+          new RegExp(`(.+${FILE_EXT.source})(?::(\\d+):(\\d+))?`),
+        );
+        errors.push({
+          file: filePath?.[1]?.trim(),
+          line: filePath?.[2] ? parseInt(filePath[2], 10) : undefined,
+          column: filePath?.[3] ? parseInt(filePath[3], 10) : undefined,
+          message: cssError[1].trim(),
+          severity: DiagnosticSeverity.Error,
+        });
+        continue;
+      }
+
+      if (/transform failed with \d+ error/i.test(line)) {
         for (let j = i + 1; j < Math.min(i + 5, lines.length); j++) {
-          const detailLine = lines[j];
-          if (detailLine) {
-            const detailMatch = detailLine.match(/^(.+\.(?:tsx?|jsx?)):(\d+):(\d+)/);
-            if (detailMatch) {
-              const [, file, lineNum, col] = detailMatch;
-              if (file && lineNum && col) {
-                const errorMsg = detailLine.substring(detailMatch[0].length).trim();
-                errors.push({
-                  file: file.trim(),
-                  line: parseInt(lineNum, 10),
-                  column: parseInt(col, 10),
-                  message: errorMsg || 'Transform error',
-                  severity: 'error',
-                });
-              }
+          const detail = lines[j];
+          if (!detail) continue;
+          const match = detail.match(
+            new RegExp(`^(.+${FILE_EXT.source}):(\\d+):(\\d+)(.*)$`),
+          );
+          if (match) {
+            const [, file, lineNum, col, msg] = match;
+            if (file && lineNum && col) {
+              errors.push({
+                file: file.trim(),
+                line: parseInt(lineNum, 10),
+                column: parseInt(col, 10),
+                message: msg?.trim() || "Transform error",
+                severity: DiagnosticSeverity.Error,
+              });
             }
           }
         }

@@ -1,21 +1,26 @@
-export type ErrorCategory =
-  | "syntax"
-  | "type"
-  | "import"
-  | "buildConfig"
-  | "runtime"
-  | "unknown";
+export enum DiagnosticCategory {
+  MissingModule = "missing_module",
+  MissingExport = "missing_export",
+  TypeError = "type_error",
+  SyntaxError = "syntax_error",
+  CssError = "css_error",
+  ConfigError = "config_error",
+  EntryPoint = "entry_point",
+  Dependency = "dependency",
+  BuildCommand = "build_command",
+  Unknown = "unknown",
+}
 
-export type DiagnosticMethod =
-  | "parsed"
-  | "tsc"
-  | "inferred"
-  | "none";
+export enum DiagnosticSeverity {
+  Error = "error",
+  Warning = "warning",
+}
 
-export interface ErrorLocation {
-  file: string;
-  line?: number;
-  column?: number;
+export enum DiagnosticMethod {
+  Parsed = "parsed",
+  Tsc = "tsc",
+  Inferred = "inferred",
+  None = "none",
 }
 
 export interface ParsedError {
@@ -24,18 +29,20 @@ export interface ParsedError {
   column?: number;
   code?: string;
   message: string;
-  severity: "error" | "warning";
+  severity: DiagnosticSeverity;
 }
 
-export interface ErrorDiagnostic {
-  category: ErrorCategory;
-  primaryFile?: string;
-  affectedFiles: string[];
-  lineNumbers: ErrorLocation[];
-  errorCode?: string;
-  excerpt: string;
-  diagnosticMethod: DiagnosticMethod;
-  confidence: number;
+export interface Diagnostic {
+  id: string;
+  category: DiagnosticCategory;
+  severity: DiagnosticSeverity;
+  file?: string;
+  line?: number;
+  column?: number;
+  message: string;
+  ruleId?: string;
+  suggestedAction?: string;
+  relatedFiles?: string[];
 }
 
 export interface ErrorParser {
@@ -46,5 +53,7 @@ export interface ErrorParser {
 
 export interface EnrichmentResult {
   rawError: string;
-  structured: ErrorDiagnostic;
+  diagnostics: Diagnostic[];
+  method: DiagnosticMethod;
+  confidence: number;
 }

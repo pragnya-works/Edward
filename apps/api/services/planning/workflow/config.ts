@@ -1,7 +1,6 @@
 import { PhaseConfig } from '../schemas.js';
 
 export const PHASE_CONFIGS: PhaseConfig[] = [
-  { name: 'PLAN', executor: 'llm', maxRetries: 1, timeoutMs: 20000 },
   { name: 'ANALYZE', executor: 'llm', maxRetries: 2, timeoutMs: 30000 },
   { name: 'RESOLVE_PACKAGES', executor: 'worker', maxRetries: 3, timeoutMs: 60000 },
   { name: 'INSTALL_PACKAGES', executor: 'worker', maxRetries: 3, timeoutMs: 120000 },

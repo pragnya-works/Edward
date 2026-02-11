@@ -38,20 +38,29 @@ async function enrichErrorIfPossible(
 
   try {
     const enriched = await enrichBuildError(sandboxId, error, containerId, sandbox?.scaffoldedFramework);
-    
+
+    const primaryFile = enriched.diagnostics[0]?.file;
+    const primaryCategory = enriched.diagnostics[0]?.category;
+
     logger.info(
       {
         sandboxId,
-        category: enriched.structured.category,
-        primaryFile: enriched.structured.primaryFile,
-        confidence: enriched.structured.confidence,
+        method: enriched.method,
+        category: primaryCategory,
+        primaryFile,
+        confidence: enriched.confidence,
+        diagnosticCount: enriched.diagnostics.length,
       },
       "[Worker] Build error enriched with diagnostics",
     );
 
     return {
       errorLog: enriched.rawError.slice(-2000),
-      errorMetadata: enriched.structured as unknown,
+      errorMetadata: {
+        diagnostics: enriched.diagnostics,
+        method: enriched.method,
+        confidence: enriched.confidence,
+      } as unknown,
     };
   } catch (enrichErr) {
     logger.warn(
@@ -94,6 +103,7 @@ async function processBuildJob(payload: BuildJobPayload): Promise<void> {
         }),
       );
 
+
       logger.info(
         {
           sandboxId,
@@ -123,6 +133,7 @@ async function processBuildJob(payload: BuildJobPayload): Promise<void> {
           errorMetadata,
         }),
       );
+
 
       logger.warn(
         {

@@ -4,26 +4,30 @@ import {
   CONTAINER_WORKDIR,
 } from "../sandbox/docker.sandbox.js";
 import { logger } from "../../utils/logger.js";
+import { extractDiagnostics } from "./diagnostics.js";
 import { typescriptParser } from "./parsers/typescript.parser.js";
-import { nextjsParser } from "./parsers/nextjs.parser.js";
-import { viteParser } from "./parsers/vite.parser.js";
-import { genericParser } from "./parsers/generic.parser.js";
-import type {
-  ErrorDiagnostic,
-  ErrorCategory,
-  EnrichmentResult,
-  ParsedError,
-  DiagnosticMethod,
-} from "./types.js";
+import { DiagnosticMethod, DiagnosticCategory, DiagnosticSeverity } from "./types.js";
+import type { Diagnostic, EnrichmentResult } from "./types.js";
 
-const PARSERS = [typescriptParser, nextjsParser, viteParser, genericParser];
-
-const CONFIDENCE_SCORES: Record<DiagnosticMethod, number> = {
-  parsed: 95,
-  tsc: 90,
-  inferred: 50,
-  none: 0,
+const CONFIDENCE: Record<DiagnosticMethod, number> = {
+  [DiagnosticMethod.Parsed]: 95,
+  [DiagnosticMethod.Tsc]: 90,
+  [DiagnosticMethod.Inferred]: 50,
+  [DiagnosticMethod.None]: 0,
 };
+
+const PROJECT_DIRS = [
+  "src/",
+  "app/",
+  "pages/",
+  "components/",
+  "lib/",
+  "utils/",
+  "hooks/",
+  "styles/",
+  "public/",
+  ".",
+];
 
 export async function enrichBuildError(
   sandboxId: string,
@@ -34,214 +38,71 @@ export async function enrichBuildError(
   if (!rawError) {
     return {
       rawError: "Unknown build error",
-      structured: createUnknownDiagnostic("No error message provided"),
+      diagnostics: [],
+      method: DiagnosticMethod.None,
+      confidence: CONFIDENCE[DiagnosticMethod.None],
     };
   }
 
-  let parsedErrors: ParsedError[] = [];
-  let parserUsed: string | null = null;
-
-  for (const parser of PARSERS) {
-    if (parser.canHandle(rawError, framework)) {
-      parsedErrors = parser.parse(rawError, framework);
-      if (parsedErrors.length > 0) {
-        parserUsed = parser.name;
-        logger.debug(
-          { sandboxId, parser: parser.name, errorCount: parsedErrors.length },
-          "Parser successfully extracted errors",
-        );
-        break;
-      }
-    }
-  }
-
-  if (parsedErrors.length > 0 && parsedErrors.some((e) => e.file)) {
-    const diagnostic = buildDiagnosticFromParsed(
-      parsedErrors,
-      rawError,
-      "parsed",
-    );
+  const extraction = extractDiagnostics({ framework, errorLog: rawError });
+  if (extraction.diagnostics.length > 0 && extraction.diagnostics.some((d) => d.file)) {
     logger.info(
-      {
-        sandboxId,
-        parser: parserUsed,
-        category: diagnostic.category,
-        primaryFile: diagnostic.primaryFile,
-      },
-      "Error enrichment: Parsed successfully",
+      { sandboxId, count: extraction.diagnostics.length, method: DiagnosticMethod.Parsed },
+      "Error enrichment: parsed successfully",
     );
-    return { rawError, structured: diagnostic };
+    return {
+      rawError,
+      diagnostics: extraction.diagnostics,
+      method: DiagnosticMethod.Parsed,
+      confidence: CONFIDENCE[DiagnosticMethod.Parsed],
+    };
   }
 
   logger.debug({ sandboxId }, "No files from parsing, running tsc diagnostics");
-  const tscErrors = await runTypescriptDiagnostics(containerId, sandboxId);
-  if (tscErrors.length > 0 && tscErrors.some((e) => e.file)) {
-    const diagnostic = buildDiagnosticFromParsed(tscErrors, rawError, "tsc");
+  const tscDiagnostics = await runTscDiagnostics(containerId, sandboxId, framework);
+  if (tscDiagnostics.length > 0 && tscDiagnostics.some((d) => d.file)) {
     logger.info(
-      {
-        sandboxId,
-        category: diagnostic.category,
-        primaryFile: diagnostic.primaryFile,
-      },
+      { sandboxId, count: tscDiagnostics.length, method: DiagnosticMethod.Tsc },
       "Error enrichment: tsc diagnostics successful",
     );
-    return { rawError, structured: diagnostic };
+    return {
+      rawError,
+      diagnostics: tscDiagnostics,
+      method: DiagnosticMethod.Tsc,
+      confidence: CONFIDENCE[DiagnosticMethod.Tsc],
+    };
   }
 
   logger.debug({ sandboxId }, "Running file inference heuristics");
-  const inferredFiles = await inferCulpritFiles(
-    containerId,
-    sandboxId,
-    rawError,
-  );
-  if (inferredFiles.length > 0) {
-    const diagnostic = buildDiagnosticFromInferred(inferredFiles, rawError);
+  const inferredDiagnostics = await inferFromFiles(containerId, sandboxId, rawError);
+  if (inferredDiagnostics.length > 0) {
     logger.info(
-      {
-        sandboxId,
-        inferredFiles,
-        category: diagnostic.category,
-      },
-      "Error enrichment: File inference successful",
+      { sandboxId, count: inferredDiagnostics.length, method: DiagnosticMethod.Inferred },
+      "Error enrichment: file inference successful",
     );
-    return { rawError, structured: diagnostic };
+    return {
+      rawError,
+      diagnostics: inferredDiagnostics,
+      method: DiagnosticMethod.Inferred,
+      confidence: CONFIDENCE[DiagnosticMethod.Inferred],
+    };
   }
 
-  logger.warn({ sandboxId }, "Error enrichment: Could not identify any files");
+  logger.warn({ sandboxId }, "Error enrichment: could not identify any files");
+  const fallback = extractDiagnostics({ framework, errorLog: rawError });
   return {
     rawError,
-    structured: createUnknownDiagnostic(rawError.slice(0, 500)),
+    diagnostics: fallback.diagnostics,
+    method: DiagnosticMethod.None,
+    confidence: CONFIDENCE[DiagnosticMethod.None],
   };
 }
 
-function buildDiagnosticFromParsed(
-  errors: ParsedError[],
-  rawError: string,
-  method: DiagnosticMethod,
-): ErrorDiagnostic {
-  const filesWithErrors = errors.filter((e) => e.file);
-  const allFiles = [...new Set(filesWithErrors.map((e) => e.file!))];
-  const primaryFile = filesWithErrors[0]?.file;
-
-  const lineNumbers = filesWithErrors
-    .filter((e) => e.file && e.line)
-    .map((e) => ({
-      file: e.file!,
-      line: e.line!,
-      column: e.column,
-    }));
-
-  const category = categorizeErrors(errors, rawError);
-  const errorCode = errors.find((e) => e.code)?.code;
-
-  return {
-    category,
-    primaryFile,
-    affectedFiles: allFiles,
-    lineNumbers,
-    errorCode,
-    excerpt: rawError.slice(0, 500),
-    diagnosticMethod: method,
-    confidence: CONFIDENCE_SCORES[method],
-  };
-}
-
-function buildDiagnosticFromInferred(
-  files: string[],
-  rawError: string,
-): ErrorDiagnostic {
-  return {
-    category: categorizeByKeywords(rawError),
-    primaryFile: files[0],
-    affectedFiles: files,
-    lineNumbers: [],
-    excerpt: rawError.slice(0, 500),
-    diagnosticMethod: "inferred",
-    confidence: CONFIDENCE_SCORES.inferred,
-  };
-}
-
-function createUnknownDiagnostic(rawError: string): ErrorDiagnostic {
-  return {
-    category: "unknown",
-    affectedFiles: [],
-    lineNumbers: [],
-    excerpt: rawError.slice(0, 500),
-    diagnosticMethod: "none",
-    confidence: CONFIDENCE_SCORES.none,
-  };
-}
-
-function categorizeErrors(
-  errors: ParsedError[],
-  rawError: string,
-): ErrorCategory {
-  const tsCode = errors.find((e) => e.code)?.code;
-  if (tsCode) {
-    if (["TS2307", "TS2792", "TS7016"].includes(tsCode)) return "import";
-    if (tsCode.startsWith("TS1")) return "syntax";
-    if (tsCode.startsWith("TS2")) return "type";
-  }
-
-  const messages = errors.map((e) => e.message.toLowerCase()).join(" ");
-  return categorizeByKeywords(messages || rawError);
-}
-
-function categorizeByKeywords(text: string): ErrorCategory {
-  const lower = text.toLowerCase();
-
-  if (
-    lower.includes("cannot find module") ||
-    lower.includes("module not found") ||
-    lower.includes("failed to resolve") ||
-    lower.includes("could not resolve")
-  ) {
-    return "import";
-  }
-
-  if (
-    lower.includes("syntaxerror") ||
-    lower.includes("unexpected token") ||
-    lower.includes("unexpected identifier")
-  ) {
-    return "syntax";
-  }
-
-  if (
-    lower.includes("type error") ||
-    lower.includes("cannot find name") ||
-    lower.includes("property") ||
-    lower.includes("does not exist")
-  ) {
-    return "type";
-  }
-
-  if (
-    lower.includes("referenceerror") ||
-    lower.includes("typeerror") ||
-    lower.includes("is not a function") ||
-    lower.includes("is not defined") ||
-    lower.includes("undefined is not") ||
-    lower.includes("null is not")
-  ) {
-    return "runtime";
-  }
-
-  if (
-    lower.includes("config") ||
-    lower.includes("plugin") ||
-    lower.includes("loader")
-  ) {
-    return "buildConfig";
-  }
-
-  return "unknown";
-}
-
-async function runTypescriptDiagnostics(
+async function runTscDiagnostics(
   containerId: string,
   sandboxId: string,
-): Promise<ParsedError[]> {
+  framework?: string,
+): Promise<Diagnostic[]> {
   try {
     const container = getContainer(containerId);
 
@@ -261,29 +122,34 @@ async function runTypescriptDiagnostics(
 
     const result = await execCommand(
       container,
-      ["sh", "-c", "pnpm tsc --noEmit 2>&1 | head -100"],
+      ["sh", "-c", "npx tsc --noEmit 2>&1 | head -100"],
       false,
       60000,
       undefined,
       CONTAINER_WORKDIR,
     );
 
-    if (result.exitCode === 0 || !result.stdout) {
-      return [];
-    }
+    if (result.exitCode === 0 || !result.stdout) return [];
 
-    return typescriptParser.parse(result.stdout);
+    const parsed = typescriptParser.parse(result.stdout);
+    if (parsed.length === 0) return [];
+
+    const extraction = extractDiagnostics({
+      framework,
+      errorLog: result.stdout,
+    });
+    return extraction.diagnostics;
   } catch (error) {
     logger.warn({ error, sandboxId }, "TypeScript diagnostics failed");
     return [];
   }
 }
 
-async function inferCulpritFiles(
+async function inferFromFiles(
   containerId: string,
   sandboxId: string,
   rawError: string,
-): Promise<string[]> {
+): Promise<Diagnostic[]> {
   const container = getContainer(containerId);
   const suspectFiles: string[] = [];
 
@@ -291,40 +157,45 @@ async function inferCulpritFiles(
     const moduleMatch = rawError.match(
       /(?:Cannot find module|Module not found):\s*['"](.+?)['"]/i,
     );
-    if (moduleMatch) {
+    if (moduleMatch?.[1]) {
       const moduleName = moduleMatch[1];
       logger.debug({ sandboxId, moduleName }, "Searching for module imports");
 
-      const grepResult = await execCommand(
-        container,
-        [
-          "sh",
-          "-c",
-          `grep -r "from ['"]${moduleName}['"]" src/ 2>/dev/null | cut -d: -f1 | head -5`,
-        ],
-        false,
-        10000,
-        undefined,
-        CONTAINER_WORKDIR,
-      );
+      for (const dir of PROJECT_DIRS) {
+        const grepResult = await execCommand(
+          container,
+          [
+            "sh",
+            "-c",
+            `grep -rl "from ['\"]${moduleName}['\"]" ${dir} 2>/dev/null | head -5`,
+          ],
+          false,
+          10000,
+          undefined,
+          CONTAINER_WORKDIR,
+        );
 
-      if (grepResult.exitCode === 0 && grepResult.stdout) {
-        const files = grepResult.stdout
-          .split("\n")
-          .filter((f) => f.trim().length > 0)
-          .map((f) => f.trim());
-        suspectFiles.push(...files);
+        if (grepResult.exitCode === 0 && grepResult.stdout?.trim()) {
+          const files = grepResult.stdout
+            .split("\n")
+            .filter((f) => f.trim().length > 0)
+            .map((f) => f.trim());
+          suspectFiles.push(...files);
+          break;
+        }
       }
     }
 
     if (suspectFiles.length === 0) {
       logger.debug({ sandboxId }, "Checking recently modified files");
+      const extensions = '"*.ts" -o -name "*.tsx" -o -name "*.js" -o -name "*.jsx" -o -name "*.css" -o -name "*.scss"';
+      const dirs = PROJECT_DIRS.slice(0, 5).join(" ");
       const recentResult = await execCommand(
         container,
         [
           "sh",
           "-c",
-          'find src/ -type f \\( -name "*.ts" -o -name "*.tsx" -o -name "*.js" -o -name "*.jsx" \\) -mmin -30 2>/dev/null | head -10',
+          `find ${dirs} -type f \\( -name ${extensions} \\) -mmin -60 2>/dev/null | head -10`,
         ],
         false,
         10000,
@@ -332,7 +203,7 @@ async function inferCulpritFiles(
         CONTAINER_WORKDIR,
       );
 
-      if (recentResult.exitCode === 0 && recentResult.stdout) {
+      if (recentResult.exitCode === 0 && recentResult.stdout?.trim()) {
         const files = recentResult.stdout
           .split("\n")
           .filter((f) => f.trim().length > 0)
@@ -348,8 +219,13 @@ async function inferCulpritFiles(
         "src/index.ts",
         "src/main.tsx",
         "src/main.ts",
-        "src/app/page.tsx",
-        "src/app/layout.tsx",
+        "src/App.tsx",
+        "src/App.ts",
+        "app/page.tsx",
+        "app/layout.tsx",
+        "pages/index.tsx",
+        "pages/_app.tsx",
+        "index.html",
       ];
 
       for (const entry of entryPoints) {
@@ -361,14 +237,22 @@ async function inferCulpritFiles(
           undefined,
           CONTAINER_WORKDIR,
         );
-
         if (exists.exitCode === 0) {
           suspectFiles.push(entry);
         }
       }
     }
 
-    return [...new Set(suspectFiles)].slice(0, 5);
+    const uniqueFiles = [...new Set(suspectFiles)].slice(0, 5);
+    if (uniqueFiles.length === 0) return [];
+
+    return uniqueFiles.map((file) => ({
+      id: `inferred:${file}`,
+      category: DiagnosticCategory.Unknown,
+      severity: DiagnosticSeverity.Error,
+      file,
+      message: rawError.slice(0, 200),
+    }));
   } catch (error) {
     logger.warn({ error, sandboxId }, "File inference failed");
     return [];

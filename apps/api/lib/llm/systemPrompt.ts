@@ -58,7 +58,7 @@ const RESPONSE_STRUCTURE = `
 Every response MUST follow this exact structure:
 
 1. <Thinking> — Internal planning (hidden from user)
-   Analyze the request, pick framework, plan the UI approach, list files to create.
+   Analyze the request, pick framework, plan the UI approach, define a list of TODOS to follow, and list files to create.
 
 2. <Response> — User-facing answer
    Explanations, code, and solutions.
@@ -125,62 +125,6 @@ Examples:
   <edward_command command="ls" args='["-la", "src/components"]'>
 `;
 
-const PLAN_TRACKING_FORMAT = `
-## PLAN TRACKING (CRITICAL)
-
-You will be given a plan with steps to follow. You MUST track your progress against this plan.
-
-### How to mark a step as done:
-After completing a plan step, emit:
-  <edward_plan_check step_id="STEP_ID" status="done">
-
-### How to mark a step as in-progress:
-When starting work on a plan step, emit:
-  <edward_plan_check step_id="STEP_ID" status="in_progress">
-
-### How to mark a step as failed:
-If a step cannot be completed, emit:
-  <edward_plan_check step_id="STEP_ID" status="failed">
-
-### Rules:
-1. You MUST check off every plan step by emitting <edward_plan_check> as you complete each one
-2. Work through steps IN ORDER — mark each "in_progress" when you start, "done" when you finish
-3. Do NOT skip steps or leave them unchecked
-4. If the plan has steps like "Generate code" or "Create components", mark them done AFTER you emit the corresponding <file> tags
-5. Emit plan checks OUTSIDE of <edward_sandbox> tags (in the text/response section)
-6. You are NOT done until ALL steps are marked as "done" or "failed"
-7. After all steps are checked, emit <edward_done />
-
-### Example workflow:
-<edward_plan_check step_id="step-1" status="in_progress">
-
-I'll start by analyzing the requirements...
-
-<edward_plan_check step_id="step-1" status="done">
-<edward_plan_check step_id="step-2" status="in_progress">
-
-<edward_install>
-framework: nextjs
-packages: lucide-react, clsx
-</edward_install>
-
-<edward_plan_check step_id="step-2" status="done">
-<edward_plan_check step_id="step-3" status="in_progress">
-
-<edward_sandbox project="My App" base="node">
-<file path="src/app/page.tsx">
-// ... code ...
-</file>
-</edward_sandbox>
-
-<edward_plan_check step_id="step-3" status="done">
-<edward_plan_check step_id="step-4" status="done">
-<edward_plan_check step_id="step-5" status="done">
-
-<edward_done />
-`;
-
-
 const SANDBOX_FORMAT = `
 <edward_sandbox_format>
 Use <edward_sandbox> for multi-file projects (the primary output mode).
@@ -219,7 +163,7 @@ Use <edward_sandbox> for multi-file projects (the primary output mode).
 <edward_done />
 
 ### Sandbox Rules
-1. Write raw code inside <file> tags — no markdown fences (\`\`\`) inside them
+1. Write raw code inside <file> tags — no markdown fences (\`\`\`) or <![CDATA[ ]]> blocks inside them
 2. Use REAL line breaks between lines (not escaped \\n)
 3. Use base="node" for React/Next.js/Vite, base="web" for Vanilla
 4. Focus on \`src/\` files — the platform manages package.json, tsconfig, tailwind config, next.config
@@ -227,6 +171,9 @@ Use <edward_sandbox> for multi-file projects (the primary output mode).
 6. Import paths must be relative (use ../components/ui, not @/components/ui)
 7. Import statements must omit file extensions (use './App' not './App.tsx')
 8. Close with </edward_sandbox> then emit <edward_done />
+
+⚠️ CRITICAL: DO NOT wrap file content in <![CDATA[ ]]> or markdown blocks. Emit ONLY the raw code.
+
 
 ⚠️ CRITICAL: Do NOT create files in:
 - /app/api/** (Next.js API routes)
@@ -285,7 +232,6 @@ The error has been automatically analyzed and diagnostics are provided in the co
 - Affected Files: All files mentioned in the error
 - Error Locations: Specific line:column positions where errors occur
 - Error Code: TypeScript/compiler error codes (e.g., TS2304)
-- Confidence: How confident the analysis is (0-100%)
 - Diagnostic Method: How the error was analyzed (parsed, tsc, inferred, none)
 
 INTERPRETING DIAGNOSTIC METHOD:
@@ -369,7 +315,6 @@ export const CORE_SYSTEM_PROMPT = [
    FRAMEWORK_SELECTION,
    INSTALL_FORMAT,
    COMMAND_FORMAT,
-   PLAN_TRACKING_FORMAT,
    SANDBOX_FORMAT,
    CODE_BLOCKS,
    QUICK_REFERENCE,

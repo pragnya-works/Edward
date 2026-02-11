@@ -15,20 +15,10 @@ import { logger } from "../../utils/logger.js";
 import { MessageRole } from "@edward/auth";
 import {
   ChatAction,
-  PlanStatus,
-  PlanStepKey,
   type WorkflowState,
   type ChatAction as ChatActionType,
   type Framework,
 } from "../../services/planning/schemas.js";
-import {
-  markPlanStepInProgress,
-  updatePlanStepStatus,
-  createFallbackPlan,
-  isPlanComplete,
-  getIncompleteSteps,
-  getPlanCompletionSummary,
-} from "../../services/planning/workflow/plan.js";
 import { saveWorkflow } from "../../services/planning/workflow/store.js";
 import { validateGeneratedOutput } from "../../services/planning/validators/postgenValidator.js";
 import {
@@ -37,13 +27,8 @@ import {
   MAX_AGENT_TURNS,
 } from "../../utils/sharedConstants.js";
 
-import { safeSSEWrite, emitPlanUpdate, sendSSEDone } from "./sse.utils.js";
+import { safeSSEWrite, sendSSEDone } from "./sse.utils.js";
 import { formatCommandResults, type CommandResult } from "./command.utils.js";
-import {
-  updatePlanWithDecision,
-  finalizePlanBeforeCompletion,
-  type PlanUpdateContext,
-} from "./plan.utils.js";
 import {
   handleParserEvent,
   handleFlushEvents,
@@ -65,16 +50,6 @@ export interface StreamSessionParams {
   conversationContext?: string;
 }
 
-function createPlanUpdateContext(
-  workflow: WorkflowState,
-  res: Response,
-  decryptedApiKey: string,
-  userId: string,
-  chatId: string,
-): PlanUpdateContext {
-  return { workflow, res, decryptedApiKey, userId, chatId };
-}
-
 function buildAgentContinuationPrompt(
   fullUserContent: string,
   turnRawResponse: string,
@@ -85,22 +60,8 @@ function buildAgentContinuationPrompt(
     turnRawResponse.length > 4000
       ? turnRawResponse.slice(0, 4000) + "\n...[truncated]"
       : turnRawResponse;
-  return `ORIGINAL REQUEST:\n${fullUserContent}\n\nYOUR PREVIOUS RESPONSE:\n${prevSummary}\n\nCOMMAND RESULTS:\n${formattedResults}\n\nContinue with the task. If you wrote fixes, verify by running the build. If you need more information, use <edward_command>. Do not stop until ALL plan steps are marked done via <edward_plan_check>.`;
-}
 
-function buildIncompleteStepsPrompt(
-  fullUserContent: string,
-  turnRawResponse: string,
-  incompleteSteps: { id: string; title: string; status: string }[],
-): string {
-  const incompleteList = incompleteSteps
-    .map((s) => `- [${s.status}] ${s.title} (step_id="${s.id}")`)
-    .join("\n");
-  const prevSummary =
-    turnRawResponse.length > 4000
-      ? turnRawResponse.slice(0, 4000) + "\n...[truncated]"
-      : turnRawResponse;
-  return `ORIGINAL REQUEST:\n${fullUserContent}\n\nYOUR PREVIOUS RESPONSE:\n${prevSummary}\n\nINCOMPLETE PLAN STEPS — YOU MUST FINISH THESE:\n${incompleteList}\n\nYou stopped before completing all plan steps. Continue working through the remaining steps. Mark each step done with <edward_plan_check step_id="..." status="done">. Do NOT emit <edward_done /> until ALL steps are complete.`;
+  return `ORIGINAL REQUEST:\n${fullUserContent}\n\nYOUR PREVIOUS RESPONSE:\n${prevSummary}\n\nCOMMAND RESULTS:\n${formattedResults}\n\nContinue with the task. If you wrote fixes, verify by running the build. If you need more information, use <edward_command>. Do not stop until you have completed the request and emitted <edward_done />.`;
 }
 
 export async function runStreamSession(
@@ -125,14 +86,6 @@ export async function runStreamSession(
   let committedMessageContent: string | null = null;
   const generatedFiles = new Map<string, string>();
   const declaredPackages: string[] = [];
-
-  const planCtx = createPlanUpdateContext(workflow, res, decryptedApiKey, userId, chatId);
-
-  if (!workflow.context.plan && !isFollowUp) {
-    workflow.context.plan = createFallbackPlan();
-    await saveWorkflow(workflow);
-    emitPlanUpdate(res, workflow.context.plan);
-  }
 
   const abortController = new AbortController();
   const streamTimer = setTimeout(() => {
@@ -198,7 +151,6 @@ export async function runStreamSession(
         framework,
         complexity,
         mode,
-        workflow.context.plan,
       );
 
       for await (const chunk of stream) {
@@ -237,7 +189,6 @@ export async function runStreamSession(
       }
 
       if (abortController.signal.aborted) {
-        await finalizePlanBeforeCompletion(planCtx, "Stream aborted by timeout or client disconnect");
         res.end();
         return;
       }
@@ -271,39 +222,6 @@ export async function runStreamSession(
           "Agent loop: continuing with command results",
         );
         continue agentLoop;
-      }
-
-      const planIncomplete = workflow.context.plan && !isPlanComplete(workflow.context.plan);
-      if (planIncomplete && agentTurn < MAX_AGENT_TURNS && !abortController.signal.aborted) {
-        const incomplete = getIncompleteSteps(workflow.context.plan!);
-        agentUserContent = buildIncompleteStepsPrompt(
-          fullUserContent,
-          turnRawResponse,
-          incomplete.map((s) => ({ id: s.id, title: s.title, status: s.status })),
-        );
-        logger.info(
-          { chatId, turn: agentTurn, incompleteSteps: incomplete.length },
-          "Agent loop: continuing because plan has incomplete steps",
-        );
-        continue agentLoop;
-      }
-
-      if (commandResultsThisTurn.length > 0 && agentTurn >= MAX_AGENT_TURNS) {
-        logger.warn(
-          { chatId, userId, agentTurn, maxTurns: MAX_AGENT_TURNS, pendingCommands: commandResultsThisTurn.length },
-          "Agent loop exited due to max turns limit with pending command results",
-        );
-        if (workflow.context.plan) {
-          await updatePlanWithDecision(planCtx, `Agent loop reached maximum turns (${MAX_AGENT_TURNS}) with work remaining`);
-        }
-      }
-
-      if (planIncomplete && agentTurn >= MAX_AGENT_TURNS) {
-        const incomplete = getIncompleteSteps(workflow.context.plan!);
-        logger.warn(
-          { chatId, userId, agentTurn, maxTurns: MAX_AGENT_TURNS, incompleteSteps: incomplete.map((s) => s.title) },
-          "Agent loop exited at max turns with incomplete plan steps",
-        );
       }
 
       break;
@@ -346,49 +264,11 @@ export async function runStreamSession(
           chatId,
           messageId: assistantMessageId,
         });
-        if (workflow.context.plan) {
-          workflow.context.plan = markPlanStepInProgress(workflow.context.plan, PlanStepKey.VALIDATE_BUILD);
-          await saveWorkflow(workflow);
-          emitPlanUpdate(res, workflow.context.plan);
-        }
       } catch (queueErr) {
         logger.error(ensureError(queueErr), `Failed to enqueue build job for sandbox: ${workflow.sandboxId}`);
-        await updatePlanWithDecision(planCtx, "Failed to enqueue build job; build may not complete.");
       }
     } else {
       logger.warn({ chatId }, "[Chat] No sandbox ID available, skipping build");
-    }
-
-    if (workflow.context.plan) {
-      const generateStep = workflow.context.plan.steps.find(
-        (s) => s.key === PlanStepKey.GENERATE && s.status !== PlanStatus.DONE,
-      );
-      if (generateStep && generatedFiles.size > 0) {
-        workflow.context.plan = updatePlanStepStatus(
-          workflow.context.plan,
-          (step) => step.id === generateStep.id,
-          PlanStatus.DONE,
-        );
-        await saveWorkflow(workflow);
-        emitPlanUpdate(res, workflow.context.plan);
-      }
-    }
-
-    await finalizePlanBeforeCompletion(planCtx, "LLM response completed");
-
-    if (workflow.context.plan) {
-      const completionSummary = getPlanCompletionSummary(workflow.context.plan);
-      safeSSEWrite(
-        res,
-        `data: ${JSON.stringify({
-          type: ParserEventType.TODO_UPDATE,
-          todos: workflow.context.plan.steps,
-        })}\n\n`,
-      );
-
-      if (!completionSummary.isComplete) {
-        logger.warn({ chatId, userId, summary: completionSummary }, "Sending [DONE] with incomplete plan — all agent turns exhausted");
-      }
     }
 
     sendSSEDone(res);
@@ -401,13 +281,6 @@ export async function runStreamSession(
     }
 
     logger.error(error, "Streaming error");
-
-    await updatePlanWithDecision(planCtx, `Streaming error: ${error.message}`);
-    try {
-      await finalizePlanBeforeCompletion(planCtx, `Stream error: ${error.message}`);
-    } catch (finalizeErr) {
-      logger.error(ensureError(finalizeErr), "finalizePlanBeforeCompletion failed during error handling");
-    }
 
     safeSSEWrite(
       res,

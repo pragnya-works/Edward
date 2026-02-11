@@ -2,7 +2,8 @@ import { db, message, eq, desc, getLatestBuildByChatId } from '@edward/auth';
 import { getActiveSandbox } from '../../services/sandbox/lifecycle/provisioning.js';
 import { readAllProjectFiles, readSpecificFiles, formatProjectSnapshot } from '../../services/sandbox/read.sandbox.js';
 import { logger } from '../../utils/logger.js';
-import type { ErrorDiagnostic } from '../../services/diagnostics/types.js';
+import { DiagnosticMethod } from '../../services/diagnostics/types.js';
+import type { Diagnostic } from '../../services/diagnostics/types.js';
 
 const MAX_CONTEXT_BYTES = 150 * 1024;
 
@@ -27,43 +28,54 @@ export async function buildConversationContext(chatId: string) {
         if (latestBuild?.status !== 'failed' || !latestBuild.errorMetadata) return null;
         const raw = latestBuild.errorMetadata as Record<string, unknown>;
         if (
-            typeof raw.category === 'string' &&
-            typeof raw.diagnosticMethod === 'string' &&
-            Array.isArray(raw.affectedFiles) &&
-            Array.isArray(raw.lineNumbers) &&
-            typeof raw.excerpt === 'string' &&
+            Array.isArray(raw.diagnostics) &&
+            typeof raw.method === 'string' &&
+            Object.values(DiagnosticMethod).includes(raw.method as DiagnosticMethod) &&
             typeof raw.confidence === 'number'
         ) {
-            return raw as unknown as ErrorDiagnostic;
+            return {
+                diagnostics: raw.diagnostics as Diagnostic[],
+                method: raw.method as DiagnosticMethod,
+                confidence: raw.confidence,
+            };
         }
         logger.warn({ chatId }, 'Error metadata failed structural validation');
         return null;
     })();
 
     if (latestBuild && latestBuild.status === 'failed') {
-        if (errorMetadata?.primaryFile) {
+        if (errorMetadata && errorMetadata.diagnostics.length > 0) {
+            const primary = errorMetadata.diagnostics[0];
             context += `\nBUILD ERROR ANALYSIS:\n`;
-            context += `Category: ${errorMetadata.category}\n`;
-            context += `Primary Suspect: ${errorMetadata.primaryFile}\n`;
-
-            if (errorMetadata.affectedFiles.length > 0) {
-                context += `Affected Files: ${errorMetadata.affectedFiles.join(', ')}\n`;
+            context += `Category: ${primary?.category}\n`;
+            if (primary?.file) {
+                context += `Primary Suspect: ${primary.file}\n`;
             }
 
-            if (errorMetadata.lineNumbers.length > 0) {
-                const locations = errorMetadata.lineNumbers
-                    .map(loc => `${loc.file}:${loc.line}${loc.column ? `:${loc.column}` : ''}`)
-                    .join(', ');
-                context += `Error Locations: ${locations}\n`;
+            const affectedFiles = errorMetadata.diagnostics
+                .map((d: Diagnostic) => d.file)
+                .filter((f): f is string => typeof f === 'string');
+            if (affectedFiles.length > 0) {
+                context += `Affected Files: ${affectedFiles.join(', ')}\n`;
             }
 
-            if (errorMetadata.errorCode) {
-                context += `Error Code: ${errorMetadata.errorCode}\n`;
+            const locations = errorMetadata.diagnostics
+                .filter((d: Diagnostic) => d.file && d.line)
+                .map((d: Diagnostic) => `${d.file}:${d.line}${d.column ? `:${d.column}` : ''}`);
+            if (locations.length > 0) {
+                context += `Error Locations: ${locations.join(', ')}\n`;
+            }
+
+            if (primary?.ruleId) {
+                context += `Error Code: ${primary.ruleId}\n`;
             }
 
             context += `Confidence: ${errorMetadata.confidence}%\n`;
-            context += `Diagnostic Method: ${errorMetadata.diagnosticMethod}\n`;
-            context += `\nError Excerpt:\n${errorMetadata.excerpt}\n`;
+            context += `Diagnostic Method: ${errorMetadata.method}\n`;
+            context += `\nError Messages:\n`;
+            for (const d of errorMetadata.diagnostics) {
+                context += `  - [${d.severity}] ${d.message}\n`;
+            }
         } else {
             context += `\nLATEST BUILD FAILED:\nError Log:\n${buildError}\n`;
         }
@@ -73,12 +85,17 @@ export async function buildConversationContext(chatId: string) {
     if (sandboxId) {
         try {
             let projectFiles: Map<string, string>;
-            if (errorMetadata && errorMetadata.affectedFiles.length > 0) {
+            const affectedFiles = errorMetadata
+                ? errorMetadata.diagnostics
+                    .map((d: Diagnostic) => d.file)
+                    .filter((f): f is string => typeof f === 'string')
+                : [];
+            if (affectedFiles.length > 0) {
                 logger.debug(
-                    { chatId, fileCount: errorMetadata.affectedFiles.length },
+                    { chatId, fileCount: affectedFiles.length },
                     'Using targeted file context from error metadata'
                 );
-                projectFiles = await readSpecificFiles(sandboxId, errorMetadata.affectedFiles);
+                projectFiles = await readSpecificFiles(sandboxId, affectedFiles);
             } else if (buildError) {
                 logger.debug({ chatId }, 'Using full file context with reordering');
                 projectFiles = await readAllProjectFiles(sandboxId);
