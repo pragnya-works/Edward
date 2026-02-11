@@ -281,7 +281,6 @@ export async function runStreamSession(
           userId,
           chatId,
           messageId: assistantMessageId,
-          apiKey: decryptedApiKey,
         });
       } catch (queueErr) {
         logger.error(

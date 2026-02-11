@@ -11,7 +11,6 @@ export const BuildJobPayloadSchema = z.object({
   userId: z.string(),
   chatId: z.string(),
   messageId: z.string(),
-  apiKey: z.string(),
 });
 export type BuildJobPayload = z.infer<typeof BuildJobPayloadSchema>;
 

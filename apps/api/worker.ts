@@ -18,6 +18,7 @@ import { enqueueBackupJob } from "./services/queue/enqueue.js";
 import { createRedisClient } from "./lib/redis.js";
 import { enrichBuildError } from "./services/diagnostics/errorEnricher.js";
 import { runAutoFix } from "./services/autofix/autofix.service.js";
+import { getDecryptedApiKey } from "./services/apiKey.service.js";
 
 const logger = createLogger("WORKER");
 const pubClient = createRedisClient();
@@ -76,8 +77,15 @@ async function enrichErrorIfPossible(
 }
 
 async function processBuildJob(payload: BuildJobPayload): Promise<void> {
-  const { sandboxId, chatId, messageId, userId, apiKey } = payload;
+  const { sandboxId, chatId, messageId, userId } = payload;
   const startTime = Date.now();
+  let apiKey: string | undefined;
+
+  try {
+    apiKey = await getDecryptedApiKey(userId);
+  } catch (error) {
+    logger.warn({ userId, error }, "[Worker] Failed to fetch API key for build job");
+  }
 
   const buildRecord = await createBuild({
     chatId,
@@ -125,6 +133,7 @@ async function processBuildJob(payload: BuildJobPayload): Promise<void> {
 
       const sandbox = await getSandboxState(sandboxId);
       let autofixSuccess = false;
+      let retryResult: Awaited<ReturnType<typeof buildAndUploadUnified>> | undefined;
 
       if (sandbox?.containerId && apiKey) {
         try {
@@ -141,7 +150,7 @@ async function processBuildJob(payload: BuildJobPayload): Promise<void> {
               "[Worker] Autofix succeeded, retrying build",
             );
 
-            const retryResult = await buildAndUploadUnified(sandboxId);
+            retryResult = await buildAndUploadUnified(sandboxId);
 
             if (retryResult.success) {
               autofixSuccess = true;
@@ -200,7 +209,9 @@ async function processBuildJob(payload: BuildJobPayload): Promise<void> {
       if (!autofixSuccess) {
         const { errorLog, errorMetadata } = await enrichErrorIfPossible(
           sandboxId,
-          result.error,
+          autofixSuccess === false && typeof retryResult !== "undefined"
+            ? retryResult.error
+            : result.error,
         );
 
         await updateBuild(buildRecord.id, {

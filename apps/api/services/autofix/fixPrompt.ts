@@ -106,12 +106,12 @@ export function extractFileFromResponse(response: string): Map<string, string> {
       continue;
     }
 
-    if (codeBlockStart.test(line)) {
+    if (codeBlockStart.test(line) && !inCodeBlock) {
       inCodeBlock = true;
       continue;
     }
 
-    if (codeBlockEnd.test(line)) {
+    if (codeBlockEnd.test(line) && inCodeBlock) {
       inCodeBlock = false;
       if (currentFile && currentContent.length > 0) {
         files.set(currentFile, currentContent.join("\n"));
