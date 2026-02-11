@@ -5,17 +5,40 @@ import {
 } from "../sandbox/docker.sandbox.js";
 import { logger } from "../../utils/logger.js";
 import { extractDiagnostics } from "../diagnostics/diagnostics.js";
-import { runDeterministicFixes, filterAutoFixable } from "./deterministic/index.js";
-import { compareDiagnostics, shouldContinueFixing } from "./diagnosticComparison.js";
-import type { AutofixOptions, AutofixResult, AutofixAttempt } from "./autofix.schemas.js";
+import {
+  runDeterministicFixes,
+  filterAutoFixable,
+} from "./deterministic/index.js";
+import {
+  compareDiagnostics,
+  shouldContinueFixing,
+} from "./diagnosticComparison.js";
+import { buildFixPrompt, extractFileFromResponse } from "./fixPrompt.js";
+import {
+  prepareSandboxFile,
+  writeSandboxFile,
+  flushSandbox,
+} from "../sandbox/writes.sandbox.js";
+import { readSpecificFiles } from "../sandbox/read.sandbox.js";
+import { generateResponse } from "../../lib/llm/response.js";
+import type {
+  AutofixOptions,
+  AutofixResult,
+  AutofixAttempt,
+} from "./autofix.schemas.js";
 import { DEFAULT_MAX_ATTEMPTS, BUILD_TIMEOUT_MS } from "./autofix.schemas.js";
 
-export async function runAutoFix(options: AutofixOptions): Promise<AutofixResult> {
-  const { sandboxId, containerId, framework } = options;
+export async function runAutoFix(
+  options: AutofixOptions,
+): Promise<AutofixResult> {
+  const { sandboxId, containerId, apiKey, framework } = options;
   const maxAttempts = options.maxAttempts ?? DEFAULT_MAX_ATTEMPTS;
   const startTime = Date.now();
 
-  logger.info({ sandboxId, maxAttempts, framework }, "Starting autofix pipeline");
+  logger.info(
+    { sandboxId, maxAttempts, framework },
+    "Starting autofix pipeline",
+  );
 
   const initialBuildOutput = await runBuild(containerId, sandboxId);
   const initialExtraction = extractDiagnostics({
@@ -74,7 +97,12 @@ export async function runAutoFix(options: AutofixOptions): Promise<AutofixResult
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     logger.info(
-      { sandboxId, attempt, maxAttempts, diagnosticCount: currentDiagnostics.length },
+      {
+        sandboxId,
+        attempt,
+        maxAttempts,
+        diagnosticCount: currentDiagnostics.length,
+      },
       "Starting fix attempt",
     );
 
@@ -85,7 +113,10 @@ export async function runAutoFix(options: AutofixOptions): Promise<AutofixResult
       stdout: rebuildOutput.stdout,
     });
 
-    const comparison = compareDiagnostics(currentDiagnostics, rebuildExtraction.diagnostics);
+    const comparison = compareDiagnostics(
+      currentDiagnostics,
+      rebuildExtraction.diagnostics,
+    );
 
     const attemptResult: AutofixAttempt = {
       attempt,
@@ -100,10 +131,7 @@ export async function runAutoFix(options: AutofixOptions): Promise<AutofixResult
     attempts.push(attemptResult);
 
     if (!rebuildExtraction.hasErrors) {
-      logger.info(
-        { sandboxId, attempt },
-        "Build succeeded after autofix",
-      );
+      logger.info({ sandboxId, attempt }, "Build succeeded after autofix");
       return {
         success: true,
         attempts,
@@ -125,6 +153,54 @@ export async function runAutoFix(options: AutofixOptions): Promise<AutofixResult
         "Stopping autofix: no progress or regression detected",
       );
       break;
+    }
+
+    const fixableDiagnostics = filterAutoFixable(rebuildExtraction.diagnostics);
+    if (fixableDiagnostics.length === 0) {
+      logger.info({ sandboxId, attempt }, "No fixable diagnostics remaining");
+      break;
+    }
+
+    try {
+      const relatedFiles = new Set<string>();
+      for (const d of fixableDiagnostics) {
+        if (d.file) relatedFiles.add(d.file);
+      }
+      const fileContents = await readSpecificFiles(
+        sandboxId,
+        Array.from(relatedFiles),
+      );
+      const prompt = buildFixPrompt({
+        diagnostics: fixableDiagnostics,
+        fileContents,
+        framework,
+      });
+
+      if (!apiKey) {
+        logger.error({ sandboxId }, "No API key provided, cannot apply fixes");
+        break;
+      }
+
+      const llmResponse = await generateResponse(apiKey, prompt);
+      const fixedFiles = extractFileFromResponse(llmResponse);
+
+      if (fixedFiles.size === 0) {
+        logger.warn({ sandboxId, attempt }, "LLM returned no fixable files");
+        attemptResult.actions.push("llm_no_files_returned");
+      } else {
+        for (const [filePath, content] of fixedFiles) {
+          await prepareSandboxFile(sandboxId, filePath);
+          await writeSandboxFile(sandboxId, filePath, content);
+          attemptResult.actions.push(`fixed:${filePath}`);
+          logger.info({ sandboxId, attempt, filePath }, "Applied LLM fix");
+        }
+        await flushSandbox(sandboxId, true);
+      }
+    } catch (error) {
+      logger.error({ error, sandboxId, attempt }, "Failed to apply LLM fixes");
+      attemptResult.actions.push(
+        `llm_error:${error instanceof Error ? error.message : String(error)}`,
+      );
     }
 
     currentDiagnostics = rebuildExtraction.diagnostics;

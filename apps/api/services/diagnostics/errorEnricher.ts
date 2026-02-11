@@ -182,7 +182,12 @@ async function inferFromFiles(
     );
     if (moduleMatch?.[1]) {
       const moduleName = moduleMatch[1];
-      logger.debug({ sandboxId, moduleName }, "Searching for module imports");
+      const sanitizedModuleName = moduleName.replace(/[^a-zA-Z0-9\-_./@]/g, "");
+
+      logger.debug(
+        { sandboxId, moduleName: sanitizedModuleName },
+        "Searching for module imports",
+      );
 
       for (const dir of PROJECT_DIRS) {
         const grepResult = await execCommand(
@@ -190,7 +195,7 @@ async function inferFromFiles(
           [
             "sh",
             "-c",
-            `grep -rl "from ['"]${moduleName}['"]" ${dir} 2>/dev/null | head -5`,
+            `grep -rl "from [\\"']${sanitizedModuleName}[\\"']" ${dir} 2>/dev/null | head -5`,
           ],
           false,
           10000,

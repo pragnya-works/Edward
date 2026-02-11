@@ -326,6 +326,13 @@ export async function sanitizeSandboxFile(
   if (!sandbox) return;
 
   const normalizedPath = path.posix.normalize(filePath);
+  if (
+    normalizedPath.startsWith("..") ||
+    path.posix.isAbsolute(normalizedPath)
+  ) {
+    throw new Error(`Invalid path: ${filePath}`);
+  }
+
   const fullPath = path.posix.join(CONTAINER_WORKDIR, normalizedPath);
 
   const container = getContainer(sandbox.containerId);

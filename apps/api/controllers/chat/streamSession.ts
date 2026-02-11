@@ -218,7 +218,11 @@ export async function runStreamSession(
           commandResultsThisTurn,
         );
         logger.info(
-          { chatId, turn: agentTurn, commandCount: commandResultsThisTurn.length },
+          {
+            chatId,
+            turn: agentTurn,
+            commandCount: commandResultsThisTurn.length,
+          },
           "Agent loop: continuing with command results",
         );
         continue agentLoop;
@@ -228,7 +232,13 @@ export async function runStreamSession(
     }
 
     committedMessageContent = fullRawResponse;
-    await saveMessage(chatId, userId, MessageRole.Assistant, fullRawResponse, assistantMessageId);
+    await saveMessage(
+      chatId,
+      userId,
+      MessageRole.Assistant,
+      fullRawResponse,
+      assistantMessageId,
+    );
 
     if (workflow.sandboxId) {
       if (generatedFiles.size > 0) {
@@ -239,8 +249,13 @@ export async function runStreamSession(
           mode,
         });
         if (!validation.valid) {
-          const errorViolations = validation.violations.filter((v) => v.severity === "error");
-          logger.warn({ violations: errorViolations, chatId }, "Post-gen validation found build-breaking issues");
+          const errorViolations = validation.violations.filter(
+            (v) => v.severity === "error",
+          );
+          logger.warn(
+            { violations: errorViolations, chatId },
+            "Post-gen validation found build-breaking issues",
+          );
           for (const violation of validation.violations) {
             safeSSEWrite(
               res,
@@ -254,7 +269,10 @@ export async function runStreamSession(
       }
 
       await flushSandbox(workflow.sandboxId, true).catch((err: unknown) =>
-        logger.error(ensureError(err), `Final flush failed for sandbox: ${workflow.sandboxId}`),
+        logger.error(
+          ensureError(err),
+          `Final flush failed for sandbox: ${workflow.sandboxId}`,
+        ),
       );
 
       try {
@@ -263,9 +281,13 @@ export async function runStreamSession(
           userId,
           chatId,
           messageId: assistantMessageId,
+          apiKey: decryptedApiKey,
         });
       } catch (queueErr) {
-        logger.error(ensureError(queueErr), `Failed to enqueue build job for sandbox: ${workflow.sandboxId}`);
+        logger.error(
+          ensureError(queueErr),
+          `Failed to enqueue build job for sandbox: ${workflow.sandboxId}`,
+        );
       }
     } else {
       logger.warn({ chatId }, "[Chat] No sandbox ID available, skipping build");
@@ -276,7 +298,10 @@ export async function runStreamSession(
     const error = ensureError(streamError);
     if (workflow.sandboxId) {
       await cleanupSandbox(workflow.sandboxId).catch((err: unknown) =>
-        logger.error(ensureError(err), `Cleanup failed after stream error: ${workflow.sandboxId}`),
+        logger.error(
+          ensureError(err),
+          `Cleanup failed after stream error: ${workflow.sandboxId}`,
+        ),
       );
     }
 
@@ -296,7 +321,13 @@ export async function runStreamSession(
 
     try {
       if (committedMessageContent === null) {
-        await saveMessage(chatId, userId, MessageRole.Assistant, fullRawResponse || `Error: ${error.message}`, assistantMessageId);
+        await saveMessage(
+          chatId,
+          userId,
+          MessageRole.Assistant,
+          fullRawResponse || `Error: ${error.message}`,
+          assistantMessageId,
+        );
       }
     } catch (cleanupErr) {
       logger.error({ cleanupErr }, "Failed during error cleanup");

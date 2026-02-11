@@ -6,7 +6,6 @@ import {
   JobType,
   BuildJobPayload,
   BackupJobPayload,
-  CleanupJobPayload,
 } from "./services/queue/queue.schemas.js";
 import { createLogger } from "./utils/logger.js";
 import { VERSION } from "./utils/constants.js";
@@ -14,11 +13,11 @@ import { connection, QUEUE_NAME } from "./lib/queue.js";
 import { buildAndUploadUnified } from "./services/sandbox/builder/unified.build.js";
 import { backupSandboxInstance } from "./services/sandbox/backup.sandbox.js";
 import { getSandboxState } from "./services/sandbox/state.sandbox.js";
-import { cleanupSandbox } from "./services/sandbox/lifecycle/cleanup.js";
 import { createBuild, updateBuild } from "@edward/auth";
 import { enqueueBackupJob } from "./services/queue/enqueue.js";
 import { createRedisClient } from "./lib/redis.js";
 import { enrichBuildError } from "./services/diagnostics/errorEnricher.js";
+import { runAutoFix } from "./services/autofix/autofix.service.js";
 
 const logger = createLogger("WORKER");
 const pubClient = createRedisClient();
@@ -37,7 +36,12 @@ async function enrichErrorIfPossible(
   }
 
   try {
-    const enriched = await enrichBuildError(sandboxId, error, containerId, sandbox?.scaffoldedFramework);
+    const enriched = await enrichBuildError(
+      sandboxId,
+      error,
+      containerId,
+      sandbox?.scaffoldedFramework,
+    );
 
     const primaryFile = enriched.diagnostics[0]?.file;
     const primaryCategory = enriched.diagnostics[0]?.category;
@@ -72,7 +76,7 @@ async function enrichErrorIfPossible(
 }
 
 async function processBuildJob(payload: BuildJobPayload): Promise<void> {
-  const { sandboxId, chatId, messageId, userId } = payload;
+  const { sandboxId, chatId, messageId, userId, apiKey } = payload;
   const startTime = Date.now();
 
   const buildRecord = await createBuild({
@@ -103,7 +107,6 @@ async function processBuildJob(payload: BuildJobPayload): Promise<void> {
         }),
       );
 
-
       logger.info(
         {
           sandboxId,
@@ -115,40 +118,124 @@ async function processBuildJob(payload: BuildJobPayload): Promise<void> {
       );
       handled = true;
     } else {
-      const { errorLog, errorMetadata } = await enrichErrorIfPossible(sandboxId, result.error);
+      logger.info(
+        { sandboxId, error: result.error },
+        "[Worker] Build failed, attempting autofix",
+      );
 
-      await updateBuild(buildRecord.id, {
-        status: "failed",
-        errorLog,
-        errorMetadata: errorMetadata as Record<string, unknown> | null,
-        buildDuration: duration,
-      });
+      const sandbox = await getSandboxState(sandboxId);
+      let autofixSuccess = false;
 
-      await pubClient.publish(
-        `edward:build-status:${chatId}`,
-        JSON.stringify({
-          buildId: buildRecord.id,
+      if (sandbox?.containerId && apiKey) {
+        try {
+          const autofixResult = await runAutoFix({
+            sandboxId,
+            containerId: sandbox.containerId,
+            apiKey,
+            framework: sandbox.scaffoldedFramework,
+          });
+
+          if (autofixResult.success) {
+            logger.info(
+              { sandboxId, attempts: autofixResult.attempts.length },
+              "[Worker] Autofix succeeded, retrying build",
+            );
+
+            const retryResult = await buildAndUploadUnified(sandboxId);
+
+            if (retryResult.success) {
+              autofixSuccess = true;
+              await updateBuild(buildRecord.id, {
+                status: "success",
+                previewUrl: retryResult.previewUrl,
+                buildDuration: Date.now() - startTime,
+              });
+
+              await pubClient.publish(
+                `edward:build-status:${chatId}`,
+                JSON.stringify({
+                  buildId: buildRecord.id,
+                  status: "success",
+                  previewUrl: retryResult.previewUrl,
+                }),
+              );
+
+              logger.info(
+                {
+                  sandboxId,
+                  buildDirectory: retryResult.buildDirectory,
+                  previewUrl: retryResult.previewUrl,
+                },
+                "[Worker] Build succeeded after autofix",
+              );
+            } else {
+              logger.warn(
+                { sandboxId },
+                "[Worker] Build still failed after autofix",
+              );
+            }
+          } else {
+            logger.warn(
+              { sandboxId },
+              "[Worker] Autofix did not resolve errors",
+            );
+          }
+        } catch (autofixErr) {
+          logger.warn(
+            { error: autofixErr, sandboxId },
+            "[Worker] Autofix failed",
+          );
+        }
+      } else {
+        logger.warn(
+          {
+            sandboxId,
+            hasContainer: !!sandbox?.containerId,
+            hasApiKey: !!apiKey,
+          },
+          "[Worker] Cannot run autofix: missing container or API key",
+        );
+      }
+
+      if (!autofixSuccess) {
+        const { errorLog, errorMetadata } = await enrichErrorIfPossible(
+          sandboxId,
+          result.error,
+        );
+
+        await updateBuild(buildRecord.id, {
           status: "failed",
           errorLog,
-          errorMetadata,
-        }),
-      );
+          errorMetadata: errorMetadata as Record<string, unknown> | null,
+          buildDuration: duration,
+        });
 
+        await pubClient.publish(
+          `edward:build-status:${chatId}`,
+          JSON.stringify({
+            buildId: buildRecord.id,
+            status: "failed",
+            errorLog,
+            errorMetadata,
+          }),
+        );
 
-      logger.warn(
-        {
-          sandboxId,
-          buildDirectory: result.buildDirectory,
-          previewUploaded: result.previewUploaded,
-          error: result.error,
-        },
-        "[Worker] Build job completed without preview",
-      );
+        logger.warn(
+          {
+            sandboxId,
+            buildDirectory: result.buildDirectory,
+            previewUploaded: result.previewUploaded,
+            error: result.error,
+          },
+          "[Worker] Build job completed without preview",
+        );
+      }
+
       handled = true;
-    }
 
-    if (!result.success) {
-      throw new Error(result.error ?? "Build failed without error message");
+      if (!autofixSuccess) {
+        throw new Error(result.error ?? "Build failed without error message");
+      }
     }
 
     try {
@@ -166,7 +253,10 @@ async function processBuildJob(payload: BuildJobPayload): Promise<void> {
   } catch (error) {
     if (!handled) {
       const err = error instanceof Error ? error.message : String(error);
-      const { errorLog, errorMetadata } = await enrichErrorIfPossible(sandboxId, err);
+      const { errorLog, errorMetadata } = await enrichErrorIfPossible(
+        sandboxId,
+        err,
+      );
 
       await updateBuild(buildRecord.id, {
         status: "failed",
@@ -209,17 +299,6 @@ async function processBackupJob(payload: BackupJobPayload): Promise<void> {
   }
 }
 
-async function processCleanupJob(payload: CleanupJobPayload): Promise<void> {
-  const { sandboxId } = payload;
-
-  try {
-    await cleanupSandbox(sandboxId);
-  } catch (error) {
-    logger.error({ error, sandboxId }, "[Worker] Cleanup job failed");
-    throw error;
-  }
-}
-
 const worker = new Worker<JobPayload>(
   QUEUE_NAME,
   async (job) => {
@@ -230,8 +309,6 @@ const worker = new Worker<JobPayload>(
         return processBuildJob(payload);
       case JobType.BACKUP:
         return processBackupJob(payload);
-      case JobType.CLEANUP:
-        return processCleanupJob(payload);
       default:
         logger.error(
           { type: (payload as JobPayload).type },

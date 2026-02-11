@@ -85,26 +85,6 @@ export function sortDiagnosticsByPriority(diagnostics: Diagnostic[]): void {
   });
 }
 
-export function groupDiagnosticsByFile(
-  diagnostics: Diagnostic[],
-): Map<string, Diagnostic[]> {
-  const groups = new Map<string, Diagnostic[]>();
-  for (const d of diagnostics) {
-    const file = d.file ?? "unknown";
-    const group = groups.get(file);
-    if (group) {
-      group.push(d);
-    } else {
-      groups.set(file, [d]);
-    }
-  }
-  return groups;
-}
-
 export function isAutoFixable(category: DiagnosticCategory): boolean {
   return FIX_STRATEGIES[category].autoFixable;
-}
-
-export function getMaxAttempts(category: DiagnosticCategory): number {
-  return FIX_STRATEGIES[category].maxAttempts;
 }
