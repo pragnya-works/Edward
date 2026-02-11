@@ -6,7 +6,11 @@ import {
 import { logger } from "../../utils/logger.js";
 import { extractDiagnostics } from "./diagnostics.js";
 import { typescriptParser } from "./parsers/typescript.parser.js";
-import { DiagnosticMethod, DiagnosticCategory, DiagnosticSeverity } from "./types.js";
+import {
+  DiagnosticMethod,
+  DiagnosticCategory,
+  DiagnosticSeverity,
+} from "./types.js";
 import type { Diagnostic, EnrichmentResult } from "./types.js";
 
 const CONFIDENCE: Record<DiagnosticMethod, number> = {
@@ -45,9 +49,16 @@ export async function enrichBuildError(
   }
 
   const extraction = extractDiagnostics({ framework, errorLog: rawError });
-  if (extraction.diagnostics.length > 0 && extraction.diagnostics.some((d) => d.file)) {
+  if (
+    extraction.diagnostics.length > 0 &&
+    extraction.diagnostics.some((d) => d.file)
+  ) {
     logger.info(
-      { sandboxId, count: extraction.diagnostics.length, method: DiagnosticMethod.Parsed },
+      {
+        sandboxId,
+        count: extraction.diagnostics.length,
+        method: DiagnosticMethod.Parsed,
+      },
       "Error enrichment: parsed successfully",
     );
     return {
@@ -59,7 +70,11 @@ export async function enrichBuildError(
   }
 
   logger.debug({ sandboxId }, "No files from parsing, running tsc diagnostics");
-  const tscDiagnostics = await runTscDiagnostics(containerId, sandboxId, framework);
+  const tscDiagnostics = await runTscDiagnostics(
+    containerId,
+    sandboxId,
+    framework,
+  );
   if (tscDiagnostics.length > 0 && tscDiagnostics.some((d) => d.file)) {
     logger.info(
       { sandboxId, count: tscDiagnostics.length, method: DiagnosticMethod.Tsc },
@@ -74,10 +89,18 @@ export async function enrichBuildError(
   }
 
   logger.debug({ sandboxId }, "Running file inference heuristics");
-  const inferredDiagnostics = await inferFromFiles(containerId, sandboxId, rawError);
+  const inferredDiagnostics = await inferFromFiles(
+    containerId,
+    sandboxId,
+    rawError,
+  );
   if (inferredDiagnostics.length > 0) {
     logger.info(
-      { sandboxId, count: inferredDiagnostics.length, method: DiagnosticMethod.Inferred },
+      {
+        sandboxId,
+        count: inferredDiagnostics.length,
+        method: DiagnosticMethod.Inferred,
+      },
       "Error enrichment: file inference successful",
     );
     return {
@@ -167,7 +190,7 @@ async function inferFromFiles(
           [
             "sh",
             "-c",
-            `grep -rl "from ['\"]${moduleName}['\"]" ${dir} 2>/dev/null | head -5`,
+            `grep -rl "from ['"]${moduleName}['"]" ${dir} 2>/dev/null | head -5`,
           ],
           false,
           10000,
@@ -188,7 +211,8 @@ async function inferFromFiles(
 
     if (suspectFiles.length === 0) {
       logger.debug({ sandboxId }, "Checking recently modified files");
-      const extensions = '"*.ts" -o -name "*.tsx" -o -name "*.js" -o -name "*.jsx" -o -name "*.css" -o -name "*.scss"';
+      const extensions =
+        '"*.ts" -o -name "*.tsx" -o -name "*.js" -o -name "*.jsx" -o -name "*.css" -o -name "*.scss"';
       const dirs = PROJECT_DIRS.slice(0, 5).join(" ");
       const recentResult = await execCommand(
         container,
