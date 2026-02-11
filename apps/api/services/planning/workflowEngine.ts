@@ -10,7 +10,6 @@ import {
   IntentAnalysis,
   WorkflowStep,
   WorkflowStatus,
-  Plan,
 } from "./schemas.js";
 import { analyzeIntent } from "./analyzers/intentAnalyzer.js";
 import { resolvePackages } from "../registry/package.registry.js";
@@ -30,10 +29,6 @@ import { disconnectContainerFromNetwork } from "../sandbox/utils.sandbox.js";
 import { PHASE_CONFIGS } from "./workflow/config.js";
 import { getWorkflow, saveWorkflow, deleteWorkflow } from "./workflow/store.js";
 import { acquireLock, releaseLock } from "./workflow/locks.js";
-import {
-  updatePlanForWorkflowStep,
-  markPlanInProgressForWorkflowStep,
-} from "./workflow/plan.js";
 
 export async function createWorkflow(
   userId: string,
@@ -45,7 +40,7 @@ export async function createWorkflow(
     userId,
     chatId,
     status: WorkflowStatus.PENDING,
-    currentStep: WorkflowStep.PLAN,
+    currentStep: WorkflowStep.ANALYZE,
     context: { errors: [], ...initialContext },
     history: [],
     createdAt: Date.now(),
@@ -54,73 +49,6 @@ export async function createWorkflow(
 
   await saveWorkflow(state);
   return state;
-}
-
-export async function executePlanPhase(
-  state: WorkflowState,
-  plan?: Plan,
-): Promise<StepResult> {
-  const startTime = Date.now();
-
-  if (plan) {
-    state.context.plan = plan;
-  }
-
-  if (!state.context.plan) {
-    logger.debug(
-      { workflowId: state.id },
-      "executePlanPhase: No plan available",
-    );
-    return {
-      step: WorkflowStep.PLAN,
-      success: false,
-      error: "Plan not available",
-      durationMs: Date.now() - startTime,
-      retryCount: 0,
-    };
-  }
-
-  const validationErrors: string[] = [];
-  if (!state.context.plan.summary)
-    validationErrors.push("Missing plan summary");
-  if (!state.context.plan.steps || state.context.plan.steps.length === 0)
-    validationErrors.push("No steps defined");
-
-  if (validationErrors.length > 0) {
-    logger.warn(
-      { workflowId: state.id, validationErrors },
-      "executePlanPhase: Plan validation failed",
-    );
-    return {
-      step: WorkflowStep.PLAN,
-      success: false,
-      error: validationErrors.join("; "),
-      durationMs: Date.now() - startTime,
-      retryCount: 0,
-    };
-  }
-
-  const stepCount = state.context.plan.steps.length;
-  logger.info(
-    {
-      workflowId: state.id,
-      stepCount,
-      summary: state.context.plan.summary?.slice(0, 100),
-    },
-    "executePlanPhase: Plan validated and ready",
-  );
-  return {
-    step: WorkflowStep.PLAN,
-    success: true,
-    data: {
-      steps: stepCount,
-      summary: state.context.plan.summary,
-      assumptions: state.context.plan.assumptions,
-      decisions: state.context.plan.decisions,
-    },
-    durationMs: Date.now() - startTime,
-    retryCount: 0,
-  };
 }
 
 export async function executePackageResolution(
@@ -491,9 +419,6 @@ async function executeStep(
   const startTime = Date.now();
 
   switch (step) {
-    case WorkflowStep.PLAN:
-      return executePlanPhase(state, input as Plan | undefined);
-
     case WorkflowStep.RESOLVE_PACKAGES: {
       const lockId = await acquireLock(`resolve:${state.id}`);
       if (!lockId)
@@ -543,9 +468,10 @@ async function executeStep(
 async function withRetry(
   fn: () => Promise<StepResult>,
   maxRetries: number,
+  initialStep: WorkflowStepType,
 ): Promise<StepResult> {
   let result: StepResult = {
-    step: WorkflowStep.PLAN,
+    step: initialStep,
     success: false,
     error: "No attempts made",
     durationMs: 0,
@@ -598,14 +524,6 @@ export async function advanceWorkflow(
   }
 
   state.status = WorkflowStatus.RUNNING;
-
-  if (state.context.plan) {
-    state.context.plan = markPlanInProgressForWorkflowStep(
-      state.context.plan,
-      state.currentStep,
-    );
-  }
-
   await saveWorkflow(state);
 
   const config = PHASE_CONFIGS.find((p) => p.name === state.currentStep);
@@ -614,17 +532,10 @@ export async function advanceWorkflow(
   const result = await withRetry(
     () => executeStep(state, state.currentStep, stepInput),
     maxRetries,
+    state.currentStep,
   );
 
   state.history.push(result);
-
-  if (state.context.plan) {
-    state.context.plan = updatePlanForWorkflowStep(
-      state.context.plan,
-      state.currentStep,
-      result.success,
-    );
-  }
 
   if (!result.success) {
     const isRecoverable =
@@ -648,10 +559,7 @@ export async function advanceWorkflow(
       );
       currentIndex = lastSuccess ? stepOrder.indexOf(lastSuccess.step) : -1;
       if (currentIndex === -1) {
-        const fallbackStep = state.context.plan
-          ? WorkflowStep.ANALYZE
-          : WorkflowStep.PLAN;
-        currentIndex = stepOrder.indexOf(fallbackStep) - 1;
+        currentIndex = stepOrder.indexOf(WorkflowStep.ANALYZE) - 1;
       }
     }
 

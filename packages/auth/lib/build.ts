@@ -38,6 +38,7 @@ export async function createBuild(data: {
 export async function updateBuild(id: string, data: Partial<{
 	status: "queued" | "building" | "success" | "failed";
 	errorLog: string | null;
+	errorMetadata: Record<string, unknown> | null;
 	previewUrl: string | null;
 	buildDuration: number | null;
 }>) {

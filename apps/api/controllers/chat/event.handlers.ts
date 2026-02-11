@@ -8,31 +8,20 @@ import { addSandboxPackages } from "../../services/sandbox/lifecycle/packages.js
 import {
     prepareSandboxFile,
     flushSandbox,
+    sanitizeSandboxFile,
 } from "../../services/sandbox/writes.sandbox.js";
 import { executeSandboxCommand } from "../../services/sandbox/command.sandbox.js";
 import { normalizeFramework } from "../../services/sandbox/templates/template.registry.js";
-import {
-    PlanStatus,
-    PlanStepKey,
-    type WorkflowState,
-} from "../../services/planning/schemas.js";
-import {
-    markPlanStepInProgress,
-    updatePlanStepStatus,
-    isPlanComplete,
-} from "../../services/planning/workflow/plan.js";
-import { saveWorkflow } from "../../services/planning/workflow/store.js";
+import type { WorkflowState } from "../../services/planning/schemas.js";
 import {
     resolveDependencies,
     suggestAlternatives,
 } from "../../services/planning/resolvers/dependency.resolver.js";
 import { ensureError } from "../../utils/error.js";
 import { logger } from "../../utils/logger.js";
-import { safeSSEWrite, emitPlanUpdate, sendSSEError } from "./sse.utils.js";
+import { safeSSEWrite, sendSSEError } from "./sse.utils.js";
 import { handleFileContent } from "./file.handlers.js";
 import type { CommandResult } from "./command.utils.js";
-import type { PlanUpdateContext } from "./plan.utils.js";
-import { updatePlanWithDecision } from "./plan.utils.js";
 
 export interface EventHandlerContext {
     workflow: WorkflowState;
@@ -54,27 +43,9 @@ export interface EventHandlerResult {
     isFirstFileChunk: boolean;
 }
 
-function getPlanUpdateContext(ctx: EventHandlerContext): PlanUpdateContext {
-    return {
-        workflow: ctx.workflow,
-        res: ctx.res,
-        decryptedApiKey: ctx.decryptedApiKey,
-        userId: ctx.userId,
-        chatId: ctx.chatId,
-    };
-}
-
 async function handleSandboxStart(ctx: EventHandlerContext): Promise<void> {
     if (!ctx.workflow.sandboxId) {
         await ensureSandbox(ctx.workflow, undefined, ctx.isFollowUp);
-    }
-    if (ctx.workflow.context.plan) {
-        ctx.workflow.context.plan = markPlanStepInProgress(
-            ctx.workflow.context.plan,
-            PlanStepKey.GENERATE,
-        );
-        await saveWorkflow(ctx.workflow);
-        emitPlanUpdate(ctx.res, ctx.workflow.context.plan);
     }
 }
 
@@ -140,15 +111,6 @@ async function handleInstallContent(
     const rawDependencies = dependencies || [];
     if (rawDependencies.length === 0) return;
 
-    if (ctx.workflow.context.plan) {
-        ctx.workflow.context.plan = markPlanStepInProgress(
-            ctx.workflow.context.plan,
-            PlanStepKey.RESOLVE_DEPS,
-        );
-        await saveWorkflow(ctx.workflow);
-        emitPlanUpdate(ctx.res, ctx.workflow.context.plan);
-    }
-
     const frameworkForResolution = ctx.workflow.context.framework || "vanilla";
     const resolution = await resolveDependencies(rawDependencies, frameworkForResolution);
     const validDeps = resolution.resolved.map((dep) => dep.name);
@@ -165,32 +127,12 @@ async function handleInstallContent(
                 ? ` (suggested alternatives: ${Array.from(new Set(suggestions)).join(", ")})`
                 : "");
 
-        await updatePlanWithDecision(
-            getPlanUpdateContext(ctx),
-            `Dependency validation failed: ${message}`,
-        );
         sendSSEError(ctx.res, message);
-    }
-
-    if (resolution.warnings.length > 0) {
-        await updatePlanWithDecision(
-            getPlanUpdateContext(ctx),
-            `Dependency warnings: ${resolution.warnings.join("; ")}`,
-        );
     }
 
     await advanceWorkflow(ctx.workflow, validDeps);
     if (ctx.workflow.sandboxId && validDeps.length > 0) {
         await addSandboxPackages(ctx.workflow.sandboxId, validDeps);
-        if (ctx.workflow.context.plan) {
-            ctx.workflow.context.plan = updatePlanStepStatus(
-                ctx.workflow.context.plan,
-                (step) => step.key === PlanStepKey.RESOLVE_DEPS,
-                PlanStatus.DONE,
-            );
-            await saveWorkflow(ctx.workflow);
-            emitPlanUpdate(ctx.res, ctx.workflow.context.plan);
-        }
     }
 }
 
@@ -235,32 +177,6 @@ async function handleCommand(
     }
 }
 
-async function handlePlanStepComplete(
-    ctx: EventHandlerContext,
-    stepId: string,
-    status?: string,
-): Promise<void> {
-    if (!ctx.workflow.context.plan) return;
-
-    const stepStatus = (status || PlanStatus.DONE) as (typeof PlanStatus)[keyof typeof PlanStatus];
-    ctx.workflow.context.plan = updatePlanStepStatus(
-        ctx.workflow.context.plan,
-        (step) => step.id === stepId,
-        stepStatus,
-    );
-    await saveWorkflow(ctx.workflow);
-    emitPlanUpdate(ctx.res, ctx.workflow.context.plan);
-    logger.info(
-        {
-            chatId: ctx.chatId,
-            stepId,
-            status: stepStatus,
-            planComplete: isPlanComplete(ctx.workflow.context.plan),
-        },
-        "Plan step updated by LLM",
-    );
-}
-
 export async function handleParserEvent(
     ctx: EventHandlerContext,
     event: ParserEvent,
@@ -286,6 +202,9 @@ export async function handleParserEvent(
                 break;
 
             case ParserEventType.FILE_END:
+                if (ctx.workflow.sandboxId && currentFilePath) {
+                    await sanitizeSandboxFile(ctx.workflow.sandboxId, currentFilePath);
+                }
                 currentFilePath = undefined;
                 break;
 
@@ -301,24 +220,9 @@ export async function handleParserEvent(
                 await handleCommand(ctx, event.command, event.args ?? []);
                 handled = true;
                 break;
-
-            case ParserEventType.PLAN_STEP_COMPLETE:
-                if ("stepId" in event) {
-                    await handlePlanStepComplete(
-                        ctx,
-                        event.stepId,
-                        "status" in event ? event.status : undefined,
-                    );
-                }
-                handled = true;
-                break;
         }
     } catch (sandboxError) {
         logger.error(ensureError(sandboxError), "Sandbox operation failed during streaming");
-        await updatePlanWithDecision(
-            getPlanUpdateContext(ctx),
-            `Sandbox operation failed during streaming: ${ensureError(sandboxError).message}`,
-        );
         sendSSEError(ctx.res, "Sandbox execution failed");
     }
 
@@ -377,10 +281,6 @@ export async function handleFlushEvents(
             }
         } catch (sandboxError) {
             logger.error(ensureError(sandboxError), "Final sandbox operation failed");
-            await updatePlanWithDecision(
-                getPlanUpdateContext(ctx),
-                `Final sandbox operation failed: ${ensureError(sandboxError).message}`,
-            );
             continue;
         }
         safeSSEWrite(ctx.res, `data: ${JSON.stringify(event)}\n\n`);

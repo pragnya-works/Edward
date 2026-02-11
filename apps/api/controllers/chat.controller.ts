@@ -25,7 +25,6 @@ import {
   advanceWorkflow,
   ensureSandbox,
 } from "../services/planning/workflowEngine.js";
-import { generatePlan } from "../services/planning/analyzers/planAnalyzer.js";
 import {
   acquireUserSlot,
   releaseUserSlot,
@@ -180,22 +179,6 @@ export async function unifiedSendMessage(
       }
       conversationContext = await buildConversationContext(chatId);
     }
-
-    const plan = await generatePlan(body.content, decryptedApiKey);
-    await advanceWorkflow(workflow, plan);
-
-    res.write(
-      `data: ${JSON.stringify({
-        type: ParserEventType.PLAN,
-        plan,
-      })}\n\n`,
-    );
-    res.write(
-      `data: ${JSON.stringify({
-        type: ParserEventType.TODO_UPDATE,
-        todos: plan.steps,
-      })}\n\n`,
-    );
 
     await advanceWorkflow(workflow, body.content);
 

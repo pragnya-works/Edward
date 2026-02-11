@@ -17,7 +17,6 @@ const TAGS = {
   INSTALL_START: "<edward_install>",
   INSTALL_END: "</edward_install>",
   COMMAND: "<edward_command",
-  PLAN_CHECK: "<edward_plan_check",
 } as const;
 
 const LOOKAHEAD_LIMIT = 256;
@@ -88,12 +87,6 @@ export function createStreamParser() {
         state: StreamState.TEXT,
         event: ParserEventType.COMMAND,
       },
-      {
-        idx: buffer.indexOf(TAGS.PLAN_CHECK),
-        tag: TAGS.PLAN_CHECK,
-        state: StreamState.TEXT,
-        event: ParserEventType.PLAN_STEP_COMPLETE,
-      },
     ].filter((c) => c.idx !== -1);
 
     if (candidates.length === 0) {
@@ -150,29 +143,6 @@ export function createStreamParser() {
         }
         events.push({ type: ParserEventType.COMMAND, command, args });
       }
-    } else if (buffer.startsWith("<edward_plan_check")) {
-      const closeAngle = buffer.indexOf(">");
-      if (closeAngle === -1) return;
-
-      const tagContent = buffer.slice(0, closeAngle + 1);
-      buffer = buffer.slice(closeAngle + 1);
-
-      const stepIdMatch = tagContent.match(/step_id="([^"]+)"/);
-      const statusMatch = tagContent.match(/status="([^"]+)"/);
-      if (stepIdMatch && stepIdMatch[1]) {
-        const stepId = stepIdMatch[1];
-        const status = (statusMatch && statusMatch[1]) || "done";
-        events.push({
-          type: ParserEventType.PLAN_STEP_COMPLETE,
-          stepId,
-          status: status as "done" | "in_progress" | "failed",
-        });
-      } else {
-        events.push({
-          type: ParserEventType.ERROR,
-          message: 'edward_plan_check tag missing required "step_id" attribute',
-        });
-      }
     }
   }
 
@@ -228,21 +198,9 @@ export function createStreamParser() {
     if (endIdx !== -1) {
       if (endIdx > 0) {
         let content = buffer.slice(0, endIdx);
-        const trimmed = content.trimEnd();
-        const trimmedStart = content.trimStart();
-
-        if (trimmedStart.startsWith("```") && trimmed.endsWith("```")) {
-          const firstNewline = trimmedStart.indexOf("\n");
-          if (firstNewline !== -1) {
-            const afterOpening = trimmedStart.slice(firstNewline + 1);
-            const beforeClosing = afterOpening.trimEnd();
-            if (beforeClosing.endsWith("```")) {
-              content = beforeClosing.slice(0, -3).trimEnd();
-            }
-          }
-        }
 
         if (content) {
+          content = cleanFileContent(content);
           events.push({ type: ParserEventType.FILE_CONTENT, content });
         }
       }
@@ -253,6 +211,42 @@ export function createStreamParser() {
       flushSafeContent(events, ParserEventType.FILE_CONTENT);
     }
   }
+
+  function cleanFileContent(content: string): string {
+    let cleaned = content;
+    let changed = true;
+
+    while (changed) {
+      changed = false;
+      const trimmed = cleaned.trim();
+
+      // Markdown stripping
+      if (trimmed.startsWith("```") && trimmed.endsWith("```")) {
+        const firstNewline = trimmed.indexOf("\n");
+        const lastFence = trimmed.lastIndexOf("```");
+        if (firstNewline !== -1 && lastFence > firstNewline) {
+          cleaned = trimmed.slice(firstNewline + 1, lastFence).trim();
+          changed = true;
+          continue;
+        }
+      }
+
+      // CDATA stripping
+      if (trimmed.startsWith("<![CDATA[") && trimmed.endsWith("]]>")) {
+        cleaned = trimmed.slice("<![CDATA[".length, -3).trim();
+        changed = true;
+        continue;
+      }
+    }
+
+    return cleaned
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .replace(/&amp;/g, "&")
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'");
+  }
+
 
   function handleInstallState(events: ParserEvent[]): void {
     const endIdx = buffer.indexOf(TAGS.INSTALL_END);

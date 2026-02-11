@@ -82,6 +82,29 @@ export async function readAllProjectFiles(
   return files;
 }
 
+export async function readSpecificFiles(
+  sandboxId: string,
+  filePaths: string[],
+): Promise<Map<string, string>> {
+  const files = new Map<string, string>();
+  let totalBytes = 0;
+
+  for (const filePath of filePaths) {
+    if (totalBytes >= MAX_TOTAL_BYTES) break;
+
+    const content = await readSandboxFile(sandboxId, filePath);
+    if (!content) continue;
+
+    const contentBytes = Buffer.byteLength(content, 'utf8');
+    if (totalBytes + contentBytes > MAX_TOTAL_BYTES) continue;
+
+    files.set(filePath, content);
+    totalBytes += contentBytes;
+  }
+
+  return files;
+}
+
 export function formatProjectSnapshot(files: Map<string, string>): string {
   if (files.size === 0) return '';
   const sections: string[] = ['CURRENT PROJECT STATE:'];

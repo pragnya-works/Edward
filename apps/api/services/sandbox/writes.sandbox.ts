@@ -318,6 +318,69 @@ export async function prepareSandboxFile(
   }
 }
 
+export async function sanitizeSandboxFile(
+  sandboxId: string,
+  filePath: string,
+): Promise<void> {
+  const sandbox = await getSandboxState(sandboxId);
+  if (!sandbox) return;
+
+  const normalizedPath = path.posix.normalize(filePath);
+  if (
+    normalizedPath.startsWith("..") ||
+    path.posix.isAbsolute(normalizedPath)
+  ) {
+    throw new Error(`Invalid path: ${filePath}`);
+  }
+
+  const fullPath = path.posix.join(CONTAINER_WORKDIR, normalizedPath);
+
+  const container = getContainer(sandbox.containerId);
+
+  const script = `
+const fs = require('fs');
+const filePath = process.argv[1];
+if (!fs.existsSync(filePath)) process.exit(0);
+
+let content = fs.readFileSync(filePath, 'utf8');
+let changed = true;
+
+while (changed) {
+  changed = false;
+  const trimmed = content.trim();
+  
+  // CDATA
+  if (trimmed.startsWith('<![CDATA[') && trimmed.endsWith(']]>')) {
+    content = trimmed.slice(9, -3).trim();
+    changed = true;
+    continue;
+  }
+  
+  // Markdown Fences
+  if (trimmed.startsWith('\`\`\`') && trimmed.endsWith('\`\`\`')) {
+    const lines = trimmed.split('\\n');
+    if (lines.length >= 2 && lines[lines.length - 1].trim() === '\`\`\`') {
+        content = lines.slice(1, -1).join('\\n').trim();
+        changed = true;
+        continue;
+    }
+  }
+}
+
+// Entity decoding for common escapes
+content = content
+  .replace(/&lt;/g, '<')
+  .replace(/&gt;/g, '>')
+  .replace(/&amp;/g, '&')
+  .replace(/&quot;/g, '"')
+  .replace(/&#39;/g, "'");
+
+fs.writeFileSync(filePath, content);
+`;
+
+  await execCommand(container, ["node", "-e", script, fullPath]);
+}
+
 export function clearWriteTimers(sandboxId: string): void {
   const timer = writeTimers.get(sandboxId);
   if (timer) {

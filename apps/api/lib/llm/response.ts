@@ -4,7 +4,7 @@ import { Provider, API_KEY_REGEX } from '@edward/shared/constants';
 import { composePrompt, type ComposeOptions } from './compose.js';
 import { createLogger } from "../../utils/logger.js";
 import { ensureError } from "../../utils/error.js";
-import type { ChatAction, Plan } from '../../services/planning/schemas.js';
+import type { ChatAction } from '../../services/planning/schemas.js';
 
 const logger = createLogger('LLM');
 
@@ -53,7 +53,6 @@ export interface StreamOptions {
   framework?: string;
   complexity?: string;
   mode?: ChatAction;
-  plan?: Plan;
 }
 
 export async function* streamResponse(
@@ -65,7 +64,6 @@ export async function* streamResponse(
   framework?: string,
   complexity?: string,
   mode?: ChatAction,
-  plan?: Plan,
 ): AsyncGenerator<string> {
   if (!apiKey || typeof apiKey !== 'string' || apiKey.trim().length === 0) {
     throw new Error('Invalid API key: API key must be a non-empty string');
@@ -82,7 +80,6 @@ export async function* streamResponse(
     complexity: (complexity || 'moderate') as ComposeOptions['complexity'],
     verifiedDependencies,
     mode,
-    plan,
   });
 
   try {

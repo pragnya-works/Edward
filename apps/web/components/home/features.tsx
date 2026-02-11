@@ -123,10 +123,10 @@ const features = [
         background: <PreviewBackground />,
     },
     {
-        name: "Global Deployment",
-        description: "One click to ship to production. Scalable, edge-ready infrastructure right out of the box.",
+        name: "Frontend Builder",
+        description: "Build production-ready React components, pages, and UI with instant feedback and live preview.",
         href: "/",
-        cta: "View Regions",
+        cta: "Start Building",
         className: "md:col-span-1",
         background: <GlobeBackground />,
     },
