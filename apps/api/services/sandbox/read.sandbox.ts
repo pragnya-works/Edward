@@ -18,6 +18,39 @@ const TEXT_EXTENSIONS = new Set([
   '.mjs', '.cjs', '.svg', '.txt',
 ]);
 
+const PRIORITY_FILES = [
+  // Framework entrypoints
+  'src/app/layout.tsx',
+  'src/app/page.tsx',
+  'src/app/globals.css',
+  'src/main.tsx',
+  'src/App.tsx',
+  'src/index.css',
+
+  // Common UI/theme files
+  'src/components/ui.tsx',
+  'src/components/providers.tsx',
+  'src/components/theme-toggle.tsx',
+  'src/components/themeToggle.tsx',
+  'src/lib/utils.ts',
+  'components.json',
+
+  // Tooling/config that affects UI builds
+  'next.config.mjs',
+  'vite.config.ts',
+  'tailwind.config.ts',
+  'tailwind.config.js',
+  'postcss.config.mjs',
+  'postcss.config.js',
+  'tsconfig.json',
+  'package.json',
+
+  // Vanilla entrypoints
+  'index.html',
+  'styles.css',
+  'script.js',
+];
+
 async function readSandboxFile(
   sandboxId: string,
   filePath: string,
@@ -57,12 +90,35 @@ export async function readAllProjectFiles(
       if (!p) return false;
       const dotIdx = p.lastIndexOf('.');
       return dotIdx !== -1 && TEXT_EXTENSIONS.has(p.slice(dotIdx));
-    })
-    .slice(0, MAX_FILES);
+    });
+
+  const toRelPath = (fullPath: string) =>
+    fullPath.startsWith(CONTAINER_WORKDIR + '/')
+      ? fullPath.slice(CONTAINER_WORKDIR.length + 1)
+      : fullPath;
+
+  const relToFull = new Map<string, string>();
+  for (const fullPath of allPaths) {
+    relToFull.set(toRelPath(fullPath), fullPath);
+  }
+
+  const selected: string[] = [];
+  for (const rel of PRIORITY_FILES) {
+    const full = relToFull.get(rel);
+    if (full) selected.push(full);
+    if (selected.length >= MAX_FILES) break;
+  }
+
+  if (selected.length < MAX_FILES) {
+    const remaining = allPaths
+      .filter((p) => !selected.includes(p))
+      .sort((a, b) => toRelPath(a).localeCompare(toRelPath(b)));
+    selected.push(...remaining.slice(0, MAX_FILES - selected.length));
+  }
 
   let totalBytes = 0;
 
-  for (const fullPath of allPaths) {
+  for (const fullPath of selected) {
     if (totalBytes >= MAX_TOTAL_BYTES) break;
 
     const content = await readSandboxFile(sandboxId, fullPath);
@@ -71,9 +127,7 @@ export async function readAllProjectFiles(
     const contentBytes = Buffer.byteLength(content, 'utf8');
     if (totalBytes + contentBytes > MAX_TOTAL_BYTES) continue;
 
-    const relPath = fullPath.startsWith(CONTAINER_WORKDIR + '/')
-      ? fullPath.slice(CONTAINER_WORKDIR.length + 1)
-      : fullPath;
+    const relPath = toRelPath(fullPath);
 
     files.set(relPath, content);
     totalBytes += contentBytes;

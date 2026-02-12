@@ -16,79 +16,56 @@ import { getSandboxState } from "./services/sandbox/state.sandbox.js";
 import { createBuild, updateBuild } from "@edward/auth";
 import { enqueueBackupJob } from "./services/queue/enqueue.js";
 import { createRedisClient } from "./lib/redis.js";
-import { enrichBuildError } from "./services/diagnostics/errorEnricher.js";
-import { runAutoFix } from "./services/autofix/autofix.service.js";
-import { getDecryptedApiKey } from "./services/apiKey.service.js";
+import { createErrorReport } from "./services/diagnostics/errorReport.js";
 
 const logger = createLogger("WORKER");
 const pubClient = createRedisClient();
 
-async function enrichErrorIfPossible(
+async function createErrorReportIfPossible(
   sandboxId: string,
   error: string | undefined,
-): Promise<{ errorLog: string; errorMetadata: unknown }> {
-  const errorLog = (error || "Unknown build error").slice(-2000);
+): Promise<{ errorReport: unknown }> {
+  if (!error) {
+    return { errorReport: null };
+  }
 
   const sandbox = await getSandboxState(sandboxId);
   const containerId = sandbox?.containerId;
 
-  if (!containerId || !error) {
-    return { errorLog, errorMetadata: null };
+  if (!containerId) {
+    return { errorReport: null };
   }
 
   try {
-    const enriched = await enrichBuildError(
-      sandboxId,
-      error,
+    const report = await createErrorReport(
       containerId,
+      error,
       sandbox?.scaffoldedFramework,
     );
-
-    const primaryFile = enriched.diagnostics[0]?.file;
-    const primaryCategory = enriched.diagnostics[0]?.category;
 
     logger.info(
       {
         sandboxId,
-        method: enriched.method,
-        category: primaryCategory,
-        primaryFile,
-        confidence: enriched.confidence,
-        diagnosticCount: enriched.diagnostics.length,
+        errorCount: report.summary.totalErrors,
+        processed: report.errors.length,
+        types: report.summary.uniqueTypes,
       },
-      "[Worker] Build error enriched with diagnostics",
+      "[Worker] Error report created",
     );
 
-    return {
-      errorLog: enriched.rawError.slice(-2000),
-      errorMetadata: {
-        diagnostics: enriched.diagnostics,
-        method: enriched.method,
-        confidence: enriched.confidence,
-      } as unknown,
-    };
-  } catch (enrichErr) {
+    return { errorReport: report as unknown };
+  } catch (err) {
     logger.warn(
-      { error: enrichErr, sandboxId },
-      "[Worker] Error enrichment failed, using raw error",
+      { error: err, sandboxId },
+      "[Worker] Error report creation failed",
     );
-    return { errorLog, errorMetadata: null };
+    return { errorReport: null };
   }
 }
 
 async function processBuildJob(payload: BuildJobPayload): Promise<void> {
   const { sandboxId, chatId, messageId, userId } = payload;
   const startTime = Date.now();
-  let apiKey: string | undefined;
-
-  try {
-    apiKey = await getDecryptedApiKey(userId);
-  } catch (error) {
-    logger.warn(
-      { userId, error },
-      "[Worker] Failed to fetch API key for build job",
-    );
-  }
 
   const buildRecord = await createBuild({
     chatId,
@@ -129,129 +106,44 @@ async function processBuildJob(payload: BuildJobPayload): Promise<void> {
       );
       handled = true;
     } else {
-      logger.info(
+      logger.warn(
         { sandboxId, error: result.error },
-        "[Worker] Build failed, attempting autofix",
+        "[Worker] Build failed",
       );
 
-      const sandbox = await getSandboxState(sandboxId);
-      let autofixSuccess = false;
-      let retryResult:
-        | Awaited<ReturnType<typeof buildAndUploadUnified>>
-        | undefined;
+      const { errorReport } = await createErrorReportIfPossible(
+        sandboxId,
+        result.error,
+      );
 
-      if (sandbox?.containerId && apiKey) {
-        try {
-          const autofixResult = await runAutoFix({
-            sandboxId,
-            containerId: sandbox.containerId,
-            apiKey,
-            framework: sandbox.scaffoldedFramework,
-          });
+      await updateBuild(buildRecord.id, {
+        status: "failed",
+        errorReport: errorReport as Record<string, unknown> | null,
+        buildDuration: duration,
+      } as Parameters<typeof updateBuild>[1]);
 
-          if (autofixResult.success) {
-            logger.info(
-              { sandboxId, attempts: autofixResult.attempts.length },
-              "[Worker] Autofix succeeded, retrying build",
-            );
-
-            retryResult = await buildAndUploadUnified(sandboxId);
-
-            if (retryResult.success) {
-              autofixSuccess = true;
-              await updateBuild(buildRecord.id, {
-                status: "success",
-                previewUrl: retryResult.previewUrl,
-                buildDuration: Date.now() - startTime,
-              });
-
-              await pubClient.publish(
-                `edward:build-status:${chatId}`,
-                JSON.stringify({
-                  buildId: buildRecord.id,
-                  status: "success",
-                  previewUrl: retryResult.previewUrl,
-                }),
-              );
-
-              logger.info(
-                {
-                  sandboxId,
-                  buildDirectory: retryResult.buildDirectory,
-                  previewUrl: retryResult.previewUrl,
-                },
-                "[Worker] Build succeeded after autofix",
-              );
-            } else {
-              logger.warn(
-                { sandboxId },
-                "[Worker] Build still failed after autofix",
-              );
-            }
-          } else {
-            logger.warn(
-              { sandboxId },
-              "[Worker] Autofix did not resolve errors",
-            );
-          }
-        } catch (autofixErr) {
-          logger.warn(
-            { error: autofixErr, sandboxId },
-            "[Worker] Autofix failed",
-          );
-        }
-      } else {
-        logger.warn(
-          {
-            sandboxId,
-            hasContainer: !!sandbox?.containerId,
-            hasApiKey: !!apiKey,
-          },
-          "[Worker] Cannot run autofix: missing container or API key",
-        );
-      }
-
-      if (!autofixSuccess) {
-        const { errorLog, errorMetadata } = await enrichErrorIfPossible(
-          sandboxId,
-          autofixSuccess === false && typeof retryResult !== "undefined"
-            ? retryResult.error
-            : result.error,
-        );
-
-        await updateBuild(buildRecord.id, {
+      await pubClient.publish(
+        `edward:build-status:${chatId}`,
+        JSON.stringify({
+          buildId: buildRecord.id,
           status: "failed",
-          errorLog,
-          errorMetadata: errorMetadata as Record<string, unknown> | null,
-          buildDuration: duration,
-        });
+          errorReport,
+        }),
+      );
 
-        await pubClient.publish(
-          `edward:build-status:${chatId}`,
-          JSON.stringify({
-            buildId: buildRecord.id,
-            status: "failed",
-            errorLog,
-            errorMetadata,
-          }),
-        );
-
-        logger.warn(
-          {
-            sandboxId,
-            buildDirectory: result.buildDirectory,
-            previewUploaded: result.previewUploaded,
-            error: result.error,
-          },
-          "[Worker] Build job completed without preview",
-        );
-      }
+      logger.warn(
+        {
+          sandboxId,
+          buildDirectory: result.buildDirectory,
+          previewUploaded: result.previewUploaded,
+          error: result.error,
+        },
+        "[Worker] Build job completed without preview",
+      );
 
       handled = true;
 
-      if (!autofixSuccess) {
-        throw new Error(result.error ?? "Build failed without error message");
-      }
+      throw new Error(result.error ?? "Build failed without error message");
     }
 
     try {
@@ -269,16 +161,12 @@ async function processBuildJob(payload: BuildJobPayload): Promise<void> {
   } catch (error) {
     if (!handled) {
       const err = error instanceof Error ? error.message : String(error);
-      const { errorLog, errorMetadata } = await enrichErrorIfPossible(
-        sandboxId,
-        err,
-      );
+      const { errorReport } = await createErrorReportIfPossible(sandboxId, err);
 
       await updateBuild(buildRecord.id, {
         status: "failed",
-        errorLog,
-        errorMetadata: errorMetadata as Record<string, unknown> | null,
-      }).catch(() => {});
+        errorReport: errorReport as Record<string, unknown> | null,
+      } as Parameters<typeof updateBuild>[1]).catch(() => {});
 
       await pubClient
         .publish(
@@ -286,8 +174,7 @@ async function processBuildJob(payload: BuildJobPayload): Promise<void> {
           JSON.stringify({
             buildId: buildRecord.id,
             status: "failed",
-            errorLog,
-            errorMetadata,
+            errorReport,
           }),
         )
         .catch(() => {});

@@ -61,9 +61,9 @@ describe('executeSandboxCommand', () => {
             .rejects.toThrow(/is not allowed/);
     });
 
-    it('should block dangerous patterns (root deletion)', async () => {
+    it('should reject disallowed mutating commands (root deletion attempt)', async () => {
         await expect(executeSandboxCommand(sandboxId, { command: 'rm', args: ['-rf', '/'] }))
-            .rejects.toThrow(/disallowed patterns/);
+            .rejects.toThrow(/is not allowed/);
     });
 
     it('should block paths outside allowed directory', async () => {

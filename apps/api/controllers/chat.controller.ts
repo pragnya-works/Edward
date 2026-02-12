@@ -36,12 +36,13 @@ import {
 } from "../services/sandbox/lifecycle/provisioning.js";
 import { cleanupSandbox } from "../services/sandbox/lifecycle/cleanup.js";
 import { buildS3Key } from "../services/storage/key.utils.js";
-import { buildConversationContext } from "../lib/llm/context.js";
+import { buildConversationMessages } from "../lib/llm/context.js";
 import {
   refreshSandboxTTL,
   getChatFramework,
 } from "../services/sandbox/state.sandbox.js";
 import { ChatAction } from "../services/planning/schemas.js";
+import type { LlmChatMessage } from "../lib/llm/context.js";
 
 function sendStreamError(
   res: Response,
@@ -166,7 +167,8 @@ export async function unifiedSendMessage(
       mode: intent,
     });
 
-    let conversationContext = "";
+    let historyMessages: LlmChatMessage[] = [];
+    let projectContext: string = "";
     if (isFollowUp) {
       try {
         await ensureSandbox(workflow, undefined, true);
@@ -176,7 +178,9 @@ export async function unifiedSendMessage(
           "Early sandbox provisioning for context failed, will retry during stream",
         );
       }
-      conversationContext = await buildConversationContext(chatId);
+      const ctx = await buildConversationMessages(chatId);
+      historyMessages = ctx.history;
+      projectContext = ctx.projectContext;
     }
 
     await advanceWorkflow(workflow, body.content);
@@ -195,11 +199,13 @@ export async function unifiedSendMessage(
       chatId,
       decryptedApiKey,
       userContent: body.content,
+      userMessageId,
       assistantMessageId,
       preVerifiedDeps,
       isFollowUp,
       intent,
-      conversationContext,
+      historyMessages,
+      projectContext,
     });
   } catch (error) {
     logger.error(ensureError(error), "unifiedSendMessage error");

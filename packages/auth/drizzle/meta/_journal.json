@@ -64,6 +64,13 @@
       "when": 1770734821132,
       "tag": "0008_rapid_kabuki",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1770879404091,
+      "tag": "0009_keen_sasquatch",
+      "breakpoints": true
     }
   ]
 }

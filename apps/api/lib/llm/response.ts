@@ -5,6 +5,9 @@ import { composePrompt, type ComposeOptions } from './compose.js';
 import { createLogger } from "../../utils/logger.js";
 import { ensureError } from "../../utils/error.js";
 import type { ChatAction } from '../../services/planning/schemas.js';
+import type { LlmChatMessage } from './context.js';
+import { MessageRole } from '@edward/auth';
+import { normalizeConversationRole, toGeminiRole } from './messageRole.js';
 
 const logger = createLogger('LLM');
 
@@ -46,7 +49,7 @@ function getClient(apiKey: string) {
 
 export interface StreamOptions {
   apiKey: string;
-  content: string;
+  messages: LlmChatMessage[];
   signal?: AbortSignal;
   verifiedDependencies?: string[];
   customSystemPrompt?: string;
@@ -55,9 +58,19 @@ export interface StreamOptions {
   mode?: ChatAction;
 }
 
+function normalizeMessages(messages: LlmChatMessage[]): LlmChatMessage[] {
+  return (messages || []).flatMap((m) => {
+    if (!m || typeof m.content !== 'string') return [];
+    const role = normalizeConversationRole((m as { role?: unknown }).role);
+    const content = m.content.trim();
+    if (!role || content.length === 0) return [];
+    return [{ role, content }];
+  });
+}
+
 export async function* streamResponse(
   apiKey: string,
-  content: string,
+  messages: LlmChatMessage[],
   signal?: AbortSignal,
   verifiedDependencies?: string[],
   customSystemPrompt?: string,
@@ -69,8 +82,9 @@ export async function* streamResponse(
     throw new Error('Invalid API key: API key must be a non-empty string');
   }
 
-  if (!content || typeof content !== 'string' || content.trim().length === 0) {
-    throw new Error('Invalid content: Content must be a non-empty string');
+  const normalized = normalizeMessages(messages);
+  if (normalized.length === 0) {
+    throw new Error('Invalid messages: At least one non-empty user message is required');
   }
 
   const { type, client, model } = getClient(apiKey);
@@ -88,8 +102,8 @@ export async function* streamResponse(
       const stream = await openai.chat.completions.create({
         model,
         messages: [
-          { role: 'system', content: fullSystemPrompt },
-          { role: 'user', content }
+          { role: MessageRole.System, content: fullSystemPrompt },
+          ...normalized,
         ],
         stream: true,
       }, { signal });
@@ -103,8 +117,13 @@ export async function* streamResponse(
       const genAI = client as GoogleGenerativeAI;
       const geminiModel = genAI.getGenerativeModel({ model, systemInstruction: fullSystemPrompt });
 
+      const contents = normalized.map((m) => ({
+        role: toGeminiRole(m.role),
+        parts: [{ text: m.content }],
+      }));
+
       const result = await geminiModel.generateContentStream({
-        contents: [{ role: 'user', parts: [{ text: content }] }],
+        contents,
         generationConfig: {
           maxOutputTokens: GENERATION_CONFIG.geminiMaxOutputTokens,
           topP: GENERATION_CONFIG.topP,
@@ -158,8 +177,8 @@ export async function generateResponse(
       const completion = await openai.chat.completions.create({
         model,
         messages: [
-          { role: 'system', content: fullSystemPrompt },
-          { role: 'user', content }
+          { role: MessageRole.System, content: fullSystemPrompt },
+          { role: MessageRole.User, content }
         ],
         ...(jsonMode && { response_format: { type: 'json_object' } }),
       });
@@ -172,7 +191,7 @@ export async function generateResponse(
         systemInstruction: fullSystemPrompt,
         ...(jsonMode && { generationConfig: { responseMimeType: 'application/json' } }),
       }).generateContent({
-        contents: [{ role: 'user', parts: [{ text: content }] }],
+        contents: [{ role: MessageRole.User, parts: [{ text: content }] }],
       });
       return result.response.text();
     }

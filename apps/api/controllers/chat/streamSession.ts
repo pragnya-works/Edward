@@ -3,6 +3,8 @@ import type { AuthenticatedRequest } from "../../middleware/auth.js";
 import { ParserEventType } from "../../schemas/chat.schema.js";
 import { createStreamParser } from "../../lib/llm/parser.js";
 import { streamResponse } from "../../lib/llm/response.js";
+import { composePrompt } from "../../lib/llm/compose.js";
+import { computeTokenUsage, isOverContextLimit } from "../../lib/llm/tokens.js";
 import { ensureSandbox } from "../../services/planning/workflowEngine.js";
 import { cleanupSandbox } from "../../services/sandbox/lifecycle/cleanup.js";
 import { flushSandbox } from "../../services/sandbox/writes.sandbox.js";
@@ -34,6 +36,7 @@ import {
   handleFlushEvents,
   type EventHandlerContext,
 } from "./event.handlers.js";
+import type { LlmChatMessage } from "../../lib/llm/context.js";
 
 export interface StreamSessionParams {
   req: AuthenticatedRequest;
@@ -43,11 +46,13 @@ export interface StreamSessionParams {
   chatId: string;
   decryptedApiKey: string;
   userContent: string;
+  userMessageId: string;
   assistantMessageId: string;
   preVerifiedDeps: string[];
   isFollowUp?: boolean;
   intent?: ChatActionType;
-  conversationContext?: string;
+  historyMessages?: LlmChatMessage[];
+  projectContext?: string;
 }
 
 function buildAgentContinuationPrompt(
@@ -75,11 +80,13 @@ export async function runStreamSession(
     chatId,
     decryptedApiKey,
     userContent,
+    userMessageId,
     assistantMessageId,
     preVerifiedDeps,
     isFollowUp = false,
     intent = ChatAction.GENERATE,
-    conversationContext,
+    historyMessages = [],
+    projectContext = "",
   } = params;
 
   let fullRawResponse = "";
@@ -110,10 +117,52 @@ export async function runStreamSession(
           ? ChatAction.EDIT
           : ChatAction.GENERATE;
 
-    const fullUserContent =
-      isFollowUp && conversationContext
-        ? `${conversationContext}\n\nUSER REQUEST: ${userContent}`
-        : userContent;
+    const baseMessages: LlmChatMessage[] = [];
+    if (isFollowUp && historyMessages.length > 0) {
+      baseMessages.push(...historyMessages);
+    }
+    if (isFollowUp && projectContext) {
+      baseMessages.push({ role: MessageRole.User, content: projectContext });
+    }
+    baseMessages.push({ role: MessageRole.User, content: userContent });
+
+    const systemPrompt = composePrompt({
+      framework,
+      complexity: (complexity || "moderate") as "simple" | "moderate" | "complex",
+      verifiedDependencies: preVerifiedDeps,
+      mode,
+    });
+
+    const tokenUsage = await computeTokenUsage({
+      apiKey: decryptedApiKey,
+      systemPrompt,
+      messages: baseMessages,
+    });
+
+    safeSSEWrite(
+      res,
+      `data: ${JSON.stringify({
+        type: ParserEventType.META,
+        chatId,
+        userMessageId,
+        assistantMessageId,
+        isNewChat: !isFollowUp,
+        intent,
+        tokenUsage,
+      })}\n\n`,
+    );
+
+    if (isOverContextLimit(tokenUsage)) {
+      safeSSEWrite(
+        res,
+        `data: ${JSON.stringify({
+          type: ParserEventType.ERROR,
+          message: `Message too large for model context window. Input tokens=${tokenUsage.inputTokens}, reservedOutputTokens=${tokenUsage.reservedOutputTokens}, contextWindowTokens=${tokenUsage.contextWindowTokens}.`,
+        })}\n\n`,
+      );
+      res.end();
+      return;
+    }
 
     if (!workflow.sandboxId) {
       await ensureSandbox(workflow, framework, isFollowUp);
@@ -131,7 +180,7 @@ export async function runStreamSession(
       }
     }
 
-    let agentUserContent = fullUserContent;
+    let agentMessages: LlmChatMessage[] = baseMessages;
     let agentTurn = 0;
 
     agentLoop: while (agentTurn < MAX_AGENT_TURNS) {
@@ -144,10 +193,10 @@ export async function runStreamSession(
 
       const stream = streamResponse(
         decryptedApiKey,
-        agentUserContent,
+        agentMessages,
         abortController.signal,
         preVerifiedDeps,
-        undefined,
+        systemPrompt,
         framework,
         complexity,
         mode,
@@ -212,11 +261,12 @@ export async function runStreamSession(
         agentTurn < MAX_AGENT_TURNS &&
         !abortController.signal.aborted
       ) {
-        agentUserContent = buildAgentContinuationPrompt(
-          fullUserContent,
+        const continuation = buildAgentContinuationPrompt(
+          userContent,
           turnRawResponse,
           commandResultsThisTurn,
         );
+        agentMessages = [{ role: MessageRole.User, content: continuation }];
         logger.info(
           {
             chatId,

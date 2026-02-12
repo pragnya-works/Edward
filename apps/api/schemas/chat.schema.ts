@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { MessageRole } from "@edward/auth";
 import {
   ChatActionSchema,
 } from "../services/planning/schemas.js";
@@ -7,8 +8,6 @@ import {
   MAX_DEPENDENCIES,
   MAX_PACKAGE_NAME_LENGTH,
 } from "../utils/sharedConstants.js";
-
-export { NPM_PACKAGE_REGEX, MAX_DEPENDENCIES, MAX_PACKAGE_NAME_LENGTH };
 
 export enum StreamState {
   TEXT = "TEXT",
@@ -111,6 +110,28 @@ export const ParserEventSchema = z.discriminatedUnion("type", [
     assistantMessageId: z.string(),
     isNewChat: z.boolean(),
     intent: ChatActionSchema.optional(),
+    tokenUsage: z
+      .object({
+        provider: z.enum(["openai", "gemini"]),
+        model: z.string(),
+        method: z.enum(["openai-tiktoken", "gemini-countTokens", "approx"]),
+        contextWindowTokens: z.number().int().nonnegative(),
+        reservedOutputTokens: z.number().int().nonnegative(),
+        inputTokens: z.number().int().nonnegative(),
+        remainingInputTokens: z.number().int().nonnegative(),
+        perMessage: z.array(
+          z.object({
+            index: z.number().int().nonnegative(),
+            role: z.union([
+              z.literal(MessageRole.System),
+              z.literal(MessageRole.User),
+              z.literal(MessageRole.Assistant),
+            ]),
+            tokens: z.number().int().nonnegative(),
+          }),
+        ),
+      })
+      .optional(),
   }),
   z.object({
     type: z.literal(ParserEventType.COMMAND),

@@ -1,11 +1,3 @@
-export { UI_DESIGN_SKILL } from './uiDesignSkill.js';
-export { NEXTJS_PATTERNS_SKILL } from './nextjsPatternsSkill.js';
-export { VITE_PATTERNS_SKILL } from './vitePatternsSkill.js';
-export { VANILLA_PATTERNS_SKILL } from './vanillaPatternsSkill.js';
-export { CODE_QUALITY_SKILL } from './codeQualitySkill.js';
-export { REACT_BEST_PRACTICES_SKILL } from './reactBestPracticesSkill.js';
-export { WEB_GUIDELINES_SKILL } from './webGuidelinesSkill.js';
-
 import { UI_DESIGN_SKILL } from './uiDesignSkill.js';
 import { NEXTJS_PATTERNS_SKILL } from './nextjsPatternsSkill.js';
 import { VITE_PATTERNS_SKILL } from './vitePatternsSkill.js';

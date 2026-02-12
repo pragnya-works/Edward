@@ -13,8 +13,6 @@ import {
 } from "./diagnostics.schemas.js";
 import { logger } from "../../utils/logger.js";
 
-export { isErrorSeverity, isWarningSeverity } from "./diagnostics.schemas.js";
-
 const PARSERS = [typescriptParser, nextjsParser, viteParser, genericParser];
 
 interface ExtractionOptions {
