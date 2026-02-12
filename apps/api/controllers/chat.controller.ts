@@ -25,7 +25,6 @@ import {
   advanceWorkflow,
   ensureSandbox,
 } from "../services/planning/workflowEngine.js";
-import { generatePlan } from "../services/planning/analyzers/planAnalyzer.js";
 import {
   acquireUserSlot,
   releaseUserSlot,
@@ -37,12 +36,13 @@ import {
 } from "../services/sandbox/lifecycle/provisioning.js";
 import { cleanupSandbox } from "../services/sandbox/lifecycle/cleanup.js";
 import { buildS3Key } from "../services/storage/key.utils.js";
-import { buildConversationContext } from "../lib/llm/context.js";
+import { buildConversationMessages } from "../lib/llm/context.js";
 import {
   refreshSandboxTTL,
   getChatFramework,
 } from "../services/sandbox/state.sandbox.js";
 import { ChatAction } from "../services/planning/schemas.js";
+import type { LlmChatMessage } from "../lib/llm/context.js";
 
 function sendStreamError(
   res: Response,
@@ -136,9 +136,8 @@ export async function unifiedSendMessage(
     const { chatId, isNewChat } = chatResult;
 
     const isFollowUp = !isNewChat;
-    let intent: (typeof ChatAction)[keyof typeof ChatAction] | undefined = isNewChat
-      ? ChatAction.GENERATE
-      : undefined;
+    let intent: (typeof ChatAction)[keyof typeof ChatAction] | undefined =
+      isNewChat ? ChatAction.GENERATE : undefined;
 
     const userMessageId = await saveMessage(
       chatId,
@@ -168,7 +167,8 @@ export async function unifiedSendMessage(
       mode: intent,
     });
 
-    let conversationContext = "";
+    let historyMessages: LlmChatMessage[] = [];
+    let projectContext: string = "";
     if (isFollowUp) {
       try {
         await ensureSandbox(workflow, undefined, true);
@@ -178,24 +178,10 @@ export async function unifiedSendMessage(
           "Early sandbox provisioning for context failed, will retry during stream",
         );
       }
-      conversationContext = await buildConversationContext(chatId);
+      const ctx = await buildConversationMessages(chatId);
+      historyMessages = ctx.history;
+      projectContext = ctx.projectContext;
     }
-
-    const plan = await generatePlan(body.content, decryptedApiKey);
-    await advanceWorkflow(workflow, plan);
-
-    res.write(
-      `data: ${JSON.stringify({
-        type: ParserEventType.PLAN,
-        plan,
-      })}\n\n`,
-    );
-    res.write(
-      `data: ${JSON.stringify({
-        type: ParserEventType.TODO_UPDATE,
-        todos: plan.steps,
-      })}\n\n`,
-    );
 
     await advanceWorkflow(workflow, body.content);
 
@@ -213,11 +199,13 @@ export async function unifiedSendMessage(
       chatId,
       decryptedApiKey,
       userContent: body.content,
+      userMessageId,
       assistantMessageId,
       preVerifiedDeps,
       isFollowUp,
       intent,
-      conversationContext,
+      historyMessages,
+      projectContext,
     });
   } catch (error) {
     logger.error(ensureError(error), "unifiedSendMessage error");

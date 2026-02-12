@@ -8,28 +8,7 @@ import {
 } from "./docker.sandbox.js";
 import { logger } from "../../utils/logger.js";
 import { ExecResult } from "./types.sandbox.js";
-
-const ALLOWED_COMMANDS = [
-  "ls",
-  "find",
-  "grep",
-  "mv",
-  "cp",
-  "mkdir",
-  "rm",
-  "cat",
-  "pnpm",
-  "npm",
-  "git",
-  "pwd",
-  "date",
-  "echo",
-  "touch",
-  "head",
-  "tail",
-  "wc",
-  "tsc",
-];
+import { SANDBOX_ALLOWED_COMMANDS } from "../../utils/sandboxCommands.js";
 
 const DISALLOWED_PATTERNS = [
   /rm\s+-rf\s+\//,
@@ -47,6 +26,19 @@ function validateCommandArgs(command: string, args: string[]): void {
     throw new Error(
       `Too many arguments (${args.length}), max ${MAX_ARG_COUNT}`,
     );
+  }
+
+  if (command === "find") {
+    for (const arg of args) {
+      if (
+        arg === "-exec" ||
+        arg === "-execdir" ||
+        arg === "-ok" ||
+        arg === "-okdir"
+      ) {
+        throw new Error(`Disallowed find flag: ${arg}`);
+      }
+    }
   }
 
   for (const arg of args) {
@@ -111,7 +103,7 @@ export async function executeSandboxCommand(
     throw new Error(`Sandbox not found: ${sandboxId}`);
   }
 
-  if (!ALLOWED_COMMANDS.includes(params.command)) {
+  if (!SANDBOX_ALLOWED_COMMANDS.includes(params.command as (typeof SANDBOX_ALLOWED_COMMANDS)[number])) {
     throw new Error(`Command '${params.command}' is not allowed.`);
   }
 

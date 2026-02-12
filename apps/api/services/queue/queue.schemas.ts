@@ -1,9 +1,8 @@
-import { z } from 'zod';
+import { z } from "zod";
 
 export enum JobType {
-  BUILD = 'build',
-  BACKUP = 'backup',
-  CLEANUP = 'cleanup',
+  BUILD = "build",
+  BACKUP = "backup",
 }
 
 export const BuildJobPayloadSchema = z.object({
@@ -22,17 +21,8 @@ export const BackupJobPayloadSchema = z.object({
 });
 export type BackupJobPayload = z.infer<typeof BackupJobPayloadSchema>;
 
-export const CleanupJobPayloadSchema = z.object({
-  type: z.literal(JobType.CLEANUP),
-  sandboxId: z.string(),
-  userId: z.string(),
-  reason: z.string().optional(),
-});
-export type CleanupJobPayload = z.infer<typeof CleanupJobPayloadSchema>;
-
-export const JobPayloadSchema = z.discriminatedUnion('type', [
+export const JobPayloadSchema = z.discriminatedUnion("type", [
   BuildJobPayloadSchema,
   BackupJobPayloadSchema,
-  CleanupJobPayloadSchema,
 ]);
 export type JobPayload = z.infer<typeof JobPayloadSchema>;

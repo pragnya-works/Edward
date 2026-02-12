@@ -78,11 +78,13 @@ export async function buildAndUploadUnified(
         return {
           success: false,
           buildDirectory: null,
-          error:
-            `Cannot install pnpm: ${pnpmInstall.stderr || pnpmInstall.stdout}`.slice(
-              0,
-              300,
-            ),
+          error: [
+            "Cannot install pnpm",
+            "--- STDERR (tail) ---",
+            (pnpmInstall.stderr || "").slice(-4000),
+            "--- STDOUT (tail) ---",
+            (pnpmInstall.stdout || "").slice(-4000),
+          ].join("\n"),
           previewUploaded: false,
           previewUrl: null,
         };
@@ -147,11 +149,13 @@ export async function buildAndUploadUnified(
         return {
           success: false,
           buildDirectory: null,
-          error:
-            `Dependency installation failed (exit ${installResult.exitCode}): ${installResult.stderr || installResult.stdout}`.slice(
-              0,
-              500,
-            ),
+          error: [
+            `Dependency installation failed (exit ${installResult.exitCode})`,
+            "--- STDERR (tail) ---",
+            (installResult.stderr || "").slice(-8000),
+            "--- STDOUT (tail) ---",
+            (installResult.stdout || "").slice(-8000),
+          ].join("\n"),
           previewUploaded: false,
           previewUrl: null,
         };

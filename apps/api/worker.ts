@@ -6,7 +6,6 @@ import {
   JobType,
   BuildJobPayload,
   BackupJobPayload,
-  CleanupJobPayload,
 } from "./services/queue/queue.schemas.js";
 import { createLogger } from "./utils/logger.js";
 import { VERSION } from "./utils/constants.js";
@@ -14,13 +13,55 @@ import { connection, QUEUE_NAME } from "./lib/queue.js";
 import { buildAndUploadUnified } from "./services/sandbox/builder/unified.build.js";
 import { backupSandboxInstance } from "./services/sandbox/backup.sandbox.js";
 import { getSandboxState } from "./services/sandbox/state.sandbox.js";
-import { cleanupSandbox } from "./services/sandbox/lifecycle/cleanup.js";
 import { createBuild, updateBuild } from "@edward/auth";
 import { enqueueBackupJob } from "./services/queue/enqueue.js";
 import { createRedisClient } from "./lib/redis.js";
+import { createErrorReport } from "./services/diagnostics/errorReport.js";
 
 const logger = createLogger("WORKER");
 const pubClient = createRedisClient();
+
+async function createErrorReportIfPossible(
+  sandboxId: string,
+  error: string | undefined,
+): Promise<{ errorReport: unknown }> {
+  if (!error) {
+    return { errorReport: null };
+  }
+
+  const sandbox = await getSandboxState(sandboxId);
+  const containerId = sandbox?.containerId;
+
+  if (!containerId) {
+    return { errorReport: null };
+  }
+
+  try {
+    const report = await createErrorReport(
+      containerId,
+      error,
+      sandbox?.scaffoldedFramework,
+    );
+
+    logger.info(
+      {
+        sandboxId,
+        errorCount: report.summary.totalErrors,
+        processed: report.errors.length,
+        types: report.summary.uniqueTypes,
+      },
+      "[Worker] Error report created",
+    );
+
+    return { errorReport: report as unknown };
+  } catch (err) {
+    logger.warn(
+      { error: err, sandboxId },
+      "[Worker] Error report creation failed",
+    );
+    return { errorReport: null };
+  }
+}
 
 async function processBuildJob(payload: BuildJobPayload): Promise<void> {
   const { sandboxId, chatId, messageId, userId } = payload;
@@ -65,19 +106,28 @@ async function processBuildJob(payload: BuildJobPayload): Promise<void> {
       );
       handled = true;
     } else {
-      const errorLog = result.error?.slice(-2000) || "Unknown build error";
+      logger.warn(
+        { sandboxId, error: result.error },
+        "[Worker] Build failed",
+      );
+
+      const { errorReport } = await createErrorReportIfPossible(
+        sandboxId,
+        result.error,
+      );
+
       await updateBuild(buildRecord.id, {
         status: "failed",
-        errorLog,
+        errorReport: errorReport as Record<string, unknown> | null,
         buildDuration: duration,
-      });
+      } as Parameters<typeof updateBuild>[1]);
 
       await pubClient.publish(
         `edward:build-status:${chatId}`,
         JSON.stringify({
           buildId: buildRecord.id,
           status: "failed",
-          errorLog,
+          errorReport,
         }),
       );
 
@@ -90,10 +140,9 @@ async function processBuildJob(payload: BuildJobPayload): Promise<void> {
         },
         "[Worker] Build job completed without preview",
       );
-      handled = true;
-    }
 
-    if (!result.success) {
+      handled = true;
+
       throw new Error(result.error ?? "Build failed without error message");
     }
 
@@ -112,10 +161,12 @@ async function processBuildJob(payload: BuildJobPayload): Promise<void> {
   } catch (error) {
     if (!handled) {
       const err = error instanceof Error ? error.message : String(error);
+      const { errorReport } = await createErrorReportIfPossible(sandboxId, err);
+
       await updateBuild(buildRecord.id, {
         status: "failed",
-        errorLog: err.slice(-2000),
-      }).catch(() => {});
+        errorReport: errorReport as Record<string, unknown> | null,
+      } as Parameters<typeof updateBuild>[1]).catch(() => {});
 
       await pubClient
         .publish(
@@ -123,7 +174,7 @@ async function processBuildJob(payload: BuildJobPayload): Promise<void> {
           JSON.stringify({
             buildId: buildRecord.id,
             status: "failed",
-            errorLog: err.slice(-2000),
+            errorReport,
           }),
         )
         .catch(() => {});
@@ -151,17 +202,6 @@ async function processBackupJob(payload: BackupJobPayload): Promise<void> {
   }
 }
 
-async function processCleanupJob(payload: CleanupJobPayload): Promise<void> {
-  const { sandboxId } = payload;
-
-  try {
-    await cleanupSandbox(sandboxId);
-  } catch (error) {
-    logger.error({ error, sandboxId }, "[Worker] Cleanup job failed");
-    throw error;
-  }
-}
-
 const worker = new Worker<JobPayload>(
   QUEUE_NAME,
   async (job) => {
@@ -172,8 +212,6 @@ const worker = new Worker<JobPayload>(
         return processBuildJob(payload);
       case JobType.BACKUP:
         return processBackupJob(payload);
-      case JobType.CLEANUP:
-        return processCleanupJob(payload);
       default:
         logger.error(
           { type: (payload as JobPayload).type },

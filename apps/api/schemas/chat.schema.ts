@@ -1,17 +1,13 @@
 import { z } from "zod";
+import { MessageRole } from "@edward/auth";
 import {
-  PlanSchema,
-  PlanStatusSchema,
   ChatActionSchema,
-  PlanStepKeySchema,
 } from "../services/planning/schemas.js";
 import {
   NPM_PACKAGE_REGEX,
   MAX_DEPENDENCIES,
   MAX_PACKAGE_NAME_LENGTH,
 } from "../utils/sharedConstants.js";
-
-export { NPM_PACKAGE_REGEX, MAX_DEPENDENCIES, MAX_PACKAGE_NAME_LENGTH };
 
 export enum StreamState {
   TEXT = "TEXT",
@@ -34,13 +30,9 @@ export enum ParserEventType {
   INSTALL_START = "install_start",
   INSTALL_CONTENT = "install_content",
   INSTALL_END = "install_end",
-  PLAN = "plan",
-  PLAN_UPDATE = "plan_update",
-  TODO_UPDATE = "todo_update",
   ERROR = "error",
   META = "meta",
   COMMAND = "command",
-  PLAN_STEP_COMPLETE = "plan_step_complete",
 }
 
 export const ChatIdParamSchema = z.object({
@@ -110,20 +102,6 @@ export const ParserEventSchema = z.discriminatedUnion("type", [
       .optional(),
   }),
   z.object({ type: z.literal(ParserEventType.INSTALL_END) }),
-  z.object({ type: z.literal(ParserEventType.PLAN), plan: PlanSchema }),
-  z.object({ type: z.literal(ParserEventType.PLAN_UPDATE), plan: PlanSchema }),
-  z.object({
-    type: z.literal(ParserEventType.TODO_UPDATE),
-    todos: z.array(
-      z.object({
-        id: z.string(),
-        title: z.string(),
-        description: z.string().optional(),
-        status: PlanStatusSchema,
-        key: PlanStepKeySchema.optional(),
-      }),
-    ),
-  }),
   z.object({ type: z.literal(ParserEventType.ERROR), message: z.string() }),
   z.object({
     type: z.literal(ParserEventType.META),
@@ -132,6 +110,28 @@ export const ParserEventSchema = z.discriminatedUnion("type", [
     assistantMessageId: z.string(),
     isNewChat: z.boolean(),
     intent: ChatActionSchema.optional(),
+    tokenUsage: z
+      .object({
+        provider: z.enum(["openai", "gemini"]),
+        model: z.string(),
+        method: z.enum(["openai-tiktoken", "gemini-countTokens", "approx"]),
+        contextWindowTokens: z.number().int().nonnegative(),
+        reservedOutputTokens: z.number().int().nonnegative(),
+        inputTokens: z.number().int().nonnegative(),
+        remainingInputTokens: z.number().int().nonnegative(),
+        perMessage: z.array(
+          z.object({
+            index: z.number().int().nonnegative(),
+            role: z.union([
+              z.literal(MessageRole.System),
+              z.literal(MessageRole.User),
+              z.literal(MessageRole.Assistant),
+            ]),
+            tokens: z.number().int().nonnegative(),
+          }),
+        ),
+      })
+      .optional(),
   }),
   z.object({
     type: z.literal(ParserEventType.COMMAND),
@@ -140,11 +140,6 @@ export const ParserEventSchema = z.discriminatedUnion("type", [
     exitCode: z.number().optional(),
     stdout: z.string().optional(),
     stderr: z.string().optional(),
-  }),
-  z.object({
-    type: z.literal(ParserEventType.PLAN_STEP_COMPLETE),
-    stepId: z.string(),
-    status: PlanStatusSchema.default("done"),
   }),
 ]);
 

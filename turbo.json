@@ -1,5 +1,10 @@
 {
   "$schema": "https://turbo.build/schema.json",
+  "globalEnv": [
+    "OPENAI_CONTEXT_WINDOW_TOKENS",
+    "GEMINI_CONTEXT_WINDOW_TOKENS",
+    "LLM_RESERVED_OUTPUT_TOKENS"
+  ],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
@@ -46,6 +51,9 @@
         "ENCRYPTION_KEY",
         "OPENAI_MODEL",
         "GEMINI_MODEL",
+        "OPENAI_CONTEXT_WINDOW_TOKENS",
+        "GEMINI_CONTEXT_WINDOW_TOKENS",
+        "LLM_RESERVED_OUTPUT_TOKENS",
         "REDIS_HOST",
         "REDIS_PORT",
         "AWS_REGION",
@@ -80,6 +88,9 @@
         "CORS_ORIGIN",
         "OPENAI_MODEL",
         "GEMINI_MODEL",
+        "OPENAI_CONTEXT_WINDOW_TOKENS",
+        "GEMINI_CONTEXT_WINDOW_TOKENS",
+        "LLM_RESERVED_OUTPUT_TOKENS",
         "AWS_BUCKET_NAME",
         "CLOUDFRONT_DOMAIN",
         "AWS_REGION",

@@ -100,13 +100,13 @@ describe('WorkflowEngine', () => {
     });
 
     describe('createWorkflow', () => {
-        it('should create and persist a new workflow', async () => {
+        it('should create and persist a new workflow starting at ANALYZE', async () => {
             const workflow = await createWorkflow(mockUserId, mockChatId);
 
             expect(workflow.id).toBe(mockWorkflowId);
             expect(workflow.userId).toBe(mockUserId);
             expect(workflow.status).toBe('pending');
-            expect(workflow.currentStep).toBe('PLAN');
+            expect(workflow.currentStep).toBe('ANALYZE');
             expect(redis.set).toHaveBeenCalled();
         });
     });
@@ -184,7 +184,7 @@ describe('WorkflowEngine', () => {
             expect(state.currentStep).toBe('RECOVER');
         });
 
-        it('should execute INSTALL_PACKAGES phase and transition to BUILD', async () => {
+        it('should execute INSTALL_PACKAGES phase and transition to GENERATE', async () => {
             const state: WorkflowState = {
                 id: mockWorkflowId,
                 userId: mockUserId,
@@ -247,13 +247,6 @@ describe('WorkflowEngine', () => {
                 status: 'pending',
                 context: {
                     errors: [],
-                    plan: {
-                        summary: 'Test plan',
-                        steps: [{ id: '1', title: 'Analyze request', status: 'pending' }],
-                        decisions: [],
-                        assumptions: [],
-                        lastUpdatedAt: Date.now(),
-                    },
                 },
                 history: [],
                 createdAt: Date.now(),
@@ -274,36 +267,6 @@ describe('WorkflowEngine', () => {
             const recoverResult = await advanceWorkflow(state);
 
             expect(recoverResult.success).toBe(true);
-            expect(state.currentStep).toBe('ANALYZE');
-        });
-
-        it('should fail workflow if maximum retries exceeded in RECOVER', async () => {
-            const state: WorkflowState = {
-                id: mockWorkflowId,
-                userId: mockUserId,
-                chatId: mockChatId,
-                currentStep: 'RECOVER',
-                status: 'running',
-                context: {
-                    errors: [],
-                    plan: {
-                        summary: 'Test plan',
-                        steps: [{ id: '1', title: 'Analyze request', status: 'pending' }],
-                        decisions: [],
-                        assumptions: [],
-                        lastUpdatedAt: Date.now(),
-                    },
-                },
-                history: Array(10).fill({ step: 'BUILD', success: false }),
-                createdAt: Date.now(),
-                updatedAt: Date.now()
-            };
-
-            vi.mocked(redis.set).mockResolvedValue('OK');
-
-            const result = await advanceWorkflow(state);
-
-            expect(result.success).toBe(true);
             expect(state.currentStep).toBe('ANALYZE');
         });
     });
