@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { Response, NextFunction } from "express";
-import { db } from "@edward/auth";
 import {
   getApiKey,
   createApiKey,
@@ -202,7 +201,6 @@ describe("apiKey controller", () => {
       vi.mocked(apiKeyService.getUserWithApiKey).mockResolvedValue(
         mockUserData,
       );
-      vi.mocked(db.returning).mockResolvedValue([{ id: mockUserId }]);
 
       const req = createMockRequest({
         apiKey: "sk-proj-valid-key-12345678901234567890",
@@ -280,7 +278,6 @@ describe("apiKey controller", () => {
       vi.mocked(apiKeyService.getUserWithApiKey).mockResolvedValue(
         mockUserData,
       );
-      vi.mocked(db.returning).mockResolvedValue([{ id: mockUserId }]);
 
       const req = createMockRequest({
         apiKey: "sk-proj-new-key-12345678901234567890",
@@ -334,7 +331,6 @@ describe("apiKey controller", () => {
       vi.mocked(apiKeyService.getUserWithApiKey).mockResolvedValue(
         mockUserData,
       );
-      vi.mocked(db.returning).mockResolvedValue([{ id: mockUserId }]);
 
       const req = createMockRequest();
       const res = createMockResponse();

@@ -21,7 +21,6 @@ import { LogOut, Key } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { BYOK } from "@edward/ui/components/ui/byok";
 import { useApiKey } from "@/hooks/useApiKey";
-import { Provider } from "@edward/shared/constants";
 import { getBestGuessProvider } from "@edward/shared/schema";
 import {
   AnimatedThemeToggler,

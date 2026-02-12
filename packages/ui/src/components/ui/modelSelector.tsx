@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useMemo } from "react";
 import { motion } from "motion/react";
 import { Provider } from "@edward/shared/constants";
 import { getModelsByProvider } from "@edward/shared/schema";
@@ -23,7 +23,6 @@ export function ModelSelector({
   onSelect,
 }: ModelSelectorProps) {
   const models = useMemo(() => getModelsByProvider(provider), [provider]);
-  const [hoveredId, setHoveredId] = useState<string | null>(null);
   const prefersReducedMotion = useMemo(() => {
     if (typeof window === "undefined") return false;
     return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -34,7 +33,6 @@ export function ModelSelector({
       <div className="grid gap-1.5">
         {models.map((model, index) => {
           const isSelected = selectedModelId === model.id;
-          const isHovered = hoveredId === model.id;
           const Icon = PROVIDER_ICONS[provider];
 
           return (
@@ -51,8 +49,6 @@ export function ModelSelector({
                   ? { duration: 0 }
                   : { delay: index * 0.02, ease: "easeOut" }
               }
-              onMouseEnter={() => setHoveredId(model.id)}
-              onMouseLeave={() => setHoveredId(null)}
               onClick={() => onSelect(model.id)}
               className={cn(
                 "group relative w-full flex items-center justify-between p-3 rounded-xl text-left transition-all duration-200 border",
