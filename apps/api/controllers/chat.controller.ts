@@ -135,9 +135,8 @@ export async function unifiedSendMessage(
     const { chatId, isNewChat } = chatResult;
 
     const isFollowUp = !isNewChat;
-    let intent: (typeof ChatAction)[keyof typeof ChatAction] | undefined = isNewChat
-      ? ChatAction.GENERATE
-      : undefined;
+    let intent: (typeof ChatAction)[keyof typeof ChatAction] | undefined =
+      isNewChat ? ChatAction.GENERATE : undefined;
 
     const userMessageId = await saveMessage(
       chatId,

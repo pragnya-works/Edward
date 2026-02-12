@@ -6,6 +6,7 @@ const ANALYSIS_SYSTEM_PROMPT = `You are a technical architect for a FRONTEND-ONL
 
 {
   "action": "generate" | "fix" | "edit",
+  "action": "generate" | "fix" | "edit",
   "type": "landing" | "dashboard" | "portfolio" | "ecommerce" | "blog" | "custom",
   "complexity": "simple" | "moderate" | "complex",
   "features": ["feature1", "feature2"],

@@ -305,6 +305,7 @@ export async function runStreamSession(
     }
 
     logger.error(error, "Streaming error");
+    logger.error(error, "Streaming error");
 
     safeSSEWrite(
       res,
@@ -314,6 +315,9 @@ export async function runStreamSession(
       })}\n\n`,
     );
 
+    if (!res.writableEnded) {
+      res.end();
+    }
     if (!res.writableEnded) {
       res.end();
     }

@@ -84,7 +84,10 @@ async function processBuildJob(payload: BuildJobPayload): Promise<void> {
   try {
     apiKey = await getDecryptedApiKey(userId);
   } catch (error) {
-    logger.warn({ userId, error }, "[Worker] Failed to fetch API key for build job");
+    logger.warn(
+      { userId, error },
+      "[Worker] Failed to fetch API key for build job",
+    );
   }
 
   const buildRecord = await createBuild({
@@ -133,7 +136,9 @@ async function processBuildJob(payload: BuildJobPayload): Promise<void> {
 
       const sandbox = await getSandboxState(sandboxId);
       let autofixSuccess = false;
-      let retryResult: Awaited<ReturnType<typeof buildAndUploadUnified>> | undefined;
+      let retryResult:
+        | Awaited<ReturnType<typeof buildAndUploadUnified>>
+        | undefined;
 
       if (sandbox?.containerId && apiKey) {
         try {

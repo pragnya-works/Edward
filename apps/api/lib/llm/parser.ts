@@ -247,7 +247,6 @@ export function createStreamParser() {
       .replace(/&#39;/g, "'");
   }
 
-
   function handleInstallState(events: ParserEvent[]): void {
     const endIdx = buffer.indexOf(TAGS.INSTALL_END);
 

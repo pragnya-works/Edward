@@ -1,9 +1,6 @@
 import { CORE_SYSTEM_PROMPT, MODE_PROMPTS } from "./systemPrompt.js";
 import { getSkillsForContext, type Complexity } from "./skills/index.js";
-import {
-  Framework,
-  ChatAction,
-} from "../../services/planning/schemas.js";
+import { Framework, ChatAction } from "../../services/planning/schemas.js";
 
 export interface ComposeOptions {
   framework?: Framework;

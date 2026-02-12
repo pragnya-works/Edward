@@ -56,6 +56,7 @@ If a user requests backend/infrastructure work, respond:
 const RESPONSE_STRUCTURE = `
 <response_structure>
 Every response MUST follow this exact structure:
+Every response MUST follow this exact structure:
 
 1. <Thinking> — Internal planning (hidden from user)
    Analyze the request, pick framework, plan the UI approach, define a list of TODOS to follow, and list files to create.
