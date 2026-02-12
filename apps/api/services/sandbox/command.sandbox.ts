@@ -49,6 +49,19 @@ function validateCommandArgs(command: string, args: string[]): void {
     );
   }
 
+  if (command === "find") {
+    for (const arg of args) {
+      if (
+        arg === "-exec" ||
+        arg === "-execdir" ||
+        arg === "-ok" ||
+        arg === "-okdir"
+      ) {
+        throw new Error(`Disallowed find flag: ${arg}`);
+      }
+    }
+  }
+
   for (const arg of args) {
     if (arg.startsWith("-")) {
       const equalIndex = arg.indexOf("=");

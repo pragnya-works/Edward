@@ -1,7 +1,8 @@
 import { DiagnosticSeverity } from "../types.js";
 import type { ErrorParser, ParsedError } from "../types.js";
 
-const FILE_EXT_PATTERN = /\.(?:tsx?|jsx?|css|scss|less|json|vue|svelte|mjs|cjs)/;
+const FILE_EXT_PATTERN =
+  /\.(?:tsx?|jsx?|css|scss|less|json|vue|svelte|mjs|cjs)/;
 
 const STRUCTURED_PATTERNS = [
   /^(.+\.(?:tsx?|jsx?|css|scss|less|json)):(\d+):(\d+)\s*(.+)$/,
@@ -52,10 +53,6 @@ export const genericParser: ErrorParser = {
         errors.push(jsonError);
         continue;
       }
-    }
-
-    if (errors.length === 0) {
-      return extractFileReferences(errorText);
     }
 
     return errors;
@@ -114,7 +111,9 @@ function parseCssError(line: string): ParsedError | null {
     };
   }
 
-  const tailwindMatch = line.match(/The `(.+?)` (?:class|utility) does not exist/i);
+  const tailwindMatch = line.match(
+    /The `(.+?)` (?:class|utility) does not exist/i,
+  );
   if (tailwindMatch) {
     return { message: line.trim(), severity: DiagnosticSeverity.Error };
   }
@@ -139,30 +138,4 @@ function parseJsonError(line: string): ParsedError | null {
     };
   }
   return null;
-}
-
-function extractFileReferences(errorText: string): ParsedError[] {
-  const errors: ParsedError[] = [];
-  const filePattern = new RegExp(
-    `(?:\\.\\/)?([a-zA-Z][\\w/.@-]*${FILE_EXT_PATTERN.source})[\\s:([\\]]`,
-    "g",
-  );
-  const found = new Set<string>();
-  let match;
-
-  while ((match = filePattern.exec(errorText)) !== null) {
-    if (match[1]) {
-      const file = match[1].replace(/^\.\//, "");
-      if (!file.includes("node_modules") && !found.has(file)) {
-        found.add(file);
-        errors.push({
-          file,
-          message: "File referenced in error output",
-          severity: DiagnosticSeverity.Error,
-        });
-      }
-    }
-  }
-
-  return errors;
 }

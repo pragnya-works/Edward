@@ -1,4 +1,5 @@
 import type { Response } from "express";
+import { z } from "zod";
 import {
   type AuthenticatedRequest,
   getAuthenticatedUserId,
@@ -12,6 +13,24 @@ import {
   syncChatToGithub,
 } from "../services/github.service.js";
 import { asyncHandlerWithCustomError } from "../utils/controller.js";
+
+const connectRepoSchema = z.object({
+  chatId: z.string().min(1, "chatId is required"),
+  repoFullName: z.string().min(1, "repoFullName is required"),
+  repoName: z.string().min(1, "repoName is required"),
+});
+
+const createBranchSchema = z.object({
+  chatId: z.string().min(1, "chatId is required"),
+  branchName: z.string().min(1, "branchName is required"),
+  baseBranch: z.string().min(1, "baseBranch is required"),
+});
+
+const syncRepoSchema = z.object({
+  chatId: z.string().min(1, "chatId is required"),
+  branch: z.string().min(1, "branch is required"),
+  commitMessage: z.string().min(1, "commitMessage is required"),
+});
 
 function mapGithubErrorToStatus(error: Error): {
   status: HttpStatus;
@@ -49,7 +68,14 @@ async function connectRepoHandler(
   res: Response,
 ): Promise<void> {
   const userId = getAuthenticatedUserId(req);
-  const { chatId, repoFullName, repoName } = req.body;
+  const validation = connectRepoSchema.safeParse(req.body);
+  if (!validation.success) {
+    const message = validation.error.errors
+      .map((e) => `${e.path.join(".")}: ${e.message}`)
+      .join(", ");
+    throw new Error(`Validation failed: ${message}`);
+  }
+  const { chatId, repoFullName, repoName } = validation.data;
   const result = await connectChatToRepo(
     chatId,
     userId,
@@ -70,7 +96,14 @@ async function createBranchHandler(
   res: Response,
 ): Promise<void> {
   const userId = getAuthenticatedUserId(req);
-  const { chatId, branchName, baseBranch } = req.body;
+  const validation = createBranchSchema.safeParse(req.body);
+  if (!validation.success) {
+    const message = validation.error.errors
+      .map((e) => `${e.path.join(".")}: ${e.message}`)
+      .join(", ");
+    throw new Error(`Validation failed: ${message}`);
+  }
+  const { chatId, branchName, baseBranch } = validation.data;
   await createChatBranch(chatId, userId, branchName, baseBranch);
 
   sendSuccess(
@@ -85,7 +118,14 @@ async function syncRepoHandler(
   res: Response,
 ): Promise<void> {
   const userId = getAuthenticatedUserId(req);
-  const { chatId, branch, commitMessage } = req.body;
+  const validation = syncRepoSchema.safeParse(req.body);
+  if (!validation.success) {
+    const message = validation.error.errors
+      .map((e) => `${e.path.join(".")}: ${e.message}`)
+      .join(", ");
+    throw new Error(`Validation failed: ${message}`);
+  }
+  const { chatId, branch, commitMessage } = validation.data;
   const result = await syncChatToGithub(chatId, userId, branch, commitMessage);
 
   sendSuccess(

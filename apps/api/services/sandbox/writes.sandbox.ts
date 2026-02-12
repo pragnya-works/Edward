@@ -333,6 +333,18 @@ export async function sanitizeSandboxFile(
     throw new Error(`Invalid path: ${filePath}`);
   }
 
+  if (isProtectedFile(normalizedPath, sandbox.scaffoldedFramework)) {
+    logger.info(
+      {
+        sandboxId,
+        filePath: normalizedPath,
+        framework: sandbox.scaffoldedFramework,
+      },
+      "Blocked sanitize for protected framework file",
+    );
+    return;
+  }
+
   const fullPath = path.posix.join(CONTAINER_WORKDIR, normalizedPath);
 
   const container = getContainer(sandbox.containerId);

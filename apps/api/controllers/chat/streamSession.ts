@@ -231,7 +231,6 @@ export async function runStreamSession(
       break;
     }
 
-    committedMessageContent = fullRawResponse;
     await saveMessage(
       chatId,
       userId,
@@ -239,6 +238,7 @@ export async function runStreamSession(
       fullRawResponse,
       assistantMessageId,
     );
+    committedMessageContent = fullRawResponse;
 
     if (workflow.sandboxId) {
       if (generatedFiles.size > 0) {
