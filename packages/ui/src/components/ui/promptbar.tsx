@@ -4,7 +4,12 @@ import { Button } from "@edward/ui/components/button";
 import { Card } from "@edward/ui/components/card";
 import { Textarea } from "@edward/ui/components/textarea";
 import { TextAnimate } from "@edward/ui/components/textAnimate";
-import { Tooltip, TooltipContent, TooltipTrigger, TooltipPositioner } from "@edward/ui/components/tooltip";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+  TooltipPositioner,
+} from "@edward/ui/components/tooltip";
 import { useIsMobile } from "@edward/ui/hooks/useMobile";
 import { LoginModal } from "@edward/ui/components/ui/loginModal";
 import { BYOK } from "@edward/ui/components/ui/byok";
@@ -25,7 +30,14 @@ interface PromptbarProps {
   hasApiKey?: boolean | null;
   isApiKeyLoading?: boolean;
   apiKeyError?: string;
-  onSaveApiKey?: (apiKey: string, onValidate: (key: string) => void, onClose: () => void, provider: Provider) => Promise<boolean>;
+  onSaveApiKey?: (
+    apiKey: string,
+    onValidate: (key: string) => void,
+    onClose: () => void,
+    provider: Provider,
+    model?: string,
+  ) => Promise<boolean>;
+  preferredModel?: string;
 }
 
 export default function Promptbar({
@@ -36,6 +48,7 @@ export default function Promptbar({
   isApiKeyLoading = false,
   apiKeyError = "",
   onSaveApiKey,
+  preferredModel,
 }: PromptbarProps) {
   const [inputValue, setInputValue] = useState("");
   const [suggestionIndex, setSuggestionIndex] = useState(0);
@@ -45,11 +58,30 @@ export default function Promptbar({
   const initialLoadTriggered = useRef(false);
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      setSuggestionIndex((prev) => (prev + 1) % SUGGESTIONS.length);
-    }, 4000);
+    let interval: NodeJS.Timeout | null = null;
 
-    return () => clearInterval(interval);
+    const startInterval = () => {
+      interval = setInterval(() => {
+        setSuggestionIndex((prev) => (prev + 1) % SUGGESTIONS.length);
+      }, 4000);
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        if (interval) clearInterval(interval);
+      } else {
+        if (interval) clearInterval(interval);
+        startInterval();
+      }
+    };
+
+    startInterval();
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      if (interval) clearInterval(interval);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
   }, []);
 
   const handleProtectedAction = useCallback(() => {
@@ -63,7 +95,12 @@ export default function Promptbar({
   }, [isAuthenticated, hasApiKey, isApiKeyLoading, onProtectedAction]);
 
   useEffect(() => {
-    if (!initialLoadTriggered.current && isAuthenticated && hasApiKey === false && !isApiKeyLoading) {
+    if (
+      !initialLoadTriggered.current &&
+      isAuthenticated &&
+      hasApiKey === false &&
+      !isApiKeyLoading
+    ) {
       initialLoadTriggered.current = true;
       setShowBYOK(true);
     }
@@ -151,6 +188,7 @@ export default function Promptbar({
             setShowBYOK(false);
           }}
           onSaveApiKey={onSaveApiKey}
+          preferredModel={preferredModel}
           error={apiKeyError}
         />
       )}

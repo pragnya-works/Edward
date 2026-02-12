@@ -16,6 +16,7 @@ interface ApiKeyResponse {
   data: {
     hasApiKey: boolean;
     keyPreview?: string;
+    preferredModel?: string;
     userId: string;
     createdAt?: string;
     updatedAt?: string;
@@ -27,6 +28,7 @@ interface ApiKeySaveResponse {
   data: {
     userId: string;
     keyPreview: string;
+    preferredModel?: string;
   };
 }
 
@@ -65,9 +67,11 @@ export function useApiKey() {
   const mutation = useMutation({
     mutationFn: async function ({
       apiKey,
+      model,
       method,
     }: {
       apiKey: string;
+      model?: string;
       method: "POST" | "PUT";
     }) {
       const res = await fetch(`${API_BASE_URL}/api-key`, {
@@ -75,7 +79,7 @@ export function useApiKey() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ apiKey }),
+        body: JSON.stringify({ apiKey, model }),
         credentials: "include",
       });
 
@@ -94,6 +98,7 @@ export function useApiKey() {
             ...old.data,
             hasApiKey: true,
             keyPreview: responseData.data.keyPreview,
+            preferredModel: responseData.data.preferredModel,
           }
         };
       });
@@ -115,7 +120,8 @@ export function useApiKey() {
     apiKey: string,
     onValidate: (key: string) => void,
     onClose: () => void,
-    provider: Provider = Provider.OPENAI
+    provider: Provider = Provider.OPENAI,
+    model?: string
   ): Promise<boolean> => {
     if (!userId) {
       setError("User not authenticated");
@@ -137,7 +143,7 @@ export function useApiKey() {
 
     try {
       const method = data?.data?.hasApiKey ? "PUT" : "POST";
-      await mutation.mutateAsync({ apiKey: trimmedKey, method });
+      await mutation.mutateAsync({ apiKey: trimmedKey, model, method });
 
       setError("");
       onValidate(trimmedKey);
@@ -153,6 +159,7 @@ export function useApiKey() {
     validateAndSaveApiKey,
     hasApiKey: data?.data?.hasApiKey ?? null,
     keyPreview: data?.data?.keyPreview || null,
+    preferredModel: data?.data?.preferredModel || null,
     temporaryKey,
     clearTemporaryKey,
     isLoading,

@@ -12,7 +12,8 @@ export default function AuthenticatedPromptbar({
   onProtectedAction,
 }: AuthenticatedPromptbarProps) {
   const { data: session } = useSession();
-  const { hasApiKey, isLoading, error, validateAndSaveApiKey } = useApiKey();
+  const { hasApiKey, isLoading, error, validateAndSaveApiKey, preferredModel } =
+    useApiKey();
 
   return (
     <Promptbar
@@ -24,6 +25,7 @@ export default function AuthenticatedPromptbar({
       hasApiKey={hasApiKey}
       isApiKeyLoading={isLoading}
       apiKeyError={error}
+      preferredModel={preferredModel || undefined}
       onSaveApiKey={validateAndSaveApiKey}
     />
   );

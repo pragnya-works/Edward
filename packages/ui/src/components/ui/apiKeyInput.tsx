@@ -44,9 +44,10 @@ export function ApiKeyInput({
             onChange={(e) => onChange(e.target.value)}
             onKeyDown={onKeyDown}
             placeholder={API_KEY_PLACEHOLDER[provider]}
-            className="pr-10"
+            className="pr-10 rounded-xl h-12"
             disabled={isSubmitting}
-            autoFocus
+            spellCheck={false}
+            autoComplete="off"
           />
 
           <Button

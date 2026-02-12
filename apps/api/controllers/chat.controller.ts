@@ -11,7 +11,8 @@ import {
 } from "../schemas/chat.schema.js";
 import { nanoid } from "nanoid";
 import { logger } from "../utils/logger.js";
-import { getDecryptedApiKey } from "../services/apiKey.service.js";
+import { getUserWithApiKey } from "../services/apiKey.service.js";
+import { decrypt } from "../utils/encryption.js";
 import { HttpStatus, ERROR_MESSAGES } from "../utils/constants.js";
 import {
   sendError as sendStandardError,
@@ -97,24 +98,27 @@ export async function unifiedSendMessage(
     const body = validated.data;
 
     let decryptedApiKey: string;
+    let preferredModel: string | undefined;
     try {
-      decryptedApiKey = await getDecryptedApiKey(userId);
-    } catch (err) {
-      const error = ensureError(err);
-      if (error.message === "API key not found") {
+      const userData = await getUserWithApiKey(userId);
+      if (!userData || !userData.apiKey) {
         sendStreamError(
           res,
           HttpStatus.BAD_REQUEST,
           "No API key found. Please configure your settings.",
         );
-      } else {
-        logger.error(error, "Failed to decrypt API key");
-        sendStreamError(
-          res,
-          HttpStatus.INTERNAL_SERVER_ERROR,
-          "Error processing API key. Please re-save it in settings.",
-        );
+        return;
       }
+      decryptedApiKey = decrypt(userData.apiKey);
+      preferredModel = userData.preferredModel || undefined;
+    } catch (err) {
+      const error = ensureError(err);
+      logger.error(error, "Failed to retrieve or decrypt API key");
+      sendStreamError(
+        res,
+        HttpStatus.INTERNAL_SERVER_ERROR,
+        "Error processing API key. Please re-save it in settings.",
+      );
       return;
     }
 
@@ -206,6 +210,7 @@ export async function unifiedSendMessage(
       intent,
       historyMessages,
       projectContext,
+      model: body.model || preferredModel,
     });
   } catch (error) {
     logger.error(ensureError(error), "unifiedSendMessage error");

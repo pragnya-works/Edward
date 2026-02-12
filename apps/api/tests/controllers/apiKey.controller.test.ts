@@ -73,6 +73,7 @@ describe("apiKey controller", () => {
       const mockUserData = {
         id: mockUserId,
         apiKey: mockEncryptedKey,
+        preferredModel: null,
         createdAt: new Date("2024-01-01"),
         updatedAt: new Date("2024-01-02"),
       };
@@ -111,6 +112,7 @@ describe("apiKey controller", () => {
       const mockUserData = {
         id: mockUserId,
         apiKey: null,
+        preferredModel: null,
         createdAt: new Date("2024-01-01"),
         updatedAt: new Date("2024-01-02"),
       };
@@ -147,6 +149,7 @@ describe("apiKey controller", () => {
       const mockUserData = {
         id: mockUserId,
         apiKey: "corrupted-key",
+        preferredModel: null,
         createdAt: new Date(),
         updatedAt: new Date(),
       };
@@ -191,6 +194,7 @@ describe("apiKey controller", () => {
       const mockUserData = {
         id: mockUserId,
         apiKey: null,
+        preferredModel: null,
         createdAt: new Date(),
         updatedAt: new Date(),
       };
@@ -242,6 +246,7 @@ describe("apiKey controller", () => {
       const mockUserData = {
         id: mockUserId,
         apiKey: "existing-key",
+        preferredModel: null,
         createdAt: new Date(),
         updatedAt: new Date(),
       };
@@ -267,6 +272,7 @@ describe("apiKey controller", () => {
       const mockUserData = {
         id: mockUserId,
         apiKey: "old-key",
+        preferredModel: null,
         createdAt: new Date(),
         updatedAt: new Date(),
       };
@@ -320,6 +326,7 @@ describe("apiKey controller", () => {
       const mockUserData = {
         id: mockUserId,
         apiKey: "existing-key",
+        preferredModel: null,
         createdAt: new Date(),
         updatedAt: new Date(),
       };

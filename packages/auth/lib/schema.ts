@@ -10,6 +10,7 @@ import {
   jsonb,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
+import { Model } from "@edward/shared/schema";
 
 export const roleEnum = pgEnum("role", ["viewer", "editor", "owner"]);
 export const inviteStatusEnum = pgEnum("invite_status", [
@@ -48,6 +49,9 @@ export const user = pgTable("user", {
   email: text("email").notNull().unique(),
   emailVerified: boolean("email_verified").notNull().default(false),
   apiKey: text("api_key"),
+  preferredModel: text("preferred_model")
+    .notNull()
+    .default(Model.GEMINI_2_5_FLASH),
   image: text("image"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at")

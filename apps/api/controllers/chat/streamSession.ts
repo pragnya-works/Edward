@@ -53,6 +53,7 @@ export interface StreamSessionParams {
   intent?: ChatActionType;
   historyMessages?: LlmChatMessage[];
   projectContext?: string;
+  model?: string;
 }
 
 function buildAgentContinuationPrompt(
@@ -87,6 +88,7 @@ export async function runStreamSession(
     intent = ChatAction.GENERATE,
     historyMessages = [],
     projectContext = "",
+    model,
   } = params;
 
   let fullRawResponse = "";
@@ -137,6 +139,7 @@ export async function runStreamSession(
       apiKey: decryptedApiKey,
       systemPrompt,
       messages: baseMessages,
+      model,
     });
 
     safeSSEWrite(
@@ -200,6 +203,7 @@ export async function runStreamSession(
         framework,
         complexity,
         mode,
+        model,
       );
 
       for await (const chunk of stream) {
