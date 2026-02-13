@@ -17,7 +17,7 @@ export interface ParsedError {
   stage: BuildStage;
 }
 
-export function stripAnsi(str: string): string {
+function stripAnsi(str: string): string {
   return str.replace(STRIP_ANSI, "");
 }
 
@@ -28,7 +28,7 @@ export function detectStage(output: string): BuildStage {
   return "unknown";
 }
 
-export function generateErrorId(
+function generateErrorId(
   file: string,
   line: number,
   message: string,

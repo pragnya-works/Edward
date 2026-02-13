@@ -76,18 +76,13 @@ export const config = {
   cors: {
     origins: process.env.CORS_ORIGIN
       ? process.env.CORS_ORIGIN.split(",")
-          .map((o) => o.trim())
-          .filter(Boolean)
+        .map((o) => o.trim())
+        .filter(Boolean)
       : [],
   },
 
   encryption: {
     key: validateEnvVar("ENCRYPTION_KEY", process.env.ENCRYPTION_KEY),
-  },
-
-  llm: {
-    geminiModel: process.env.GEMINI_MODEL,
-    openaiModel: process.env.OPENAI_MODEL,
   },
 
   aws: {

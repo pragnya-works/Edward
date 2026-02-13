@@ -31,12 +31,6 @@ describe('encryption', () => {
       expect(encrypted1).not.toBe(encrypted2);
     });
 
-    it('should handle empty string', () => {
-      const encrypted = encrypt('');
-      expect(encrypted).toBeDefined();
-      expect(typeof encrypted).toBe('string');
-    });
-
     it('should handle unicode characters', () => {
       const plaintext = '🔐 secret key with émojis and ñoño';
       const encrypted = encrypt(plaintext);

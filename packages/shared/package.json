@@ -7,6 +7,10 @@
     "./constants": {
       "types": "./dist/constants.d.ts",
       "default": "./dist/constants.js"
+    },
+    "./schema": {
+      "types": "./dist/schema.d.ts",
+      "default": "./dist/schema.js"
     }
   },
   "scripts": {

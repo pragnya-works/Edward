@@ -2,6 +2,12 @@ import { db, chat, message, MessageRole, eq } from '@edward/auth';
 import { nanoid } from 'nanoid';
 import { logger } from '../utils/logger.js';
 
+export interface MessageMetadata {
+  completionTime?: number;
+  inputTokens?: number;
+  outputTokens?: number;
+}
+
 export async function getOrCreateChat(
   userId: string,
   chatId: string | undefined,
@@ -50,25 +56,54 @@ export async function saveMessage(
   userId: string,
   role: MessageRole,
   content: string,
-  id?: string
+  id?: string,
+  metadata?: MessageMetadata
 ): Promise<string> {
   try {
     const messageId = id || nanoid(32);
     const now = new Date();
 
-    await db.insert(message).values({
+    const values: {
+      id: string;
+      chatId: string;
+      userId: string;
+      role: MessageRole;
+      content: string;
+      createdAt: Date;
+      updatedAt: Date;
+      completionTime?: number;
+      inputTokens?: number;
+      outputTokens?: number;
+    } = {
       id: messageId,
       chatId,
       userId,
-      role: role,
+      role,
       content,
       createdAt: now,
       updatedAt: now,
-    }).onConflictDoUpdate({
+    };
+
+    if (metadata) {
+      if (metadata.completionTime !== undefined) {
+        values.completionTime = metadata.completionTime;
+      }
+      if (metadata.inputTokens !== undefined) {
+        values.inputTokens = metadata.inputTokens;
+      }
+      if (metadata.outputTokens !== undefined) {
+        values.outputTokens = metadata.outputTokens;
+      }
+    }
+
+    await db.insert(message).values(values as typeof message.$inferInsert).onConflictDoUpdate({
       target: message.id,
       set: {
         content,
         updatedAt: now,
+        ...(metadata?.completionTime !== undefined && { completionTime: metadata.completionTime }),
+        ...(metadata?.inputTokens !== undefined && { inputTokens: metadata.inputTokens }),
+        ...(metadata?.outputTokens !== undefined && { outputTokens: metadata.outputTokens }),
       }
     });
 
@@ -79,4 +114,3 @@ export async function saveMessage(
     throw new Error(`Failed to save message to database: ${err}`);
   }
 }
-

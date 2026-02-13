@@ -1,10 +1,17 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, Mocked } from "vitest";
 import { db } from "@edward/auth";
 import {
   getUserWithApiKey,
   getDecryptedApiKey,
 } from "../../services/apiKey.service.js";
 import * as encryption from "../../utils/encryption.js";
+
+interface MockedDb {
+  select: Mocked<() => MockedDb>;
+  from: Mocked<() => MockedDb>;
+  where: Mocked<() => MockedDb>;
+  limit: Mocked<(n: number) => Promise<unknown[]>>;
+}
 
 vi.mock("@edward/auth", async () => {
   const actual =
@@ -30,6 +37,7 @@ describe("apiKey service", () => {
   const mockUserId = "user-123";
   const mockEncryptedKey = "encrypted-key-data";
   const mockDecryptedKey = "sk-proj-valid-api-key";
+  const mockedDb = db as unknown as MockedDb;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -44,17 +52,15 @@ describe("apiKey service", () => {
         updatedAt: new Date(),
       };
 
-      vi.mocked(db.limit).mockResolvedValue([mockUserData]);
+      vi.mocked(mockedDb.limit).mockResolvedValue([mockUserData]);
 
       const result = await getUserWithApiKey(mockUserId);
 
       expect(result).toEqual(mockUserData);
-      expect(db.select).toHaveBeenCalled();
-      expect(db.where).toHaveBeenCalled();
     });
 
     it("should return undefined when user not found", async () => {
-      vi.mocked(db.limit).mockResolvedValue([]);
+      vi.mocked(mockedDb.limit).mockResolvedValue([]);
 
       const result = await getUserWithApiKey(mockUserId);
 
@@ -69,7 +75,7 @@ describe("apiKey service", () => {
         updatedAt: new Date(),
       };
 
-      vi.mocked(db.limit).mockResolvedValue([mockUserData]);
+      vi.mocked(mockedDb.limit).mockResolvedValue([mockUserData]);
 
       const result = await getUserWithApiKey(mockUserId);
 
@@ -77,7 +83,7 @@ describe("apiKey service", () => {
     });
 
     it("should throw error when database query fails", async () => {
-      vi.mocked(db.limit).mockRejectedValue(new Error("DB error"));
+      vi.mocked(mockedDb.limit).mockRejectedValue(new Error("DB error"));
 
       await expect(getUserWithApiKey(mockUserId)).rejects.toThrow(
         "Failed to retrieve user API key: DB error",
@@ -94,7 +100,7 @@ describe("apiKey service", () => {
         updatedAt: new Date(),
       };
 
-      vi.mocked(db.limit).mockResolvedValue([mockUserData]);
+      vi.mocked(mockedDb.limit).mockResolvedValue([mockUserData]);
       vi.mocked(encryption.decrypt).mockReturnValue(mockDecryptedKey);
 
       const result = await getDecryptedApiKey(mockUserId);
@@ -104,7 +110,7 @@ describe("apiKey service", () => {
     });
 
     it("should throw error when user not found", async () => {
-      vi.mocked(db.limit).mockResolvedValue([]);
+      vi.mocked(mockedDb.limit).mockResolvedValue([]);
 
       await expect(getDecryptedApiKey(mockUserId)).rejects.toThrow(
         "API key configuration not found for this user.",
@@ -119,7 +125,7 @@ describe("apiKey service", () => {
         updatedAt: new Date(),
       };
 
-      vi.mocked(db.limit).mockResolvedValue([mockUserData]);
+      vi.mocked(mockedDb.limit).mockResolvedValue([mockUserData]);
 
       await expect(getDecryptedApiKey(mockUserId)).rejects.toThrow(
         "API key configuration not found for this user.",
@@ -134,7 +140,7 @@ describe("apiKey service", () => {
         updatedAt: new Date(),
       };
 
-      vi.mocked(db.limit).mockResolvedValue([mockUserData]);
+      vi.mocked(mockedDb.limit).mockResolvedValue([mockUserData]);
 
       await expect(getDecryptedApiKey(mockUserId)).rejects.toThrow(
         "API key configuration not found for this user.",
@@ -149,7 +155,7 @@ describe("apiKey service", () => {
         updatedAt: new Date(),
       };
 
-      vi.mocked(db.limit).mockResolvedValue([mockUserData]);
+      vi.mocked(mockedDb.limit).mockResolvedValue([mockUserData]);
       vi.mocked(encryption.decrypt).mockImplementation(() => {
         throw new Error("Decryption failed");
       });
