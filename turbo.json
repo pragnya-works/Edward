@@ -3,7 +3,9 @@
   "globalEnv": [
     "OPENAI_CONTEXT_WINDOW_TOKENS",
     "GEMINI_CONTEXT_WINDOW_TOKENS",
-    "LLM_RESERVED_OUTPUT_TOKENS"
+    "LLM_RESERVED_OUTPUT_TOKENS",
+    "NEXT_RUNTIME",
+    "NODE_ENV"
   ],
   "tasks": {
     "build": {
@@ -21,7 +23,10 @@
         "GITHUB_CLIENT_ID",
         "GITHUB_CLIENT_SECRET",
         "NEXT_PUBLIC_BETTER_AUTH_URL",
-        "NEXT_PUBLIC_API_URL"
+        "NEXT_PUBLIC_API_URL",
+        "NEXT_PUBLIC_SENTRY_DSN",
+        "SENTRY_ORG",
+        "SENTRY_AUTH_TOKEN"
       ]
     },
     "@edward/auth#build": {
@@ -71,7 +76,8 @@
         "EDWARD_DEPLOYMENT_TYPE",
         "PREWARM_SANDBOX_IMAGE",
         "DOCKER_REGISTRY_BASE",
-        "REDIS_URL"
+        "REDIS_URL",
+        "SENTRY_DSN"
       ]
     },
     "typecheck": {
