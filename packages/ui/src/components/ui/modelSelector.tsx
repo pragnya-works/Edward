@@ -3,13 +3,12 @@ import { motion } from "motion/react";
 import { Provider } from "@edward/shared/constants";
 import { getModelsByProvider } from "@edward/shared/schema";
 import { cn } from "@edward/ui/lib/utils";
-import { OpenAI } from "@edward/ui/components/ui/openAi";
-import { Gemini } from "@edward/ui/components/ui/gemini";
 
-const PROVIDER_ICONS: Record<Provider, React.ElementType> = {
-  [Provider.OPENAI]: OpenAI,
-  [Provider.GEMINI]: Gemini,
-};
+const ASSETS_URL = process.env.NEXT_PUBLIC_ASSETS_URL;
+
+function getModelIconUrl(provider: Provider, modelId: string): string {
+  return `${ASSETS_URL}/models/${provider}/${modelId}`;
+}
 
 interface ModelSelectorProps {
   provider: Provider;
@@ -33,7 +32,7 @@ export function ModelSelector({
       <div className="grid gap-1.5">
         {models.map((model, index) => {
           const isSelected = selectedModelId === model.id;
-          const Icon = PROVIDER_ICONS[provider];
+          const iconUrl = getModelIconUrl(provider, model.id);
 
           return (
             <motion.button
@@ -67,7 +66,11 @@ export function ModelSelector({
                       : "bg-muted/10 border-border group-hover:border-primary/20 text-muted-foreground group-hover:text-primary",
                   )}
                 >
-                  <Icon className="h-4.5 w-4.5" aria-hidden="true" />
+                  <img
+                    src={iconUrl}
+                    alt={`${model.label} icon`}
+                    className={cn("object-contain m-0 p-0", provider === Provider.GEMINI ? "size-5" : null)}
+                  />
                 </div>
 
                 <div className="flex flex-col min-w-0">

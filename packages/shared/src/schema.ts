@@ -22,6 +22,7 @@ export interface ModelSpec {
   context: string;
   reasoning: string;
   type: ModelType;
+  supportsVision?: boolean;
 }
 
 export enum Model {
@@ -165,6 +166,11 @@ export function isValidModel(model: string): model is Model {
 
 export function getModelSpec(model: string): ModelSpec | undefined {
   return OPENAI_MODELS[model] ?? GEMINI_MODELS[model];
+}
+
+export function modelSupportsVision(model: string): boolean {
+  const spec = getModelSpec(model);
+  return spec?.supportsVision ?? false;
 }
 
 export function getModelSpecByProvider(
