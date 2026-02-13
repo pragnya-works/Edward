@@ -4,7 +4,7 @@ import { decrypt } from "../utils/encryption.js";
 export async function getUserWithApiKey(
   userId: string,
 ): Promise<
-  | { id: string; apiKey: string | null; createdAt: Date; updatedAt: Date }
+  | { id: string; apiKey: string | null; preferredModel: string | null; createdAt: Date; updatedAt: Date }
   | undefined
 > {
   try {
@@ -12,6 +12,7 @@ export async function getUserWithApiKey(
       .select({
         id: user.id,
         apiKey: user.apiKey,
+        preferredModel: user.preferredModel,
         createdAt: user.createdAt,
         updatedAt: user.updatedAt,
       })

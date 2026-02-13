@@ -1,14 +1,5 @@
 import { DiagnosticCategory, DiagnosticSeverity } from "./types.js";
 
-const INSTALLABLE_CATEGORIES: ReadonlySet<DiagnosticCategory> = new Set([
-  DiagnosticCategory.MissingModule,
-  DiagnosticCategory.Dependency,
-]);
-
-export function isInstallableCategory(category: DiagnosticCategory): boolean {
-  return INSTALLABLE_CATEGORIES.has(category);
-}
-
 export function isErrorSeverity(severity: DiagnosticSeverity): boolean {
   return severity === DiagnosticSeverity.Error;
 }

@@ -132,12 +132,12 @@ const GenerationFlow = memo(function GenerationFlow() {
                         animation="fadeIn"
                         by="word"
                         duration={0.6}
-                        className="text-base md:text-lg font-medium text-foreground/80 tracking-tight leading-snug px-4"
+                        className="text-sm md:text-lg font-medium text-foreground/80 tracking-tight leading-snug px-4"
                     />
                 </div>
 
                 <div className="w-full flex flex-col items-center">
-                    <div className="font-mono text-[10px] md:text-[11px] space-y-1 w-full bg-white/[0.02] p-5 md:p-6 rounded-xl border border-white/[0.03] backdrop-blur-3xl shadow-2xl relative">
+                    <div className="font-mono text-[9px] md:text-[11px] space-y-1 w-full bg-white/[0.02] p-4 md:p-6 rounded-xl border border-white/[0.03] backdrop-blur-3xl shadow-2xl relative">
                         <div className="absolute top-2 right-3 flex gap-1 opacity-20">
                             <div className="w-[3px] h-[3px] rounded-full bg-primary" />
                             <div className="w-[3px] h-[3px] rounded-full bg-primary/20" />

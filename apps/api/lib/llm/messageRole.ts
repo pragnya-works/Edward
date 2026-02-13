@@ -3,7 +3,7 @@ import { MessageRole } from "@edward/auth";
 export type LlmConversationRole = MessageRole.User | MessageRole.Assistant;
 export type TokenBreakdownRole = MessageRole.System | LlmConversationRole;
 
-export function normalizeMessageRole(role: unknown): MessageRole | null {
+function normalizeMessageRole(role: unknown): MessageRole | null {
   if (typeof role !== "string") return null;
 
   const normalized = role.trim().toLowerCase();

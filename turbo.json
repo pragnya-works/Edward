@@ -35,6 +35,11 @@
         "GITHUB_CLIENT_SECRET"
       ]
     },
+    "@edward/ui#build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**"],
+      "env": ["NEXT_PUBLIC_ASSETS_URL"]
+    },
     "api#build": {
       "dependsOn": ["^build"],
       "outputs": ["dist/**"],

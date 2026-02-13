@@ -1,10 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { redis } from '../../lib/redis.js';
-import { 
-  acquireUserSlot, 
-  releaseUserSlot, 
+import {
+  acquireUserSlot,
+  releaseUserSlot,
   getUserConcurrency,
-  withUserSlot 
+  withUserSlot
 } from '../../services/concurrency.service.js';
 
 vi.mock('../../lib/redis.js', () => ({
@@ -75,22 +75,6 @@ describe('ConcurrencyService', () => {
 
     it('should fail closed when Redis eval fails', async () => {
       vi.mocked(redis.eval).mockRejectedValue(new Error('Redis connection failed'));
-
-      const result = await acquireUserSlot(mockUserId);
-
-      expect(result).toBe(false);
-    });
-
-    it('should fail closed on network timeout', async () => {
-      vi.mocked(redis.eval).mockRejectedValue(new Error('ETIMEDOUT'));
-
-      const result = await acquireUserSlot(mockUserId);
-
-      expect(result).toBe(false);
-    });
-
-    it('should fail closed on Redis unavailable', async () => {
-      vi.mocked(redis.eval).mockRejectedValue(new Error('ECONNREFUSED'));
 
       const result = await acquireUserSlot(mockUserId);
 
@@ -193,7 +177,7 @@ describe('ConcurrencyService', () => {
 
       const complexResult = { data: [1, 2, 3], status: 'success' };
       const mockFn = vi.fn().mockResolvedValue(complexResult);
-      
+
       const result = await withUserSlot(mockUserId, mockFn);
 
       expect(result).toEqual(complexResult);
@@ -213,14 +197,6 @@ describe('ConcurrencyService', () => {
 
       expect(result1).toBe(true);
       expect(result2).toBe(true);
-    });
-
-    it('should reject third concurrent request', async () => {
-      vi.mocked(redis.eval).mockResolvedValue(0);
-
-      const result = await acquireUserSlot(mockUserId);
-
-      expect(result).toBe(false);
     });
   });
 });

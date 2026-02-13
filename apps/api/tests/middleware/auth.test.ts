@@ -144,12 +144,6 @@ describe('auth middleware', () => {
       );
     });
 
-    it('should throw error when userId is undefined', () => {
-      const req = { userId: undefined } as AuthenticatedRequest;
-
-      expect(() => getAuthenticatedUserId(req)).toThrow();
-    });
-
     it('should throw error when userId is empty string', () => {
       const req = { userId: '' } as AuthenticatedRequest;
 

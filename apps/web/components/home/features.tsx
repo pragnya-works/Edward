@@ -75,12 +75,12 @@ const PulsingOrb = memo(function PulsingOrb() {
 
 const GlobeBackground = memo(() => {
     return (
-        <div className="absolute inset-0 flex items-start justify-center pt-8 overflow-hidden pointer-events-none transition-all duration-700 group-hover:scale-[1.03] group-hover:rotate-1">
-            <div className="absolute top-[25%] left-1/2 -translate-x-1/2 w-64 h-64 bg-primary/10 blur-[80px] rounded-full group-hover:bg-primary/15 transition-colors duration-700" />
+        <div className="absolute inset-0 flex items-start justify-center pt-4 md:pt-8 overflow-hidden pointer-events-none transition-all duration-700 group-hover:scale-[1.03] group-hover:rotate-1">
+            <div className="absolute top-[20%] md:top-[25%] left-1/2 -translate-x-1/2 w-48 md:w-64 h-48 md:h-64 bg-primary/10 blur-[60px] md:blur-[80px] rounded-full group-hover:bg-primary/15 transition-colors duration-700" />
 
-            <div className="relative w-full h-[90%] [mask-image:radial-gradient(circle_at_50%_35%,black_50%,transparent_90%)]">
+            <div className="relative w-full h-[85%] md:h-[90%] [mask-image:radial-gradient(circle_at_50%_35%,black_50%,transparent_90%)]">
                 <DottedMap
-                    className="opacity-20 group-hover:opacity-40 transition-all duration-700 scale-125 group-hover:scale-[1.3] text-primary/30"
+                    className="opacity-20 group-hover:opacity-40 transition-all duration-700 scale-[1.5] md:scale-125 group-hover:scale-[1.6] md:group-hover:scale-[1.3] text-primary/30"
                     dotColor="currentColor"
                     dotRadius={0.4}
                     markers={GLOBE_MARKERS}
@@ -90,7 +90,7 @@ const GlobeBackground = memo(() => {
 
             <PulsingOrb />
 
-            <div className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-background via-background/60 to-transparent" />
+            <div className="absolute inset-x-0 bottom-0 h-32 md:h-40 bg-gradient-to-t from-background via-background/60 to-transparent" />
         </div>
     );
 });
@@ -134,7 +134,7 @@ const features = [
         name: "Autonomous Intelligence",
         description: "Edward plans, executes, and iterates. It doesn't just write code; it follows instructions to completion across your entire project.",
         href: "/",
-        cta: "View Roadmap",
+        cta: "Try now",
         className: "md:col-span-2",
         background: <TerminalBackground />,
     },
@@ -233,12 +233,12 @@ export function Features() {
         <section className="relative w-full py-14 md:py-32 px-4 overflow-hidden">
 
             <div className="mx-auto max-w-6xl relative z-10">
-                <div className="my-20 flex flex-col items-center justify-center text-center">
-                    <h2 className="mb-6 text-3xl font-bold tracking-tight text-foreground md:text-4xl lg:text-5xl">
+                <div className="my-10 md:my-20 flex flex-col items-center justify-center text-center">
+                    <h2 className="mb-4 md:mb-6 text-2xl font-bold tracking-tight text-foreground md:text-4xl lg:text-5xl">
                         Everything you need to ship{" "}
                         <FasterText shadowColor="var(--foreground)" />
                     </h2>
-                    <p className="max-w-2xl text-base text-muted-foreground leading-relaxed md:text-lg">
+                    <p className="max-w-2xl text-sm md:text-base lg:text-lg text-muted-foreground leading-relaxed">
                         Edward streamlines the entire development journey, seamlessly transforming your vision into functional, interactive applications.
                     </p>
                 </div>

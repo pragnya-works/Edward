@@ -2,6 +2,12 @@ import * as React from "react"
 import { createMap } from "svg-dotted-map"
 import { cn } from "@edward/ui/lib/utils"
 
+interface MapPoint {
+    x: number
+    y: number
+    size?: number
+}
+
 interface Marker {
     lat: number
     lng: number
@@ -31,21 +37,16 @@ export const DottedMap = React.memo(function DottedMap({
     className,
     style,
 }: DottedMapProps) {
-    // Memoize the expensive map creation
     const { points, addMarkers } = React.useMemo(
         () => createMap({ width, height, mapSamples }),
         [width, height, mapSamples]
     )
 
-    // Memoize processed markers
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const processedMarkers: any[] = React.useMemo(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        () => (addMarkers as any)(markers),
+    const processedMarkers: MapPoint[] = React.useMemo(
+        () => addMarkers(markers) as MapPoint[],
         [addMarkers, markers]
     )
 
-    // Compute stagger helpers in a single, simple pass
     const { xStep, yToRowIndex } = React.useMemo(() => {
         const sorted = [...points].sort((a, b) => a.y - b.y || a.x - b.x)
         const rowMap = new Map<number, number>()
@@ -55,7 +56,6 @@ export const DottedMap = React.memo(function DottedMap({
 
         for (const p of sorted) {
             if (p.y !== prevY) {
-                // new row
                 prevY = p.y
                 prevXInRow = Number.NaN
                 if (!rowMap.has(p.y)) rowMap.set(p.y, rowMap.size)
@@ -75,8 +75,7 @@ export const DottedMap = React.memo(function DottedMap({
             className={cn("text-gray-500 dark:text-gray-500", className)}
             style={{ width: "100%", height: "100%", ...style }}
         >
-            {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-            {points.map((point: any, index: number) => {
+            {points.map((point: MapPoint, index: number) => {
                 const rowIndex = yToRowIndex.get(point.y) ?? 0
                 const offsetX = stagger && rowIndex % 2 === 1 ? xStep / 2 : 0
                 return (
@@ -89,8 +88,7 @@ export const DottedMap = React.memo(function DottedMap({
                     />
                 )
             })}
-            {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-            {processedMarkers.map((marker: any, index: number) => {
+            {processedMarkers.map((marker: MapPoint, index: number) => {
                 const rowIndex = yToRowIndex.get(marker.y) ?? 0
                 const offsetX = stagger && rowIndex % 2 === 1 ? xStep / 2 : 0
                 return (

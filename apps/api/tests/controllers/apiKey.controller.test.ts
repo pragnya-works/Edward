@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { Response, NextFunction } from "express";
-import { db } from "@edward/auth";
 import {
   getApiKey,
   createApiKey,
@@ -73,6 +72,7 @@ describe("apiKey controller", () => {
       const mockUserData = {
         id: mockUserId,
         apiKey: mockEncryptedKey,
+        preferredModel: null,
         createdAt: new Date("2024-01-01"),
         updatedAt: new Date("2024-01-02"),
       };
@@ -111,6 +111,7 @@ describe("apiKey controller", () => {
       const mockUserData = {
         id: mockUserId,
         apiKey: null,
+        preferredModel: null,
         createdAt: new Date("2024-01-01"),
         updatedAt: new Date("2024-01-02"),
       };
@@ -147,6 +148,7 @@ describe("apiKey controller", () => {
       const mockUserData = {
         id: mockUserId,
         apiKey: "corrupted-key",
+        preferredModel: null,
         createdAt: new Date(),
         updatedAt: new Date(),
       };
@@ -191,6 +193,7 @@ describe("apiKey controller", () => {
       const mockUserData = {
         id: mockUserId,
         apiKey: null,
+        preferredModel: null,
         createdAt: new Date(),
         updatedAt: new Date(),
       };
@@ -198,7 +201,6 @@ describe("apiKey controller", () => {
       vi.mocked(apiKeyService.getUserWithApiKey).mockResolvedValue(
         mockUserData,
       );
-      vi.mocked(db.returning).mockResolvedValue([{ id: mockUserId }]);
 
       const req = createMockRequest({
         apiKey: "sk-proj-valid-key-12345678901234567890",
@@ -242,6 +244,7 @@ describe("apiKey controller", () => {
       const mockUserData = {
         id: mockUserId,
         apiKey: "existing-key",
+        preferredModel: null,
         createdAt: new Date(),
         updatedAt: new Date(),
       };
@@ -267,6 +270,7 @@ describe("apiKey controller", () => {
       const mockUserData = {
         id: mockUserId,
         apiKey: "old-key",
+        preferredModel: null,
         createdAt: new Date(),
         updatedAt: new Date(),
       };
@@ -274,7 +278,6 @@ describe("apiKey controller", () => {
       vi.mocked(apiKeyService.getUserWithApiKey).mockResolvedValue(
         mockUserData,
       );
-      vi.mocked(db.returning).mockResolvedValue([{ id: mockUserId }]);
 
       const req = createMockRequest({
         apiKey: "sk-proj-new-key-12345678901234567890",
@@ -320,6 +323,7 @@ describe("apiKey controller", () => {
       const mockUserData = {
         id: mockUserId,
         apiKey: "existing-key",
+        preferredModel: null,
         createdAt: new Date(),
         updatedAt: new Date(),
       };
@@ -327,7 +331,6 @@ describe("apiKey controller", () => {
       vi.mocked(apiKeyService.getUserWithApiKey).mockResolvedValue(
         mockUserData,
       );
-      vi.mocked(db.returning).mockResolvedValue([{ id: mockUserId }]);
 
       const req = createMockRequest();
       const res = createMockResponse();

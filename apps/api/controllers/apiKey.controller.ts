@@ -33,6 +33,7 @@ async function getApiKeyHandler(
     sendSuccess(res, HttpStatus.OK, "No API key found", {
       hasApiKey: false,
       userId: userData?.id || userId,
+      preferredModel: userData?.preferredModel,
       createdAt: userData?.createdAt,
       updatedAt: userData?.updatedAt,
     });
@@ -53,6 +54,7 @@ async function getApiKeyHandler(
   sendSuccess(res, HttpStatus.OK, "API key status retrieved successfully", {
     hasApiKey: true,
     keyPreview,
+    preferredModel: userData.preferredModel,
     userId: userData.id,
     createdAt: userData.createdAt,
     updatedAt: userData.updatedAt,
@@ -83,13 +85,27 @@ async function createApiKeyHandler(
   const encryptedApiKey = encrypt(apiKey);
   const [updatedUser] = await db
     .update(user)
-    .set({ apiKey: encryptedApiKey, updatedAt: new Date() })
+    .set({
+      apiKey: encryptedApiKey,
+      preferredModel: req.body.model,
+      updatedAt: new Date(),
+    })
     .where(eq(user.id, userData.id))
     .returning();
+
+  if (!updatedUser) {
+    sendError(
+      res,
+      HttpStatus.INTERNAL_SERVER_ERROR,
+      "Failed to create API key",
+    );
+    return;
+  }
 
   sendSuccess(res, HttpStatus.CREATED, "API key created successfully", {
     userId: updatedUser.id,
     keyPreview: formatKeyPreview(apiKey),
+    preferredModel: updatedUser.preferredModel,
   });
 }
 
@@ -107,19 +123,31 @@ async function updateApiKeyHandler(
   }
 
   const encryptedApiKey = encrypt(apiKey);
+  const modelToSet = req.body.model || userData.preferredModel;
 
   const [updatedUser] = await db
     .update(user)
     .set({
       apiKey: encryptedApiKey,
+      preferredModel: modelToSet,
       updatedAt: new Date(),
     })
     .where(eq(user.id, userData.id))
     .returning();
 
+  if (!updatedUser) {
+    sendError(
+      res,
+      HttpStatus.INTERNAL_SERVER_ERROR,
+      "Failed to update API key",
+    );
+    return;
+  }
+
   sendSuccess(res, HttpStatus.OK, "API key updated successfully", {
     userId: updatedUser.id,
     keyPreview: formatKeyPreview(apiKey),
+    preferredModel: updatedUser.preferredModel,
   });
 }
 

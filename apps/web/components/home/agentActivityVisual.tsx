@@ -44,8 +44,8 @@ const HighlightedText = memo(({ text }: { text: string }) => {
             {parts.map((part, i) => {
                 const isHighlight = part.startsWith('[') && part.endsWith(']');
                 return (
-                    <span 
-                        key={i} 
+                    <span
+                        key={i}
                         className={isHighlight ? "text-primary/70" : ""}
                     >
                         {part}
@@ -69,7 +69,7 @@ const ToolCallUI = memo(({ call }: { call: ToolCall }) => {
             <div className="p-1 rounded bg-primary/10">
                 <Icon className="w-3 h-3 text-primary/70" />
             </div>
-            
+
             <HighlightedText text={call.context} />
 
             {call.status === "running" ? (
@@ -84,10 +84,10 @@ ToolCallUI.displayName = "ToolCallUI";
 
 const SEQUENCE = [
     { delay: 1000, next: 1 },
-    { delay: 800,  next: 2 },
+    { delay: 800, next: 2 },
     { delay: 1200, next: 3 },
     { delay: 1000, next: 4 },
-    { delay: 800,  next: 5 },
+    { delay: 800, next: 5 },
     { delay: 5000, next: 0 }
 ] as const;
 
@@ -108,40 +108,40 @@ export const AgentActivityVisual = memo(() => {
     const [step, setStep] = useState(0);
     const timeoutRef = useRef<NodeJS.Timeout | null>(null);
     const sequenceIndexRef = useRef(0);
-    
+
     const isDocumentVisible = useSyncExternalStore(
         subscribeToVisibility,
         getVisibilitySnapshot,
         getServerVisibilitySnapshot
     );
-    
+
     const clearCurrentTimeout = useCallback(() => {
         if (timeoutRef.current) {
             clearTimeout(timeoutRef.current);
             timeoutRef.current = null;
         }
     }, []);
-    
+
     const runSequence = useCallback(() => {
         const currentSequenceStep = SEQUENCE[sequenceIndexRef.current];
         if (!currentSequenceStep) return;
-        
+
         clearCurrentTimeout();
-        
+
         timeoutRef.current = setTimeout(() => {
             setStep(currentSequenceStep.next);
             sequenceIndexRef.current = (sequenceIndexRef.current + 1) % SEQUENCE.length;
             runSequence();
         }, currentSequenceStep.delay);
     }, [clearCurrentTimeout]);
-    
+
     useEffect(() => {
         if (isDocumentVisible) {
             runSequence();
         } else {
             clearCurrentTimeout();
         }
-        
+
         return () => clearCurrentTimeout();
     }, [isDocumentVisible, runSequence, clearCurrentTimeout]);
 
@@ -162,7 +162,7 @@ export const AgentActivityVisual = memo(() => {
                             <div className="w-6 h-6 rounded-full bg-white/5 border border-white/10 flex items-center justify-center shrink-0">
                                 <User className="w-3.5 h-3.5 text-foreground/40" />
                             </div>
-                            <div className="bg-white/[0.03] border border-white/5 rounded-2xl p-4 text-[12px] text-foreground/80 leading-relaxed shadow-sm">
+                            <div className="bg-white/[0.03] border border-white/5 rounded-2xl p-3 md:p-4 text-[10px] md:text-[12px] text-foreground/80 leading-relaxed shadow-sm">
                                 {data.user}
                             </div>
                         </motion.div>
@@ -178,7 +178,7 @@ export const AgentActivityVisual = memo(() => {
                             <div className="w-6 h-6 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0 shadow-[0_0_15px_rgba(var(--color-primary),0.1)]">
                                 <Bot className="w-3.5 h-3.5 text-primary" />
                             </div>
-                            
+
                             <div className="flex-1 space-y-3">
                                 <div className="space-y-1">
                                     {data.tools.map((tool, idx) => (
@@ -202,7 +202,7 @@ export const AgentActivityVisual = memo(() => {
                     )}
                 </AnimatePresence>
             </div>
-            
+
             <div className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-background via-background/90 to-transparent pointer-events-none z-20" />
             <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 blur-[120px] rounded-full -translate-y-1/2 translate-x-1/2 pointer-events-none" />
         </div>

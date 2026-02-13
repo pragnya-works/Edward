@@ -71,6 +71,27 @@
       "when": 1770879404091,
       "tag": "0009_keen_sasquatch",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1770895824475,
+      "tag": "0010_strange_obadiah_stane",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1770900000000,
+      "tag": "0011_set_preferred_model_default",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1770954364713,
+      "tag": "0012_lonely_tombstone",
+      "breakpoints": true
     }
   ]
 }

@@ -38,8 +38,8 @@ export default function ConditionalSidebarLayout({
           <AppSidebar open={open} setOpen={setOpen}>
             <UserProfile />
           </AppSidebar>
-          <div className="flex flex-1">
-            <div className="p-2 md:p-10 rounded-tl-2xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 flex flex-col gap-2 flex-1 w-full h-full overflow-y-auto">
+          <div className="flex flex-1 min-h-0">
+            <div className="p-2 md:p-10 rounded-tl-2xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 flex flex-col gap-2 flex-1 w-full min-h-0 overflow-y-auto">
               {children}
             </div>
           </div>

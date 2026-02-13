@@ -118,31 +118,3 @@ function suggestAction(
       return undefined;
   }
 }
-
-export function getRelatedFiles(diagnostics: Diagnostic[]): string[] {
-  const files = new Set<string>();
-  for (const d of diagnostics) {
-    if (d.file) files.add(d.file);
-    if (d.relatedFiles) {
-      for (const f of d.relatedFiles) files.add(f);
-    }
-  }
-  return Array.from(files);
-}
-
-export function formatDiagnosticsForContext(diagnostics: Diagnostic[]): string {
-  if (diagnostics.length === 0) return "";
-
-  const lines = ["BUILD DIAGNOSTICS:"];
-  for (const d of diagnostics) {
-    const location = d.file
-      ? `${d.file}${d.line ? `:${d.line}` : ""}${d.column ? `:${d.column}` : ""}`
-      : "unknown location";
-    lines.push(`[${d.severity.toUpperCase()}] ${d.category} at ${location}`);
-    lines.push(`  ${d.message}`);
-    if (d.ruleId) lines.push(`  Rule: ${d.ruleId}`);
-    if (d.suggestedAction) lines.push(`  Fix: ${d.suggestedAction}`);
-    lines.push("");
-  }
-  return lines.join("\n");
-}

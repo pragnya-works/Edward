@@ -22,8 +22,6 @@ export const WorkflowStatus = {
 
 export const WorkflowStatusSchema = z.nativeEnum(WorkflowStatus);
 
-export const ExecutorTypeSchema = z.enum(['llm', 'worker', 'hybrid']);
-
 export const FrameworkSchema = z.enum(['nextjs', 'vite-react', 'vanilla']);
 
 export const ComplexitySchema = z.enum(['simple', 'moderate', 'complex']);
@@ -91,7 +89,7 @@ export const WorkflowStateSchema = z.object({
 
 export const PhaseConfigSchema = z.object({
     name: WorkflowStepTypeSchema,
-    executor: ExecutorTypeSchema,
+    executor: z.enum(['llm', 'worker', 'hybrid']),
     maxRetries: z.number().default(3),
     timeoutMs: z.number().default(60000)
 });

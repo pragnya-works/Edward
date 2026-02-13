@@ -1,13 +1,14 @@
 import { z } from "zod";
 import { MessageRole } from "@edward/auth";
-import {
-  ChatActionSchema,
-} from "../services/planning/schemas.js";
+import { Model } from "@edward/shared/schema";
+import { ChatActionSchema } from "../services/planning/schemas.js";
 import {
   NPM_PACKAGE_REGEX,
   MAX_DEPENDENCIES,
   MAX_PACKAGE_NAME_LENGTH,
 } from "../utils/sharedConstants.js";
+
+const ModelValues = Object.values(Model) as [string, ...string[]];
 
 export enum StreamState {
   TEXT = "TEXT",
@@ -45,6 +46,7 @@ export const UnifiedSendMessageSchema = z.object({
   title: z.string().optional(),
   description: z.string().optional(),
   visibility: z.boolean().optional(),
+  model: z.enum(ModelValues).optional(),
 });
 
 export const UnifiedSendMessageRequestSchema = z.object({
@@ -53,6 +55,21 @@ export const UnifiedSendMessageRequestSchema = z.object({
 
 export const GetChatHistoryRequestSchema = z.object({
   params: ChatIdParamSchema,
+});
+
+export const RecentChatsQuerySchema = z.object({
+  query: z.object({
+    limit: z
+      .string()
+      .optional()
+      .transform((val) => (val ? parseInt(val, 10) : 6))
+      .pipe(z.number().int().nonnegative().max(100)),
+    offset: z
+      .string()
+      .optional()
+      .transform((val) => (val ? parseInt(val, 10) : 0))
+      .pipe(z.number().int().nonnegative()),
+  }),
 });
 
 export const ParserEventSchema = z.discriminatedUnion("type", [
@@ -113,7 +130,7 @@ export const ParserEventSchema = z.discriminatedUnion("type", [
     tokenUsage: z
       .object({
         provider: z.enum(["openai", "gemini"]),
-        model: z.string(),
+        model: z.enum(ModelValues),
         method: z.enum(["openai-tiktoken", "gemini-countTokens", "approx"]),
         contextWindowTokens: z.number().int().nonnegative(),
         reservedOutputTokens: z.number().int().nonnegative(),
