@@ -62,11 +62,13 @@ export const RecentChatsQuerySchema = z.object({
     limit: z
       .string()
       .optional()
-      .transform((val) => (val ? parseInt(val, 10) : 6)),
+      .transform((val) => (val ? parseInt(val, 10) : 6))
+      .pipe(z.number().int().nonnegative().max(100)),
     offset: z
       .string()
       .optional()
-      .transform((val) => (val ? parseInt(val, 10) : 0)),
+      .transform((val) => (val ? parseInt(val, 10) : 0))
+      .pipe(z.number().int().nonnegative()),
   }),
 });
 
