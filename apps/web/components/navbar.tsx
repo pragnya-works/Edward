@@ -19,6 +19,7 @@ import { Skeleton } from "@edward/ui/components/skeleton";
 import { useSession } from "@/lib/auth-client";
 import { useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
+import { GitHub } from "@edward/ui/components/icons/github";
 
 export default function Navbar() {
   const { data: session, isPending } = useSession();
@@ -76,7 +77,7 @@ export default function Navbar() {
                   {isLoading ? (
                     <LoaderIcon className="mr-2 h-5 w-5 animate-spin text-muted-foreground" />
                   ) : (
-                    <IconBrandGithubFilled className="mr-2 h-5 w-5 text-primary-foreground" />
+                    <GitHub className="size-5 mr-3" />
                   )}
                   Log in
                 </NavbarButton>
@@ -126,7 +127,7 @@ export default function Navbar() {
             {isLoading ? (
               <LoaderIcon className="mr-2 h-5 w-5 animate-spin" />
             ) : (
-              <IconBrandGithubFilled className="mr-2 h-5 w-5" />
+              <GitHub className="size-5 mr-3" />
             )}
             Log in
           </NavbarButton>

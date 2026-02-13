@@ -16,11 +16,11 @@ import { BYOK } from "@edward/ui/components/ui/byok";
 import { Provider } from "@edward/shared/constants";
 
 const SUGGESTIONS: string[] = [
-  "Build a high-fidelity SaaS landing page with Bento grid layouts and subtle Framer Motion reveals",
-  "Create a complex multi-step onboarding flow with persistent state and Zod schema validation",
-  "Implement a responsive, accessible admin dashboard with dynamic sidebars and CSS Grid",
-  "Design a dark-themed AI command palette with fuzzy search and keyboard navigation",
-  "Develop a glassmorphic data visualization dashboard using Recharts and interactive filters",
+  "Build a high-fidelity SaaS landing page with Bento grid layouts and subtle motion reveals",
+  "Create a complex multi-step onboarding flow with persistent state and Zod validation",
+  "Implement a responsive dashboard with dynamic sidebar navigation and CSS Grid",
+  "Design a dark-themed command palette with fuzzy search and keyboard shortcuts",
+  "Develop a glassmorphic analytics dashboard using interactive charting and Tailwind CSS",
 ];
 
 interface PromptbarProps {

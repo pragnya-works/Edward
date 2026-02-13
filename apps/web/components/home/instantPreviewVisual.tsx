@@ -29,12 +29,12 @@ const Sidebar = memo(function Sidebar() {
     return (
         <div className="w-10 md:w-12 border-r border-border bg-muted/5 p-3 space-y-4 shrink-0">
             {[1, 2, 3, 4].map((i) => (
-                <div 
-                    key={i} 
+                <div
+                    key={i}
                     className={cn(
-                        "h-1.5 w-full rounded-full", 
+                        "h-1.5 w-full rounded-full",
                         i === 1 ? 'bg-primary/20' : 'bg-muted-foreground/10'
-                    )} 
+                    )}
                 />
             ))}
         </div>
@@ -53,7 +53,7 @@ const SkeletonUI = memo(function SkeletonUI() {
                 <div className="h-20 rounded-xl bg-muted/5 border border-border/20 animate-pulse" />
             </div>
             <div className="h-24 w-full rounded-xl bg-primary/5 border border-primary/10 relative overflow-hidden">
-                <motion.div 
+                <motion.div
                     animate={{ x: ["-100%", "200%"] }}
                     transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
                     className="absolute inset-0 bg-gradient-to-r from-transparent via-primary/5 to-transparent"
@@ -67,7 +67,7 @@ const DashboardLayout = memo(function DashboardLayout() {
     return (
         <div className="flex-1 p-5 md:p-6 space-y-5 overflow-hidden">
             <div className="flex items-center justify-between">
-                <motion.div 
+                <motion.div
                     variants={variants.slideRight}
                     initial="initial"
                     animate="animate"
@@ -81,7 +81,7 @@ const DashboardLayout = memo(function DashboardLayout() {
                 </div>
             </div>
 
-            <motion.div 
+            <motion.div
                 initial={{ opacity: 0, scale: 0.98, y: 30 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 className="h-28 md:h-32 w-full rounded-xl bg-gradient-to-br from-primary/10 via-background to-background border border-border p-4 relative"
@@ -104,7 +104,7 @@ const DashboardLayout = memo(function DashboardLayout() {
 
             <div className="grid grid-cols-2 gap-3">
                 {[1, 2].map((i) => (
-                    <motion.div 
+                    <motion.div
                         key={i}
                         variants={variants.slideUp}
                         initial="initial"
@@ -117,7 +117,7 @@ const DashboardLayout = memo(function DashboardLayout() {
                             <div className="h-1.5 w-12 rounded bg-muted mt-1.5" />
                         </div>
                         <div className="h-1 w-full rounded-full bg-muted/40 overflow-hidden">
-                            <motion.div 
+                            <motion.div
                                 initial={{ width: 0 }}
                                 animate={{ width: i === 1 ? "70%" : "45%" }}
                                 transition={{ duration: 1, delay: 0.8 }}
@@ -134,7 +134,7 @@ const DashboardLayout = memo(function DashboardLayout() {
 const MarketingLayout = memo(function MarketingLayout() {
     return (
         <div className="flex-1 p-6 space-y-6 overflow-hidden flex flex-col items-center">
-            <motion.div 
+            <motion.div
                 variants={variants.scaleUp}
                 initial="initial"
                 animate="animate"
@@ -148,7 +148,7 @@ const MarketingLayout = memo(function MarketingLayout() {
                 </h3>
             </motion.div>
 
-            <motion.div 
+            <motion.div
                 initial={{ opacity: 0, y: 30 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.3 }}
@@ -194,7 +194,7 @@ const KanbanLayout = memo(function KanbanLayout() {
                         <span className="text-[9px] font-bold opacity-50 uppercase tracking-wider">In Progress</span>
                     </div>
                     {[1, 2].map(i => (
-                        <motion.div 
+                        <motion.div
                             key={i}
                             variants={variants.slideRight}
                             initial="initial"
@@ -236,7 +236,7 @@ const SettingsLayout = memo(function SettingsLayout() {
 
             <div className="space-y-4 pt-2">
                 {[1, 2, 3].map(i => (
-                    <motion.div 
+                    <motion.div
                         key={i}
                         variants={variants.slideUp}
                         initial="initial"
@@ -303,36 +303,36 @@ function getServerVisibilitySnapshot() {
 function useVisibilityAwareInterval(callback: () => void, delay: number) {
     const savedCallback = useRef(callback);
     const intervalRef = useRef<NodeJS.Timeout | null>(null);
-    
+
     const isDocumentVisible = useSyncExternalStore(
         subscribeToVisibility,
         getVisibilitySnapshot,
         getServerVisibilitySnapshot
     );
-    
+
     useEffect(() => {
         savedCallback.current = callback;
     }, [callback]);
-    
+
     useEffect(() => {
         const startInterval = () => {
             if (intervalRef.current) return;
             intervalRef.current = setInterval(() => savedCallback.current(), delay);
         };
-        
+
         const stopInterval = () => {
             if (intervalRef.current) {
                 clearInterval(intervalRef.current);
                 intervalRef.current = null;
             }
         };
-        
+
         if (isDocumentVisible) {
             startInterval();
         } else {
             stopInterval();
         }
-        
+
         return () => stopInterval();
     }, [delay, isDocumentVisible]);
 }
@@ -352,7 +352,7 @@ export function InstantPreviewVisual() {
             setIsGenerating(false);
         }, 1200);
     }, []);
-    
+
     useVisibilityAwareInterval(handleCycle, 6000);
 
     useEffect(() => {
@@ -364,12 +364,12 @@ export function InstantPreviewVisual() {
             }
         };
     }, []);
-    
+
     const currentLayoutType = LAYOUT_ORDER[index] ?? 'dashboard';
 
     return (
         <div className="absolute inset-0 flex justify-center opacity-95 pointer-events-none group-hover:scale-[1.03] transition-transform duration-[1.5s] ease-out pt-4">
-            <div className="h-[75%] md:h-[70%] w-[85%] rounded-2xl border border-border bg-card/60 backdrop-blur-2xl shadow-[0_0_50px_-12px_rgba(0,0,0,0.4)] relative top-4 transition-all duration-700 overflow-hidden flex flex-col antialiased">
+            <div className="h-[80%] md:h-[70%] w-[92%] md:w-[85%] rounded-2xl border border-border bg-card/60 backdrop-blur-2xl shadow-[0_0_50px_-12px_rgba(0,0,0,0.4)] relative top-2 md:top-4 transition-all duration-700 overflow-hidden flex flex-col antialiased">
                 <BrowserHeader />
                 <div className="flex-1 flex overflow-hidden">
                     <Sidebar />
@@ -380,7 +380,7 @@ export function InstantPreviewVisual() {
                                 variants={variants.fadeIn}
                                 initial="initial"
                                 animate="animate"
-                                exit={{ 
+                                exit={{
                                     opacity: 0,
                                     filter: "blur(12px)",
                                     scale: 1.05,
@@ -389,7 +389,7 @@ export function InstantPreviewVisual() {
                                 className="flex-1 h-full relative"
                             >
                                 <SkeletonUI />
-                                <motion.div 
+                                <motion.div
                                     animate={{ top: ["0%", "100%"] }}
                                     transition={{ duration: 1.2, repeat: Infinity, ease: "linear" }}
                                     className="absolute inset-x-0 h-px bg-gradient-to-r from-transparent via-primary/60 to-transparent shadow-[0_0_15px_rgba(var(--color-primary),0.3)] z-20"
@@ -408,7 +408,7 @@ export function InstantPreviewVisual() {
                         )}
                     </AnimatePresence>
                 </div>
-                
+
                 <div className="absolute inset-0 pointer-events-none border border-white/[0.03] rounded-2xl" />
             </div>
         </div>
