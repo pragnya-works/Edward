@@ -76,7 +76,8 @@
         "EDWARD_DEPLOYMENT_TYPE",
         "PREWARM_SANDBOX_IMAGE",
         "DOCKER_REGISTRY_BASE",
-        "REDIS_URL"
+        "REDIS_URL",
+        "SENTRY_DSN"
       ]
     },
     "typecheck": {

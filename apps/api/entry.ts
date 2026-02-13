@@ -3,7 +3,8 @@ import express, { Request, Response, NextFunction } from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import helmet from "helmet";
-
+import "./utils/sentry.js";
+import { Sentry } from "./utils/sentry.js";
 import {
   initSandboxService,
   shutdownSandboxService,
@@ -145,7 +146,7 @@ app.use(function globalErrorHandler(
   void _next;
   const error = ensureError(err);
   logger.error(error);
-
+  Sentry.captureException(error);
   res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
     error: isProd ? ERROR_MESSAGES.INTERNAL_SERVER_ERROR : error.message,
     timestamp: new Date().toISOString(),
@@ -198,10 +199,12 @@ process.on("SIGTERM", () => handleGracefulShutdown("SIGTERM"));
 
 process.on("uncaughtException", (error) => {
   logger.fatal(error, "Uncaught Exception");
+  Sentry.captureException(error);
   handleGracefulShutdown("uncaughtException");
 });
 
 process.on("unhandledRejection", (reason) => {
   logger.fatal({ reason }, "Unhandled Rejection");
+  Sentry.captureException(reason);
   handleGracefulShutdown("unhandledRejection");
 });
