@@ -1,5 +1,6 @@
 import React, { useMemo } from "react";
 import { motion } from "motion/react";
+import { Eye } from "lucide-react";
 import { Provider } from "@edward/shared/constants";
 import { getModelsByProvider } from "@edward/shared/schema";
 import { cn } from "@edward/ui/lib/utils";
@@ -52,8 +53,8 @@ export function ModelSelector({
               className={cn(
                 "group relative w-full flex items-center justify-between p-3 rounded-xl text-left transition-all duration-200 border",
                 isSelected
-                  ? "bg-primary/[0.05] dark:bg-primary/[0.03] border-primary/40 dark:border-primary/30 shadow-sm dark:shadow-[0_2px_10px_rgba(0,0,0,0.1)]"
-                  : "bg-transparent border-transparent hover:bg-muted/15 dark:hover:bg-muted/10 hover:border-border/60 dark:hover:border-border/40",
+                  ? "bg-muted/30 dark:bg-primary/[0.03] border-primary/30 dark:border-primary/30 shadow-sm"
+                  : "bg-transparent border-transparent hover:bg-foreground/[0.02] dark:hover:bg-white/[0.03] hover:border-border/40 dark:hover:border-white/[0.06] hover:shadow-sm",
               )}
               aria-pressed={isSelected}
             >
@@ -63,13 +64,16 @@ export function ModelSelector({
                     "flex-shrink-0 h-9 w-9 rounded-lg flex items-center justify-center border transition-all duration-300",
                     isSelected
                       ? "bg-primary text-primary-foreground border-primary shadow-md shadow-primary/10"
-                      : "bg-muted/10 border-border group-hover:border-primary/20 text-muted-foreground group-hover:text-primary",
+                      : "bg-muted/20 dark:bg-muted/10 border-border group-hover:border-primary/20 text-muted-foreground group-hover:text-primary",
                   )}
                 >
                   <img
                     src={iconUrl}
                     alt={`${model.label} icon`}
-                    className={cn("object-contain m-0 p-0", provider === Provider.GEMINI ? "size-5" : null)}
+                    className={cn(
+                      "object-contain m-0 p-0",
+                      provider === Provider.GEMINI ? "size-5" : null,
+                    )}
                   />
                 </div>
 
@@ -87,29 +91,44 @@ export function ModelSelector({
                       <div className="h-1 w-1 rounded-full bg-primary" />
                     )}
                   </div>
-                  <span className="text-[11px] text-muted-foreground/60 truncate">
+                  <span className="text-[11px] text-muted-foreground/70 dark:text-muted-foreground/60 truncate">
                     {model.description}
                   </span>
                 </div>
               </div>
 
               <div className="flex items-center gap-4 relative z-10 shrink-0 ml-4">
-                <div className="flex flex-col items-end">
-                  <span className="text-[9px] font-bold text-muted-foreground/30 uppercase tracking-widest">
-                    Logic
-                  </span>
-                  <span
-                    className={cn(
-                      "text-[10px] font-bold tabular-nums",
-                      model.reasoning === "Max" || model.reasoning === "Peak"
-                        ? "text-emerald-500/90"
-                        : model.reasoning === "High"
-                          ? "text-blue-500/90"
-                          : "text-muted-foreground/40",
-                    )}
-                  >
-                    {model.reasoning}
-                  </span>
+                <div className="flex items-center gap-2">
+                  {model.supportsVision && (
+                    <div
+                      className={cn(
+                        "flex items-center gap-1 px-1.5 py-0.5 rounded-md border text-[9px] font-bold uppercase tracking-wider",
+                        isSelected
+                          ? "bg-violet-500/10 border-violet-500/30 text-violet-600 dark:text-violet-400"
+                          : "bg-muted/30 border-border/50 text-muted-foreground/50",
+                      )}
+                    >
+                      <Eye className="h-2.5 w-2.5" />
+                      <span>Vision</span>
+                    </div>
+                  )}
+                  <div className="flex flex-col items-end">
+                    <span className="text-[9px] font-bold text-muted-foreground/50 dark:text-muted-foreground/30 uppercase tracking-widest">
+                      Logic
+                    </span>
+                    <span
+                      className={cn(
+                        "text-[10px] font-bold tabular-nums",
+                        model.reasoning === "Max" || model.reasoning === "Peak"
+                          ? "text-emerald-500/90"
+                          : model.reasoning === "High"
+                            ? "text-blue-500/90"
+                            : "text-muted-foreground/40",
+                      )}
+                    >
+                      {model.reasoning}
+                    </span>
+                  </div>
                 </div>
               </div>
 
@@ -117,7 +136,7 @@ export function ModelSelector({
                 <>
                   <motion.div
                     layoutId="active-pill"
-                    className="absolute inset-0 border border-primary/20 bg-primary/[0.02] dark:bg-primary/[0.04] rounded-xl pointer-events-none shadow-[inset_0_1px_1px_rgba(255,255,255,0.1),0_1px_2px_rgba(0,0,0,0.05)]"
+                    className="absolute inset-0 rounded-xl pointer-events-none shadow-[0_0_0_1px_rgba(var(--color-primary),0.1)] dark:shadow-[inset_0_1px_1px_rgba(255,255,255,0.06),0_1px_2px_rgba(0,0,0,0.05)]"
                     transition={{ type: "spring", bounce: 0.15, duration: 0.5 }}
                   />
                   <motion.div

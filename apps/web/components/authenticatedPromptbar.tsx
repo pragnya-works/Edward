@@ -5,7 +5,7 @@ import { useSession, signIn } from "@/lib/auth-client";
 import { useApiKey } from "@/hooks/useApiKey";
 
 interface AuthenticatedPromptbarProps {
-  onProtectedAction?: () => void | Promise<void>;
+  onProtectedAction?: (files?: File[]) => void | Promise<void>;
 }
 
 export default function AuthenticatedPromptbar({
@@ -26,6 +26,7 @@ export default function AuthenticatedPromptbar({
       isApiKeyLoading={isLoading}
       apiKeyError={error}
       preferredModel={preferredModel || undefined}
+      selectedModelId={preferredModel || undefined}
       onSaveApiKey={validateAndSaveApiKey}
     />
   );

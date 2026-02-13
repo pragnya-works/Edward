@@ -45,6 +45,7 @@ interface BYOKProps {
   preferredModel?: string;
   keyPreview?: string | null;
   hasExistingKey?: boolean;
+  onModelChange?: (modelId: string) => void;
 }
 
 const PROVIDERS_CONFIG = [
@@ -73,6 +74,7 @@ export function BYOK({
   keyPreview = null,
   hasExistingKey = false,
   preferredModel,
+  onModelChange,
 }: BYOKProps) {
   const [apiKey, setApiKey] = useState(initialApiKey);
   const [selectedProvider, setSelectedProvider] =
@@ -100,6 +102,11 @@ export function BYOK({
       setShowSuccess(false);
     }
   }, [isOpen, initialApiKey, preferredModel, initialProvider]);
+
+  function handleModelChange(modelId: string) {
+    setSelectedModel(modelId);
+    onModelChange?.(modelId);
+  }
 
   function validateApiKey(key: string, provider: Provider): boolean {
     if (!key.trim()) return false;
@@ -166,12 +173,12 @@ export function BYOK({
               {hasExistingKey ? "Manage Your API Key" : "Add Your API Key"}
             </DialogTitle>
             <DialogDescription className="space-y-2">
-              <span className="block italic text-muted-foreground/50">
+              <span className="block italic text-muted-foreground/60 dark:text-muted-foreground/50">
                 {hasExistingKey
                   ? "Update your API key to continue using the service."
                   : "Select a provider and enter your API key to get started."}
               </span>
-              <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground/30">
+              <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground/50 dark:text-muted-foreground/30">
                 <Lock className="h-3 w-3" aria-hidden="true" />
                 Encrypted storage • Principle-level security
               </span>
@@ -182,7 +189,7 @@ export function BYOK({
             <div className="mt-4 rounded-xl border border-border/40 bg-muted/30 p-3.5 shadow-inner">
               <div className="flex items-center justify-between">
                 <div className="space-y-1">
-                  <p className="text-[10px] font-bold text-muted-foreground/40 uppercase tracking-widest">
+                  <p className="text-[10px] font-bold text-muted-foreground/50 dark:text-muted-foreground/40 uppercase tracking-widest">
                     Active key
                   </p>
                   <p className="font-mono text-sm tracking-tight text-foreground/70">
@@ -221,7 +228,7 @@ export function BYOK({
                   className="mt-6 space-y-6 outline-none focus-visible:ring-0"
                 >
                   <div className="space-y-2.5">
-                    <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/40 px-1">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/60 dark:text-muted-foreground/40 px-1">
                       Identity & Access
                     </p>
                     <ApiKeyInput
@@ -237,13 +244,13 @@ export function BYOK({
                   </div>
 
                   <div className="space-y-2.5">
-                    <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/40 px-1">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/60 dark:text-muted-foreground/40 px-1">
                       Engine Preference
                     </p>
                     <ModelSelector
                       provider={id}
                       selectedModelId={selectedModel}
-                      onSelect={setSelectedModel}
+                      onSelect={handleModelChange}
                     />
                   </div>
                 </TabsContent>

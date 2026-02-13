@@ -1,44 +1,20 @@
-import { ArrowRight, PaperclipIcon } from "lucide-react";
-import { useState, useEffect, useCallback, useRef } from "react";
-import { Button } from "@edward/ui/components/button";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { Card } from "@edward/ui/components/card";
 import { Textarea } from "@edward/ui/components/textarea";
 import { TextAnimate } from "@edward/ui/components/textAnimate";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-  TooltipPositioner,
-} from "@edward/ui/components/tooltip";
 import { useIsMobile } from "@edward/ui/hooks/useMobile";
 import { LoginModal } from "@edward/ui/components/ui/loginModal";
 import { BYOK } from "@edward/ui/components/ui/byok";
-import { Provider } from "@edward/shared/constants";
-
-const SUGGESTIONS: string[] = [
-  "Build a high-fidelity SaaS landing page with Bento grid layouts and subtle motion reveals",
-  "Create a complex multi-step onboarding flow with persistent state and Zod validation",
-  "Implement a responsive dashboard with dynamic sidebar navigation and CSS Grid",
-  "Design a dark-themed command palette with fuzzy search and keyboard shortcuts",
-  "Develop a glassmorphic analytics dashboard using interactive charting and Tailwind CSS",
-];
-
-interface PromptbarProps {
-  isAuthenticated?: boolean;
-  onSignIn?: () => void | Promise<void>;
-  onProtectedAction?: () => void | Promise<void>;
-  hasApiKey?: boolean | null;
-  isApiKeyLoading?: boolean;
-  apiKeyError?: string;
-  onSaveApiKey?: (
-    apiKey: string,
-    onValidate: (key: string) => void,
-    onClose: () => void,
-    provider: Provider,
-    model?: string,
-  ) => Promise<boolean>;
-  preferredModel?: string;
-}
+import { modelSupportsVision } from "@edward/shared/schema";
+import { cn } from "@edward/ui/lib/utils";
+import {
+  SUGGESTIONS,
+  type PromptbarProps,
+} from "./promptbar/promptbar.constants";
+import { useFileAttachments } from "./promptbar/useFileAttachments";
+import { DragDropOverlay } from "./promptbar/dragDropOverlay";
+import { ImagePreviewStrip } from "./promptbar/imagePreviewStrip";
+import { PromptToolbar } from "./promptbar/promptToolbar";
 
 export default function Promptbar({
   isAuthenticated = false,
@@ -49,6 +25,7 @@ export default function Promptbar({
   apiKeyError = "",
   onSaveApiKey,
   preferredModel,
+  selectedModelId,
 }: PromptbarProps) {
   const [inputValue, setInputValue] = useState("");
   const [suggestionIndex, setSuggestionIndex] = useState(0);
@@ -56,6 +33,26 @@ export default function Promptbar({
   const [showBYOK, setShowBYOK] = useState(false);
   const isMobile = useIsMobile();
   const initialLoadTriggered = useRef(false);
+
+  const supportsVision = useMemo(() => {
+    if (!selectedModelId) return true;
+    return modelSupportsVision(selectedModelId);
+  }, [selectedModelId]);
+
+  const {
+    attachedFiles,
+    isDragging,
+    fileInputRef,
+    canAttachMore,
+    handleFileInputChange,
+    handleClearAllFiles,
+    handleRemoveFile,
+    handleDragEnter,
+    handleDragLeave,
+    handleDragOver,
+    handleDrop,
+    handleAttachmentClick,
+  } = useFileAttachments(isAuthenticated, supportsVision);
 
   useEffect(() => {
     let interval: NodeJS.Timeout | null = null;
@@ -90,9 +87,15 @@ export default function Promptbar({
     } else if (hasApiKey !== true) {
       if (!isApiKeyLoading) setShowBYOK(true);
     } else {
-      onProtectedAction?.();
+      onProtectedAction?.(attachedFiles.map((f) => f.file));
     }
-  }, [isAuthenticated, hasApiKey, isApiKeyLoading, onProtectedAction]);
+  }, [
+    isAuthenticated,
+    hasApiKey,
+    isApiKeyLoading,
+    onProtectedAction,
+    attachedFiles,
+  ]);
 
   useEffect(() => {
     if (
@@ -106,32 +109,29 @@ export default function Promptbar({
     }
   }, [isAuthenticated, hasApiKey, isApiKeyLoading]);
 
-  const ActionButton = isMobile ? (
-    <Button
-      type="button"
-      size="icon"
-      className="rounded-full"
-      onClick={handleProtectedAction}
-      aria-label="Build now"
-    >
-      <ArrowRight className="h-3.5 w-3.5" />
-    </Button>
-  ) : (
-    <Button
-      type="button"
-      className="shrink-0 rounded-full px-5 py-2 text-sm font-medium shadow-sm"
-      onClick={handleProtectedAction}
-    >
-      Build now
-      <ArrowRight className="ml-1 h-3.5 w-3.5" />
-    </Button>
-  );
-
   return (
-    <Card className="w-full rounded-2xl border-border bg-card/80 backdrop-blur-md shadow-xl py-0">
-      <div className="flex flex-col relative">
+    <Card className="w-full rounded-2xl border-border bg-card/80 backdrop-blur-md shadow-xl py-0 overflow-hidden">
+      <div
+        className={cn(
+          "flex flex-col relative transition-all duration-200",
+          isDragging && "bg-primary/5",
+        )}
+        onDragEnter={handleDragEnter}
+        onDragLeave={handleDragLeave}
+        onDragOver={handleDragOver}
+        onDrop={handleDrop}
+      >
+        {isDragging && <DragDropOverlay />}
+
+        <ImagePreviewStrip
+          attachedFiles={attachedFiles}
+          canAttachMore={canAttachMore}
+          onRemoveFile={handleRemoveFile}
+          onAddMore={handleAttachmentClick}
+        />
+
         <div className="relative">
-          {!inputValue && (
+          {!inputValue && attachedFiles.length === 0 && (
             <div className="absolute inset-0 px-4 py-4 pointer-events-none z-0">
               <TextAnimate
                 key={suggestionIndex}
@@ -149,28 +149,19 @@ export default function Promptbar({
             className="min-h-25 md:min-h-30 resize-none border-0 bg-transparent p-4 text-base text-foreground placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0 relative z-10"
           />
         </div>
-        <div className="flex items-center justify-between px-6 py-4 bg-input/30">
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="h-9 w-9 shrink-0 rounded-full p-0 bg-input/80"
-                  onClick={handleProtectedAction}
-                  aria-label="Attach images"
-                >
-                  <PaperclipIcon className="h-4 w-4 text-foreground" />
-                </Button>
-              }
-            />
-            <TooltipPositioner side="top" align="center">
-              <TooltipContent>Attach images</TooltipContent>
-            </TooltipPositioner>
-          </Tooltip>
-          {ActionButton}
-        </div>
+
+        <PromptToolbar
+          isMobile={isMobile}
+          isAuthenticated={isAuthenticated}
+          supportsVision={supportsVision}
+          canAttachMore={canAttachMore}
+          attachedFiles={attachedFiles}
+          fileInputRef={fileInputRef}
+          onAttachmentClick={handleAttachmentClick}
+          onFileInputChange={handleFileInputChange}
+          onClearAllFiles={handleClearAllFiles}
+          onProtectedAction={handleProtectedAction}
+        />
       </div>
       {showLoginModal && (
         <LoginModal
@@ -184,7 +175,7 @@ export default function Promptbar({
           isOpen={showBYOK}
           onClose={() => setShowBYOK(false)}
           onValidate={() => {
-            onProtectedAction?.();
+            onProtectedAction?.(attachedFiles.map((f) => f.file));
             setShowBYOK(false);
           }}
           onSaveApiKey={onSaveApiKey}

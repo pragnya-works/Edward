@@ -82,7 +82,7 @@ export function RecentProjects() {
       <section className="w-full py-12">
         <div className="w-full px-4 md:px-6 lg:px-10">
           <div className="mb-8">
-            <h2 className="text-2xl font-semibold tracking-tight text-foreground/30">
+            <h2 className="text-2xl font-semibold tracking-tight">
               Recent Projects
             </h2>
           </div>
@@ -106,9 +106,9 @@ export function RecentProjects() {
                   ease: [0.25, 0.1, 0.25, 1],
                   delay: i * 0.08,
                 }}
-                className="relative flex flex-col rounded-xl border border-dashed border-white/[0.06] bg-white/[0.01] aspect-video overflow-hidden"
+                className="relative flex flex-col rounded-xl border border-dashed border-border/50 bg-foreground/[0.02] aspect-video overflow-hidden"
               >
-                <div className="pointer-events-none absolute -bottom-18 -right-20 w-[65%] aspect-[7/5] sm:-bottom-20 sm:-right-24 sm:w-[70%] lg:-bottom-24 lg:-right-36 lg:w-[80%] xl:-bottom-32 xl:-right-44 xl:w-[90%] text-white/[0.04]">
+                <div className="pointer-events-none absolute -bottom-18 -right-20 w-[65%] aspect-[7/5] sm:-bottom-20 sm:-right-24 sm:w-[70%] lg:-bottom-24 lg:-right-36 lg:w-[80%] xl:-bottom-32 xl:-right-44 xl:w-[90%] text-foreground/[0.05]">
                   <TechnicalBlueprint />
                 </div>
 
