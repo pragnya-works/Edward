@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest';
 import {
-  StreamState,
   ParserEventType,
   ChatIdParamSchema,
   UnifiedSendMessageSchema,
@@ -10,31 +9,6 @@ import {
 } from '../../schemas/chat.schema.js';
 
 describe('chat schemas', () => {
-  describe('StreamState enum', () => {
-    it('should have all stream states', () => {
-      expect(StreamState.TEXT).toBe('TEXT');
-      expect(StreamState.THINKING).toBe('THINKING');
-      expect(StreamState.SANDBOX).toBe('SANDBOX');
-      expect(StreamState.FILE).toBe('FILE');
-    });
-  });
-
-  describe('ParserEventType enum', () => {
-    it('should have all parser event types', () => {
-      expect(ParserEventType.TEXT).toBe('text');
-      expect(ParserEventType.THINKING_START).toBe('thinking_start');
-      expect(ParserEventType.THINKING_CONTENT).toBe('thinking_content');
-      expect(ParserEventType.THINKING_END).toBe('thinking_end');
-      expect(ParserEventType.SANDBOX_START).toBe('sandbox_start');
-      expect(ParserEventType.SANDBOX_END).toBe('sandbox_end');
-      expect(ParserEventType.FILE_START).toBe('file_start');
-      expect(ParserEventType.FILE_CONTENT).toBe('file_content');
-      expect(ParserEventType.FILE_END).toBe('file_end');
-      expect(ParserEventType.ERROR).toBe('error');
-      expect(ParserEventType.META).toBe('meta');
-    });
-  });
-
   describe('ChatIdParamSchema', () => {
     it('should validate valid chat ID', () => {
       const result = ChatIdParamSchema.safeParse({

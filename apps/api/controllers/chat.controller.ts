@@ -1,14 +1,10 @@
 import type { Response } from "express";
-import { db, chat, message, eq, MessageRole } from "@edward/auth";
+import { db, chat, message, eq, MessageRole, desc, count } from "@edward/auth";
 import {
   type AuthenticatedRequest,
   getAuthenticatedUserId,
 } from "../middleware/auth.js";
-import {
-  ChatIdParamSchema,
-  UnifiedSendMessageSchema,
-  ParserEventType,
-} from "../schemas/chat.schema.js";
+import { ParserEventType } from "../schemas/chat.schema.js";
 import { nanoid } from "nanoid";
 import { logger } from "../utils/logger.js";
 import { getUserWithApiKey } from "../services/apiKey.service.js";
@@ -74,16 +70,7 @@ export async function unifiedSendMessage(
 
   try {
     userId = getAuthenticatedUserId(req);
-    const validated = UnifiedSendMessageSchema.safeParse(req.body);
-
-    if (!validated.success) {
-      sendStreamError(
-        res,
-        HttpStatus.BAD_REQUEST,
-        validated.error.errors[0]?.message || ERROR_MESSAGES.VALIDATION_ERROR,
-      );
-      return;
-    }
+    const body = req.body;
 
     slotAcquired = await acquireUserSlot(userId);
     if (!slotAcquired) {
@@ -94,8 +81,6 @@ export async function unifiedSendMessage(
       );
       return;
     }
-
-    const body = validated.data;
 
     let decryptedApiKey: string;
     let preferredModel: string | undefined;
@@ -237,18 +222,12 @@ export async function getChatHistory(
 ): Promise<void> {
   try {
     const userId = getAuthenticatedUserId(req);
-    const validated = ChatIdParamSchema.safeParse(req.params);
+    const chatId = req.params.chatId;
 
-    if (!validated.success) {
-      sendStreamError(
-        res,
-        HttpStatus.BAD_REQUEST,
-        validated.error.errors[0]?.message || ERROR_MESSAGES.VALIDATION_ERROR,
-      );
+    if (!chatId || Array.isArray(chatId)) {
+      sendStreamError(res, HttpStatus.BAD_REQUEST, "Invalid chat ID");
       return;
     }
-
-    const { chatId } = validated.data;
 
     const [[chatData], messages] = await Promise.all([
       db
@@ -315,18 +294,12 @@ export async function deleteChat(
 ): Promise<void> {
   try {
     const userId = getAuthenticatedUserId(req);
-    const validated = ChatIdParamSchema.safeParse(req.params);
+    const chatId = req.params.chatId;
 
-    if (!validated.success) {
-      sendStreamError(
-        res,
-        HttpStatus.BAD_REQUEST,
-        validated.error.errors[0]?.message || ERROR_MESSAGES.VALIDATION_ERROR,
-      );
+    if (!chatId || Array.isArray(chatId)) {
+      sendStreamError(res, HttpStatus.BAD_REQUEST, "Invalid chat ID");
       return;
     }
-
-    const { chatId } = validated.data;
 
     const [chatData] = await db
       .select({ userId: chat.userId })
@@ -367,6 +340,49 @@ export async function deleteChat(
   } catch (error) {
     logger.error(ensureError(error), "deleteChat error");
     sendStreamError(
+      res,
+      HttpStatus.INTERNAL_SERVER_ERROR,
+      ERROR_MESSAGES.INTERNAL_SERVER_ERROR,
+    );
+  }
+}
+
+export async function getRecentChats(
+  req: AuthenticatedRequest,
+  res: Response,
+): Promise<void> {
+  try {
+    const userId = getAuthenticatedUserId(req);
+    const limit =
+      typeof req.query.limit === "string" ? parseInt(req.query.limit, 10) : 6;
+    const offset =
+      typeof req.query.offset === "string" ? parseInt(req.query.offset, 10) : 0;
+
+    const chats = await db
+      .select()
+      .from(chat)
+      .where(eq(chat.userId, userId))
+      .orderBy(desc(chat.updatedAt))
+      .limit(limit)
+      .offset(offset);
+
+    const [countResult] = await db
+      .select({ count: count() })
+      .from(chat)
+      .where(eq(chat.userId, userId));
+
+    const totalCount = Number(countResult?.count ?? 0);
+
+    sendSuccess(
+      res,
+      HttpStatus.OK,
+      "Recent chats retrieved successfully",
+      chats,
+      { total: totalCount, limit, offset },
+    );
+  } catch (error) {
+    logger.error(ensureError(error), "getRecentChats error");
+    sendStandardError(
       res,
       HttpStatus.INTERNAL_SERVER_ERROR,
       ERROR_MESSAGES.INTERNAL_SERVER_ERROR,

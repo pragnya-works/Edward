@@ -2,6 +2,12 @@ import * as React from "react"
 import { createMap } from "svg-dotted-map"
 import { cn } from "@edward/ui/lib/utils"
 
+interface MapPoint {
+    x: number
+    y: number
+    size?: number
+}
+
 interface Marker {
     lat: number
     lng: number
@@ -36,8 +42,8 @@ export const DottedMap = React.memo(function DottedMap({
         [width, height, mapSamples]
     )
 
-    const processedMarkers: any[] = React.useMemo(
-        () => (addMarkers as any)(markers),
+    const processedMarkers: MapPoint[] = React.useMemo(
+        () => addMarkers(markers) as MapPoint[],
         [addMarkers, markers]
     )
 
@@ -69,7 +75,7 @@ export const DottedMap = React.memo(function DottedMap({
             className={cn("text-gray-500 dark:text-gray-500", className)}
             style={{ width: "100%", height: "100%", ...style }}
         >
-            {points.map((point: any, index: number) => {
+            {points.map((point: MapPoint, index: number) => {
                 const rowIndex = yToRowIndex.get(point.y) ?? 0
                 const offsetX = stagger && rowIndex % 2 === 1 ? xStep / 2 : 0
                 return (
@@ -82,7 +88,7 @@ export const DottedMap = React.memo(function DottedMap({
                     />
                 )
             })}
-            {processedMarkers.map((marker: any, index: number) => {
+            {processedMarkers.map((marker: MapPoint, index: number) => {
                 const rowIndex = yToRowIndex.get(marker.y) ?? 0
                 const offsetX = stagger && rowIndex % 2 === 1 ? xStep / 2 : 0
                 return (

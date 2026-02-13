@@ -1,39 +1,83 @@
-"use client"
+"use client";
 
-import { ShaderGradientBackground } from "@/components/home/shaderGradient"
-import { Hero } from "@/components/home/hero"
-import { Features } from "@/components/home/features"
-import { CTASection } from "@/components/home/ctaSection"
-import { Footer } from "@/components/home/footer"
-import { TopFade } from "@/components/home/topFade"
-import { useSession } from "@/lib/auth-client"
+import { ShaderGradientBackground } from "@/components/home/shaderGradient";
+import { Hero } from "@/components/home/hero";
+import { Features } from "@/components/home/features";
+import { CTASection } from "@/components/home/ctaSection";
+import { Footer } from "@/components/home/footer";
+import { TopFade } from "@/components/home/topFade";
+import { useSession } from "@/lib/auth-client";
+import { AnimatePresence, motion } from "motion/react";
+import { useTheme } from "next-themes";
+import { useEffect, useMemo } from "react";
+import { RecentProjects } from "@/components/home/recentProjects";
+import { cn } from "@edward/ui/lib/utils";
+import { Skeleton } from "@edward/ui/components/skeleton";
+import { BlueprintBackground } from "@/components/home/blueprintBackground";
 
-import { AnimatePresence, motion } from "motion/react"
-import { useTheme } from "next-themes"
-import { useEffect } from "react"
-import { cn } from "@edward/ui/lib/utils"
+function LoadingSkeleton() {
+  return (
+    <div className="flex flex-col min-h-screen">
+      <TopFade />
+      <main className="flex-1">
+        <Hero />
+        <div className="container mx-auto px-4 py-12">
+          <Skeleton className="h-8 w-48 mb-8" />
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {[1, 2, 3].map((i) => (
+              <Skeleton key={i} className="aspect-video w-full rounded-xl" />
+            ))}
+          </div>
+        </div>
+      </main>
+    </div>
+  );
+}
 
 export default function Home() {
   const { data: session, isPending } = useSession();
   const { setTheme, resolvedTheme } = useTheme();
 
+  const shouldSetDarkTheme = useMemo(() => {
+    return !isPending && !session?.user && resolvedTheme !== "dark";
+  }, [isPending, session, resolvedTheme]);
+
   useEffect(() => {
-    if (!isPending && !session?.user && resolvedTheme !== "dark") {
+    if (shouldSetDarkTheme) {
       setTheme("dark");
     }
-  }, [isPending, session, setTheme, resolvedTheme]);
+  }, [shouldSetDarkTheme, setTheme]);
 
-  if (isPending) return null;
+  const isLoading = isPending;
+
+  if (isLoading) {
+    return <LoadingSkeleton />;
+  }
 
   return (
-    <div className={cn("flex flex-col", !session?.user ? "min-h-screen" : "h-full")}>
+    <div
+      className={cn(
+        "flex flex-col",
+        !session?.user ? "min-h-screen" : "h-full",
+      )}
+    >
       <TopFade />
-      {!session?.user && <ShaderGradientBackground />}
+      {!session?.user ? <ShaderGradientBackground /> : <BlueprintBackground />}
       <main className="flex-1">
         <Hero />
         <AnimatePresence mode="wait">
-          {!session?.user && (
+          {session?.user ? (
             <motion.div
+              key="recent-projects"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.1 }}
+            >
+              <RecentProjects />
+            </motion.div>
+          ) : (
+            <motion.div
+              key="landing-features"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 20 }}

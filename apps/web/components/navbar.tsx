@@ -13,7 +13,6 @@ import {
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { LoaderIcon } from "lucide-react";
-import { IconBrandGithubFilled } from "@tabler/icons-react";
 import { signIn } from "@/lib/auth-client";
 import { Skeleton } from "@edward/ui/components/skeleton";
 import { useSession } from "@/lib/auth-client";

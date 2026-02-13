@@ -117,17 +117,17 @@ export async function buildConversationMessages(chatId: string): Promise<{
 
       const affectedFiles = errorReport
         ? [...new Set(
-            errorReport.errors
-              .flatMap((e: typeof errorReport.errors[number]) => [
-                e.error.file,
-                ...(e.relatedFiles?.map(
-                  (rf: typeof e.relatedFiles[number]) => rf.path,
-                ) || []),
-              ])
-              .filter(
-                (f: string): f is string => typeof f === "string" && f !== "unknown",
-              ),
-          )]
+          errorReport.errors
+            .flatMap((e: typeof errorReport.errors[number]) => [
+              e.error.file,
+              ...(e.relatedFiles?.map(
+                (rf: typeof e.relatedFiles[number]) => rf.path,
+              ) || []),
+            ])
+            .filter(
+              (f: string): f is string => typeof f === "string" && f !== "unknown",
+            ),
+        )]
         : [];
 
       if (affectedFiles.length > 0) {
@@ -166,14 +166,4 @@ export async function buildConversationMessages(chatId: string): Promise<{
   }
 
   return { history, projectContext };
-}
-
-export async function buildConversationContext(chatId: string) {
-  const { history, projectContext } = await buildConversationMessages(chatId);
-  const lines: string[] = ["CONVERSATION CONTEXT:"];
-  for (const msg of history) {
-    lines.push(`${msg.role.toUpperCase()}: ${msg.content}`);
-  }
-  if (projectContext) lines.push("", projectContext);
-  return lines.join("\n") + "\n";
 }

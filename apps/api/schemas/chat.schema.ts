@@ -57,6 +57,19 @@ export const GetChatHistoryRequestSchema = z.object({
   params: ChatIdParamSchema,
 });
 
+export const RecentChatsQuerySchema = z.object({
+  query: z.object({
+    limit: z
+      .string()
+      .optional()
+      .transform((val) => (val ? parseInt(val, 10) : 6)),
+    offset: z
+      .string()
+      .optional()
+      .transform((val) => (val ? parseInt(val, 10) : 0)),
+  }),
+});
+
 export const ParserEventSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal(ParserEventType.TEXT), content: z.string() }),
   z.object({ type: z.literal(ParserEventType.THINKING_START) }),

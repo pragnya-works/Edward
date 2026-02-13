@@ -43,18 +43,6 @@ function getClient(apiKey: string, modelOverride?: string) {
   }
 }
 
-export interface StreamOptions {
-  apiKey: string;
-  messages: LlmChatMessage[];
-  signal?: AbortSignal;
-  verifiedDependencies?: string[];
-  customSystemPrompt?: string;
-  framework?: string;
-  complexity?: string;
-  mode?: ChatAction;
-  model?: string;
-}
-
 function normalizeMessages(messages: LlmChatMessage[]): LlmChatMessage[] {
   return (messages || []).flatMap((m) => {
     if (!m || typeof m.content !== "string") return [];

@@ -155,7 +155,7 @@ export const MODEL_CATALOG: Record<Provider, Record<string, ModelSpec>> = {
   [Provider.GEMINI]: GEMINI_MODELS,
 };
 
-export const ALL_MODELS: readonly string[] = [
+const ALL_MODELS: readonly string[] = [
   ...Object.keys(OPENAI_MODELS),
   ...Object.keys(GEMINI_MODELS),
 ];
@@ -168,10 +168,7 @@ export function getModelSpec(model: string): ModelSpec | undefined {
   return OPENAI_MODELS[model] ?? GEMINI_MODELS[model];
 }
 
-export function modelSupportsVision(model: string): boolean {
-  const spec = getModelSpec(model);
-  return spec?.supportsVision ?? false;
-}
+
 
 export function getModelSpecByProvider(
   provider: Provider,

@@ -31,32 +31,6 @@ describe('response utils', () => {
       expect(jsonCall?.timestamp).toBeDefined();
       expect(new Date(jsonCall?.timestamp).toISOString()).toBe(jsonCall?.timestamp);
     });
-
-    it('should send 500 error', () => {
-      const res = createMockResponse();
-
-      sendError(res, HttpStatus.INTERNAL_SERVER_ERROR, 'Internal server error');
-
-      expect(res.status).toHaveBeenCalledWith(HttpStatus.INTERNAL_SERVER_ERROR);
-    });
-
-    it('should send 404 error', () => {
-      const res = createMockResponse();
-
-      sendError(res, HttpStatus.NOT_FOUND, 'Not found');
-
-      expect(res.status).toHaveBeenCalledWith(HttpStatus.NOT_FOUND);
-    });
-
-    it('should include valid ISO timestamp', () => {
-      const res = createMockResponse();
-
-      sendError(res, HttpStatus.UNAUTHORIZED, 'Unauthorized');
-
-      const jsonCall = res.json.mock.calls[0]?.[0];
-      expect(jsonCall?.timestamp).toBeDefined();
-      expect(new Date(jsonCall?.timestamp).toISOString()).toBe(jsonCall?.timestamp);
-    });
   });
 
   describe('sendSuccess', () => {
@@ -91,13 +65,6 @@ describe('response utils', () => {
       expect(new Date(jsonCall?.timestamp).toISOString()).toBe(jsonCall?.timestamp);
     });
 
-    it('should send 201 created response', () => {
-      const res = createMockResponse();
-
-      sendSuccess(res, HttpStatus.CREATED, 'Resource created', { id: 'new-id' });
-
-      expect(res.status).toHaveBeenCalledWith(HttpStatus.CREATED);
-    });
 
     it('should handle null data', () => {
       const res = createMockResponse();

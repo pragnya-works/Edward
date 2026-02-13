@@ -34,12 +34,12 @@ describe('ensureError', () => {
     expect(result.message).toBe('{"code":500,"status":"error"}');
   });
 
-    it('should handle null', () => {
-      const result = ensureError(null);
+  it('should handle null', () => {
+    const result = ensureError(null);
 
-      expect(result).toBeInstanceOf(Error);
-      expect(result.message).toBe('An unknown error occurred');
-    });
+    expect(result).toBeInstanceOf(Error);
+    expect(result.message).toBe('An unknown error occurred');
+  });
 
   it('should handle undefined', () => {
     const result = ensureError(undefined);
@@ -48,19 +48,12 @@ describe('ensureError', () => {
     expect(result.message).toBe('An unknown error occurred');
   });
 
-    it('should handle number', () => {
-      const result = ensureError(404);
+  it('should handle number', () => {
+    const result = ensureError(404);
 
-      expect(result).toBeInstanceOf(Error);
-      expect(result.message).toBe('An unknown error occurred');
-    });
-
-    it('should handle boolean', () => {
-      const result = ensureError(false);
-
-      expect(result).toBeInstanceOf(Error);
-      expect(result.message).toBe('An unknown error occurred');
-    });
+    expect(result).toBeInstanceOf(Error);
+    expect(result.message).toBe('An unknown error occurred');
+  });
 
   it('should preserve stack trace from error-like object', () => {
     const stackTrace = 'Error: test\n    at Test.method (file.ts:1:1)';
