@@ -4,12 +4,12 @@ import { ParserEventType } from "../../schemas/chat.schema.js";
 import { createStreamParser } from "../../lib/llm/parser.js";
 import { streamResponse } from "../../lib/llm/response.js";
 import { composePrompt } from "../../lib/llm/compose.js";
-import { computeTokenUsage, isOverContextLimit } from "../../lib/llm/tokens.js";
+import { computeTokenUsage, isOverContextLimit, countOutputTokens, type TokenUsage } from "../../lib/llm/tokens.js";
 import { ensureSandbox } from "../../services/planning/workflowEngine.js";
 import { cleanupSandbox } from "../../services/sandbox/lifecycle/cleanup.js";
 import { flushSandbox } from "../../services/sandbox/writes.sandbox.js";
 import { enqueueBuildJob } from "../../services/queue/enqueue.js";
-import { saveMessage } from "../../services/chat.service.js";
+import { saveMessage, type MessageMetadata } from "../../services/chat.service.js";
 import { getSandboxState } from "../../services/sandbox/state.sandbox.js";
 import { normalizeFramework } from "../../services/sandbox/templates/template.registry.js";
 import { ensureError } from "../../utils/error.js";
@@ -95,6 +95,7 @@ export async function runStreamSession(
   let committedMessageContent: string | null = null;
   const generatedFiles = new Map<string, string>();
   const declaredPackages: string[] = [];
+  const messageStartTime = Date.now();
 
   const abortController = new AbortController();
   const streamTimer = setTimeout(() => {
@@ -107,6 +108,8 @@ export async function runStreamSession(
     if (streamTimer) clearTimeout(streamTimer);
     abortController.abort();
   });
+
+  let tokenUsage: TokenUsage | undefined;
 
   try {
     let framework: Framework | undefined =
@@ -135,7 +138,7 @@ export async function runStreamSession(
       mode,
     });
 
-    const tokenUsage = await computeTokenUsage({
+    tokenUsage = await computeTokenUsage({
       apiKey: decryptedApiKey,
       systemPrompt,
       messages: baseMessages,
@@ -285,12 +288,35 @@ export async function runStreamSession(
       break;
     }
 
+    const completionTime = Date.now() - messageStartTime;
+    const inputTokens = tokenUsage.inputTokens;
+    const outputTokens = countOutputTokens(fullRawResponse, model);
+
+    const messageMetadata: MessageMetadata = {
+      completionTime,
+      inputTokens,
+      outputTokens,
+    };
+
+    logger.info(
+      {
+        chatId,
+        assistantMessageId,
+        completionTime,
+        inputTokens,
+        outputTokens,
+        totalTokens: inputTokens + outputTokens,
+      },
+      "Assistant message completed with metrics",
+    );
+
     await saveMessage(
       chatId,
       userId,
       MessageRole.Assistant,
       fullRawResponse,
       assistantMessageId,
+      messageMetadata,
     );
     committedMessageContent = fullRawResponse;
 
@@ -378,12 +404,23 @@ export async function runStreamSession(
 
     try {
       if (committedMessageContent === null) {
+        const errorCompletionTime = Date.now() - messageStartTime;
+        const errorInputTokens = tokenUsage?.inputTokens ?? 0;
+        const errorOutputTokens = fullRawResponse ? countOutputTokens(fullRawResponse, model) : 0;
+
+        const errorMetadata: MessageMetadata = {
+          completionTime: errorCompletionTime,
+          inputTokens: errorInputTokens,
+          outputTokens: errorOutputTokens,
+        };
+
         await saveMessage(
           chatId,
           userId,
           MessageRole.Assistant,
           fullRawResponse || `Error: ${error.message}`,
           assistantMessageId,
+          errorMetadata,
         );
       }
     } catch (cleanupErr) {

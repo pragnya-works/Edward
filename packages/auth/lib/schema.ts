@@ -206,6 +206,9 @@ export const message = pgTable("message", {
     .notNull()
     .defaultNow()
     .$onUpdate(() => new Date()),
+  completionTime: integer("completion_time"),
+  inputTokens: integer("input_tokens"),
+  outputTokens: integer("output_tokens"),
 });
 
 export const build = pgTable("build", {

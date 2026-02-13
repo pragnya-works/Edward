@@ -19,7 +19,7 @@ interface TokenUsageMessageBreakdown {
   tokens: number;
 }
 
-interface TokenUsage {
+export interface TokenUsage {
   provider: Provider;
   model: string;
   method: TokenCountMethod;
@@ -250,4 +250,15 @@ export function isOverContextLimit(usage: TokenUsage): boolean {
   return (
     usage.inputTokens + usage.reservedOutputTokens > usage.contextWindowTokens
   );
+}
+
+export function countOutputTokens(content: string, model?: string): number {
+  const modelName = model || DEFAULT_OPENAI_MODEL;
+  try {
+    const enc = encodingForModel(modelName as Parameters<typeof encodingForModel>[0]);
+    return enc.encode(content).length;
+  } catch {
+    const enc = getEncoding("cl100k_base");
+    return enc.encode(content).length;
+  }
 }
