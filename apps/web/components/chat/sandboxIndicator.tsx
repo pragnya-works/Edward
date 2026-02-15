@@ -11,10 +11,10 @@ export const SandboxIndicator = memo(function SandboxIndicator() {
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -2 }}
       transition={{ duration: 0.2 }}
-      className="flex items-center gap-2.5 px-3 py-2 rounded-lg bg-amber-500/[0.04] border border-amber-500/15"
+      className="flex items-center gap-2 sm:gap-2.5 px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-lg bg-amber-500/[0.04] border border-amber-500/15"
     >
       <motion.div
-        className="h-4 w-4 rounded-md bg-amber-500/15 flex items-center justify-center"
+        className="h-3.5 w-3.5 sm:h-4 sm:w-4 rounded-md bg-amber-500/15 flex items-center justify-center shrink-0"
         animate={{
           boxShadow: [
             "0 0 0 0 rgba(245, 158, 11, 0)",
@@ -24,18 +24,18 @@ export const SandboxIndicator = memo(function SandboxIndicator() {
         }}
         transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
       >
-        <Box className="h-2.5 w-2.5 text-amber-600 dark:text-amber-500/70" />
+        <Box className="h-2 sm:h-2.5 w-2 sm:w-2.5 text-amber-600 dark:text-amber-500/70" />
       </motion.div>
 
-      <span className="text-xs text-muted-foreground/80 dark:text-muted-foreground/60 font-medium">
+      <span className="text-[11px] sm:text-xs text-muted-foreground/80 dark:text-muted-foreground/60 font-medium">
         Setting up environment
       </span>
 
-      <div className="flex items-center gap-0.5 ml-0.5">
+      <div className="flex items-center gap-0.5 ml-0.5 shrink-0">
         {[0, 1, 2].map((i) => (
           <motion.div
             key={i}
-            className="h-1 w-1 rounded-full bg-amber-500/60 dark:bg-amber-500/40"
+            className="h-0.5 sm:h-1 w-0.5 sm:w-1 rounded-full bg-amber-500/60 dark:bg-amber-500/40"
             animate={{ opacity: [0.2, 0.8, 0.2] }}
             transition={{
               duration: 1,

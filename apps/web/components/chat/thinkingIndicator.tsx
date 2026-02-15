@@ -28,7 +28,11 @@ export const ThinkingIndicator = memo(function ThinkingIndicator({
 }: ThinkingIndicatorProps) {
   const elapsed = useTimer(isActive);
   const hasValidDuration = (duration ?? 0) > 0;
-  const displayDuration = isActive ? elapsed : hasValidDuration ? duration : null;
+  const displayDuration = isActive
+    ? elapsed
+    : hasValidDuration
+      ? duration
+      : null;
 
   return (
     <motion.div
@@ -41,7 +45,7 @@ export const ThinkingIndicator = memo(function ThinkingIndicator({
         <AccordionItem
           value="thinking"
           className={cn(
-            "rounded-xl border border-border/50 dark:border-foreground/[0.04] overflow-hidden transition-all duration-300",
+            "rounded-lg sm:rounded-xl border border-border/50 dark:border-foreground/[0.04] overflow-hidden transition-all duration-300",
             isCodeMode
               ? "bg-amber-50 dark:bg-amber-400/[0.01]"
               : "bg-violet-50 dark:bg-sky-400/[0.01]",
@@ -49,7 +53,7 @@ export const ThinkingIndicator = memo(function ThinkingIndicator({
         >
           <AccordionTrigger
             className={cn(
-              "flex items-center gap-2.5 px-3.5 py-2.5 w-full text-left group cursor-pointer transition-colors hover:no-underline",
+              "flex items-center gap-2 sm:gap-2.5 px-2.5 sm:px-3.5 py-2 sm:py-2.5 w-full text-left group cursor-pointer transition-colors hover:no-underline touch-manipulation",
               isCodeMode
                 ? "hover:bg-amber-100 dark:hover:bg-amber-500/[0.04]"
                 : "hover:bg-violet-100 dark:hover:bg-violet-500/[0.04]",
@@ -60,12 +64,12 @@ export const ThinkingIndicator = memo(function ThinkingIndicator({
                 : undefined,
             )}
           >
-            <div className="flex items-center gap-2.5 flex-1">
-              <div className="relative">
+            <div className="flex items-center gap-2 sm:gap-2.5 flex-1 min-w-0">
+              <div className="relative shrink-0">
                 {isActive ? (
                   <motion.div
                     className={cn(
-                      "h-5 w-5 rounded-md flex items-center justify-center",
+                      "h-4 w-4 sm:h-5 sm:w-5 rounded-md flex items-center justify-center",
                       isCodeMode
                         ? "bg-gradient-to-br from-amber-100 to-orange-100 dark:from-amber-500/20 dark:to-orange-500/20"
                         : "bg-gradient-to-br from-violet-100 to-purple-100 dark:from-violet-500/20 dark:to-purple-500/20",
@@ -81,7 +85,7 @@ export const ThinkingIndicator = memo(function ThinkingIndicator({
                   >
                     <Zap
                       className={cn(
-                        "h-3 w-3",
+                        "h-2.5 w-2.5 sm:h-3 sm:w-3",
                         isCodeMode
                           ? "text-amber-600 dark:text-amber-400"
                           : "text-violet-600 dark:text-violet-400",
@@ -91,7 +95,7 @@ export const ThinkingIndicator = memo(function ThinkingIndicator({
                 ) : (
                   <div
                     className={cn(
-                      "h-5 w-5 rounded-md flex items-center justify-center",
+                      "h-4 w-4 sm:h-5 sm:w-5 rounded-md flex items-center justify-center",
                       isCodeMode
                         ? "bg-amber-100 dark:bg-amber-500/10"
                         : "bg-violet-100 dark:bg-violet-500/10",
@@ -99,7 +103,7 @@ export const ThinkingIndicator = memo(function ThinkingIndicator({
                   >
                     <Brain
                       className={cn(
-                        "h-3 w-3",
+                        "h-2.5 w-2.5 sm:h-3 sm:w-3",
                         isCodeMode
                           ? "text-amber-600 dark:text-amber-400 opacity-80"
                           : "text-violet-600 dark:text-violet-400 opacity-80",
@@ -109,7 +113,7 @@ export const ThinkingIndicator = memo(function ThinkingIndicator({
                 )}
               </div>
 
-              <span className="text-xs font-medium text-foreground/80 flex items-center gap-1.5">
+              <span className="text-[11px] sm:text-xs font-medium text-foreground/80 flex items-center gap-1 sm:gap-1.5 truncate">
                 {isActive ? (
                   <>
                     <span
@@ -166,17 +170,17 @@ export const ThinkingIndicator = memo(function ThinkingIndicator({
             </div>
           </AccordionTrigger>
 
-          <AccordionContent className="pb-3 px-3.5">
-            <div className="relative rounded-lg bg-slate-100 dark:bg-foreground/[0.02] border border-slate-200 dark:border-border/20 overflow-hidden">
-              <div className="max-h-60 overflow-y-auto p-3 custom-scrollbar">
+          <AccordionContent className="pb-2 sm:pb-3 px-2.5 sm:px-3.5">
+            <div className="relative rounded-md sm:rounded-lg bg-slate-100 dark:bg-foreground/[0.02] border border-slate-200 dark:border-border/20 overflow-hidden">
+              <div className="max-h-40 sm:max-h-60 overflow-y-auto p-2 sm:p-3 custom-scrollbar">
                 <MarkdownRenderer
                   content={text}
-                  className="text-xs text-slate-600 dark:text-muted-foreground/70 [&_p]:text-xs [&_p]:text-slate-600 dark:[&_p]:text-muted-foreground/70 [&_code]:text-[11px] [&_pre]:my-2 [&_pre]:rounded-lg [&_h1]:text-sm [&_h2]:text-sm [&_h3]:text-xs [&_ul]:text-xs [&_ol]:text-xs"
+                  className="text-[10px] sm:text-xs text-slate-600 dark:text-muted-foreground/70 [&_p]:text-[10px] sm:[&_p]:text-xs [&_p]:text-slate-600 dark:[&_p]:text-muted-foreground/70 [&_code]:text-[9px] sm:[&_code]:text-[11px] [&_pre]:my-1.5 sm:[&_pre]:my-2 [&_pre]:rounded-lg [&_h1]:text-xs sm:[&_h1]:text-sm [&_h2]:text-xs sm:[&_h2]:text-sm [&_h3]:text-[10px] sm:[&_h3]:text-xs [&_ul]:text-[10px] sm:[&_ul]:text-xs [&_ol]:text-[10px] sm:[&_ol]:text-xs"
                 />
                 {isActive && (
                   <motion.span
                     className={cn(
-                      "inline-block w-[3px] h-3 ml-0.5 align-text-bottom rounded-full",
+                      "inline-block w-[3px] h-2.5 sm:h-3 ml-0.5 align-text-bottom rounded-full",
                       isCodeMode
                         ? "bg-amber-500 dark:bg-amber-400/50"
                         : "bg-violet-500 dark:bg-violet-400/50",
@@ -189,7 +193,7 @@ export const ThinkingIndicator = memo(function ThinkingIndicator({
 
               {!isActive && (
                 <div
-                  className="absolute bottom-0 left-0 right-0 h-6 pointer-events-none"
+                  className="absolute bottom-0 left-0 right-0 h-4 sm:h-6 pointer-events-none"
                   style={{
                     background:
                       "linear-gradient(to bottom, transparent, hsl(var(--background) / 0.8))",

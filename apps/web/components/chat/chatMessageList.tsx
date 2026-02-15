@@ -23,42 +23,42 @@ const SUGGESTED_STARTS = [
 ];
 
 const WELCOME_SCREEN = (
-  <div className="flex-1 flex flex-col items-center justify-center relative overflow-hidden">
-    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-lg aspect-square bg-gradient-to-tr from-sky-500/5 to-indigo-500/5 rounded-full blur-3xl -z-10 animate-pulse" />
+  <div className="flex-1 flex flex-col items-center justify-center relative overflow-hidden px-4">
+    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[90vw] max-w-lg aspect-square bg-gradient-to-tr from-sky-500/5 to-indigo-500/5 rounded-full blur-3xl -z-10 motion-safe:animate-pulse" />
 
     <motion.div
       initial={{ opacity: 0, y: 12, scale: 0.95 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       transition={{ duration: 0.6, ease: [0.23, 1, 0.32, 1] }}
-      className="text-center relative px-6"
+      className="text-center relative px-2 sm:px-6 max-w-full"
     >
-      <div className="relative h-16 w-16 mb-6 mx-auto group">
-        <div className="absolute inset-0 bg-gradient-to-br from-sky-500 to-indigo-500 rounded-2xl blur-lg opacity-20 group-hover:opacity-40 transition-opacity duration-500" />
-        <div className="relative h-16 w-16 rounded-2xl bg-gradient-to-br from-sky-500 to-indigo-500 flex items-center justify-center shadow-2xl shadow-sky-500/20">
-          <div className="h-6 w-8 bg-white rounded-br-xl rounded-tr-[2px] rounded-tl-xl rounded-bl-[2px]" />
+      <div className="relative h-12 w-12 sm:h-16 sm:w-16 mb-4 sm:mb-6 mx-auto group">
+        <div className="absolute inset-0 bg-gradient-to-br from-sky-500 to-indigo-500 rounded-xl sm:rounded-2xl blur-lg opacity-20 group-hover:opacity-40 transition-opacity duration-500" />
+        <div className="relative h-12 w-12 sm:h-16 sm:w-16 rounded-xl sm:rounded-2xl bg-gradient-to-br from-sky-500 to-indigo-500 flex items-center justify-center shadow-2xl shadow-sky-500/20">
+          <div className="h-4 w-5 sm:h-6 sm:w-8 bg-white rounded-br-lg sm:rounded-br-xl rounded-tr-[2px] rounded-tl-lg sm:rounded-tl-xl rounded-bl-[2px]" />
         </div>
       </div>
 
-      <h2 className="text-xl font-semibold text-foreground mb-2 tracking-tight">
+      <h2 className="text-lg sm:text-xl font-semibold text-foreground mb-1.5 sm:mb-2 tracking-tight">
         Meet Edward
       </h2>
-      <p className="text-sm text-muted-foreground/50 max-w-[280px] leading-relaxed">
+      <p className="text-xs sm:text-sm text-muted-foreground/50 max-w-[260px] sm:max-w-[280px] leading-relaxed mx-auto">
         I&apos;m your personal AI web app architect. Let me help you build
         something extraordinary.
       </p>
 
-      <div className="mt-8 flex flex-col items-center gap-3">
-        <span className="text-[10px] font-bold text-sky-400/40 uppercase tracking-widest">
+      <div className="mt-6 sm:mt-8 flex flex-col items-center gap-2 sm:gap-3 w-full">
+        <span className="text-[9px] sm:text-[10px] font-bold text-sky-400/40 uppercase tracking-widest">
           Suggested starts
         </span>
-        <div className="flex flex-wrap justify-center gap-2">
+        <div className="flex flex-wrap justify-center gap-1.5 sm:gap-2 max-w-full">
           {SUGGESTED_STARTS.map((text, i) => (
             <motion.span
               key={text}
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ delay: 0.4 + i * 0.1 }}
-              className="px-3 py-1.5 rounded-full bg-foreground/[0.03] border border-foreground/[0.05] text-[11px] text-muted-foreground/60 cursor-pointer hover:bg-foreground/[0.05] transition-colors"
+              className="px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full bg-foreground/[0.03] border border-foreground/[0.05] text-[10px] sm:text-[11px] text-muted-foreground/60 cursor-pointer hover:bg-foreground/[0.05] transition-colors touch-manipulation whitespace-nowrap"
             >
               {text}
             </motion.span>
@@ -94,16 +94,16 @@ export const ChatMessageList = memo(function ChatMessageList({
   }
 
   return (
-    <div className="flex-1 relative min-h-0 flex flex-col">
+    <div className="flex-1 relative min-h-0 flex flex-col h-full">
       <div
-        className="absolute inset-x-0 top-0 h-16 z-20 pointer-events-none"
+        className="absolute inset-x-0 top-0 h-12 sm:h-16 z-20 pointer-events-none"
         style={{
           background:
             "linear-gradient(to bottom, hsl(var(--background)), transparent)",
         }}
       />
       <div
-        className="absolute inset-x-0 bottom-0 h-24 z-20 pointer-events-none"
+        className="absolute inset-x-0 bottom-0 h-16 sm:h-24 z-20 pointer-events-none"
         style={{
           background:
             "linear-gradient(to top, hsl(var(--background)) 10%, transparent)",
@@ -112,15 +112,15 @@ export const ChatMessageList = memo(function ChatMessageList({
 
       <div
         ref={scrollRef}
-        className="flex-1 overflow-y-auto scroll-smooth no-scrollbar relative z-10"
+        className="flex-1 overflow-y-auto scroll-smooth no-scrollbar relative z-10 overscroll-contain"
         style={{
           maskImage:
-            "linear-gradient(to bottom, transparent, black 32px, black calc(100% - 64px), transparent)",
+            "linear-gradient(to bottom, transparent, black 24px, black calc(100% - 48px), transparent)",
           WebkitMaskImage:
-            "linear-gradient(to bottom, transparent, black 32px, black calc(100% - 64px), transparent)",
+            "linear-gradient(to bottom, transparent, black 24px, black calc(100% - 48px), transparent)",
         }}
       >
-        <div className="max-w-4xl mx-auto w-full px-4 md:px-0 pt-12 pb-2 space-y-12">
+        <div className="max-w-4xl mx-auto w-full px-3 sm:px-4 md:px-0 pt-8 sm:pt-12 pb-2 space-y-8 sm:space-y-12">
           <AnimatePresence mode="popLayout" initial={false}>
             {visibleMessages.map((message: ChatMessageType, index: number) => (
               <ChatMessage key={message.id} message={message} index={index} />
@@ -129,7 +129,7 @@ export const ChatMessageList = memo(function ChatMessageList({
 
           {stream.isStreaming && <StreamingMessage stream={stream} />}
 
-          <div ref={bottomRef} className="h-8 w-full shrink-0" />
+          <div ref={bottomRef} className="h-4 sm:h-8 w-full shrink-0" />
         </div>
       </div>
       <AnimatePresence mode="wait">
@@ -139,10 +139,11 @@ export const ChatMessageList = memo(function ChatMessageList({
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 12 }}
             onClick={() => scrollToBottom("smooth")}
-            className="absolute bottom-12 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 px-3.5 py-2 rounded-full bg-background/60 backdrop-blur-xl border border-foreground/[0.08] hover:bg-background/80 transition-all group"
+            aria-label="Scroll to recent messages"
+            className="absolute bottom-10 sm:bottom-12 left-1/2 -translate-x-1/2 z-30 flex items-center gap-1.5 sm:gap-2 px-3 sm:px-3.5 py-1.5 sm:py-2 rounded-full bg-background/60 backdrop-blur-xl border border-foreground/[0.08] hover:bg-background/80 transition-all group touch-manipulation cursor-pointer"
           >
-            <ArrowDown className="h-3.5 w-3.5 text-sky-500/70" />
-            <span className="text-[10px] font-bold text-foreground/40 uppercase tracking-[0.15em] leading-none">
+            <ArrowDown className="h-3 sm:h-3.5 w-3 sm:w-3.5 text-sky-500/70" />
+            <span className="text-[9px] sm:text-[10px] font-bold text-foreground/40 uppercase tracking-[0.15em] leading-none">
               Recent
             </span>
           </motion.button>

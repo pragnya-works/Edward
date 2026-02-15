@@ -76,10 +76,10 @@ export default function ChatPage() {
   }
 
   return (
-    <div className="flex flex-col h-full min-h-0">
+    <div className="flex flex-col h-full min-h-0 w-full safe-area-insets">
       <ChatMessageList messages={messages} stream={stream} />
 
-      <div className="px-4 pb-6 pt-0 w-full max-w-4xl mx-auto">
+      <div className="flex-shrink-0 w-full max-w-4xl mx-auto px-3 sm:px-4 pb-[env(safe-area-inset-bottom,0.5rem)] sm:pb-6 pt-0">
         <AuthenticatedPromptbar chatId={chatId} />
       </div>
     </div>

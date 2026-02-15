@@ -40,11 +40,11 @@ export const StreamingMessage = memo(function StreamingMessage({
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, ease: [0.23, 1, 0.32, 1] }}
-      className="flex gap-4 items-start flex-row group"
+      className="flex gap-2 sm:gap-4 items-start flex-row group w-full"
     >
       <EdwardAvatar isActive />
 
-      <div className="flex flex-col items-start gap-4 min-w-0 flex-1">
+      <div className="flex flex-col items-start gap-3 sm:gap-4 min-w-0 flex-1 w-full">
         {!hasAnyContent ? (
           <TypingIndicator isCodeMode={stream.codeOnly} />
         ) : null}
@@ -86,10 +86,10 @@ export const StreamingMessage = memo(function StreamingMessage({
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: "auto" }}
               exit={{ opacity: 0, height: 0 }}
-              className="flex flex-col gap-2 w-full border-l-2 border-sky-500/10 dark:border-sky-500/10 pl-4 my-1"
+              className="flex flex-col gap-2 w-full border-l-2 border-sky-500/10 dark:border-sky-500/10 pl-3 sm:pl-4 my-1"
             >
-              <div className="flex items-center gap-2 mb-1 text-[10px] font-semibold text-sky-600/50 dark:text-sky-400/40 uppercase tracking-widest">
-                <Sparkles className="h-3 w-3" />
+              <div className="flex items-center gap-1.5 sm:gap-2 mb-1 text-[9px] sm:text-[10px] font-semibold text-sky-600/50 dark:text-sky-400/40 uppercase tracking-widest">
+                <Sparkles className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
                 <span>Active Operations</span>
               </div>
 
@@ -100,9 +100,9 @@ export const StreamingMessage = memo(function StreamingMessage({
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: i * 0.1 }}
                 >
-                  <div className="flex items-center gap-2 mb-1">
-                    <FileCode className="h-3 w-3 text-sky-600/60 dark:text-sky-400/60" />
-                    <span className="text-[11px] text-muted-foreground font-mono truncate">
+                  <div className="flex items-center gap-1.5 sm:gap-2 mb-1">
+                    <FileCode className="h-2.5 w-2.5 sm:h-3 sm:w-3 text-sky-600/60 dark:text-sky-400/60" />
+                    <span className="text-[10px] sm:text-[11px] text-muted-foreground font-mono truncate">
                       Writing {file.path}...
                     </span>
                   </div>
@@ -115,9 +115,9 @@ export const StreamingMessage = memo(function StreamingMessage({
                   initial={{ opacity: 0, x: -10 }}
                   animate={{ opacity: 1, x: 0 }}
                 >
-                  <div className="flex items-center gap-2 mb-1">
-                    <Box className="h-3 w-3 text-amber-400/60" />
-                    <span className="text-[11px] text-muted-foreground/70 font-mono">
+                  <div className="flex items-center gap-1.5 sm:gap-2 mb-1">
+                    <Box className="h-2.5 w-2.5 sm:h-3 sm:w-3 text-amber-400/60" />
+                    <span className="text-[10px] sm:text-[11px] text-muted-foreground/70 font-mono">
                       Installing dependencies...
                     </span>
                   </div>
@@ -130,9 +130,9 @@ export const StreamingMessage = memo(function StreamingMessage({
                   initial={{ opacity: 0, x: -10 }}
                   animate={{ opacity: 1, x: 0 }}
                 >
-                  <div className="flex items-center gap-2 mb-1">
-                    <Terminal className="h-3 w-3 text-emerald-400/60" />
-                    <span className="text-[11px] text-muted-foreground/70 font-mono">
+                  <div className="flex items-center gap-1.5 sm:gap-2 mb-1">
+                    <Terminal className="h-2.5 w-2.5 sm:h-3 sm:w-3 text-emerald-400/60" />
+                    <span className="text-[10px] sm:text-[11px] text-muted-foreground/70 font-mono">
                       Executing command...
                     </span>
                   </div>
@@ -144,10 +144,10 @@ export const StreamingMessage = memo(function StreamingMessage({
         </AnimatePresence>
 
         {stream.streamingText ? (
-          <div className="rounded-2xl text-[15px] leading-[1.8] tracking-tight font-medium text-foreground w-full relative group/text">
+          <div className="rounded-xl sm:rounded-2xl text-[14px] sm:text-[15px] leading-[1.7] sm:leading-[1.8] tracking-tight font-medium text-foreground w-full relative group/text">
             <MarkdownRenderer content={stream.streamingText} />
             <motion.span
-              className="inline-block w-[3px] h-4 bg-sky-500 dark:bg-sky-400/60 ml-0.5 rounded-full align-text-bottom"
+              className="inline-block w-[3px] h-3.5 sm:h-4 bg-sky-500 dark:bg-sky-400/60 ml-0.5 rounded-full align-text-bottom"
               animate={{ opacity: [0, 1, 0] }}
               transition={{ duration: 0.8, repeat: Infinity }}
             />
@@ -155,7 +155,7 @@ export const StreamingMessage = memo(function StreamingMessage({
         ) : null}
 
         {stream.completedFiles.length > 0 ? (
-          <div className="flex flex-col gap-3 w-full mt-2">
+          <div className="flex flex-col gap-2 sm:gap-3 w-full mt-1.5 sm:mt-2">
             {stream.completedFiles.map((file, i) => (
               <FileBlock key={file.path} file={file} index={i} />
             ))}
@@ -166,16 +166,18 @@ export const StreamingMessage = memo(function StreamingMessage({
           <motion.div
             initial={{ opacity: 0, y: 4, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            className="w-full rounded-xl bg-destructive/5 border border-destructive/15 px-4 py-3 flex items-start gap-3 shadow-sm shadow-destructive/5"
+            className="w-full rounded-lg sm:rounded-xl bg-destructive/5 border border-destructive/15 px-3 sm:px-4 py-2.5 sm:py-3 flex items-start gap-2 sm:gap-3 shadow-sm shadow-destructive/5"
           >
-            <div className="h-5 w-5 rounded-full bg-destructive/15 flex items-center justify-center shrink-0 mt-0.5">
-              <span className="text-destructive text-[11px] font-bold">!</span>
+            <div className="h-4 w-4 sm:h-5 sm:w-5 rounded-full bg-destructive/15 flex items-center justify-center shrink-0 mt-0.5">
+              <span className="text-destructive text-[10px] sm:text-[11px] font-bold">
+                !
+              </span>
             </div>
-            <div className="flex flex-col gap-1">
-              <span className="text-[10px] font-bold text-destructive dark:text-destructive/80 uppercase tracking-wider">
+            <div className="flex flex-col gap-0.5 sm:gap-1 min-w-0 flex-1">
+              <span className="text-[9px] sm:text-[10px] font-bold text-destructive dark:text-destructive/80 uppercase tracking-wider">
                 Error Encountered
               </span>
-              <p className="text-xs text-foreground/90 dark:text-destructive/90 leading-relaxed font-medium">
+              <p className="text-[11px] sm:text-xs text-foreground/90 dark:text-destructive/90 leading-relaxed font-medium break-words">
                 {stream.error}
               </p>
             </div>
@@ -183,18 +185,16 @@ export const StreamingMessage = memo(function StreamingMessage({
         ) : null}
 
         {stream.metrics ? (
-          <div className="flex items-baseline gap-2 px-1 mt-1">
-            <span className="text-[10px] font-bold text-foreground/40 uppercase tracking-widest select-none leading-none">
+          <div className="flex flex-wrap items-center gap-x-1.5 sm:gap-x-2 gap-y-1 px-1 mt-0.5 sm:mt-1">
+            <span className="text-[9px] sm:text-[10px] font-bold text-foreground/40 uppercase tracking-widest select-none leading-none shrink-0">
               Edward
             </span>
-            <span className="w-1 h-1 rounded-full bg-foreground/[0.05] self-center" />
-            <div className="inline-flex translate-y-0.5">
-              <MessageMetrics
-                completionTime={stream.metrics.completionTime}
-                inputTokens={stream.metrics.inputTokens}
-                outputTokens={stream.metrics.outputTokens}
-              />
-            </div>
+            <span className="w-1 h-1 rounded-full bg-foreground/[0.05] shrink-0" />
+            <MessageMetrics
+              completionTime={stream.metrics.completionTime}
+              inputTokens={stream.metrics.inputTokens}
+              outputTokens={stream.metrics.outputTokens}
+            />
           </div>
         ) : null}
       </div>

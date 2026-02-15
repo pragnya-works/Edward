@@ -27,17 +27,10 @@ import {
   releaseUserSlot,
 } from "../services/concurrency.service.js";
 import { runStreamSession } from "./chat/streamSession.js";
-import {
-  getActiveSandbox,
-  provisionSandbox,
-} from "../services/sandbox/lifecycle/provisioning.js";
+import { getActiveSandbox } from "../services/sandbox/lifecycle/provisioning.js";
 import { cleanupSandbox } from "../services/sandbox/lifecycle/cleanup.js";
 import { buildS3Key } from "../services/storage/key.utils.js";
 import { buildConversationMessages } from "../lib/llm/context.js";
-import {
-  refreshSandboxTTL,
-  getChatFramework,
-} from "../services/sandbox/state.sandbox.js";
 import { ChatAction } from "../services/planning/schemas.js";
 import type { LlmChatMessage } from "../lib/llm/context.js";
 
@@ -256,38 +249,6 @@ export async function getChatHistory(
       chatId,
       messages,
     });
-
-    void (async () => {
-      try {
-        const existingId = await getActiveSandbox(chatId);
-        if (existingId) {
-          await refreshSandboxTTL(existingId, chatId);
-          return;
-        }
-
-        const { hasBackup } =
-          await import("../services/sandbox/backup.sandbox.js");
-        const backupExists = await hasBackup(chatId);
-        const cachedFramework = (await getChatFramework(chatId)) || undefined;
-
-        if (!backupExists && !cachedFramework) {
-          logger.debug(
-            { chatId },
-            "No sandbox tag detected (no backup and no framework), skipping provisioning",
-          );
-          return;
-        }
-
-        await provisionSandbox(
-          chatData.userId,
-          chatId,
-          cachedFramework,
-          backupExists,
-        );
-      } catch (err) {
-        logger.error({ err, chatId }, "Background sandbox restoration failed");
-      }
-    })();
   } catch (error) {
     logger.error(ensureError(error), "getChatHistory error");
     sendStreamError(

@@ -12,9 +12,9 @@ export const TypingIndicator = memo(function TypingIndicator({
   isCodeMode,
 }: TypingIndicatorProps) {
   return (
-    <div className="flex items-center gap-1.5 p-2">
+    <div className="flex items-center gap-1 sm:gap-1.5 p-1.5 sm:p-2">
       <motion.div
-        className="flex items-center gap-1"
+        className="flex items-center gap-0.5 sm:gap-1"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.4 }}
@@ -23,7 +23,7 @@ export const TypingIndicator = memo(function TypingIndicator({
           <motion.div
             key={i}
             className={cn(
-              "h-1.5 w-1.5 rounded-full",
+              "h-1 sm:h-1.5 w-1 sm:w-1.5 rounded-full",
               isCodeMode
                 ? "bg-gradient-to-tr from-amber-400 to-orange-400"
                 : "bg-gradient-to-tr from-sky-400 to-indigo-400",
@@ -42,7 +42,7 @@ export const TypingIndicator = memo(function TypingIndicator({
         ))}
         <span
           className={cn(
-            "ml-2 text-[10px] font-medium uppercase tracking-widest animate-pulse",
+            "ml-1.5 sm:ml-2 text-[9px] sm:text-[10px] font-medium uppercase tracking-widest motion-safe:animate-pulse",
             isCodeMode
               ? "text-amber-600/60 dark:text-amber-400/50"
               : "text-sky-600/60 dark:text-sky-400/50",
