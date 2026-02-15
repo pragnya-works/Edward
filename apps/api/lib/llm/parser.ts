@@ -219,8 +219,6 @@ export function createStreamParser() {
     while (changed) {
       changed = false;
       const trimmed = cleaned.trim();
-
-      // Markdown stripping
       if (trimmed.startsWith("```") && trimmed.endsWith("```")) {
         const firstNewline = trimmed.indexOf("\n");
         const lastFence = trimmed.lastIndexOf("```");

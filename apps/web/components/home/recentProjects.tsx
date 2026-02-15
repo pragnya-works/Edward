@@ -14,42 +14,18 @@ export function RecentProjects() {
     new Set(),
   );
   const loadTriggerRef = useRef<HTMLDivElement>(null);
-  const prevProjectsLengthRef = useRef(0);
   const loadMoreRef = useRef(loadMore);
-  const initialLoadRef = useRef(true);
   loadMoreRef.current = loadMore;
-  const projectsLength = projects.length;
 
   useEffect(() => {
     if (isLoading) {
-      setVisibleProjects(new Set());
-      prevProjectsLengthRef.current = 0;
-      initialLoadRef.current = true;
       return;
     }
 
-    if (projectsLength > 0) {
-      if (initialLoadRef.current) {
-        setVisibleProjects(new Set());
-        const rafId = requestAnimationFrame(() => {
-          setVisibleProjects(new Set(projects.map((p) => p.id)));
-        });
-        prevProjectsLengthRef.current = projectsLength;
-        initialLoadRef.current = false;
-        return () => cancelAnimationFrame(rafId);
-      }
-
-      if (projectsLength > prevProjectsLengthRef.current) {
-        const newProjects = projects.slice(prevProjectsLengthRef.current);
-        setVisibleProjects((prev) => {
-          const newSet = new Set(prev);
-          newProjects.forEach((p) => newSet.add(p.id));
-          return newSet;
-        });
-      }
-      prevProjectsLengthRef.current = projectsLength;
+    if (projects.length > 0) {
+      setVisibleProjects(new Set(projects.map((p) => p.id)));
     }
-  }, [isLoading, projectsLength, projects]);
+  }, [isLoading, projects]);
 
   useEffect(() => {
     const observer = new IntersectionObserver(

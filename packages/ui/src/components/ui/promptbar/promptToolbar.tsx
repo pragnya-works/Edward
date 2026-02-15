@@ -1,4 +1,4 @@
-import { ArrowRight, PaperclipIcon, EyeOff, X } from "lucide-react";
+import { ArrowRight, PaperclipIcon, EyeOff, X, Square } from "lucide-react";
 import { Button } from "@edward/ui/components/button";
 import {
   Tooltip,
@@ -20,6 +20,11 @@ interface PromptToolbarProps {
   onFileInputChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onClearAllFiles: () => void;
   onProtectedAction: () => void;
+  isStreaming?: boolean;
+  onCancel?: () => void;
+  isSearchEnabled?: boolean;
+  onSearchToggle?: (enabled: boolean) => void;
+  disabled?: boolean;
 }
 
 export function PromptToolbar({
@@ -33,31 +38,63 @@ export function PromptToolbar({
   onFileInputChange,
   onClearAllFiles,
   onProtectedAction,
+  isStreaming,
+  onCancel,
+  disabled,
 }: PromptToolbarProps) {
+  const handleAction = isStreaming ? onCancel : onProtectedAction;
+
   const ActionButton = isMobile ? (
     <Button
       type="button"
       size="icon"
-      className="rounded-full"
-      onClick={onProtectedAction}
-      aria-label="Build now"
+      className={cn(
+        "rounded-full transition-all duration-300 transform active:scale-95",
+        isStreaming
+          ? "bg-foreground/10 hover:bg-foreground/20 text-foreground"
+          : "bg-foreground text-background hover:opacity-90"
+      )}
+      onClick={handleAction}
+      disabled={disabled && !isStreaming}
+      aria-label={isStreaming ? "Stop generation" : "Build now"}
     >
-      <ArrowRight className="h-3.5 w-3.5" />
+      {isStreaming ? (
+        <Square className="h-4 w-4 fill-current" />
+      ) : (
+        <ArrowRight className="h-4 w-4" />
+      )}
     </Button>
   ) : (
-    <Button
-      type="button"
-      className="shrink-0 rounded-full px-5 py-2 text-sm font-medium shadow-sm"
-      onClick={onProtectedAction}
-    >
-      Build now
-      <ArrowRight className="ml-1 h-3.5 w-3.5" />
-    </Button>
+    <div className="flex items-center gap-3">
+      <Button
+        type="button"
+        className={cn(
+          "shrink-0 rounded-full px-6 py-2.5 text-sm font-semibold transition-all duration-300 transform active:scale-95 border-none",
+          isStreaming
+            ? "bg-foreground/10 hover:bg-foreground/20 text-foreground"
+            : "bg-foreground text-background hover:brightness-110 shadow-md"
+        )}
+        onClick={handleAction}
+        disabled={disabled && !isStreaming}
+      >
+        {isStreaming ? (
+          <>
+            Stop
+            <Square className="ml-2 h-3.5 w-3.5 fill-current" />
+          </>
+        ) : (
+          <>
+            Build now
+            <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+          </>
+        )}
+      </Button>
+    </div>
   );
 
   return (
-    <div className="flex items-center justify-between px-6 py-4 bg-input/30">
-      <div className="flex items-center gap-2">
+    <div className="flex items-center justify-between px-6 py-4 bg-transparent relative z-20">
+      <div className="flex items-center gap-3">
         <Tooltip>
           <TooltipTrigger
             render={
@@ -76,26 +113,18 @@ export function PromptToolbar({
                   variant="ghost"
                   size="icon"
                   className={cn(
-                    "h-9 w-9 shrink-0 rounded-full p-0 bg-input/80",
-                    (!isAuthenticated || !supportsVision) &&
-                    "opacity-50 cursor-not-allowed",
+                    "h-10 w-10 shrink-0 rounded-full bg-foreground/[0.05] hover:bg-foreground/[0.08] transition-all duration-200 border border-border/50",
+                    !supportsVision && "opacity-40 cursor-not-allowed grayscale",
                   )}
                   onClick={onAttachmentClick}
                   disabled={!isAuthenticated || !supportsVision}
-                  aria-label={
-                    isAuthenticated && supportsVision
-                      ? "Attach images"
-                      : !supportsVision
-                        ? "Vision not supported"
-                        : "Sign in to attach images"
-                  }
                 >
                   {isAuthenticated && supportsVision ? (
-                    <PaperclipIcon className="h-4 w-4 text-foreground" />
+                    <PaperclipIcon className="h-4.5 w-4.5 text-foreground/70" />
                   ) : !supportsVision ? (
-                    <EyeOff className="h-4 w-4 text-muted-foreground" />
+                    <EyeOff className="h-4.5 w-4.5 text-muted-foreground/50" />
                   ) : (
-                    <PaperclipIcon className="h-4 w-4 text-muted-foreground/50" />
+                    <PaperclipIcon className="h-4.5 w-4.5 text-muted-foreground/70" />
                   )}
                 </Button>
               </div>
@@ -106,7 +135,7 @@ export function PromptToolbar({
               {!isAuthenticated
                 ? "Sign in to attach images"
                 : !supportsVision
-                  ? "This model doesn't support image attachments"
+                  ? "Vision not supported"
                   : `Attach images${attachedFiles.length > 0 ? ` (${attachedFiles.length}/${MAX_FILES})` : ""}`}
             </TooltipContent>
           </TooltipPositioner>
@@ -119,11 +148,11 @@ export function PromptToolbar({
                   type="button"
                   variant="ghost"
                   size="icon"
-                  className="h-9 w-9 shrink-0 rounded-full p-0 text-muted-foreground hover:bg-muted"
+                  className="h-10 w-10 shrink-0 rounded-full bg-red-500/5 hover:bg-red-500/15 text-red-500/60 hover:text-red-500 transition-all border border-red-500/10"
                   onClick={onClearAllFiles}
                   aria-label="Clear all attachments"
                 >
-                  <X className="h-4 w-4" />
+                  <X className="h-4.5 w-4.5" />
                 </Button>
               }
             />

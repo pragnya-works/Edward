@@ -3,6 +3,7 @@
 import { useState, type ReactNode } from "react"
 import { ThemeProvider as NextThemesProvider } from "next-themes"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
+import { ChatStreamProvider } from "@/contexts/chatStreamContext"
 
 function makeQueryClient() {
   return new QueryClient({
@@ -25,7 +26,9 @@ export function Providers({ children }: { children: ReactNode }) {
       disableTransitionOnChange
       enableColorScheme
     >
-      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+      <QueryClientProvider client={queryClient}>
+        <ChatStreamProvider>{children}</ChatStreamProvider>
+      </QueryClientProvider>
     </NextThemesProvider>
   );
 }

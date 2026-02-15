@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 env:
-  NODE_VERSION: '22'
+  NODE_VERSION: "22"
 
 jobs:
   quality-gates:
@@ -31,7 +31,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'pnpm'
+          cache: "pnpm"
 
       - name: Install Dependencies
         run: pnpm install --frozen-lockfile
@@ -51,8 +51,8 @@ jobs:
       - name: Build
         run: pnpm turbo build
         env:
-          DATABASE_URL: 'postgres://build:build@localhost:5432/build'
-          BETTER_AUTH_SECRET: 'build-time-secret'
-          BETTER_AUTH_URL: 'http://localhost:3000'
-          GITHUB_CLIENT_ID: 'build'
-          GITHUB_CLIENT_SECRET: 'build'
+          DATABASE_URL: "postgres://build:build@localhost:5432/build"
+          BETTER_AUTH_SECRET: "build-time-secret"
+          BETTER_AUTH_URL: "http://localhost:3000"
+          GITHUB_CLIENT_ID: "build"
+          GITHUB_CLIENT_SECRET: "build"

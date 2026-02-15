@@ -63,6 +63,11 @@ const PROVIDERS_CONFIG = [
   },
 ];
 
+function validateApiKey(key: string, provider: Provider): boolean {
+  if (!key.trim()) return false;
+  return API_KEY_REGEX[provider].test(key);
+}
+
 export function BYOK({
   isOpen = false,
   onClose,
@@ -87,7 +92,34 @@ export function BYOK({
   const [showPassword, setShowPassword] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
 
-  const error = externalError || localError;
+  const trimmedApiKey = apiKey.trim();
+  const isExistingKeyCompatible =
+    !!keyPreview &&
+    (keyPreview === "Existing Key" ||
+      (selectedProvider === Provider.OPENAI &&
+        (keyPreview.startsWith("sk-") || keyPreview.includes("..."))) ||
+      (selectedProvider === Provider.GEMINI &&
+        (keyPreview.startsWith("AI") || keyPreview.includes("..."))));
+
+  const isApiKeyValid =
+    !trimmedApiKey || validateApiKey(trimmedApiKey, selectedProvider);
+  const isModelChanged = selectedModel !== preferredModel;
+
+  const providerMismatchError =
+    hasExistingKey && !trimmedApiKey && !isExistingKeyCompatible
+      ? `The active key might not be compatible with ${PROVIDERS_CONFIG.find((p) => p.id === selectedProvider)?.label}. Please provide a new key.`
+      : "";
+
+  const error =
+    externalError ||
+    providerMismatchError ||
+    (!isApiKeyValid ? API_KEY_VALIDATION_ERROR[selectedProvider] : localError);
+
+  const canSubmit =
+    !isSubmitting &&
+    isApiKeyValid &&
+    !providerMismatchError &&
+    (trimmedApiKey ? true : hasExistingKey && isModelChanged);
 
   useEffect(() => {
     if (isOpen) {
@@ -108,25 +140,15 @@ export function BYOK({
     onModelChange?.(modelId);
   }
 
-  function validateApiKey(key: string, provider: Provider): boolean {
-    if (!key.trim()) return false;
-    return API_KEY_REGEX[provider].test(key);
-  }
-
   async function handleSubmit() {
-    if (isSubmitting || !onSaveApiKey) return;
-
-    if (!validateApiKey(apiKey, selectedProvider)) {
-      setLocalError(API_KEY_VALIDATION_ERROR[selectedProvider]);
-      return;
-    }
+    if (!canSubmit || !onSaveApiKey) return;
 
     setIsSubmitting(true);
     setLocalError("");
 
     try {
       const success = await onSaveApiKey(
-        apiKey,
+        trimmedApiKey,
         onValidate,
         onClose,
         selectedProvider,
@@ -287,11 +309,7 @@ export function BYOK({
             <Button
               className="flex-1 rounded-xl h-12 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold shadow-md dark:shadow-lg dark:shadow-primary/10 transition-all active:scale-[0.98]"
               onClick={handleSubmit}
-              disabled={
-                !apiKey.trim() ||
-                isSubmitting ||
-                !validateApiKey(apiKey, selectedProvider)
-              }
+              disabled={!canSubmit}
             >
               {isSubmitting ? (
                 <div className="flex items-center gap-2.5">

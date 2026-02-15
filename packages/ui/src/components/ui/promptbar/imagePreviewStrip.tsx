@@ -43,8 +43,8 @@ export function ImagePreviewStrip({
           transition={{ duration: 0.2, ease: "easeOut" }}
           className="overflow-hidden"
         >
-          <div className="p-4 border-b border-border/50">
-            <div className="flex items-center gap-2.5 overflow-x-auto scrollbar-hide">
+          <div className="px-4 border-b border-border/10">
+            <div className="flex items-center gap-3 overflow-x-auto scrollbar-hide px-2 py-5">
               {attachedFiles.map((file, index) => (
                 <motion.div
                   key={file.id}
@@ -53,7 +53,7 @@ export function ImagePreviewStrip({
                   transition={{ delay: index * 0.05 }}
                   className="relative flex-shrink-0"
                 >
-                  <div className="relative h-[72px] w-[72px] rounded-lg overflow-hidden">
+                  <div className="relative h-18 w-18 rounded-xl overflow-hidden border border-border/50 shadow shadow-black/10 dark:shadow-black/20 ring-1 ring-border/20 bg-foreground/[0.05]">
                     <img
                       src={file.preview}
                       alt={file.file.name}
@@ -64,16 +64,11 @@ export function ImagePreviewStrip({
                       variant="ghost"
                       size="icon"
                       onClick={() => onRemoveFile(file.id)}
-                      className="absolute top-1 right-1 h-5 w-5 rounded-full bg-black/60 hover:bg-black/80 text-white/80 hover:text-white transition-colors duration-150"
+                      className="absolute top-1 right-1 h-5.5 w-5.5 rounded-full bg-black/60 dark:bg-black/80 backdrop-blur-md hover:bg-black/90 text-white/90 hover:text-white transition-all duration-150 border border-white/10 dark:border-white/5"
                       aria-label={`Remove ${file.file.name}`}
                     >
                       <X className="h-3 w-3" />
                     </Button>
-                    {file.file.type.startsWith("image/heic") && (
-                      <div className="absolute bottom-1 left-1 px-1 py-0.5 rounded bg-black/60 text-[8px] font-medium text-white">
-                        HEIC
-                      </div>
-                    )}
                   </div>
                 </motion.div>
               ))}
@@ -84,14 +79,14 @@ export function ImagePreviewStrip({
                   animate={{ scale: 1, opacity: 1 }}
                   transition={{ delay: attachedFiles.length * 0.05 }}
                   onClick={onAddMore}
-                  className="flex-shrink-0 h-[72px] w-[72px] rounded-lg bg-muted/50 hover:bg-muted/70 transition-colors flex items-center justify-center cursor-pointer border border-border"
+                  className="flex-shrink-0 h-18 w-18 rounded-xl bg-foreground/[0.03] dark:bg-foreground/[0.04] hover:bg-foreground/[0.06] transition-all flex items-center justify-center cursor-pointer border border-dashed border-border group/add"
                   aria-label="Add more images"
                 >
-                  <PlusIcon className="h-5 w-5 text-muted-foreground" />
+                  <PlusIcon className="h-6 w-6 text-muted-foreground/40 group-hover/add:text-sky-500 dark:group-hover/add:text-sky-400 group-hover/add:scale-110 transition-all" />
                 </motion.button>
               )}
-              <span className="flex-shrink-0 text-xs text-muted-foreground pl-1">
-                {attachedFiles.length}/{MAX_FILES}
+              <span className="flex-shrink-0 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/30 dark:text-muted-foreground/20 pl-2">
+                {attachedFiles.length} / {MAX_FILES}
               </span>
             </div>
           </div>

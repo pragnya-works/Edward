@@ -25,12 +25,17 @@ export default function Promptbar({
   apiKeyError = "",
   onSaveApiKey,
   preferredModel,
+  keyPreview,
   selectedModelId,
+  hideSuggestions = false,
+  isStreaming = false,
+  onCancel,
 }: PromptbarProps) {
   const [inputValue, setInputValue] = useState("");
   const [suggestionIndex, setSuggestionIndex] = useState(0);
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [showBYOK, setShowBYOK] = useState(false);
+
   const isMobile = useIsMobile();
   const initialLoadTriggered = useRef(false);
 
@@ -55,14 +60,12 @@ export default function Promptbar({
   } = useFileAttachments(isAuthenticated, supportsVision);
 
   useEffect(() => {
-    let interval: NodeJS.Timeout | null = null;
-
+    let interval: ReturnType<typeof setInterval> | null = null;
     const startInterval = () => {
       interval = setInterval(() => {
         setSuggestionIndex((prev) => (prev + 1) % SUGGESTIONS.length);
       }, 4000);
     };
-
     const handleVisibilityChange = () => {
       if (document.hidden) {
         if (interval) clearInterval(interval);
@@ -71,10 +74,8 @@ export default function Promptbar({
         startInterval();
       }
     };
-
     startInterval();
     document.addEventListener("visibilitychange", handleVisibilityChange);
-
     return () => {
       if (interval) clearInterval(interval);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
@@ -87,7 +88,12 @@ export default function Promptbar({
     } else if (hasApiKey !== true) {
       if (!isApiKeyLoading) setShowBYOK(true);
     } else {
-      onProtectedAction?.(attachedFiles.map((f) => f.file));
+      onProtectedAction?.(
+        inputValue,
+        attachedFiles.map((f) => f.file),
+      );
+      setInputValue("");
+      handleClearAllFiles();
     }
   }, [
     isAuthenticated,
@@ -95,6 +101,8 @@ export default function Promptbar({
     isApiKeyLoading,
     onProtectedAction,
     attachedFiles,
+    inputValue,
+    handleClearAllFiles,
   ]);
 
   useEffect(() => {
@@ -110,11 +118,18 @@ export default function Promptbar({
   }, [isAuthenticated, hasApiKey, isApiKeyLoading]);
 
   return (
-    <Card className="w-full rounded-2xl border-border bg-card/80 backdrop-blur-md shadow-xl py-0 overflow-hidden">
+    <Card
+      className={cn(
+        "w-full rounded-2xl py-0 overflow-hidden transition-all duration-500",
+        isAuthenticated
+          ? "border border-sky-400/30 bg-card/80 dark:bg-card/35 backdrop-blur-3xl shadow-sm ring-1 ring-sky-400/20"
+          : "border border-white/20 bg-zinc-100/70 dark:bg-zinc-900/70 backdrop-blur-3xl shadow-sm ring-1 ring-white/10",
+      )}
+    >
       <div
         className={cn(
           "flex flex-col relative transition-all duration-200",
-          isDragging && "bg-primary/5",
+          isDragging && "bg-sky-500/10",
         )}
         onDragEnter={handleDragEnter}
         onDragLeave={handleDragLeave}
@@ -131,22 +146,24 @@ export default function Promptbar({
         />
 
         <div className="relative">
-          {!inputValue && attachedFiles.length === 0 && (
-            <div className="absolute inset-0 px-4 py-4 pointer-events-none z-0">
-              <TextAnimate
-                key={suggestionIndex}
-                animation="blurInUp"
-                by="word"
-                className="text-base text-gray-500"
-                text={SUGGESTIONS[suggestionIndex]!}
-              />
-            </div>
-          )}
+          {!inputValue.trim() &&
+            attachedFiles.length === 0 &&
+            !hideSuggestions && (
+              <div className="absolute inset-0 pointer-events-none z-0">
+                <TextAnimate
+                  key={suggestionIndex}
+                  animation="blurInUp"
+                  by="word"
+                  className="text-[15px] text-muted-foreground font-medium leading-relaxed tracking-tight p-6"
+                  text={SUGGESTIONS[suggestionIndex]!}
+                />
+              </div>
+            )}
           <Textarea
-            placeholder=""
+            placeholder={hideSuggestions ? "Ask Edward anything..." : ""}
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
-            className="min-h-25 md:min-h-30 resize-none border-0 bg-transparent p-4 text-base text-foreground placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0 relative z-10"
+            className="min-h-25 md:min-h-30 resize-none border-0 bg-transparent p-6 text-[15px] text-foreground placeholder:text-muted-foreground/70 focus-visible:ring-0 focus-visible:ring-offset-0 relative z-10 font-medium leading-relaxed tracking-tight"
           />
         </div>
 
@@ -161,6 +178,9 @@ export default function Promptbar({
           onFileInputChange={handleFileInputChange}
           onClearAllFiles={handleClearAllFiles}
           onProtectedAction={handleProtectedAction}
+          isStreaming={isStreaming}
+          onCancel={onCancel}
+          disabled={!inputValue.trim() && attachedFiles.length === 0}
         />
       </div>
       {showLoginModal && (
@@ -175,11 +195,18 @@ export default function Promptbar({
           isOpen={showBYOK}
           onClose={() => setShowBYOK(false)}
           onValidate={() => {
-            onProtectedAction?.(attachedFiles.map((f) => f.file));
+            onProtectedAction?.(
+              inputValue,
+              attachedFiles.map((f) => f.file),
+            );
+            setInputValue("");
+            handleClearAllFiles();
             setShowBYOK(false);
           }}
           onSaveApiKey={onSaveApiKey}
           preferredModel={preferredModel}
+          keyPreview={keyPreview}
+          hasExistingKey={hasApiKey === true}
           error={apiKeyError}
         />
       )}

@@ -30,7 +30,6 @@ export default function Navbar() {
   const handleSignIn = async () => {
     setIsLoading(true);
     await signIn();
-    // Page will redirect, no cleanup needed
   };
 
   if (session?.user) {

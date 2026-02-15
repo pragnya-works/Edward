@@ -13,6 +13,23 @@ export interface ApiError extends Error {
   data?: unknown;
 }
 
+export type MessageContentPart =
+  | { type: "text"; text: string }
+  | { type: "image"; base64: string; mimeType: string };
+
+export type MessageContent = string | MessageContentPart[];
+
+export interface SendMessageRequest {
+  content: MessageContent;
+  chatId?: string;
+  title?: string;
+  model?: string;
+}
+
+interface SendMessageResponse {
+  success: boolean;
+}
+
 export async function fetchApi<T>(
   endpoint: string,
   options: RequestInit = {},
@@ -39,4 +56,56 @@ export async function fetchApi<T>(
   }
 
   return response.json() as Promise<T>;
+}
+
+export async function sendMessage(
+  body: SendMessageRequest,
+): Promise<SendMessageResponse> {
+  return fetchApi<SendMessageResponse>("/api/chat/message", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+async function fileToContentPart(
+  file: File,
+): Promise<MessageContentPart> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      const base64 = result.split(",")[1] || "";
+      resolve({
+        type: "image",
+        base64,
+        mimeType: file.type || "image/jpeg",
+      });
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+export async function filesToMessageContent(
+  text: string,
+  files: File[],
+): Promise<MessageContent> {
+  if (files.length === 0) return text;
+  if (files.length === 1 && !text) {
+    const fileContent = await fileToContentPart(files[0]!);
+    return [fileContent];
+  }
+
+  const parts: MessageContentPart[] = [];
+
+  if (text) {
+    parts.push({ type: "text", text });
+  }
+
+  for (const file of files) {
+    const fileContent = await fileToContentPart(file);
+    parts.push(fileContent);
+  }
+
+  return parts;
 }

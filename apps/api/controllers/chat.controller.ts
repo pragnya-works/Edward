@@ -264,10 +264,20 @@ export async function getChatHistory(
           await refreshSandboxTTL(existingId, chatId);
           return;
         }
+
         const { hasBackup } =
           await import("../services/sandbox/backup.sandbox.js");
         const backupExists = await hasBackup(chatId);
         const cachedFramework = (await getChatFramework(chatId)) || undefined;
+
+        if (!backupExists && !cachedFramework) {
+          logger.debug(
+            { chatId },
+            "No sandbox tag detected (no backup and no framework), skipping provisioning",
+          );
+          return;
+        }
+
         await provisionSandbox(
           chatData.userId,
           chatId,

@@ -10,6 +10,7 @@ import {
 } from "@edward/shared/schema";
 import { MessageRole } from "@edward/auth";
 import { toGeminiRole, type TokenBreakdownRole } from "./messageRole.js";
+import { getTextFromContent } from "./types.js";
 
 type TokenCountMethod = "openai-tiktoken" | "gemini-countTokens" | "approx";
 
@@ -94,7 +95,9 @@ function countOpenAIInputTokens(
 
   let total = systemTokens;
   messages.forEach((m, idx) => {
-    const msgTokens = tokensPerMessage + enc.encode(m.content).length;
+    const textContent =
+      typeof m.content === "string" ? m.content : getTextFromContent(m.content);
+    const msgTokens = tokensPerMessage + enc.encode(textContent).length;
     perMessage.push({ index: idx + 1, role: m.role, tokens: msgTokens });
     total += msgTokens;
   });
@@ -146,7 +149,11 @@ async function countGeminiInputTokens(
     });
     let total = systemTokens;
     messages.forEach((m, idx) => {
-      const t = approx(m.content);
+      const textContent =
+        typeof m.content === "string"
+          ? m.content
+          : getTextFromContent(m.content);
+      const t = approx(textContent);
       perMessage.push({ index: idx + 1, role: m.role, tokens: t });
       total += t;
     });
@@ -255,7 +262,9 @@ export function isOverContextLimit(usage: TokenUsage): boolean {
 export function countOutputTokens(content: string, model?: string): number {
   const modelName = model || DEFAULT_OPENAI_MODEL;
   try {
-    const enc = encodingForModel(modelName as Parameters<typeof encodingForModel>[0]);
+    const enc = encodingForModel(
+      modelName as Parameters<typeof encodingForModel>[0],
+    );
     return enc.encode(content).length;
   } catch {
     const enc = getEncoding("cl100k_base");
