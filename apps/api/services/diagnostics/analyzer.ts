@@ -55,8 +55,12 @@ export function groupRelatedErrors(errors: BuildError[]): BuildError[] {
   return errors;
 }
 
+type DiagnosticContext = {
+  packageJson?: Record<string, unknown>;
+};
+
 interface DiagnosticStrategy {
-  layman: (error: BuildError, context: any) => string;
+  layman: (error: BuildError, context: DiagnosticContext) => string;
 }
 
 const DIAGNOSTIC_STRATEGIES: Record<string, DiagnosticStrategy> = {
@@ -116,7 +120,7 @@ const DIAGNOSTIC_STRATEGIES: Record<string, DiagnosticStrategy> = {
 
 export function generateSuggestion(
   error: BuildError,
-  context: { packageJson?: Record<string, unknown> },
+  context: DiagnosticContext,
 ): string {
   const strategy =
     DIAGNOSTIC_STRATEGIES[error.type] ?? DIAGNOSTIC_STRATEGIES.unknown;

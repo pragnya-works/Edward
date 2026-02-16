@@ -11,6 +11,7 @@ process.env.AWS_REGION = "us-east-1";
 process.env.GITHUB_CLIENT_ID = "test-client-id";
 process.env.GITHUB_CLIENT_SECRET = "test-client-secret";
 process.env.CORS_ORIGIN = "http://localhost:3000";
+process.env.BETTER_AUTH_BASE_URL = "http://localhost:3001";
 process.env.EDWARD_API_PORT = "3001";
 process.env.PREWARM_SANDBOX_IMAGE = "test-image:latest";
 process.env.DOCKER_REGISTRY_BASE = "registry.example.com";
