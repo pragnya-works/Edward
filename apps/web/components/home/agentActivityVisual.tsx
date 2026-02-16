@@ -1,8 +1,9 @@
 "use client";
 
-import React, { memo, useState, useEffect, useMemo, useRef, useCallback, useSyncExternalStore } from "react";
+import React, { memo, useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { Search, FileCode, Edit3, Terminal, CheckCircle2, User, Bot, Loader2 } from "lucide-react";
+import { useTabVisibility } from "@/hooks/useTabVisibility";
 
 interface ToolCall {
     id: string;
@@ -91,29 +92,11 @@ const SEQUENCE = [
     { delay: 5000, next: 0 }
 ] as const;
 
-function subscribeToVisibility(callback: () => void) {
-    document.addEventListener('visibilitychange', callback);
-    return () => document.removeEventListener('visibilitychange', callback);
-}
-
-function getVisibilitySnapshot() {
-    return document.visibilityState === 'visible';
-}
-
-function getServerVisibilitySnapshot() {
-    return true;
-}
-
 export const AgentActivityVisual = memo(() => {
     const [step, setStep] = useState(0);
     const timeoutRef = useRef<NodeJS.Timeout | null>(null);
     const sequenceIndexRef = useRef(0);
-
-    const isDocumentVisible = useSyncExternalStore(
-        subscribeToVisibility,
-        getVisibilitySnapshot,
-        getServerVisibilitySnapshot
-    );
+    const isDocumentVisible = useTabVisibility();
 
     const clearCurrentTimeout = useCallback(() => {
         if (timeoutRef.current) {

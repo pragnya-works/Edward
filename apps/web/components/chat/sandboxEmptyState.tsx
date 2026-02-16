@@ -58,6 +58,7 @@ export function SandboxEmptyState() {
                     </div>
 
                     <button
+                      type="button"
                       onClick={handleCopyLogs}
                       className="flex items-center gap-2 text-[11px] font-bold text-muted-foreground hover:text-foreground transition-all px-3 py-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/5"
                     >

@@ -5,9 +5,9 @@ import {
   useEffect,
   useRef,
   useCallback,
-  useSyncExternalStore,
 } from "react";
 import { AnimatePresence, motion } from "motion/react";
+import { useVisibilityAwareInterval } from "@/hooks/useVisibilityAwareInterval";
 import {
   BrowserHeader,
   Sidebar,
@@ -20,55 +20,6 @@ const fadeInVariant = {
   initial: { opacity: 0 },
   animate: { opacity: 1 },
 };
-
-function subscribeToVisibility(callback: () => void) {
-  document.addEventListener("visibilitychange", callback);
-  return () => document.removeEventListener("visibilitychange", callback);
-}
-
-function getVisibilitySnapshot() {
-  return document.visibilityState === "visible";
-}
-
-function getServerVisibilitySnapshot() {
-  return true;
-}
-
-function useVisibilityAwareInterval(callback: () => void, delay: number) {
-  const savedCallback = useRef(callback);
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
-
-  const isDocumentVisible = useSyncExternalStore(
-    subscribeToVisibility,
-    getVisibilitySnapshot,
-    getServerVisibilitySnapshot,
-  );
-
-  useEffect(() => {
-    savedCallback.current = callback;
-  }, [callback]);
-
-  useEffect(() => {
-    const startInterval = () => {
-      if (intervalRef.current) return;
-      intervalRef.current = setInterval(() => savedCallback.current(), delay);
-    };
-
-    const stopInterval = () => {
-      if (!intervalRef.current) return;
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
-    };
-
-    if (isDocumentVisible) {
-      startInterval();
-    } else {
-      stopInterval();
-    }
-
-    return () => stopInterval();
-  }, [delay, isDocumentVisible]);
-}
 
 export function InstantPreviewVisual() {
   const [index, setIndex] = useState(0);

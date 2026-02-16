@@ -13,6 +13,22 @@ export interface ApiError extends Error {
   data?: unknown;
 }
 
+function buildApiUrl(endpoint: string): string {
+  return `${API_BASE_URL}${endpoint.startsWith("/") ? "" : "/"}${endpoint}`;
+}
+
+async function toApiError(response: Response): Promise<ApiError> {
+  const errorData = await response.json().catch(() => ({}));
+  const error = new Error(
+    (errorData as { error?: string; message?: string }).error ||
+      (errorData as { error?: string; message?: string }).message ||
+      `API Error: ${response.status}`,
+  ) as ApiError;
+  error.status = response.status;
+  error.data = errorData;
+  return error;
+}
+
 export type MessageContentPart =
   | { type: "text"; text: string }
   | { type: "image"; base64: string; mimeType: string };
@@ -26,44 +42,49 @@ export interface SendMessageRequest {
   model?: string;
 }
 
-interface SendMessageResponse {
-  success: boolean;
+function withDefaultHeaders(options: RequestInit): RequestInit {
+  const hasFormDataBody =
+    typeof FormData !== "undefined" && options.body instanceof FormData;
+  const headers = new Headers(options.headers);
+
+  if (!hasFormDataBody && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
+
+  return {
+    ...options,
+    headers,
+    credentials: "include",
+  };
+}
+
+export async function fetchApiResponse(
+  endpoint: string,
+  options: RequestInit = {},
+): Promise<Response> {
+  const response = await fetch(buildApiUrl(endpoint), withDefaultHeaders(options));
+  if (!response.ok) {
+    throw await toApiError(response);
+  }
+  return response;
 }
 
 export async function fetchApi<T>(
   endpoint: string,
   options: RequestInit = {},
 ): Promise<T> {
-  const url = `${API_BASE_URL}${endpoint.startsWith("/") ? "" : "/"}${endpoint}`;
-
-  const response = await fetch(url, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...options.headers,
-    },
-    credentials: "include",
-  });
-
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    const error = new Error(
-      errorData.error || errorData.message || `API Error: ${response.status}`,
-    ) as ApiError;
-    error.status = response.status;
-    error.data = errorData;
-    throw error;
-  }
-
+  const response = await fetchApiResponse(endpoint, options);
   return response.json() as Promise<T>;
 }
 
-export async function sendMessage(
+export async function postChatMessageStream(
   body: SendMessageRequest,
-): Promise<SendMessageResponse> {
-  return fetchApi<SendMessageResponse>("/chat/message", {
+  signal?: AbortSignal,
+): Promise<Response> {
+  return fetchApiResponse("/chat/message", {
     method: "POST",
     body: JSON.stringify(body),
+    signal,
   });
 }
 

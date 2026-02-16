@@ -111,7 +111,9 @@ export const MobileNav = ({
         <>
             <AnimatePresence>
                 {isOpen && (
-                    <motion.div
+                    <motion.button
+                        type="button"
+                        aria-label="Close mobile menu"
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
@@ -176,7 +178,8 @@ export const MobileNavToggle = ({
             onClick={onClick}
             aria-label={isOpen ? "Close menu" : "Open menu"}
             className={cn(
-                "flex h-10 w-10 items-center justify-center rounded-md text-foreground hover:bg-accent focus:outline-none",
+                "flex h-10 w-10 items-center justify-center rounded-md text-foreground hover:bg-accent",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
                 className,
             )}
         >
@@ -247,9 +250,9 @@ export const NavItems = ({
 }) => {
     return (
         <div className={cn("flex items-center gap-4", className)}>
-            {items.map((item, idx) => (
+            {items.map((item) => (
                 <Link
-                    key={idx}
+                    key={item.link}
                     href={item.link}
                     className="relative text-muted-foreground hover:text-foreground transition-colors"
                 >
@@ -294,10 +297,15 @@ export const NavbarButton = ({
     };
 
     const Component = Tag || (href ? Link : "button");
+    const buttonType =
+        Component === "button"
+            ? ((props as React.ComponentPropsWithoutRef<"button">).type ?? "button")
+            : undefined;
 
     return (
         <Component
             href={href || undefined}
+            type={buttonType}
             className={cn(baseStyles, variantStyles[variant], className)}
             {...props}
         >

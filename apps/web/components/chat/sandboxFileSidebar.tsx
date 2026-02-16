@@ -58,6 +58,7 @@ export function SandboxFileSidebar({ chatId }: SandboxFileSidebarProps) {
           variant="ghost"
           size="icon"
           onClick={handleRefreshFiles}
+          aria-label="Refresh files"
           disabled={isRefreshing}
           className="h-5 w-5 hover:bg-foreground/[0.05]"
         >

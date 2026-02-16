@@ -10,7 +10,11 @@ import {
   type ReactNode,
 } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { API_BASE_URL, type MessageContent } from "@/lib/api";
+import {
+  postChatMessageStream,
+  type MessageContent,
+  type SendMessageRequest,
+} from "@/lib/api";
 import {
   INITIAL_STREAM_STATE,
   type StreamState,
@@ -23,6 +27,7 @@ import {
   processStreamResponse,
   type ProcessedStreamResult,
 } from "./chatStream.processor";
+import { queryKeys } from "@/lib/queryKeys";
 
 interface ChatStreamStateContextValue {
   stream: StreamState;
@@ -107,25 +112,8 @@ export function ChatStreamProvider({ children }: { children: ReactNode }) {
       dispatch({ type: "START_STREAMING" });
       thinkingStartRef.current = null;
 
-      const body: Record<string, unknown> = { content };
-      if (chatId) body.chatId = chatId;
-      if (model) body.model = model;
-
-      const response = await fetch(`${API_BASE_URL}/chat/message`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify(body),
-        signal: controller.signal,
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(
-          (errorData as { message?: string }).message ||
-            `Request failed: ${response.status}`,
-        );
-      }
+      const body: SendMessageRequest = { content, chatId, model };
+      const response = await postChatMessageStream(body, controller.signal);
 
       const streamResult = await processStream(response);
       const metaEvt = streamResult?.meta;
@@ -151,7 +139,7 @@ export function ChatStreamProvider({ children }: { children: ReactNode }) {
 
         if (optimisticMessage) {
           queryClient.setQueryData<ChatMessage[]>(
-            ["chatHistory", metaEvt.chatId],
+            queryKeys.chatHistory.byChatId(metaEvt.chatId),
             (oldMessages = []) => {
               const exists = oldMessages.some(
                 (msg) => msg.id === optimisticMessage.id,
@@ -163,9 +151,9 @@ export function ChatStreamProvider({ children }: { children: ReactNode }) {
         }
 
         await queryClient.refetchQueries({
-          queryKey: ["chatHistory", metaEvt.chatId],
+          queryKey: queryKeys.chatHistory.byChatId(metaEvt.chatId),
         });
-        queryClient.invalidateQueries({ queryKey: ["recentChats"] });
+        queryClient.invalidateQueries({ queryKey: queryKeys.recentChats.all });
 
         await new Promise((resolve) => setTimeout(resolve, 150));
 
@@ -236,10 +224,4 @@ export function useChatStreamActions() {
     );
   }
   return ctx;
-}
-
-export function useChatStreamContext() {
-  const state = useChatStream();
-  const actions = useChatStreamActions();
-  return { ...state, ...actions };
 }

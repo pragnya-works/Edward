@@ -1,5 +1,7 @@
+"use client";
+
 import React, { useMemo } from "react";
-import { motion } from "motion/react";
+import { motion, useReducedMotion } from "motion/react";
 import { Eye } from "lucide-react";
 import { Provider } from "@edward/shared/constants";
 import { getModelsByProvider } from "@edward/shared/schema";
@@ -23,10 +25,7 @@ export function ModelSelector({
   onSelect,
 }: ModelSelectorProps) {
   const models = useMemo(() => getModelsByProvider(provider), [provider]);
-  const prefersReducedMotion = useMemo(() => {
-    if (typeof window === "undefined") return false;
-    return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  }, []);
+  const prefersReducedMotion = useReducedMotion();
 
   return (
     <div className="w-full flex flex-col gap-2">
@@ -38,6 +37,7 @@ export function ModelSelector({
           return (
             <motion.button
               key={model.id}
+              type="button"
               initial={
                 prefersReducedMotion
                   ? { opacity: 1, x: 0 }
@@ -52,6 +52,7 @@ export function ModelSelector({
               onClick={() => onSelect(model.id)}
               className={cn(
                 "group relative w-full flex items-center justify-between p-3 rounded-xl text-left transition-all duration-200 border",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
                 isSelected
                   ? "bg-muted/30 dark:bg-primary/[0.03] border-primary/30 dark:border-primary/30 shadow-sm"
                   : "bg-transparent border-transparent hover:bg-foreground/[0.02] dark:hover:bg-white/[0.03] hover:border-border/40 dark:hover:border-white/[0.06] hover:shadow-sm",

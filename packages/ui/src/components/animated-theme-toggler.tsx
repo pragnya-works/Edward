@@ -40,12 +40,21 @@ export const AnimatedThemeToggler = forwardRef<
   const toggleTheme = useCallback(async () => {
     if (!buttonRef.current) return
 
+    const applyThemeToggle = () => {
+      const newTheme = !isDark
+      setIsDark(newTheme)
+      document.documentElement.classList.toggle("dark")
+      localStorage.setItem("theme", newTheme ? "dark" : "light")
+    }
+
+    if (!("startViewTransition" in document)) {
+      applyThemeToggle()
+      return
+    }
+
     await document.startViewTransition(() => {
       flushSync(() => {
-        const newTheme = !isDark
-        setIsDark(newTheme)
-        document.documentElement.classList.toggle("dark")
-        localStorage.setItem("theme", newTheme ? "dark" : "light")
+        applyThemeToggle()
       })
     }).ready
 
@@ -80,6 +89,7 @@ export const AnimatedThemeToggler = forwardRef<
   return (
     <button
       ref={buttonRef}
+      type={props.type ?? "button"}
       onClick={toggleTheme}
       className={cn(className)}
       {...props}

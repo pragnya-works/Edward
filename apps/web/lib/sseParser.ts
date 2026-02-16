@@ -5,26 +5,31 @@ export function parseSSELines(buffer: string): {
   remaining: string;
 } {
   const events: SSEEvent[] = [];
-  const lines = buffer.split("\n");
-  let remaining = "";
+  const normalized = buffer.replaceAll("\r\n", "\n");
+  const chunks = normalized.split("\n\n");
+  const trailingChunk = chunks.pop();
 
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i]!.trim();
-    if (line === "") continue;
+  for (const chunk of chunks) {
+    const payload = chunk
+      .split("\n")
+      .filter((line) => line.startsWith("data:"))
+      .map((line) => line.slice(5).trimStart())
+      .join("\n");
 
-    if (line.startsWith("data: ")) {
-      const payload = line.slice(6);
-      if (payload === "[DONE]") continue;
+    if (!payload || payload === "[DONE]") {
+      continue;
+    }
 
-      try {
-        const parsed = JSON.parse(payload) as SSEEvent;
-        events.push(parsed);
-      } catch {
-        remaining = lines.slice(i).join("\n");
-        break;
-      }
+    try {
+      const parsed = JSON.parse(payload) as SSEEvent;
+      events.push(parsed);
+    } catch {
+      return {
+        events,
+        remaining: `${chunk}\n\n${trailingChunk ?? ""}`,
+      };
     }
   }
 
-  return { events, remaining };
+  return { events, remaining: trailingChunk ?? "" };
 }

@@ -1,11 +1,27 @@
-import React, { memo, useState, useEffect, useRef, useSyncExternalStore } from "react";
+"use client";
+
+import React, { memo, useState, useEffect, useRef } from "react";
+import dynamic from "next/dynamic";
 import { BentoCard, BentoGrid } from "@edward/ui/components/bento-grid";
 import { DottedMap } from "@edward/ui/components/dotted-map";
 import { LineShadowText } from "@edward/ui/components/line-shadow-text";
 import { motion, useReducedMotion } from "motion/react";
-import { AIGenerationVisual } from "./aiGenerationVisual";
-import { InstantPreviewVisual } from "./instantPreviewVisual";
-import { AgentActivityVisual } from "./agentActivityVisual";
+import { useTabVisibility } from "@/hooks/useTabVisibility";
+
+const AIGenerationVisual = dynamic(
+    () => import("./aiGenerationVisual").then((mod) => mod.AIGenerationVisual),
+    { ssr: false },
+);
+
+const InstantPreviewVisual = dynamic(
+    () => import("./instantPreviewVisual").then((mod) => mod.InstantPreviewVisual),
+    { ssr: false },
+);
+
+const AgentActivityVisual = dynamic(
+    () => import("./agentActivityVisual").then((mod) => mod.AgentActivityVisual),
+    { ssr: false },
+);
 
 const PreviewBackground = memo(() => {
     return (
@@ -24,29 +40,11 @@ const GLOBE_MARKERS: Array<{ lat: number; lng: number; size: number }> = [
     { lat: 1.3521, lng: 103.8198, size: 1.2 }
 ];
 
-function subscribeToVisibility(callback: () => void) {
-    document.addEventListener('visibilitychange', callback);
-    return () => document.removeEventListener('visibilitychange', callback);
-}
-
-function getVisibilitySnapshot() {
-    return document.visibilityState === 'visible';
-}
-
-function getServerVisibilitySnapshot() {
-    return true;
-}
-
 const PulsingOrb = memo(function PulsingOrb() {
     const [isIntersecting, setIsIntersecting] = useState(false);
     const shouldReduceMotion = useReducedMotion();
     const elementRef = useRef<HTMLDivElement>(null);
-    
-    const isDocumentVisible = useSyncExternalStore(
-        subscribeToVisibility,
-        getVisibilitySnapshot,
-        getServerVisibilitySnapshot
-    );
+    const isDocumentVisible = useTabVisibility();
     
     useEffect(() => {
         const element = elementRef.current;

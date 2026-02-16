@@ -5,9 +5,9 @@ import { useParams } from "next/navigation";
 import { RefreshCw, FileCode } from "lucide-react";
 import { BuildStatus, SandboxMode, useSandbox } from "@/contexts/sandboxContext";
 import { CodeEditor } from "@/components/chat/codeEditor";
-import { SandboxHeader } from "./sandboxHeader";
-import { SandboxFileSidebar } from "./sandboxFileSidebar";
-import { SandboxEmptyState } from "./sandboxEmptyState";
+import { SandboxHeader } from "@/components/chat/sandboxHeader";
+import { SandboxFileSidebar } from "@/components/chat/sandboxFileSidebar";
+import { SandboxEmptyState } from "@/components/chat/sandboxEmptyState";
 
 export function SandboxPanel() {
   const params = useParams<{ id: string }>();

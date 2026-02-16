@@ -24,7 +24,9 @@ export function CopyButton({ content, className = "" }: CopyButtonProps) {
 
     return (
         <button
+            type="button"
             onClick={copyToClipboard}
+            aria-label={isCopied ? "Copied" : "Copy code"}
             className={`flex items-center justify-center p-1.5 rounded-md hover:bg-foreground/[0.05] dark:hover:bg-foreground/[0.1] text-muted-foreground/60 hover:text-foreground transition-all duration-200 ${className}`}
             title="Copy code"
         >

@@ -3,10 +3,11 @@
 import { useQuery } from "@tanstack/react-query";
 import { fetchApi } from "@/lib/api";
 import type { ChatHistoryResponse, ChatMessage } from "@/lib/chatTypes";
+import { queryKeys } from "@/lib/queryKeys";
 
 export function useChatHistory(chatId: string | undefined) {
     const { data, isLoading, error, refetch } = useQuery({
-        queryKey: ["chatHistory", chatId],
+        queryKey: queryKeys.chatHistory.byChatId(chatId),
         queryFn: async (): Promise<ChatMessage[]> => {
             if (!chatId) return [];
 

@@ -1,5 +1,4 @@
 import { useEffect, useRef, useCallback } from "react";
-import { useParams } from "next/navigation";
 import { useChatStream } from "@/contexts/chatStreamContext";
 import { BuildStatus, useSandbox } from "@/contexts/sandboxContext";
 import type { StreamedFile } from "@/lib/chatTypes";
@@ -9,9 +8,7 @@ import type { BuildErrorReport } from "@/lib/api";
 const BUILD_POLL_INTERVAL_MS = 2000;
 const BUILD_POLL_MAX_ATTEMPTS = 30;
 
-export function useSandboxSync() {
-  const params = useParams<{ id: string }>();
-  const chatIdFromUrl = params?.id;
+export function useSandboxSync(chatIdFromUrl: string | undefined) {
   const { stream } = useChatStream();
   const {
     updateFile,
@@ -63,6 +60,13 @@ export function useSandboxSync() {
 
   const pollBuildStatus = useCallback(
     async (chatId: string) => {
+      const scheduleNextPoll = () => {
+        pollAttemptsRef.current += 1;
+        pollTimeoutRef.current = setTimeout(() => {
+          pollBuildStatus(chatId);
+        }, BUILD_POLL_INTERVAL_MS);
+      };
+
       if (isPollingInFlightRef.current) {
         return;
       }
@@ -83,10 +87,7 @@ export function useSandboxSync() {
         if (!build) {
           setBuildStatus(BuildStatus.BUILDING);
           setBuildError(null);
-          pollAttemptsRef.current += 1;
-          pollTimeoutRef.current = setTimeout(() => {
-            pollBuildStatus(chatId);
-          }, BUILD_POLL_INTERVAL_MS);
+          scheduleNextPoll();
           return;
         }
 
@@ -119,20 +120,14 @@ export function useSandboxSync() {
         if (build.status === BuildRecordStatus.QUEUED) {
           setBuildStatus(BuildStatus.QUEUED);
           setBuildError(null);
-          pollAttemptsRef.current += 1;
-          pollTimeoutRef.current = setTimeout(() => {
-            pollBuildStatus(chatId);
-          }, BUILD_POLL_INTERVAL_MS);
+          scheduleNextPoll();
           return;
         }
 
         if (build.status === BuildRecordStatus.BUILDING) {
           setBuildStatus(BuildStatus.BUILDING);
           setBuildError(null);
-          pollAttemptsRef.current += 1;
-          pollTimeoutRef.current = setTimeout(() => {
-            pollBuildStatus(chatId);
-          }, BUILD_POLL_INTERVAL_MS);
+          scheduleNextPoll();
         } else {
           setBuildStatus(BuildStatus.FAILED);
           setBuildError(`Unexpected build status: ${build.status}`);
@@ -160,8 +155,6 @@ export function useSandboxSync() {
     ],
   );
 
-  const prevActiveFiles = prevActiveFilesRef.current;
-  const prevCompletedFiles = prevCompletedFilesRef.current;
   const activeFiles = stream.activeFiles;
   const completedFiles = stream.completedFiles;
   const isNowStreaming = activeFiles.length > 0;
@@ -180,6 +173,9 @@ export function useSandboxSync() {
     }
 
     wasStreamingRef.current = isNowStreaming;
+
+    const prevActiveFiles = prevActiveFilesRef.current;
+    const prevCompletedFiles = prevCompletedFilesRef.current;
 
     for (const file of activeFiles) {
       const prevFile = prevActiveFiles.find((f) => f.path === file.path);
@@ -236,8 +232,6 @@ export function useSandboxSync() {
     isNowStreaming,
     activeFiles,
     completedFiles,
-    prevActiveFiles,
-    prevCompletedFiles,
     updateFile,
     setFiles,
     startStreaming,

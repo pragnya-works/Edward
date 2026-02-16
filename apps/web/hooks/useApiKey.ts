@@ -9,6 +9,7 @@ import {
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { fetchApi } from "@/lib/api";
+import { queryKeys } from "@/lib/queryKeys";
 
 interface ApiKeyResponse {
   message: string;
@@ -46,9 +47,10 @@ export function useApiKey() {
   const userId = session?.user?.id;
   const queryClient = useQueryClient();
   const [error, setError] = useState("");
+  const apiKeyQueryKey = queryKeys.apiKey.byUserId(userId);
 
   const { data, isLoading } = useQuery({
-    queryKey: ["apiKey", userId],
+    queryKey: apiKeyQueryKey,
     queryFn: async function () {
       if (!userId) return null;
       try {
@@ -91,15 +93,14 @@ export function useApiKey() {
       });
     },
     onMutate: async (newSettings) => {
-      await queryClient.cancelQueries({ queryKey: ["apiKey", userId] });
+      await queryClient.cancelQueries({ queryKey: apiKeyQueryKey });
 
-      const previousData = queryClient.getQueryData<ApiKeyResponse>([
-        "apiKey",
-        userId,
-      ]);
+      const previousData = queryClient.getQueryData<ApiKeyResponse>(
+        apiKeyQueryKey,
+      );
 
       queryClient.setQueryData(
-        ["apiKey", userId],
+        apiKeyQueryKey,
         (old: ApiKeyResponse | undefined) => {
           if (!old) return old;
           return {
@@ -117,7 +118,7 @@ export function useApiKey() {
     },
     onSuccess: function (responseData) {
       queryClient.setQueryData(
-        ["apiKey", userId],
+        apiKeyQueryKey,
         function (old: ApiKeyResponse | undefined) {
           if (!old) return old;
           return {
@@ -134,12 +135,12 @@ export function useApiKey() {
     },
     onError: function (_err, _newSettings, context) {
       if (context?.previousData) {
-        queryClient.setQueryData(["apiKey", userId], context.previousData);
+        queryClient.setQueryData(apiKeyQueryKey, context.previousData);
       }
       setError("Failed to save API key. Please try again.");
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ["apiKey", userId] });
+      queryClient.invalidateQueries({ queryKey: apiKeyQueryKey });
     },
   });
 

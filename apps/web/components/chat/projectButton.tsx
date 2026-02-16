@@ -63,6 +63,7 @@ export const ProjectButton = memo(function ProjectButton({
 
     return (
         <motion.button
+            type="button"
             initial={{ opacity: 0, y: 8, scale: 0.96 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -8, scale: 0.96 }}
@@ -72,8 +73,9 @@ export const ProjectButton = memo(function ProjectButton({
                 layout: { duration: 0.2 },
             }}
             onClick={handleToggle}
+            aria-expanded={sandboxOpen}
             className={cn(
-                "flex items-center gap-3 px-4 py-3 rounded-2xl border cursor-pointer glass w-full",
+                "flex items-center gap-3 px-4 py-3 rounded-2xl border cursor-pointer glass w-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
                 sandboxOpen
                     ? "border-primary/40 text-primary animate-pulse-glow bg-primary/5"
                     : "bg-transparent border-border/40 text-foreground/80 hover:text-foreground hover:bg-foreground/[0.02]",
@@ -123,13 +125,17 @@ export const ProjectButton = memo(function ProjectButton({
             </div>
 
             {previewUrl && !isStreaming && (
-                <ExternalLink
-                    className="h-3.5 w-3.5 text-emerald-500/60 hover:text-emerald-500 ml-1 shrink-0"
+                <button
+                    type="button"
+                    aria-label="Open preview in new tab"
+                    className="ml-1 shrink-0 text-emerald-500/60 hover:text-emerald-500"
                     onClick={(e) => {
                         e.stopPropagation();
-                        window.open(previewUrl, "_blank");
+                        window.open(previewUrl, "_blank", "noopener,noreferrer");
                     }}
-                />
+                >
+                    <ExternalLink className="h-3.5 w-3.5" />
+                </button>
             )}
             <ChevronRight
                 className={cn(

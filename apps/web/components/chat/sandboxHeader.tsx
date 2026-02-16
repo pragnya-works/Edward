@@ -90,6 +90,7 @@ export function SandboxHeader() {
           variant="ghost"
           size="icon"
           onClick={closeSandbox}
+          aria-label="Close workspace"
           className="h-7 w-7 rounded-lg hover:bg-foreground/[0.05]"
         >
           <X className="h-3.5 w-3.5" />

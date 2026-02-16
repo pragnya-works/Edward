@@ -1,9 +1,10 @@
 "use client";
 
-import React, { memo, useState, useEffect, useRef, useCallback, useSyncExternalStore } from "react";
+import React, { memo, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { TextAnimate } from "@edward/ui/components/textAnimate";
 import { cn } from "@edward/ui/lib/utils";
+import { useVisibilityAwareInterval } from "@/hooks/useVisibilityAwareInterval";
 
 const EXAMPLES = [
     {
@@ -47,56 +48,6 @@ const EXAMPLES = [
         accent: "text-emerald-400"
     }
 ];
-
-function subscribeToVisibility(callback: () => void) {
-    document.addEventListener('visibilitychange', callback);
-    return () => document.removeEventListener('visibilitychange', callback);
-}
-
-function getVisibilitySnapshot() {
-    return document.visibilityState === 'visible';
-}
-
-function getServerVisibilitySnapshot() {
-    return true;
-}
-
-function useVisibilityAwareInterval(callback: () => void, delay: number) {
-    const savedCallback = useRef(callback);
-    const intervalRef = useRef<NodeJS.Timeout | null>(null);
-    
-    const isDocumentVisible = useSyncExternalStore(
-        subscribeToVisibility,
-        getVisibilitySnapshot,
-        getServerVisibilitySnapshot
-    );
-    
-    useEffect(() => {
-        savedCallback.current = callback;
-    }, [callback]);
-    
-    useEffect(() => {
-        const startInterval = () => {
-            if (intervalRef.current) return;
-            intervalRef.current = setInterval(() => savedCallback.current(), delay);
-        };
-        
-        const stopInterval = () => {
-            if (intervalRef.current) {
-                clearInterval(intervalRef.current);
-                intervalRef.current = null;
-            }
-        };
-        
-        if (isDocumentVisible) {
-            startInterval();
-        } else {
-            stopInterval();
-        }
-        
-        return () => stopInterval();
-    }, [delay, isDocumentVisible]);
-}
 
 const GenerationFlow = memo(function GenerationFlow() {
     const [index, setIndex] = useState(0);

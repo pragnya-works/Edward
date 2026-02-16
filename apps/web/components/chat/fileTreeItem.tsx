@@ -101,6 +101,7 @@ export const FileTreeItem = memo(function FileTreeItem({
   return (
     <div className="select-none">
       <motion.button
+        type="button"
         onClick={handleClick}
         className={cn(
           "w-full flex items-center gap-2 px-2 py-1.5 text-left transition-all duration-150 rounded-lg",

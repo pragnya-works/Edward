@@ -58,7 +58,7 @@ const WELCOME_SCREEN = (
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ delay: 0.4 + i * 0.1 }}
-              className="px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full bg-foreground/[0.03] border border-foreground/[0.05] text-[10px] sm:text-[11px] text-muted-foreground/60 cursor-pointer hover:bg-foreground/[0.05] transition-colors touch-manipulation whitespace-nowrap"
+              className="px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full bg-foreground/[0.03] border border-foreground/[0.05] text-[10px] sm:text-[11px] text-muted-foreground/60 transition-colors touch-manipulation whitespace-nowrap"
             >
               {text}
             </motion.span>
@@ -137,12 +137,13 @@ export const ChatMessageList = memo(function ChatMessageList({
       <AnimatePresence mode="wait">
         {showScrollButton && (
           <motion.button
+            type="button"
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 12 }}
             onClick={() => scrollToBottom("smooth")}
             aria-label="Scroll to recent messages"
-            className="absolute bottom-10 sm:bottom-12 left-1/2 -translate-x-1/2 z-30 flex items-center gap-1.5 sm:gap-2 px-3 sm:px-3.5 py-1.5 sm:py-2 rounded-full bg-background/60 backdrop-blur-xl border border-foreground/[0.08] hover:bg-background/80 transition-all group touch-manipulation cursor-pointer"
+            className="absolute bottom-10 sm:bottom-12 left-1/2 -translate-x-1/2 z-30 flex items-center gap-1.5 sm:gap-2 px-3 sm:px-3.5 py-1.5 sm:py-2 rounded-full bg-background/60 backdrop-blur-xl border border-foreground/[0.08] hover:bg-background/80 transition-all group touch-manipulation cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
           >
             <ArrowDown className="h-3 sm:h-3.5 w-3 sm:w-3.5 text-sky-500/70" />
             <span className="text-[9px] sm:text-[10px] font-bold text-foreground/40 uppercase tracking-[0.15em] leading-none">

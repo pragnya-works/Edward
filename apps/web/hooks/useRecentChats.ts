@@ -5,6 +5,7 @@ import { useSession } from "@/lib/auth-client";
 import { useInfiniteQuery } from "@tanstack/react-query";
 
 import { fetchApi } from "@/lib/api";
+import { queryKeys } from "@/lib/queryKeys";
 const PAGE_SIZE = 6;
 
 export interface Project {
@@ -43,7 +44,7 @@ export function useRecentChats() {
     isError,
     refetch,
   } = useInfiniteQuery({
-    queryKey: ["recentChats", userId],
+    queryKey: queryKeys.recentChats.byUserId(userId),
     queryFn,
     getNextPageParam: (lastPage) => {
       if (!lastPage.metadata) return undefined;
