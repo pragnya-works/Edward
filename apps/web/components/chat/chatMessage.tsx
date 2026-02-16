@@ -1,11 +1,13 @@
 "use client";
 
-import { memo, useMemo } from "react";
-import { motion } from "motion/react";
+import { memo, useMemo, useCallback } from "react";
+import { motion, AnimatePresence } from "motion/react";
 import { User } from "lucide-react";
 import { EdwardAvatar } from "./avatars";
 import { MessageMetrics } from "./messageMetrics";
 import { cn } from "@edward/ui/lib/utils";
+import { useSandbox } from "@/contexts/sandboxContext";
+import { ProjectButton } from "./projectButton";
 import type { ChatMessage as ChatMessageType } from "@/lib/chatTypes";
 import { ParserEventType } from "@/lib/chatTypes";
 
@@ -43,6 +45,11 @@ export const ChatMessage = memo(function ChatMessage({
   message,
   index,
 }: ChatMessageProps) {
+  const {
+    setFiles,
+    files: globalFiles,
+  } = useSandbox();
+
   const isUser = message.role === "user";
   const time = useMemo(
     () => formatTime(message.createdAt),
@@ -73,6 +80,30 @@ export const ChatMessage = memo(function ChatMessage({
     if (isUser) return null;
     return parseMessageContent(displayContent ?? "");
   }, [displayContent, isUser]);
+
+  const sandboxBlock = useMemo(
+    () => blocks?.find((b) => b.type === "sandbox"),
+    [blocks],
+  );
+  const fileBlocks = useMemo(
+    () => blocks?.filter((b) => b.type === "file") || [],
+    [blocks],
+  );
+  const hasFiles = fileBlocks.length > 0 || !!sandboxBlock;
+  const showFooterButton = hasFiles && !sandboxBlock;
+
+  const handleToggle = useCallback(() => {
+    // If the global sandbox is empty but this message has files, hydrate the sandbox
+    if (globalFiles.length === 0 && fileBlocks.length > 0) {
+      setFiles(
+        fileBlocks.map((f) => ({
+          path: (f as { path: string }).path,
+          content: (f as { content: string }).content,
+          isComplete: true,
+        })),
+      );
+    }
+  }, [globalFiles.length, fileBlocks, setFiles]);
 
   return (
     <motion.div
@@ -124,6 +155,7 @@ export const ChatMessage = memo(function ChatMessage({
                       />
                     );
                   case "file":
+                    if (block.isInternal) return null;
                     return (
                       <FileBlock
                         key={i}
@@ -150,6 +182,29 @@ export const ChatMessage = memo(function ChatMessage({
                     return (
                       <InstallBlock key={i} dependencies={block.dependencies} />
                     );
+                  case "sandbox":
+                    return (
+                      <motion.div
+                        key={i}
+                        initial={{ opacity: 0, scale: 0.98 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        className="w-full"
+                      >
+                        <ProjectButton
+                          isStreaming={false}
+                          files={fileBlocks.map((f) => ({
+                            path: (f as { path: string }).path,
+                            content: (f as { content: string }).content,
+                            isComplete: true,
+                          }))}
+                          activeFilePath={null}
+                          projectName={block.project}
+                          onBeforeToggle={handleToggle}
+                        />
+                      </motion.div>
+                    );
+                  case "done":
+                    return null;
                   case "text":
                     return (
                       <div
@@ -159,10 +214,30 @@ export const ChatMessage = memo(function ChatMessage({
                         <MarkdownRenderer content={block.content} />
                       </div>
                     );
-                  default:
-                    return null;
                 }
               })}
+
+              <AnimatePresence>
+                {showFooterButton && (
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.98 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="mt-2"
+                  >
+                    <ProjectButton
+                      isStreaming={false}
+                      files={fileBlocks.map((f) => ({
+                        path: (f as { path: string }).path,
+                        content: (f as { content: string }).content,
+                        isComplete: true,
+                      }))}
+                      activeFilePath={null}
+                      projectName={undefined}
+                      onBeforeToggle={handleToggle}
+                    />
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           )}
         </div>

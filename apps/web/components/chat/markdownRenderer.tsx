@@ -37,15 +37,16 @@ const components: Components = {
 
     if (match || isBlock) {
       return (
-        <div className="relative group my-4 sm:my-6 rounded-lg sm:rounded-xl overflow-hidden border border-border/40 bg-foreground/[0.015] transition-all duration-200">
-          <div className="flex items-center justify-between px-3 sm:px-4 py-1.5 sm:py-2 bg-foreground/[0.04] dark:bg-foreground/[0.02] border-b border-border/30">
-            <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
-              <div className="flex gap-1 sm:gap-1.5 mr-1.5 sm:mr-2 shrink-0">
-                <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-foreground/[0.08] dark:bg-foreground/[0.05]" />
-                <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-foreground/[0.08] dark:bg-foreground/[0.05]" />
-                <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-foreground/[0.08] dark:bg-foreground/[0.05]" />
+        <div className="relative my-4 sm:my-6 rounded-2xl overflow-hidden border border-primary/20 glass w-full">
+
+          <div className="flex items-center justify-between px-4 py-2 bg-primary/10 dark:bg-primary/20 border-b border-primary/10 backdrop-blur-md">
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="flex gap-1.5 mr-2 shrink-0">
+                <div className="w-2 h-2 rounded-full bg-rose-500/40" />
+                <div className="w-2 h-2 rounded-full bg-amber-500/40" />
+                <div className="w-2 h-2 rounded-full bg-emerald-500/40" />
               </div>
-              <span className="text-[9px] sm:text-[10px] uppercase tracking-widest font-bold text-foreground/30 truncate">
+              <span className="text-[10px] uppercase tracking-widest font-bold text-primary/60 truncate">
                 {match ? match[1] : "code"}
               </span>
             </div>

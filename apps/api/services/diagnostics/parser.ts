@@ -105,7 +105,7 @@ export function calculateConfidence(
 
 export function parseErrors(output: string): ParsedError[] {
   if (!output || output.length === 0) return [];
-  
+
   const cleanOutput = stripAnsi(output);
   const errors: ParsedError[] = [];
   const seen = new Set<string>();
@@ -126,16 +126,28 @@ export function parseErrors(output: string): ParsedError[] {
         case "typescript":
         case "vite_esbuild":
         case "nextjs":
-          [, file, line, column, code, message] = match;
+          file = match[1];
+          line = match[2];
+          column = match[3];
+          code = match[4];
+          message = match[5];
           break;
         case "webpack":
-          [, file, message, line, column] = match;
+          file = match[1];
+          message = match[2];
+          line = match[3];
+          column = match[4];
           break;
         case "rollup":
-          [, file, line, column, message] = match;
+          file = match[1];
+          line = match[2];
+          column = match[3];
+          message = match[4];
           break;
         case "stack_trace":
-          [, file, line, column] = match;
+          file = match[1];
+          line = match[2];
+          column = match[3];
           message = "Runtime error";
           break;
       }
@@ -146,9 +158,9 @@ export function parseErrors(output: string): ParsedError[] {
       const cleanMessage =
         message?.replace(/\s+/g, " ").trim().slice(0, 500) || "Unknown error";
       const lineNum = parseInt(line, 10);
-      
+
       if (lineNum < 0) continue; // Skip invalid line numbers
-      
+
       const key = generateErrorId(cleanFile, lineNum, cleanMessage);
 
       if (!seen.has(key)) {

@@ -7,7 +7,11 @@ import {
   TooltipPositioner,
 } from "@edward/ui/components/tooltip";
 import { cn } from "@edward/ui/lib/utils";
-import { ACCEPTED_IMAGE_TYPES, MAX_FILES, type AttachedFile } from "./promptbar.constants";
+import {
+  ACCEPTED_IMAGE_TYPES,
+  MAX_FILES,
+  type AttachedFile,
+} from "./promptbar.constants";
 
 interface PromptToolbarProps {
   isMobile: boolean;
@@ -22,8 +26,6 @@ interface PromptToolbarProps {
   onProtectedAction: () => void;
   isStreaming?: boolean;
   onCancel?: () => void;
-  isSearchEnabled?: boolean;
-  onSearchToggle?: (enabled: boolean) => void;
   disabled?: boolean;
 }
 
@@ -49,19 +51,19 @@ export function PromptToolbar({
       type="button"
       size="icon"
       className={cn(
-        "rounded-full transition-all duration-300 transform active:scale-95",
+        "rounded-full transition-all duration-300 transform active:scale-95 h-8 w-8 sm:h-9 sm:w-9",
         isStreaming
           ? "bg-foreground/10 hover:bg-foreground/20 text-foreground"
-          : "bg-foreground text-background hover:opacity-90"
+          : "bg-foreground text-background hover:opacity-90",
       )}
       onClick={handleAction}
       disabled={disabled && !isStreaming}
       aria-label={isStreaming ? "Stop generation" : "Build now"}
     >
       {isStreaming ? (
-        <Square className="h-4 w-4 fill-current" />
+        <Square className="h-3.5 w-3.5 sm:h-4 sm:w-4 fill-current" />
       ) : (
-        <ArrowRight className="h-4 w-4" />
+        <ArrowRight className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
       )}
     </Button>
   ) : (
@@ -72,7 +74,7 @@ export function PromptToolbar({
           "shrink-0 rounded-full px-6 py-2.5 text-sm font-semibold transition-all duration-300 transform active:scale-95 border-none",
           isStreaming
             ? "bg-foreground/10 hover:bg-foreground/20 text-foreground"
-            : "bg-foreground text-background hover:brightness-110 shadow-md"
+            : "bg-foreground text-background hover:brightness-110 shadow-md",
         )}
         onClick={handleAction}
         disabled={disabled && !isStreaming}
@@ -93,8 +95,8 @@ export function PromptToolbar({
   );
 
   return (
-    <div className="flex items-center justify-between px-6 py-4 bg-transparent relative z-20">
-      <div className="flex items-center gap-3">
+    <div className="flex items-center justify-between px-3 py-3 sm:px-4 sm:py-3 md:px-6 md:py-4 bg-transparent relative z-20">
+      <div className="flex items-center gap-2 sm:gap-3">
         <Tooltip>
           <TooltipTrigger
             render={
@@ -113,18 +115,19 @@ export function PromptToolbar({
                   variant="ghost"
                   size="icon"
                   className={cn(
-                    "h-10 w-10 shrink-0 rounded-full bg-foreground/[0.05] hover:bg-foreground/[0.08] transition-all duration-200 border border-border/50",
-                    !supportsVision && "opacity-40 cursor-not-allowed grayscale",
+                    "h-8 w-8 sm:h-9 sm:w-9 shrink-0 rounded-full bg-foreground/5 hover:bg-foreground/8 transition-all duration-200 border border-border/50",
+                    !supportsVision &&
+                      "opacity-40 cursor-not-allowed grayscale",
                   )}
                   onClick={onAttachmentClick}
                   disabled={!isAuthenticated || !supportsVision}
                 >
                   {isAuthenticated && supportsVision ? (
-                    <PaperclipIcon className="h-4.5 w-4.5 text-foreground/70" />
+                    <PaperclipIcon className="h-4 w-4 text-foreground/70" />
                   ) : !supportsVision ? (
-                    <EyeOff className="h-4.5 w-4.5 text-muted-foreground/50" />
+                    <EyeOff className="h-4 w-4 text-muted-foreground/50" />
                   ) : (
-                    <PaperclipIcon className="h-4.5 w-4.5 text-muted-foreground/70" />
+                    <PaperclipIcon className="h-4 w-4 text-muted-foreground/70" />
                   )}
                 </Button>
               </div>
@@ -148,11 +151,11 @@ export function PromptToolbar({
                   type="button"
                   variant="ghost"
                   size="icon"
-                  className="h-10 w-10 shrink-0 rounded-full bg-red-500/5 hover:bg-red-500/15 text-red-500/60 hover:text-red-500 transition-all border border-red-500/10"
+                  className="h-8 w-8 sm:h-9 sm:w-9 shrink-0 rounded-full bg-red-500/5 hover:bg-red-500/15 text-red-500/60 hover:text-red-500 transition-all border border-red-500/10"
                   onClick={onClearAllFiles}
                   aria-label="Clear all attachments"
                 >
-                  <X className="h-4.5 w-4.5" />
+                  <X className="h-4 w-4" />
                 </Button>
               }
             />

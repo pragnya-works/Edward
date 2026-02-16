@@ -1,6 +1,6 @@
 "use client";
 
-import { memo } from "react";
+import { memo, useMemo } from "react";
 import { motion } from "motion/react";
 import { Brain, Zap } from "lucide-react";
 import {
@@ -20,6 +20,9 @@ interface ThinkingIndicatorProps {
   isCodeMode?: boolean;
 }
 
+const EDWARD_TAGS_REGEX =
+  /<(Thinking|Response|edward_install|edward_sandbox|edward_command|edward_done|file|file_start|file_end)[^>]*>|<\/(Thinking|Response|edward_install|edward_sandbox|edward_command|edward_done|file|file_start|file_end)>/gi;
+
 export const ThinkingIndicator = memo(function ThinkingIndicator({
   text,
   isActive,
@@ -33,6 +36,11 @@ export const ThinkingIndicator = memo(function ThinkingIndicator({
     : hasValidDuration
       ? duration
       : null;
+
+  const cleanedText = useMemo(
+    () => text.replace(EDWARD_TAGS_REGEX, ""),
+    [text],
+  );
 
   return (
     <motion.div
@@ -174,7 +182,7 @@ export const ThinkingIndicator = memo(function ThinkingIndicator({
             <div className="relative rounded-md sm:rounded-lg bg-slate-100 dark:bg-foreground/[0.02] border border-slate-200 dark:border-border/20 overflow-hidden">
               <div className="max-h-40 sm:max-h-60 overflow-y-auto p-2 sm:p-3 custom-scrollbar">
                 <MarkdownRenderer
-                  content={text}
+                  content={cleanedText}
                   className="text-[10px] sm:text-xs text-slate-600 dark:text-muted-foreground/70 [&_p]:text-[10px] sm:[&_p]:text-xs [&_p]:text-slate-600 dark:[&_p]:text-muted-foreground/70 [&_code]:text-[9px] sm:[&_code]:text-[11px] [&_pre]:my-1.5 sm:[&_pre]:my-2 [&_pre]:rounded-lg [&_h1]:text-xs sm:[&_h1]:text-sm [&_h2]:text-xs sm:[&_h2]:text-sm [&_h3]:text-[10px] sm:[&_h3]:text-xs [&_ul]:text-[10px] sm:[&_ul]:text-xs [&_ol]:text-[10px] sm:[&_ol]:text-xs"
                 />
                 {isActive && (

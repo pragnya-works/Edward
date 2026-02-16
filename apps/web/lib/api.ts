@@ -61,15 +61,13 @@ export async function fetchApi<T>(
 export async function sendMessage(
   body: SendMessageRequest,
 ): Promise<SendMessageResponse> {
-  return fetchApi<SendMessageResponse>("/api/chat/message", {
+  return fetchApi<SendMessageResponse>("/chat/message", {
     method: "POST",
     body: JSON.stringify(body),
   });
 }
 
-async function fileToContentPart(
-  file: File,
-): Promise<MessageContentPart> {
+async function fileToContentPart(file: File): Promise<MessageContentPart> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => {
@@ -108,4 +106,108 @@ export async function filesToMessageContent(
   }
 
   return parts;
+}
+
+export interface BuildError {
+  id: string;
+  headline: string;
+  type: string;
+  severity: "critical" | "error" | "warning";
+  stage: string;
+  confidence: number;
+  error: {
+    file: string;
+    line: number;
+    column?: number;
+    message: string;
+    code?: string;
+    snippet: string;
+    fullContent?: string;
+    target?: string;
+    stackTrace?: string[];
+  };
+  context: {
+    packageJson?: Record<string, unknown>;
+    tsConfig?: Record<string, unknown>;
+    importChain?: Array<{ file: string; line: number; importPath: string }>;
+    recentChanges?: string[];
+  };
+  relatedErrors: string[];
+  relatedFiles: Array<{
+    path: string;
+    reason: string;
+    snippet?: string;
+  }>;
+  suggestion?: string;
+  timestamp: string;
+}
+
+export interface BuildErrorReport {
+  failed: true;
+  headline: string;
+  summary: {
+    totalErrors: number;
+    criticalCount: number;
+    errorCount: number;
+    warningCount: number;
+    uniqueTypes: string[];
+    stage: string;
+  };
+  errors: BuildError[];
+  rootCause?: BuildError;
+  framework?: string;
+  command: string;
+  rawOutput: string;
+  processedAt: string;
+  duration: number;
+}
+
+export enum BuildRecordStatus {
+  QUEUED = "queued",
+  BUILDING = "building",
+  SUCCESS = "success",
+  FAILED = "failed",
+}
+
+export interface BuildStatusResponse {
+  message: string;
+  data: {
+    chatId: string;
+    build: {
+      id: string;
+      status: BuildRecordStatus;
+      previewUrl: string | null;
+      buildDuration: number | null;
+      errorReport: BuildErrorReport | null;
+      createdAt: string;
+    } | null;
+  };
+}
+
+export async function getBuildStatus(
+  chatId: string,
+): Promise<BuildStatusResponse> {
+  return fetchApi<BuildStatusResponse>(`/chat/${chatId}/build-status`);
+}
+
+export interface SandboxFile {
+  path: string;
+  content: string;
+  isComplete: boolean;
+}
+
+export interface SandboxFilesResponse {
+  message: string;
+  data: {
+    chatId: string;
+    sandboxId: string;
+    files: SandboxFile[];
+    totalFiles: number;
+  };
+}
+
+export async function getSandboxFiles(
+  chatId: string,
+): Promise<SandboxFilesResponse> {
+  return fetchApi<SandboxFilesResponse>(`/chat/${chatId}/sandbox-files`);
 }

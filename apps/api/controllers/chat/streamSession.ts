@@ -14,7 +14,7 @@ import { getSandboxState } from "../../services/sandbox/state.sandbox.js";
 import { normalizeFramework } from "../../services/sandbox/templates/template.registry.js";
 import { ensureError } from "../../utils/error.js";
 import { logger } from "../../utils/logger.js";
-import { MessageRole } from "@edward/auth";
+import { MessageRole, createBuild, updateBuild } from "@edward/auth";
 import {
   ChatAction,
   type WorkflowState,
@@ -355,14 +355,31 @@ export async function runStreamSession(
         ),
       );
 
+      const queuedBuild = await createBuild({
+        chatId,
+        messageId: assistantMessageId,
+        status: "queued",
+      });
+
       try {
         await enqueueBuildJob({
           sandboxId: workflow.sandboxId,
           userId,
           chatId,
           messageId: assistantMessageId,
+          buildId: queuedBuild.id,
         });
       } catch (queueErr) {
+        await updateBuild(queuedBuild.id, {
+          status: "failed",
+          errorReport: {
+            failed: true,
+            headline: "Failed to enqueue build job",
+            details:
+              queueErr instanceof Error ? queueErr.message : String(queueErr),
+          } as Record<string, unknown>,
+        } as Parameters<typeof updateBuild>[1]).catch(() => {});
+
         logger.error(
           ensureError(queueErr),
           `Failed to enqueue build job for sandbox: ${workflow.sandboxId}`,

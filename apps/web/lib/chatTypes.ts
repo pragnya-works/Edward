@@ -15,6 +15,7 @@ export enum ParserEventType {
   META = "meta",
   COMMAND = "command",
   METRICS = "metrics",
+  PREVIEW_URL = "preview_url",
 }
 
 export interface MetaEvent {
@@ -113,6 +114,11 @@ export interface MetricsEvent {
   outputTokens: number;
 }
 
+export interface PreviewUrlEvent {
+  type: ParserEventType.PREVIEW_URL;
+  url: string;
+}
+
 export type SSEEvent =
   | MetaEvent
   | TextEvent
@@ -129,7 +135,8 @@ export type SSEEvent =
   | InstallEndEvent
   | ErrorEvent
   | CommandEvent
-  | MetricsEvent;
+  | MetricsEvent
+  | PreviewUrlEvent;
 
 export interface ChatMessage {
   id: string;
@@ -172,6 +179,7 @@ export interface StreamState {
   error: string | null;
   meta: MetaEvent | null;
   codeOnly: boolean;
+  previewUrl: string | null;
   metrics: {
     completionTime: number;
     inputTokens: number;
@@ -193,5 +201,6 @@ export const INITIAL_STREAM_STATE: StreamState = {
   error: null,
   meta: null,
   codeOnly: false,
+  previewUrl: null,
   metrics: null,
 };

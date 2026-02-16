@@ -6,19 +6,23 @@ import {
   useCallback,
   useMemo,
   useRef,
-  useState,
+  useReducer,
   type ReactNode,
 } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { API_BASE_URL, type MessageContent } from "@/lib/api";
 import {
-  ParserEventType,
   INITIAL_STREAM_STATE,
   type StreamState,
   type MetaEvent,
-  type StreamedFile,
+  type ChatMessage,
 } from "@/lib/chatTypes";
-import { parseSSELines } from "@/lib/sseParser";
+import { buildMessageFromStream } from "@/lib/streamToMessage";
+import { streamReducer } from "./chatStream.reducer";
+import {
+  processStreamResponse,
+  type ProcessedStreamResult,
+} from "./chatStream.processor";
 
 interface ChatStreamStateContextValue {
   stream: StreamState;
@@ -42,16 +46,25 @@ const ChatStreamActionsContext =
   createContext<ChatStreamActionsContextValue | null>(null);
 
 export function ChatStreamProvider({ children }: { children: ReactNode }) {
-  const [streamState, setStreamState] =
-    useState<StreamState>(INITIAL_STREAM_STATE);
+  const [streamState, dispatch] = useReducer(
+    streamReducer,
+    INITIAL_STREAM_STATE,
+  );
   const abortRef = useRef<AbortController | null>(null);
   const queryClient = useQueryClient();
-  const [activeChatId, setActiveChatId] = useState<string | null>(null);
+  const [activeChatId, setActiveChatIdState] = useReducer(
+    (_: string | null, id: string | null) => id,
+    null,
+  );
   const onMetaRef = useRef<((meta: MetaEvent) => void) | null>(null);
   const thinkingStartRef = useRef<number | null>(null);
 
+  const setActiveChatId = useCallback((id: string | null) => {
+    setActiveChatIdState(id);
+  }, []);
+
   const resetStream = useCallback(() => {
-    setStreamState(INITIAL_STREAM_STATE);
+    dispatch({ type: "RESET" });
     thinkingStartRef.current = null;
   }, []);
 
@@ -60,173 +73,21 @@ export function ChatStreamProvider({ children }: { children: ReactNode }) {
       abortRef.current.abort();
       abortRef.current = null;
     }
-    setStreamState((prev) => ({ ...prev, isStreaming: false }));
+    dispatch({ type: "STOP_STREAMING" });
   }, []);
 
   const processStream = useCallback(
-    async (response: Response): Promise<MetaEvent | null> => {
-      if (!response.body) {
-        setStreamState((prev) => ({
-          ...prev,
-          isStreaming: false,
-          error: "No response body",
-        }));
-        return null;
-      }
-
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let sseBuffer = "";
-      let metaEvent: MetaEvent | null = null;
-
-      let accText = "";
-      let accThinking = "";
-      let currentFile: StreamedFile | null = null;
-      const completedFiles: StreamedFile[] = [];
-      let deps: string[] = [];
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        sseBuffer += decoder.decode(value, { stream: true });
-        const { events, remaining } = parseSSELines(sseBuffer);
-        sseBuffer = remaining;
-
-        for (const event of events) {
-          switch (event.type) {
-            case ParserEventType.META:
-              metaEvent = event;
-              setStreamState((prev) => ({ ...prev, meta: event }));
-              onMetaRef.current?.(event);
-              break;
-
-            case ParserEventType.TEXT:
-              accText += event.content;
-              setStreamState((prev) => ({
-                ...prev,
-                streamingText: accText,
-              }));
-              break;
-
-            case ParserEventType.THINKING_START:
-              thinkingStartRef.current = Date.now();
-              setStreamState((prev) => ({
-                ...prev,
-                isThinking: true,
-                thinkingDuration: null,
-              }));
-              break;
-
-            case ParserEventType.THINKING_CONTENT:
-              accThinking += event.content;
-              setStreamState((prev) => ({
-                ...prev,
-                thinkingText: accThinking,
-              }));
-              break;
-
-            case ParserEventType.THINKING_END: {
-              const dur = thinkingStartRef.current
-                ? Math.round((Date.now() - thinkingStartRef.current) / 1000)
-                : null;
-              thinkingStartRef.current = null;
-              setStreamState((prev) => ({
-                ...prev,
-                isThinking: false,
-                thinkingDuration: dur,
-              }));
-              break;
-            }
-
-            case ParserEventType.FILE_START:
-              currentFile = {
-                path: event.path,
-                content: "",
-                isComplete: false,
-              };
-              setStreamState((prev) => ({
-                ...prev,
-                activeFiles: [...prev.activeFiles, currentFile!],
-              }));
-              break;
-
-            case ParserEventType.FILE_CONTENT:
-              if (currentFile) {
-                currentFile.content += event.content;
-                setStreamState((prev) => ({
-                  ...prev,
-                  activeFiles: prev.activeFiles.map((f) =>
-                    f.path === currentFile!.path
-                      ? { ...f, content: currentFile!.content }
-                      : f,
-                  ),
-                }));
-              }
-              break;
-
-            case ParserEventType.FILE_END:
-              if (currentFile) {
-                currentFile.isComplete = true;
-                completedFiles.push({ ...currentFile });
-                setStreamState((prev) => ({
-                  ...prev,
-                  activeFiles: prev.activeFiles.filter(
-                    (f) => f.path !== currentFile!.path,
-                  ),
-                  completedFiles: [...completedFiles],
-                }));
-                currentFile = null;
-              }
-              break;
-
-            case ParserEventType.INSTALL_CONTENT:
-              deps = event.dependencies;
-              setStreamState((prev) => ({
-                ...prev,
-                installingDeps: deps,
-              }));
-              break;
-
-            case ParserEventType.SANDBOX_START:
-              setStreamState((prev) => ({ ...prev, isSandboxing: true }));
-              break;
-
-            case ParserEventType.SANDBOX_END:
-              setStreamState((prev) => ({ ...prev, isSandboxing: false }));
-              break;
-
-            case ParserEventType.COMMAND:
-              setStreamState((prev) => ({ ...prev, command: event }));
-              break;
-
-            case ParserEventType.ERROR:
-              setStreamState((prev) => ({
-                ...prev,
-                error: event.message,
-              }));
-              break;
-
-            case ParserEventType.METRICS:
-              setStreamState((prev) => ({
-                ...prev,
-                metrics: {
-                  completionTime: event.completionTime,
-                  inputTokens: event.inputTokens,
-                  outputTokens: event.outputTokens,
-                },
-              }));
-              break;
-
-            default:
-              break;
-          }
-        }
-      }
-
-      return metaEvent;
+    async (
+      response: Response,
+    ): Promise<ProcessedStreamResult | null> => {
+      return processStreamResponse({
+        response,
+        dispatch,
+        onMetaRef,
+        thinkingStartRef,
+      });
     },
-    [],
+    [dispatch],
   );
 
   const mutation = useMutation({
@@ -243,7 +104,7 @@ export function ChatStreamProvider({ children }: { children: ReactNode }) {
       const controller = new AbortController();
       abortRef.current = controller;
 
-      setStreamState({ ...INITIAL_STREAM_STATE, isStreaming: true });
+      dispatch({ type: "START_STREAMING" });
       thinkingStartRef.current = null;
 
       const body: Record<string, unknown> = { content };
@@ -266,30 +127,60 @@ export function ChatStreamProvider({ children }: { children: ReactNode }) {
         );
       }
 
-      const metaEvt = await processStream(response);
+      const streamResult = await processStream(response);
+      const metaEvt = streamResult?.meta;
 
-      if (metaEvt?.chatId) {
-        queryClient.invalidateQueries({
+      dispatch({ type: "STOP_STREAMING" });
+
+      if (metaEvt?.chatId && streamResult) {
+        const augmentedStreamState: StreamState = {
+          ...INITIAL_STREAM_STATE,
+          streamingText: streamResult.text,
+          thinkingText: streamResult.thinking,
+          completedFiles: streamResult.completedFiles,
+          installingDeps: streamResult.installingDeps,
+          command: streamResult.command,
+          metrics: streamResult.metrics,
+          previewUrl: streamResult.previewUrl,
+          meta: metaEvt,
+        };
+        const optimisticMessage = buildMessageFromStream(
+          augmentedStreamState,
+          metaEvt,
+        );
+
+        if (optimisticMessage) {
+          queryClient.setQueryData<ChatMessage[]>(
+            ["chatHistory", metaEvt.chatId],
+            (oldMessages = []) => {
+              const exists = oldMessages.some(
+                (msg) => msg.id === optimisticMessage.id,
+              );
+              if (exists) return oldMessages;
+              return [...oldMessages, optimisticMessage];
+            },
+          );
+        }
+
+        await queryClient.refetchQueries({
           queryKey: ["chatHistory", metaEvt.chatId],
         });
         queryClient.invalidateQueries({ queryKey: ["recentChats"] });
+
+        await new Promise((resolve) => setTimeout(resolve, 150));
+
+        dispatch({ type: "RESET" });
       }
 
       return metaEvt;
     },
-    onSuccess: () => {
-      setStreamState((prev) => ({ ...prev, isStreaming: false }));
-    },
     onError: (err: Error) => {
       if (err.name === "AbortError") {
-        setStreamState((prev) => ({ ...prev, isStreaming: false }));
+        dispatch({ type: "STOP_STREAMING" });
         return;
       }
-      setStreamState((prev) => ({
-        ...prev,
-        isStreaming: false,
-        error: err.message,
-      }));
+      dispatch({ type: "STOP_STREAMING" });
+      dispatch({ type: "SET_ERROR", error: err.message });
     },
     onSettled: () => {
       abortRef.current = null;
@@ -315,7 +206,7 @@ export function ChatStreamProvider({ children }: { children: ReactNode }) {
       setActiveChatId,
       onMetaRef,
     }),
-    [startStream, cancelStream, resetStream, setActiveChatId, onMetaRef],
+    [startStream, cancelStream, resetStream, setActiveChatId],
   );
 
   return (

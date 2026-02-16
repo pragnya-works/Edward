@@ -154,7 +154,7 @@ export default function Promptbar({
                   key={suggestionIndex}
                   animation="blurInUp"
                   by="word"
-                  className="text-[15px] text-muted-foreground font-medium leading-relaxed tracking-tight p-6"
+                  className="text-xs sm:text-sm md:text-[15px] text-muted-foreground font-medium leading-relaxed tracking-tight p-3 sm:p-4 md:p-6"
                   text={SUGGESTIONS[suggestionIndex]!}
                 />
               </div>
@@ -163,7 +163,7 @@ export default function Promptbar({
             placeholder={hideSuggestions ? "Ask Edward anything..." : ""}
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
-            className="min-h-25 md:min-h-30 resize-none border-0 bg-transparent p-6 text-[15px] text-foreground placeholder:text-muted-foreground/70 focus-visible:ring-0 focus-visible:ring-offset-0 relative z-10 font-medium leading-relaxed tracking-tight"
+            className="min-h-16 sm:min-h-20 md:min-h-24 resize-none border-0 bg-transparent p-3 sm:p-4 md:p-6 text-sm sm:text-[15px] text-foreground placeholder:text-muted-foreground/70 focus-visible:ring-0 focus-visible:ring-offset-0 relative z-10 font-medium leading-relaxed tracking-tight"
           />
         </div>
 

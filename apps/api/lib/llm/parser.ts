@@ -17,6 +17,8 @@ const TAGS = {
   INSTALL_START: "<edward_install>",
   INSTALL_END: "</edward_install>",
   COMMAND: "<edward_command",
+  RESPONSE_START: "<Response>",
+  DONE: "<edward_done",
 } as const;
 
 const LOOKAHEAD_LIMIT = 256;
@@ -32,7 +34,7 @@ interface TagCandidate {
 
 interface ExitPoint {
   idx: number;
-  type: "end" | "sandbox" | "install";
+  type: "end" | "sandbox" | "install" | "response" | "command" | "done";
 }
 
 type AllowedFramework = Framework | "next" | "react" | "vite" | "next.js";
@@ -151,6 +153,9 @@ export function createStreamParser() {
       { idx: buffer.indexOf(TAGS.THINKING_END), type: "end" as const },
       { idx: buffer.indexOf(TAGS.SANDBOX_START), type: "sandbox" as const },
       { idx: buffer.indexOf(TAGS.INSTALL_START), type: "install" as const },
+      { idx: buffer.indexOf(TAGS.RESPONSE_START), type: "response" as const },
+      { idx: buffer.indexOf(TAGS.COMMAND), type: "command" as const },
+      { idx: buffer.indexOf(TAGS.DONE), type: "done" as const },
     ].filter((p) => p.idx !== -1);
 
     if (exitPoints.length === 0) {

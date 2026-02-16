@@ -127,7 +127,9 @@ export const ChatMessageList = memo(function ChatMessageList({
             ))}
           </AnimatePresence>
 
-          {stream.isStreaming && <StreamingMessage stream={stream} />}
+          {stream.isStreaming && (
+            <StreamingMessage stream={stream} />
+          )}
 
           <div ref={bottomRef} className="h-4 sm:h-8 w-full shrink-0" />
         </div>

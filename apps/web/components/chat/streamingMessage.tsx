@@ -4,16 +4,18 @@ import { memo, useMemo } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { ThinkingIndicator } from "./thinkingIndicator";
 import { TypingIndicator } from "./typingIndicator";
-import { FileBlock } from "./fileBlock";
 import { CommandBlock } from "./commandBlock";
 import { SandboxIndicator } from "./sandboxIndicator";
 import { InstallBlock } from "./installBlock";
 import { EdwardAvatar } from "./avatars";
 import type { StreamState } from "@/lib/chatTypes";
-import { Sparkles, Terminal, FileCode, Box } from "lucide-react";
+import { Terminal, Box } from "lucide-react";
 import { MessageMetrics } from "./messageMetrics";
-
 import { MarkdownRenderer } from "./markdownRenderer";
+import { useSandbox } from "@/contexts/sandboxContext";
+import { ProjectButton } from "./projectButton";
+import { parseMessageContent } from "@/lib/messageParser";
+import { FileBlock } from "./fileBlock";
 
 interface StreamingMessageProps {
   stream: StreamState;
@@ -22,6 +24,12 @@ interface StreamingMessageProps {
 export const StreamingMessage = memo(function StreamingMessage({
   stream,
 }: StreamingMessageProps) {
+  const { isOpen: sandboxOpen } = useSandbox();
+
+  const blocks = useMemo(() => {
+    return parseMessageContent(stream.streamingText);
+  }, [stream.streamingText]);
+
   const hasAnyContent = useMemo(
     () =>
       stream.streamingText ||
@@ -34,6 +42,12 @@ export const StreamingMessage = memo(function StreamingMessage({
       stream.installingDeps.length > 0,
     [stream],
   );
+
+  const allFiles = useMemo(() => {
+    return [...stream.activeFiles, ...stream.completedFiles];
+  }, [stream.activeFiles, stream.completedFiles]);
+
+  const showProjectButton = allFiles.length > 0 || stream.isSandboxing;
 
   return (
     <motion.div
@@ -48,19 +62,6 @@ export const StreamingMessage = memo(function StreamingMessage({
         {!hasAnyContent ? (
           <TypingIndicator isCodeMode={stream.codeOnly} />
         ) : null}
-
-        <AnimatePresence>
-          {stream.isSandboxing ? (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="w-full"
-            >
-              <SandboxIndicator />
-            </motion.div>
-          ) : null}
-        </AnimatePresence>
 
         {stream.isThinking || stream.thinkingText ? (
           <motion.div
@@ -78,89 +79,98 @@ export const StreamingMessage = memo(function StreamingMessage({
           </motion.div>
         ) : null}
 
+        <div className="flex flex-col gap-3 w-full">
+          {blocks.map((block, i) => {
+            switch (block.type) {
+              case "text":
+                return (
+                  <div
+                    key={i}
+                    className="text-[14px] sm:text-[15px] leading-[1.8] tracking-tight font-medium text-foreground w-full relative"
+                  >
+                    <MarkdownRenderer content={block.content} />
+                    {i === blocks.length - 1 && stream.isStreaming && (
+                      <motion.span
+                        className="inline-block w-[3px] h-4 bg-primary/60 ml-0.5 rounded-full align-text-bottom"
+                        animate={{ opacity: [0, 1, 0] }}
+                        transition={{ duration: 0.8, repeat: Infinity }}
+                      />
+                    )}
+                  </div>
+                );
+              case "file":
+                if (block.isInternal) return null;
+                return (
+                  <FileBlock
+                    key={i}
+                    file={{
+                      path: block.path,
+                      content: block.content,
+                      isComplete: true,
+                    }}
+                    index={i}
+                  />
+                );
+              default:
+                return null;
+            }
+          })}
+        </div>
+
         <AnimatePresence>
-          {stream.activeFiles.length > 0 ||
-          stream.installingDeps.length > 0 ||
-          stream.command ? (
+          {stream.isSandboxing && allFiles.length === 0 ? (
             <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: "auto" }}
-              exit={{ opacity: 0, height: 0 }}
-              className="flex flex-col gap-2 w-full border-l-2 border-sky-500/10 dark:border-sky-500/10 pl-3 sm:pl-4 my-1"
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="w-full"
             >
-              <div className="flex items-center gap-1.5 sm:gap-2 mb-1 text-[9px] sm:text-[10px] font-semibold text-sky-600/50 dark:text-sky-400/40 uppercase tracking-widest">
-                <Sparkles className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
-                <span>Active Operations</span>
-              </div>
-
-              {stream.activeFiles.map((file, i) => (
-                <motion.div
-                  key={file.path}
-                  initial={{ opacity: 0, x: -10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: i * 0.1 }}
-                >
-                  <div className="flex items-center gap-1.5 sm:gap-2 mb-1">
-                    <FileCode className="h-2.5 w-2.5 sm:h-3 sm:w-3 text-sky-600/60 dark:text-sky-400/60" />
-                    <span className="text-[10px] sm:text-[11px] text-muted-foreground font-mono truncate">
-                      Writing {file.path}...
-                    </span>
-                  </div>
-                  <FileBlock file={file} index={i} />
-                </motion.div>
-              ))}
-
-              {stream.installingDeps.length > 0 ? (
-                <motion.div
-                  initial={{ opacity: 0, x: -10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                >
-                  <div className="flex items-center gap-1.5 sm:gap-2 mb-1">
-                    <Box className="h-2.5 w-2.5 sm:h-3 sm:w-3 text-amber-400/60" />
-                    <span className="text-[10px] sm:text-[11px] text-muted-foreground/70 font-mono">
-                      Installing dependencies...
-                    </span>
-                  </div>
-                  <InstallBlock dependencies={stream.installingDeps} />
-                </motion.div>
-              ) : null}
-
-              {stream.command ? (
-                <motion.div
-                  initial={{ opacity: 0, x: -10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                >
-                  <div className="flex items-center gap-1.5 sm:gap-2 mb-1">
-                    <Terminal className="h-2.5 w-2.5 sm:h-3 sm:w-3 text-emerald-400/60" />
-                    <span className="text-[10px] sm:text-[11px] text-muted-foreground/70 font-mono">
-                      Executing command...
-                    </span>
-                  </div>
-                  <CommandBlock command={stream.command} />
-                </motion.div>
-              ) : null}
+              <SandboxIndicator />
             </motion.div>
           ) : null}
         </AnimatePresence>
 
-        {stream.streamingText ? (
-          <div className="rounded-xl sm:rounded-2xl text-[14px] sm:text-[15px] leading-[1.7] sm:leading-[1.8] tracking-tight font-medium text-foreground w-full relative group/text">
-            <MarkdownRenderer content={stream.streamingText} />
-            <motion.span
-              className="inline-block w-[3px] h-3.5 sm:h-4 bg-sky-500 dark:bg-sky-400/60 ml-0.5 rounded-full align-text-bottom"
-              animate={{ opacity: [0, 1, 0] }}
-              transition={{ duration: 0.8, repeat: Infinity }}
+        <AnimatePresence>
+          {showProjectButton && (
+            <ProjectButton
+              isStreaming={stream.isStreaming || stream.activeFiles.length > 0}
+              files={allFiles}
+              activeFilePath={stream.activeFiles[0]?.path || null}
             />
-          </div>
-        ) : null}
+          )}
+        </AnimatePresence>
 
-        {stream.completedFiles.length > 0 ? (
-          <div className="flex flex-col gap-2 sm:gap-3 w-full mt-1.5 sm:mt-2">
-            {stream.completedFiles.map((file, i) => (
-              <FileBlock key={file.path} file={file} index={i} />
-            ))}
-          </div>
-        ) : null}
+        {stream.command && !sandboxOpen && (
+          <motion.div
+            initial={{ opacity: 0, y: 4 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="w-full"
+          >
+            <div className="flex items-center gap-1.5 sm:gap-2 mb-1">
+              <Terminal className="h-2.5 w-2.5 sm:h-3 sm:w-3 text-emerald-400/60" />
+              <span className="text-[10px] sm:text-[11px] text-muted-foreground/70 font-mono">
+                Executing command...
+              </span>
+            </div>
+            <CommandBlock command={stream.command} />
+          </motion.div>
+        )}
+
+        {stream.installingDeps.length > 0 && !sandboxOpen && (
+          <motion.div
+            initial={{ opacity: 0, y: 4 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="w-full"
+          >
+            <div className="flex items-center gap-1.5 sm:gap-2 mb-1">
+              <Box className="h-2.5 w-2.5 sm:h-3 sm:w-3 text-amber-400/60" />
+              <span className="text-[10px] sm:text-[11px] text-muted-foreground/70 font-mono">
+                Installing dependencies...
+              </span>
+            </div>
+            <InstallBlock dependencies={stream.installingDeps} />
+          </motion.div>
+        )}
 
         {stream.error ? (
           <motion.div

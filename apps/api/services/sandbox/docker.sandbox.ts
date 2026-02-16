@@ -4,6 +4,9 @@ import { Writable } from "stream";
 import { ExecResult } from "./types.sandbox.js";
 import path from "path";
 import { config } from "../../config.js";
+import { createLogger } from "../../utils/logger.js";
+
+const logger = createLogger('DOCKER_SANDBOX');
 
 const docker = new Docker();
 const getPrewarmImage = () => config.docker.prewarmImage;
@@ -208,7 +211,7 @@ export async function createContainer(
     await disconnectFromNetwork(container.id);
     await verifyNetworkIsolation(container.id);
   } catch (error) {
-    await container.remove({ force: true }).catch(() => {});
+    await container.remove({ force: true }).catch(() => { });
     throw new Error(
       `Failed to isolate sandbox container from network: ${error instanceof Error ? error.message : String(error)}`,
     );
@@ -224,6 +227,20 @@ export async function listContainers(): Promise<Docker.ContainerInfo[]> {
 
 export function getContainer(id: string): Docker.Container {
   return docker.getContainer(id);
+}
+
+export async function isContainerAlive(containerId: string): Promise<boolean> {
+  try {
+    const container = docker.getContainer(containerId);
+    const info = await container.inspect();
+    return info.State.Status !== "removing" && !info.State.Dead;
+  } catch (error) {
+    if (error instanceof Error && error.message.includes("404")) {
+      return false;
+    }
+    logger.warn({ containerId, error }, "Error checking container liveness");
+    return false;
+  }
 }
 
 export async function destroyContainer(containerId: string): Promise<void> {

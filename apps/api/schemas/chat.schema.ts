@@ -34,6 +34,7 @@ export enum ParserEventType {
   ERROR = "error",
   META = "meta",
   COMMAND = "command",
+  PREVIEW_URL = "preview_url",
 }
 
 export const ChatIdParamSchema = z.object({
@@ -157,6 +158,10 @@ export const ParserEventSchema = z.discriminatedUnion("type", [
     exitCode: z.number().optional(),
     stdout: z.string().optional(),
     stderr: z.string().optional(),
+  }),
+  z.object({
+    type: z.literal(ParserEventType.PREVIEW_URL),
+    url: z.string(),
   }),
 ]);
 

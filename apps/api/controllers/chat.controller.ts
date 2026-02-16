@@ -1,5 +1,14 @@
 import type { Response } from "express";
-import { db, chat, message, eq, MessageRole, desc, count } from "@edward/auth";
+import {
+  db,
+  chat,
+  message,
+  eq,
+  MessageRole,
+  desc,
+  count,
+  getLatestBuildByChatId,
+} from "@edward/auth";
 import {
   type AuthenticatedRequest,
   getAuthenticatedUserId,
@@ -33,6 +42,10 @@ import { buildS3Key } from "../services/storage/key.utils.js";
 import { buildConversationMessages } from "../lib/llm/context.js";
 import { ChatAction } from "../services/planning/schemas.js";
 import type { LlmChatMessage } from "../lib/llm/context.js";
+import {
+  readAllProjectFiles,
+  readProjectFilesFromS3,
+} from "../services/sandbox/read.sandbox.js";
 
 function sendStreamError(
   res: Response,
@@ -353,6 +366,124 @@ export async function getRecentChats(
     );
   } catch (error) {
     logger.error(ensureError(error), "getRecentChats error");
+    sendStandardError(
+      res,
+      HttpStatus.INTERNAL_SERVER_ERROR,
+      ERROR_MESSAGES.INTERNAL_SERVER_ERROR,
+    );
+  }
+}
+
+export async function getBuildStatus(
+  req: AuthenticatedRequest,
+  res: Response,
+): Promise<void> {
+  try {
+    const userId = getAuthenticatedUserId(req);
+    const chatId = req.params.chatId;
+
+    if (!chatId || Array.isArray(chatId)) {
+      sendStreamError(res, HttpStatus.BAD_REQUEST, "Invalid chat ID");
+      return;
+    }
+
+    const [chatData] = await db
+      .select({ userId: chat.userId })
+      .from(chat)
+      .where(eq(chat.id, chatId))
+      .limit(1);
+
+    if (!chatData) {
+      sendStreamError(res, HttpStatus.NOT_FOUND, ERROR_MESSAGES.NOT_FOUND);
+      return;
+    }
+
+    if (chatData.userId !== userId) {
+      sendStreamError(res, HttpStatus.FORBIDDEN, ERROR_MESSAGES.FORBIDDEN);
+      return;
+    }
+
+    const latestBuild = await getLatestBuildByChatId(chatId);
+
+    sendSuccess(res, HttpStatus.OK, "Build status retrieved successfully", {
+      chatId,
+      build: latestBuild
+        ? {
+          id: latestBuild.id,
+          status: latestBuild.status,
+          previewUrl: latestBuild.previewUrl,
+          buildDuration: latestBuild.buildDuration,
+          errorReport: latestBuild.errorReport,
+          createdAt: latestBuild.createdAt,
+        }
+        : null,
+    });
+  } catch (error) {
+    logger.error(ensureError(error), "getBuildStatus error");
+    sendStandardError(
+      res,
+      HttpStatus.INTERNAL_SERVER_ERROR,
+      ERROR_MESSAGES.INTERNAL_SERVER_ERROR,
+    );
+  }
+}
+
+export async function getSandboxFiles(
+  req: AuthenticatedRequest,
+  res: Response,
+): Promise<void> {
+  try {
+    const userId = getAuthenticatedUserId(req);
+    const chatId = req.params.chatId;
+
+    if (!chatId || Array.isArray(chatId)) {
+      sendStandardError(res, HttpStatus.BAD_REQUEST, "Invalid chat ID");
+      return;
+    }
+
+    const [chatData] = await db
+      .select({ userId: chat.userId })
+      .from(chat)
+      .where(eq(chat.id, chatId))
+      .limit(1);
+
+    if (!chatData) {
+      sendStandardError(res, HttpStatus.NOT_FOUND, ERROR_MESSAGES.NOT_FOUND);
+      return;
+    }
+
+    if (chatData.userId !== userId) {
+      sendStandardError(res, HttpStatus.FORBIDDEN, ERROR_MESSAGES.FORBIDDEN);
+      return;
+    }
+
+    const sandboxId = await getActiveSandbox(chatId);
+    let filesMap: Map<string, string>;
+
+    if (!sandboxId) {
+      logger.info(
+        { chatId, userId },
+        "No active sandbox, falling back to S3 for files",
+      );
+      filesMap = await readProjectFilesFromS3(userId, chatId);
+    } else {
+      filesMap = await readAllProjectFiles(sandboxId);
+    }
+
+    const files = Array.from(filesMap.entries()).map(([path, content]) => ({
+      path,
+      content,
+      isComplete: true,
+    }));
+
+    sendSuccess(res, HttpStatus.OK, "Sandbox files retrieved successfully", {
+      chatId,
+      sandboxId,
+      files,
+      totalFiles: files.length,
+    });
+  } catch (error) {
+    logger.error(ensureError(error), "getSandboxFiles error");
     sendStandardError(
       res,
       HttpStatus.INTERNAL_SERVER_ERROR,

@@ -1,9 +1,10 @@
-"use client"
+"use client";
 
-import { useState, type ReactNode } from "react"
-import { ThemeProvider as NextThemesProvider } from "next-themes"
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { ChatStreamProvider } from "@/contexts/chatStreamContext"
+import { useState, type ReactNode } from "react";
+import { ThemeProvider as NextThemesProvider } from "next-themes";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { ChatStreamProvider } from "@/contexts/chatStreamContext";
+import { SandboxProvider } from "@/contexts/sandboxContext";
 
 function makeQueryClient() {
   return new QueryClient({
@@ -27,9 +28,10 @@ export function Providers({ children }: { children: ReactNode }) {
       enableColorScheme
     >
       <QueryClientProvider client={queryClient}>
-        <ChatStreamProvider>{children}</ChatStreamProvider>
+        <ChatStreamProvider>
+          <SandboxProvider>{children}</SandboxProvider>
+        </ChatStreamProvider>
       </QueryClientProvider>
     </NextThemesProvider>
   );
 }
-
