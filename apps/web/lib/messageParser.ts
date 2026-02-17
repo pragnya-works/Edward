@@ -13,7 +13,6 @@ export function parseMessageContent(content: string): MessageBlock[] {
   let inSandbox = false;
   let inResponse = false;
 
-  // Check if content contains any <Response> tags to decide if we should be strict
   const hasResponseTags = content.includes("<Response>");
 
   while (remaining.length > 0) {
@@ -70,7 +69,6 @@ export function parseMessageContent(content: string): MessageBlock[] {
         blocks.push({ type: "thinking", content: thinkingContent });
         remaining = remaining.slice(endIdx + "</Thinking>".length);
       } else {
-        // Look for implicit exit points while streaming or for malformed output
         const nextResponse = remaining.indexOf("<Response>");
         const nextFile = remaining.indexOf("<file");
         const nextInstall = remaining.indexOf("<edward_install");

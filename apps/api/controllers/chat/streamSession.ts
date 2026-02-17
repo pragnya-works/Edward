@@ -5,11 +5,11 @@ import { createStreamParser } from "../../lib/llm/parser.js";
 import { streamResponse } from "../../lib/llm/response.js";
 import { composePrompt } from "../../lib/llm/compose.js";
 import { computeTokenUsage, isOverContextLimit, countOutputTokens, type TokenUsage } from "../../lib/llm/tokens.js";
-import { ensureSandbox } from "../../services/planning/workflowEngine.js";
 import { cleanupSandbox } from "../../services/sandbox/lifecycle/cleanup.js";
 import { flushSandbox } from "../../services/sandbox/writes.sandbox.js";
 import { enqueueBuildJob } from "../../services/queue/enqueue.js";
-import { saveMessage, type MessageMetadata } from "../../services/chat.service.js";
+import { saveMessage, updateChatMeta, type MessageMetadata } from "../../services/chat.service.js";
+import { generateResponse } from "../../lib/llm/response.js";
 import { getSandboxState } from "../../services/sandbox/state.sandbox.js";
 import { normalizeFramework } from "../../services/sandbox/templates/template.registry.js";
 import { ensureError } from "../../utils/error.js";
@@ -170,10 +170,6 @@ export async function runStreamSession(
       return;
     }
 
-    if (!workflow.sandboxId) {
-      await ensureSandbox(workflow, framework, isFollowUp);
-    }
-
     if (!framework && workflow.sandboxId) {
       const sandboxState = await getSandboxState(workflow.sandboxId);
       if (sandboxState?.scaffoldedFramework) {
@@ -188,6 +184,7 @@ export async function runStreamSession(
 
     let agentMessages: LlmChatMessage[] = baseMessages;
     let agentTurn = 0;
+    let sandboxTagDetected = false;
 
     agentLoop: while (agentTurn < MAX_AGENT_TURNS) {
       agentTurn++;
@@ -227,6 +224,7 @@ export async function runStreamSession(
             userId,
             chatId,
             isFollowUp,
+            sandboxTagDetected,
             currentFilePath,
             isFirstFileChunk,
             generatedFiles,
@@ -237,6 +235,7 @@ export async function runStreamSession(
           const result = await handleParserEvent(ctx, event);
           currentFilePath = result.currentFilePath;
           isFirstFileChunk = result.isFirstFileChunk;
+          sandboxTagDetected = result.sandboxTagDetected;
 
           if (!result.handled) {
             safeSSEWrite(res, `data: ${JSON.stringify(event)}\n\n`);
@@ -255,13 +254,17 @@ export async function runStreamSession(
         userId,
         chatId,
         isFollowUp,
+        sandboxTagDetected,
         currentFilePath,
         isFirstFileChunk,
         generatedFiles,
         declaredPackages,
         commandResultsThisTurn,
       };
-      await handleFlushEvents(flushCtx, parser.flush());
+      const flushResult = await handleFlushEvents(flushCtx, parser.flush());
+      currentFilePath = flushResult.currentFilePath;
+      isFirstFileChunk = flushResult.isFirstFileChunk;
+      sandboxTagDetected = flushResult.sandboxTagDetected;
 
       if (
         commandResultsThisTurn.length > 0 &&
@@ -319,6 +322,35 @@ export async function runStreamSession(
       messageMetadata,
     );
     committedMessageContent = fullRawResponse;
+
+    if (!isFollowUp) {
+      generateResponse(
+        decryptedApiKey,
+        `Generate a title and description for this chat based on the user's request. User said: "${userContent.slice(0, 500)}"
+
+Return ONLY a JSON object: {"title": "...", "description": "..."}
+- title: max 6 words, concise project name (e.g. "Cloud Storage Dashboard", "Portfolio Website")
+- description: max 15 words, what the project does`,
+        [],
+        undefined,
+        { jsonMode: true },
+      )
+        .then((resp) => {
+          const match = resp.match(/\{[\s\S]*\}/);
+          if (!match) return;
+          const parsed = JSON.parse(match[0]);
+          if (parsed.title || parsed.description) {
+            return updateChatMeta(chatId, {
+              title: parsed.title?.slice(0, 100),
+              description: parsed.description?.slice(0, 200),
+            });
+          }
+          return undefined;
+        })
+        .catch((err) =>
+          logger.warn({ err, chatId }, "Title generation failed (non-fatal)"),
+        );
+    }
 
     if (workflow.sandboxId) {
       if (generatedFiles.size > 0) {
@@ -378,7 +410,7 @@ export async function runStreamSession(
             details:
               queueErr instanceof Error ? queueErr.message : String(queueErr),
           } as Record<string, unknown>,
-        } as Parameters<typeof updateBuild>[1]).catch(() => {});
+        } as Parameters<typeof updateBuild>[1]).catch(() => { });
 
         logger.error(
           ensureError(queueErr),

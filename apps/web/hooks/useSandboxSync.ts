@@ -1,7 +1,7 @@
 import { useEffect, useRef, useCallback } from "react";
 import { useChatStream } from "@/contexts/chatStreamContext";
 import { BuildStatus, useSandbox } from "@/contexts/sandboxContext";
-import type { StreamedFile } from "@/lib/chatTypes";
+import { INITIAL_STREAM_STATE, type StreamedFile } from "@/lib/chatTypes";
 import { BuildRecordStatus, getBuildStatus, getSandboxFiles } from "@/lib/api";
 import type { BuildErrorReport } from "@/lib/api";
 
@@ -9,7 +9,16 @@ const BUILD_POLL_INTERVAL_MS = 2000;
 const BUILD_POLL_MAX_ATTEMPTS = 30;
 
 export function useSandboxSync(chatIdFromUrl: string | undefined) {
-  const { stream } = useChatStream();
+  const { streams } = useChatStream();
+  const stream = chatIdFromUrl
+    ? streams[chatIdFromUrl] ??
+      Object.values(streams).find(
+        (candidate) =>
+          candidate.streamChatId === chatIdFromUrl ||
+          candidate.meta?.chatId === chatIdFromUrl,
+      ) ??
+      INITIAL_STREAM_STATE
+    : INITIAL_STREAM_STATE;
   const {
     updateFile,
     setFiles,
@@ -85,18 +94,26 @@ export function useSandboxSync(chatIdFromUrl: string | undefined) {
         const build = response.data.build;
 
         if (!build) {
-          setBuildStatus(BuildStatus.BUILDING);
+          setBuildStatus(BuildStatus.IDLE);
+          setBuildError(null);
+          lastPolledChatIdRef.current = null;
+          return;
+        }
+
+        if (!build.status) {
+          setBuildStatus(BuildStatus.QUEUED);
           setBuildError(null);
           scheduleNextPoll();
           return;
         }
 
-        if (
-          build.status === BuildRecordStatus.SUCCESS &&
-          build.previewUrl
-        ) {
-          setPreviewUrl(build.previewUrl);
-          openSandbox();
+        if (build.status === BuildRecordStatus.SUCCESS) {
+          if (build.previewUrl) {
+            setPreviewUrl(build.previewUrl);
+            openSandbox();
+          } else {
+            setBuildStatus(BuildStatus.SUCCESS);
+          }
           setBuildError(null);
           lastPolledChatIdRef.current = null;
           return;

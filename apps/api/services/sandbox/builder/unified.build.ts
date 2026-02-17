@@ -121,44 +121,60 @@ export async function buildAndUploadUnified(
     const nodeModulesMissing = nodeModulesCheck.exitCode !== 0;
 
     if (nodeModulesMissing) {
-      logger.warn(
-        { sandboxId },
-        "node_modules missing before build, running pnpm install",
-      );
-
-      const installResult = await execCommand(
+      const pkgJsonCheck = await execCommand(
         container,
-        ["pnpm", "install", "--frozen-lockfile=false"],
+        ["test", "-f", "package.json"],
         false,
-        TIMEOUT_DEPENDENCY_INSTALL_MS,
+        5000,
         undefined,
         CONTAINER_WORKDIR,
-        ["NEXT_TELEMETRY_DISABLED=1", "CI=true"],
       );
 
-      if (installResult.exitCode !== 0) {
-        logger.error(
-          {
-            sandboxId,
-            exitCode: installResult.exitCode,
-            stderr: installResult.stderr.slice(-500),
-          },
-          "pnpm install failed",
+      if (pkgJsonCheck.exitCode === 0) {
+        logger.warn(
+          { sandboxId },
+          "node_modules missing before build, running pnpm install",
         );
-        await disconnectContainerFromNetwork(containerId, sandboxId);
-        return {
-          success: false,
-          buildDirectory: null,
-          error: [
-            `Dependency installation failed (exit ${installResult.exitCode})`,
-            "--- STDERR (tail) ---",
-            (installResult.stderr || "").slice(-8000),
-            "--- STDOUT (tail) ---",
-            (installResult.stdout || "").slice(-8000),
-          ].join("\n"),
-          previewUploaded: false,
-          previewUrl: null,
-        };
+
+        const installResult = await execCommand(
+          container,
+          ["pnpm", "install", "--frozen-lockfile=false"],
+          false,
+          TIMEOUT_DEPENDENCY_INSTALL_MS,
+          undefined,
+          CONTAINER_WORKDIR,
+          ["NEXT_TELEMETRY_DISABLED=1", "CI=true"],
+        );
+
+        if (installResult.exitCode !== 0) {
+          logger.error(
+            {
+              sandboxId,
+              exitCode: installResult.exitCode,
+              stderr: installResult.stderr.slice(-500),
+            },
+            "pnpm install failed",
+          );
+          await disconnectContainerFromNetwork(containerId, sandboxId);
+          return {
+            success: false,
+            buildDirectory: null,
+            error: [
+              `Dependency installation failed (exit ${installResult.exitCode})`,
+              "--- STDERR (tail) ---",
+              (installResult.stderr || "").slice(-8000),
+              "--- STDOUT (tail) ---",
+              (installResult.stdout || "").slice(-8000),
+            ].join("\n"),
+            previewUploaded: false,
+            previewUrl: null,
+          };
+        }
+      } else {
+        logger.info(
+          { sandboxId },
+          "No package.json found, skipping dependency installation",
+        );
       }
     }
 

@@ -167,6 +167,7 @@ export interface StreamedFile {
 
 export interface StreamState {
   isStreaming: boolean;
+  streamChatId: string | null;
   streamingText: string;
   thinkingText: string;
   isThinking: boolean;
@@ -189,6 +190,7 @@ export interface StreamState {
 
 export const INITIAL_STREAM_STATE: StreamState = {
   isStreaming: false,
+  streamChatId: null,
   streamingText: "",
   thinkingText: "",
   isThinking: false,

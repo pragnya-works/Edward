@@ -29,7 +29,6 @@ import { getOrCreateChat, saveMessage } from "../services/chat.service.js";
 import {
   createWorkflow,
   advanceWorkflow,
-  ensureSandbox,
 } from "../services/planning/workflowEngine.js";
 import {
   acquireUserSlot,
@@ -165,14 +164,6 @@ export async function unifiedSendMessage(
     let historyMessages: LlmChatMessage[] = [];
     let projectContext: string = "";
     if (isFollowUp) {
-      try {
-        await ensureSandbox(workflow, undefined, true);
-      } catch (err) {
-        logger.warn(
-          { err: ensureError(err), chatId },
-          "Early sandbox provisioning for context failed, will retry during stream",
-        );
-      }
       const ctx = await buildConversationMessages(chatId);
       historyMessages = ctx.history;
       projectContext = ctx.projectContext;

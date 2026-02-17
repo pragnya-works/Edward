@@ -33,6 +33,7 @@ export interface EventHandlerContext {
   userId: string;
   chatId: string;
   isFollowUp: boolean;
+  sandboxTagDetected: boolean;
   currentFilePath: string | undefined;
   isFirstFileChunk: boolean;
   generatedFiles: Map<string, string>;
@@ -44,6 +45,7 @@ export interface EventHandlerResult {
   handled: boolean;
   currentFilePath: string | undefined;
   isFirstFileChunk: boolean;
+  sandboxTagDetected: boolean;
 }
 
 async function handleSandboxStart(ctx: EventHandlerContext): Promise<void> {
@@ -56,8 +58,8 @@ async function handleFileStart(
   ctx: EventHandlerContext,
   filePath: string,
 ): Promise<{ currentFilePath: string; isFirstFileChunk: boolean }> {
-  if (!ctx.workflow.sandboxId) {
-    await ensureSandbox(ctx.workflow, undefined, ctx.isFollowUp);
+  if (!ctx.workflow.sandboxId || !ctx.sandboxTagDetected) {
+    throw new Error("FILE_START received without an active sandbox session");
   }
   await prepareSandboxFile(ctx.workflow.sandboxId!, filePath);
   return { currentFilePath: filePath, isFirstFileChunk: true };
@@ -108,12 +110,20 @@ async function handleInstallContent(
       ctx.workflow.context.framework = normalized;
     }
   }
-  if (!ctx.workflow.sandboxId) {
+  if (ctx.sandboxTagDetected && !ctx.workflow.sandboxId) {
     await ensureSandbox(
       ctx.workflow,
       ctx.workflow.context.framework,
       ctx.isFollowUp,
     );
+  }
+
+  if (!ctx.workflow.sandboxId) {
+    logger.warn(
+      { chatId: ctx.chatId },
+      "INSTALL_CONTENT received without sandbox tag; skipping install",
+    );
+    return;
   }
 
   const rawDependencies = dependencies || [];
@@ -152,8 +162,12 @@ async function handleCommand(
   command: string,
   args: string[],
 ): Promise<void> {
-  if (!ctx.workflow.sandboxId) {
-    await ensureSandbox(ctx.workflow, undefined, ctx.isFollowUp);
+  if (!ctx.sandboxTagDetected || !ctx.workflow.sandboxId) {
+    sendSSEError(
+      ctx.res,
+      "Command skipped: no active sandbox session. Emit <edward_sandbox> first.",
+    );
+    return;
   }
 
   try {
@@ -193,11 +207,14 @@ export async function handleParserEvent(
   event: ParserEvent,
 ): Promise<EventHandlerResult> {
   let handled = false;
+  let sandboxTagDetected = ctx.sandboxTagDetected;
   let { currentFilePath, isFirstFileChunk } = ctx;
 
   try {
     switch (event.type) {
       case ParserEventType.SANDBOX_START:
+        sandboxTagDetected = true;
+        ctx.sandboxTagDetected = true;
         await handleSandboxStart(ctx);
         break;
 
@@ -240,20 +257,27 @@ export async function handleParserEvent(
     sendSSEError(ctx.res, "Sandbox execution failed");
   }
 
-  return { handled, currentFilePath, isFirstFileChunk };
+  return { handled, currentFilePath, isFirstFileChunk, sandboxTagDetected };
 }
 
 export async function handleFlushEvents(
   ctx: EventHandlerContext,
   events: ParserEvent[],
 ): Promise<EventHandlerResult> {
+  let sandboxTagDetected = ctx.sandboxTagDetected;
   let { currentFilePath, isFirstFileChunk } = ctx;
 
   for (const event of events) {
     try {
       switch (event.type) {
+        case ParserEventType.SANDBOX_START:
+          sandboxTagDetected = true;
+          ctx.sandboxTagDetected = true;
+          await handleSandboxStart(ctx);
+          break;
+
         case ParserEventType.FILE_START:
-          if (!ctx.workflow.sandboxId) {
+          if (!ctx.workflow.sandboxId || !sandboxTagDetected) {
             logger.error("[Chat] FILE_START in flush without active sandbox");
             break;
           }
@@ -303,5 +327,5 @@ export async function handleFlushEvents(
     safeSSEWrite(ctx.res, `data: ${JSON.stringify(event)}\n\n`);
   }
 
-  return { handled: false, currentFilePath, isFirstFileChunk };
+  return { handled: false, currentFilePath, isFirstFileChunk, sandboxTagDetected };
 }

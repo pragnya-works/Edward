@@ -39,19 +39,19 @@ const readOnlyCompartment = new Compartment();
 
 // Premium High-Contrast AI Theme
 const premiumHighlightStyle = HighlightStyle.define([
-  { tag: t.keyword, color: "#c678dd", fontWeight: "bold" },
-  { tag: t.operator, color: "#56b6c2" },
-  { tag: t.special(t.string), color: "#98c379" },
-  { tag: t.string, color: "#98c379" },
-  { tag: t.atom, color: "#d19a66" },
-  { tag: t.number, color: "#d19a66" },
-  { tag: t.definition(t.variableName), color: "#e06c75" },
-  { tag: t.variableName, color: "#e06c75" },
-  { tag: t.function(t.variableName), color: "#61afef" },
-  { tag: t.propertyName, color: "#abb2bf" },
-  { tag: t.comment, color: "#5c6370", fontStyle: "italic" },
-  { tag: t.meta, color: "#abb2bf" },
-  { tag: t.bracket, color: "#abb2bf" },
+  { tag: t.keyword, color: "oklch(0.65 0.2 264)" },
+  { tag: t.operator, color: "var(--foreground)" },
+  { tag: t.special(t.string), color: "oklch(0.6 0.15 45)" },
+  { tag: t.string, color: "oklch(0.6 0.15 45)" },
+  { tag: t.atom, color: "oklch(0.7 0.1 140)" },
+  { tag: t.number, color: "oklch(0.7 0.1 140)" },
+  { tag: t.definition(t.variableName), color: "oklch(0.65 0.15 200)" },
+  { tag: t.variableName, color: "oklch(0.65 0.15 200)" },
+  { tag: t.function(t.variableName), color: "oklch(0.75 0.15 85)" },
+  { tag: t.propertyName, color: "oklch(0.65 0.15 200)" },
+  { tag: t.comment, color: "oklch(0.55 0.05 140)", fontStyle: "italic" },
+  { tag: t.meta, color: "oklch(0.65 0.2 264)" },
+  { tag: t.bracket, color: "oklch(0.75 0.2 80)" },
 ]);
 
 function getLanguageExtension(filename: string) {
@@ -89,44 +89,27 @@ const premiumEditorTheme = EditorView.theme(
     },
     ".cm-scroller": {
       fontFamily: "inherit",
-      lineHeight: "1.7",
+      lineHeight: "1.6",
       overflow: "auto",
     },
     ".cm-content": {
-      padding: "20px 0",
-      caretColor: "var(--primary)",
+      padding: "16px 0",
+      caretColor: "var(--foreground)",
     },
     ".cm-line": {
       padding: "0 24px",
     },
-    ".cm-gutters": {
-      background: "transparent",
-      border: "none",
-      color: "rgba(148, 163, 184, 0.3)",
-      marginRight: "4px",
-    },
-    ".cm-gutter": {
-      minWidth: "48px",
-    },
-    ".cm-activeLineGutter": {
-      backgroundColor: "transparent",
-      color: "var(--primary)",
-      fontWeight: "bold",
-    },
-    ".cm-activeLine": {
-      backgroundColor: "rgba(var(--primary-rgb), 0.04)",
-    },
     ".cm-selectionBackground": {
-      backgroundColor: "rgba(var(--primary-rgb), 0.15) !important",
+      backgroundColor: "var(--workspace-active) !important",
     },
     ".cm-cursor": {
-      borderLeftColor: "var(--primary)",
+      borderLeftColor: "var(--foreground)",
       borderLeftWidth: "2px",
     },
     ".cm-foldPlaceholder": {
       backgroundColor: "transparent",
       border: "none",
-      color: "var(--primary)",
+      color: "var(--workspace-gutter-fg)",
     },
   },
   { dark: true },
@@ -182,9 +165,6 @@ export const CodeEditor = memo(function CodeEditor({
     if (!containerRef.current) return;
 
     const extensions = [
-      lineNumbers(),
-      highlightActiveLineGutter(),
-      highlightActiveLine(),
       history(),
       drawSelection(),
       EditorState.allowMultipleSelections.of(true),

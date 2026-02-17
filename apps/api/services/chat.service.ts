@@ -114,3 +114,18 @@ export async function saveMessage(
     throw new Error(`Failed to save message to database: ${err}`);
   }
 }
+
+export async function updateChatMeta(
+  chatId: string,
+  data: { title?: string; description?: string },
+): Promise<void> {
+  try {
+    const updates: Record<string, unknown> = { updatedAt: new Date() };
+    if (data.title) updates.title = data.title;
+    if (data.description) updates.description = data.description;
+
+    await db.update(chat).set(updates).where(eq(chat.id, chatId));
+  } catch (error) {
+    logger.error({ error, chatId }, 'Failed to update chat metadata');
+  }
+}

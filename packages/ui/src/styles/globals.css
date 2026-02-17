@@ -41,6 +41,19 @@
   /* Premium Glassmorphism */
   --glass-bg: oklch(1 0 0 / 0.7);
   --glass-border: oklch(1 0 0 / 0.2);
+
+  /* VS Code Workspace Light Tokens */
+  --workspace-bg: #ffffff;
+  --workspace-sidebar: #f3f3f3;
+  --workspace-header: #2c2c2c;
+  --workspace-header-fg: #ffffff;
+  --workspace-border: #e7e7e7;
+  --workspace-foreground: #333333;
+  --workspace-accent: #007acc;
+  --workspace-hover: #e8e8e8;
+  --workspace-active: #e4e6f1;
+  --workspace-gutter-fg: #237893; /* Light mode gutter numbers */
+  --workspace-gutter-line: #eeeeee;
 }
 
 .dark {
@@ -77,6 +90,19 @@
   --glass-bg: oklch(1 0 0 / 0.05);
   --glass-border: oklch(1 0 0 / 0.1);
   --glow-primary: oklch(1 0 0 / 0.05);
+
+  /* VS Code Workspace Dark Tokens */
+  --workspace-bg: #1e1e1e;
+  --workspace-sidebar: #252526;
+  --workspace-header: #323233;
+  --workspace-header-fg: #cccccc;
+  --workspace-border: #3c3c3c;
+  --workspace-foreground: #cccccc;
+  --workspace-accent: #007acc;
+  --workspace-hover: #2a2d2e;
+  --workspace-active: #37373d;
+  --workspace-gutter-fg: #858585;
+  --workspace-gutter-line: #3c3c3c;
 }
 
 
@@ -117,6 +143,16 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+
+  --color-workspace-bg: var(--workspace-bg);
+  --color-workspace-sidebar: var(--workspace-sidebar);
+  --color-workspace-header: var(--workspace-header);
+  --color-workspace-header-fg: var(--workspace-header-fg);
+  --color-workspace-border: var(--workspace-border);
+  --color-workspace-foreground: var(--workspace-foreground);
+  --color-workspace-accent: var(--workspace-accent);
+  --color-workspace-hover: var(--workspace-hover);
+  --color-workspace-active: var(--workspace-active);
   --animate-shiny-text: shiny-text 8s infinite;
   --animate-accordion-collapse: accordion-collapse 0.2s ease-out;
   --animate-accordion-expand: accordion-expand 0.2s ease-out;

@@ -30,18 +30,18 @@ export function SandboxPanel() {
   );
 
   return (
-    <div className="h-full flex flex-col bg-background overflow-hidden relative">
+    <div className="h-full flex flex-col bg-workspace-bg text-workspace-foreground overflow-hidden relative">
       <SandboxHeader />
 
       <div className="flex-1 min-h-0 flex overflow-hidden">
         {mode === SandboxMode.CODE ? (
-          <div className="flex-1 min-h-0 flex">
+          <div className="flex-1 min-h-0 flex bg-workspace-sidebar">
             <SandboxFileSidebar chatId={chatId} />
 
-            <div className="flex-1 min-h-0 flex flex-col bg-background relative">
+            <div className="flex-1 min-h-0 flex flex-col bg-workspace-bg relative">
               {activeFile ? (
                 <>
-                  <div className="px-4 py-2 border-b border-border/40 bg-foreground/[0.01] flex items-center justify-between shrink-0">
+                  <div className="px-4 py-2 border-b border-workspace-border bg-workspace-header/10 flex items-center justify-between shrink-0">
                     <div className="flex items-center gap-2 overflow-hidden">
                       <FileCode className="h-3.5 w-3.5 text-primary/60 shrink-0" />
                       <span className="text-[11px] font-mono text-muted-foreground truncate">

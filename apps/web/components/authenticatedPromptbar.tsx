@@ -8,9 +8,10 @@ import {
   useChatStream,
 } from "@/contexts/chatStreamContext";
 import { filesToMessageContent } from "@/lib/api";
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import type { MetaEvent } from "@/lib/chatTypes";
+import { INITIAL_STREAM_STATE } from "@/lib/chatTypes";
 
 interface AuthenticatedPromptbarProps {
   chatId?: string;
@@ -30,7 +31,36 @@ export default function AuthenticatedPromptbar({
   } = useApiKey();
   const router = useRouter();
   const { startStream, onMetaRef, cancelStream } = useChatStreamActions();
-  const { stream } = useChatStream();
+  const { streams } = useChatStream();
+
+  const { stream, activeStreamKey } = useMemo(() => {
+    if (chatId) {
+      const direct = streams[chatId];
+      if (direct) {
+        return { stream: direct, activeStreamKey: chatId };
+      }
+
+      const matchedEntry = Object.entries(streams).find(([, candidate]) =>
+        candidate.streamChatId === chatId || candidate.meta?.chatId === chatId,
+      );
+
+      if (matchedEntry) {
+        return { stream: matchedEntry[1], activeStreamKey: matchedEntry[0] };
+      }
+
+      return {
+        stream: INITIAL_STREAM_STATE,
+        activeStreamKey: null,
+      };
+    }
+    const pendingEntry = Object.entries(streams).find(
+      ([key]) => key.startsWith("pending_"),
+    );
+    if (pendingEntry) {
+      return { stream: pendingEntry[1], activeStreamKey: pendingEntry[0] };
+    }
+    return { stream: INITIAL_STREAM_STATE, activeStreamKey: null };
+  }, [chatId, streams]);
 
   useEffect(() => {
     onMetaRef.current = (meta: MetaEvent) => {
@@ -45,8 +75,8 @@ export default function AuthenticatedPromptbar({
 
   const handleProtectedAction = useCallback(
     async (text: string, files?: File[]) => {
-      if (stream.isStreaming) {
-        cancelStream();
+      if (stream.isStreaming && activeStreamKey) {
+        cancelStream(activeStreamKey);
         return;
       }
 
@@ -63,7 +93,7 @@ export default function AuthenticatedPromptbar({
         model: preferredModel || undefined,
       });
     },
-    [startStream, chatId, preferredModel, stream.isStreaming, cancelStream],
+    [startStream, chatId, preferredModel, stream.isStreaming, activeStreamKey, cancelStream],
   );
 
   return (
@@ -83,7 +113,7 @@ export default function AuthenticatedPromptbar({
         onSaveApiKey={validateAndSaveApiKey}
         hideSuggestions={!!chatId}
         isStreaming={stream.isStreaming}
-        onCancel={cancelStream}
+        onCancel={() => activeStreamKey && cancelStream(activeStreamKey)}
       />
     </div>
   );

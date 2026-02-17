@@ -4,9 +4,11 @@ import type { StreamAction } from "./chatStream.reducer";
 
 interface ProcessStreamResponseParams {
   response: Response;
+  chatId: string;
   dispatch: React.Dispatch<StreamAction>;
   onMetaRef: React.MutableRefObject<((meta: MetaEvent) => void) | null>;
   thinkingStartRef: React.MutableRefObject<number | null>;
+  onChatIdResolved?: (realChatId: string) => void;
 }
 
 export interface ProcessedStreamResult {
@@ -22,13 +24,15 @@ export interface ProcessedStreamResult {
 
 export async function processStreamResponse({
   response,
+  chatId,
   dispatch,
   onMetaRef,
   thinkingStartRef,
+  onChatIdResolved,
 }: ProcessStreamResponseParams): Promise<ProcessedStreamResult | null> {
   if (!response.body) {
-    dispatch({ type: "SET_ERROR", error: "No response body" });
-    dispatch({ type: "STOP_STREAMING" });
+    dispatch({ type: "SET_ERROR", chatId, error: "No response body" });
+    dispatch({ type: "STOP_STREAMING", chatId });
     return null;
   }
 
@@ -37,6 +41,7 @@ export async function processStreamResponse({
   let sseBuffer = "";
   let metaEvent: MetaEvent | null = null;
   let currentFile: StreamedFile | null = null;
+  let activeChatId = chatId;
 
   const accumulated = {
     text: "",
@@ -60,27 +65,31 @@ export async function processStreamResponse({
       switch (event.type) {
         case ParserEventType.META:
           metaEvent = event;
-          dispatch({ type: "SET_META", meta: event });
+          if (event.chatId !== activeChatId) {
+            onChatIdResolved?.(event.chatId);
+            activeChatId = event.chatId;
+          }
+          dispatch({ type: "SET_META", chatId: activeChatId, meta: event });
           onMetaRef.current?.(event);
           break;
         case ParserEventType.TEXT:
           accumulated.text += event.content;
-          dispatch({ type: "APPEND_TEXT", text: event.content });
+          dispatch({ type: "APPEND_TEXT", chatId: activeChatId, text: event.content });
           break;
         case ParserEventType.THINKING_START:
           thinkingStartRef.current = Date.now();
-          dispatch({ type: "START_THINKING" });
+          dispatch({ type: "START_THINKING", chatId: activeChatId });
           break;
         case ParserEventType.THINKING_CONTENT:
           accumulated.thinking += event.content;
-          dispatch({ type: "APPEND_THINKING", text: event.content });
+          dispatch({ type: "APPEND_THINKING", chatId: activeChatId, text: event.content });
           break;
         case ParserEventType.THINKING_END: {
           const duration = thinkingStartRef.current
             ? Math.round((Date.now() - thinkingStartRef.current) / 1000)
             : null;
           thinkingStartRef.current = null;
-          dispatch({ type: "END_THINKING", duration });
+          dispatch({ type: "END_THINKING", chatId: activeChatId, duration });
           break;
         }
         case ParserEventType.FILE_START:
@@ -90,7 +99,7 @@ export async function processStreamResponse({
               content: "",
               isComplete: false,
             };
-            dispatch({ type: "START_FILE", file: { ...currentFile } });
+            dispatch({ type: "START_FILE", chatId: activeChatId, file: { ...currentFile } });
           }
           break;
         case ParserEventType.FILE_CONTENT:
@@ -98,6 +107,7 @@ export async function processStreamResponse({
             currentFile.content += event.content;
             dispatch({
               type: "APPEND_FILE_CONTENT",
+              chatId: activeChatId,
               path: currentFile.path,
               content: event.content,
             });
@@ -107,26 +117,26 @@ export async function processStreamResponse({
           if (currentFile) {
             currentFile.isComplete = true;
             accumulated.completedFiles.push({ ...currentFile });
-            dispatch({ type: "COMPLETE_FILE", path: currentFile.path });
+            dispatch({ type: "COMPLETE_FILE", chatId: activeChatId, path: currentFile.path });
             currentFile = null;
           }
           break;
         case ParserEventType.INSTALL_CONTENT:
           accumulated.deps = event.dependencies;
-          dispatch({ type: "SET_INSTALLING_DEPS", deps: event.dependencies });
+          dispatch({ type: "SET_INSTALLING_DEPS", chatId: activeChatId, deps: event.dependencies });
           break;
         case ParserEventType.SANDBOX_START:
-          dispatch({ type: "SET_SANDBOXING", isSandboxing: true });
+          dispatch({ type: "SET_SANDBOXING", chatId: activeChatId, isSandboxing: true });
           break;
         case ParserEventType.SANDBOX_END:
-          dispatch({ type: "SET_SANDBOXING", isSandboxing: false });
+          dispatch({ type: "SET_SANDBOXING", chatId: activeChatId, isSandboxing: false });
           break;
         case ParserEventType.COMMAND:
           accumulated.command = event;
-          dispatch({ type: "SET_COMMAND", command: event });
+          dispatch({ type: "SET_COMMAND", chatId: activeChatId, command: event });
           break;
         case ParserEventType.ERROR:
-          dispatch({ type: "SET_ERROR", error: event.message });
+          dispatch({ type: "SET_ERROR", chatId: activeChatId, error: event.message });
           break;
         case ParserEventType.METRICS:
           accumulated.metrics = {
@@ -134,11 +144,11 @@ export async function processStreamResponse({
             inputTokens: event.inputTokens,
             outputTokens: event.outputTokens,
           };
-          dispatch({ type: "SET_METRICS", metrics: accumulated.metrics });
+          dispatch({ type: "SET_METRICS", chatId: activeChatId, metrics: accumulated.metrics });
           break;
         case ParserEventType.PREVIEW_URL:
           accumulated.previewUrl = event.url;
-          dispatch({ type: "SET_PREVIEW_URL", url: event.url });
+          dispatch({ type: "SET_PREVIEW_URL", chatId: activeChatId, url: event.url });
           break;
       }
     }

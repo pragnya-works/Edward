@@ -62,8 +62,9 @@ export const ProjectButton = memo(function ProjectButton({
     };
 
     return (
-        <motion.button
-            type="button"
+        <motion.div
+            role="button"
+            tabIndex={0}
             initial={{ opacity: 0, y: 8, scale: 0.96 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -8, scale: 0.96 }}
@@ -73,6 +74,12 @@ export const ProjectButton = memo(function ProjectButton({
                 layout: { duration: 0.2 },
             }}
             onClick={handleToggle}
+            onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    handleToggle();
+                }
+            }}
             aria-expanded={sandboxOpen}
             className={cn(
                 "flex items-center gap-3 px-4 py-3 rounded-2xl border cursor-pointer glass w-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
@@ -143,6 +150,6 @@ export const ProjectButton = memo(function ProjectButton({
                     sandboxOpen && "rotate-90",
                 )}
             />
-        </motion.button>
+        </motion.div>
     );
 });

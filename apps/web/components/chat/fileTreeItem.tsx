@@ -72,11 +72,11 @@ function getFileIconClass(name: string): string {
     js: "text-yellow-500",
     css: "text-pink-500",
     html: "text-orange-500",
-    json: "text-yellow-600",
-    md: "text-gray-500",
+    json: "text-yellow-600/80",
+    md: "text-gray-400/80",
   };
 
-  return colors[ext] || "text-gray-400";
+  return colors[ext] || "text-gray-500/80";
 }
 
 export const FileTreeItem = memo(function FileTreeItem({
@@ -104,15 +104,13 @@ export const FileTreeItem = memo(function FileTreeItem({
         type="button"
         onClick={handleClick}
         className={cn(
-          "w-full flex items-center gap-2 px-2 py-1.5 text-left transition-all duration-150 rounded-lg",
+          "w-full flex items-center gap-2 px-2 py-1 text-left rounded-sm",
           isActive
-            ? "bg-violet-500/15 text-violet-700 dark:text-violet-300"
-            : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/50",
-          isStreaming && "bg-emerald-500/10",
+            ? "bg-workspace-active text-foreground"
+            : "text-workspace-foreground hover:bg-workspace-hover",
+          isStreaming && "bg-emerald-500/5",
         )}
-        style={{ paddingLeft: `${depth * 12 + 8}px` }}
-        whileHover={{ x: 2 }}
-        whileTap={{ scale: 0.98 }}
+        style={{ paddingLeft: `${depth * 8 + 12}px` }}
       >
         {isFolder ? (
           <motion.div

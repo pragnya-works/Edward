@@ -22,15 +22,12 @@ import {
   type ChatMessage,
 } from "@/lib/chatTypes";
 import { buildMessageFromStream } from "@/lib/streamToMessage";
-import { streamReducer } from "./chatStream.reducer";
-import {
-  processStreamResponse,
-  type ProcessedStreamResult,
-} from "./chatStream.processor";
+import { streamReducer, type StreamMap } from "./chatStream.reducer";
+import { processStreamResponse } from "./chatStream.processor";
 import { queryKeys } from "@/lib/queryKeys";
 
 interface ChatStreamStateContextValue {
-  stream: StreamState;
+  streams: StreamMap;
   activeChatId: string | null;
 }
 
@@ -39,10 +36,11 @@ interface ChatStreamActionsContextValue {
     content: MessageContent,
     opts?: { chatId?: string; model?: string },
   ) => void;
-  cancelStream: () => void;
-  resetStream: () => void;
+  cancelStream: (chatId: string) => void;
+  resetStream: (chatId: string) => void;
   setActiveChatId: (id: string | null) => void;
   onMetaRef: React.MutableRefObject<((meta: MetaEvent) => void) | null>;
+  getStreamForChat: (chatId: string | undefined) => StreamState;
 }
 
 const ChatStreamStateContext =
@@ -50,49 +48,43 @@ const ChatStreamStateContext =
 const ChatStreamActionsContext =
   createContext<ChatStreamActionsContextValue | null>(null);
 
+const INITIAL_STREAMS: StreamMap = {};
+
 export function ChatStreamProvider({ children }: { children: ReactNode }) {
-  const [streamState, dispatch] = useReducer(
-    streamReducer,
-    INITIAL_STREAM_STATE,
-  );
-  const abortRef = useRef<AbortController | null>(null);
+  const [streams, dispatch] = useReducer(streamReducer, INITIAL_STREAMS);
+  const abortControllersRef = useRef<Map<string, AbortController>>(new Map());
   const queryClient = useQueryClient();
   const [activeChatId, setActiveChatIdState] = useReducer(
     (_: string | null, id: string | null) => id,
     null,
   );
   const onMetaRef = useRef<((meta: MetaEvent) => void) | null>(null);
-  const thinkingStartRef = useRef<number | null>(null);
+  const streamsRef = useRef(streams);
+  streamsRef.current = streams;
 
   const setActiveChatId = useCallback((id: string | null) => {
     setActiveChatIdState(id);
   }, []);
 
-  const resetStream = useCallback(() => {
-    dispatch({ type: "RESET" });
-    thinkingStartRef.current = null;
+  const resetStream = useCallback((chatId: string) => {
+    dispatch({ type: "REMOVE_STREAM", chatId });
   }, []);
 
-  const cancelStream = useCallback(() => {
-    if (abortRef.current) {
-      abortRef.current.abort();
-      abortRef.current = null;
+  const cancelStream = useCallback((chatId: string) => {
+    const controller = abortControllersRef.current.get(chatId);
+    if (controller) {
+      controller.abort();
+      abortControllersRef.current.delete(chatId);
     }
-    dispatch({ type: "STOP_STREAMING" });
+    dispatch({ type: "STOP_STREAMING", chatId });
   }, []);
 
-  const processStream = useCallback(
-    async (
-      response: Response,
-    ): Promise<ProcessedStreamResult | null> => {
-      return processStreamResponse({
-        response,
-        dispatch,
-        onMetaRef,
-        thinkingStartRef,
-      });
+  const getStreamForChat = useCallback(
+    (chatId: string | undefined): StreamState => {
+      if (!chatId) return INITIAL_STREAM_STATE;
+      return streamsRef.current[chatId] ?? INITIAL_STREAM_STATE;
     },
-    [dispatch],
+    [],
   );
 
   const mutation = useMutation({
@@ -100,25 +92,47 @@ export function ChatStreamProvider({ children }: { children: ReactNode }) {
       content,
       chatId,
       model,
+      streamKey,
     }: {
       content: MessageContent;
       chatId?: string;
       model?: string;
+      streamKey: string;
     }) => {
-      if (abortRef.current) abortRef.current.abort();
       const controller = new AbortController();
-      abortRef.current = controller;
+      abortControllersRef.current.set(streamKey, controller);
 
-      dispatch({ type: "START_STREAMING" });
-      thinkingStartRef.current = null;
+      dispatch({ type: "START_STREAMING", chatId: streamKey });
+
+      const thinkingRef = { current: null as number | null };
 
       const body: SendMessageRequest = { content, chatId, model };
       const response = await postChatMessageStream(body, controller.signal);
 
-      const streamResult = await processStream(response);
+      let resolvedChatId = streamKey;
+
+      const streamResult = await processStreamResponse({
+        response,
+        chatId: streamKey,
+        dispatch,
+        onMetaRef,
+        thinkingStartRef: thinkingRef,
+        onChatIdResolved: (realChatId: string) => {
+          if (realChatId !== streamKey) {
+            dispatch({ type: "RENAME_STREAM", oldChatId: streamKey, newChatId: realChatId });
+            const ctrl = abortControllersRef.current.get(streamKey);
+            if (ctrl) {
+              abortControllersRef.current.delete(streamKey);
+              abortControllersRef.current.set(realChatId, ctrl);
+            }
+            resolvedChatId = realChatId;
+          }
+        },
+      });
+
       const metaEvt = streamResult?.meta;
 
-      dispatch({ type: "STOP_STREAMING" });
+      dispatch({ type: "STOP_STREAMING", chatId: resolvedChatId });
 
       if (metaEvt?.chatId && streamResult) {
         const augmentedStreamState: StreamState = {
@@ -157,30 +171,49 @@ export function ChatStreamProvider({ children }: { children: ReactNode }) {
 
         await new Promise((resolve) => setTimeout(resolve, 150));
 
-        dispatch({ type: "RESET" });
+        dispatch({ type: "REMOVE_STREAM", chatId: resolvedChatId });
       }
 
       return metaEvt;
     },
-    onError: (err: Error) => {
+    onError: (err: Error, variables) => {
+      const chatId = variables.streamKey;
       if (err.name === "AbortError") {
-        dispatch({ type: "STOP_STREAMING" });
+        dispatch({ type: "STOP_STREAMING", chatId });
         return;
       }
-      dispatch({ type: "STOP_STREAMING" });
-      dispatch({ type: "SET_ERROR", error: err.message });
+      dispatch({ type: "STOP_STREAMING", chatId });
+      const apiError = err as Error & { status?: number };
+      if (apiError.status === 429) {
+        dispatch({
+          type: "SET_ERROR",
+          chatId,
+          error: "Too many concurrent chats. Please wait for one to finish.",
+        });
+      } else {
+        dispatch({ type: "SET_ERROR", chatId, error: err.message });
+      }
     },
-    onSettled: () => {
-      abortRef.current = null;
+    onSettled: (_data, _error, variables) => {
+      abortControllersRef.current.delete(variables.streamKey);
     },
   });
 
   const startStream = useCallback(
     (content: MessageContent, opts?: { chatId?: string; model?: string }) => {
+      if (!opts?.chatId) {
+        for (const key of Object.keys(streamsRef.current)) {
+          if (key.startsWith("pending_") && !streamsRef.current[key]?.isStreaming) {
+            dispatch({ type: "REMOVE_STREAM", chatId: key });
+          }
+        }
+      }
+      const streamKey = opts?.chatId ?? `pending_${crypto.randomUUID().slice(0, 8)}`;
       mutation.mutate({
         content,
         chatId: opts?.chatId,
         model: opts?.model,
+        streamKey,
       });
     },
     [mutation],
@@ -193,13 +226,14 @@ export function ChatStreamProvider({ children }: { children: ReactNode }) {
       resetStream,
       setActiveChatId,
       onMetaRef,
+      getStreamForChat,
     }),
-    [startStream, cancelStream, resetStream, setActiveChatId],
+    [startStream, cancelStream, resetStream, setActiveChatId, getStreamForChat],
   );
 
   return (
     <ChatStreamStateContext.Provider
-      value={{ stream: streamState, activeChatId }}
+      value={{ streams, activeChatId }}
     >
       <ChatStreamActionsContext.Provider value={actions}>
         {children}

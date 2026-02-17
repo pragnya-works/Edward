@@ -19,8 +19,8 @@ export function SandboxEmptyState() {
   }, [fullErrorReport?.rawOutput]);
 
   return (
-    <div className="flex-1 flex items-center justify-center bg-foreground/[0.01]">
-      <div className="flex flex-col items-center gap-3 w-full max-w-md px-6 text-center">
+    <div className="flex-1 flex items-center justify-center bg-workspace-bg">
+      <div className="flex flex-col items-center gap-3 w-full max-w-md px-6 text-center text-workspace-foreground">
         {buildStatus === BuildStatus.FAILED ? (
           <div className="flex flex-col items-center gap-8 w-full max-w-2xl mx-auto animate-in fade-in slide-in-from-bottom-8 duration-500">
             <div className="relative group">
@@ -118,8 +118,7 @@ export function SandboxEmptyState() {
           </div>
         ) : isStreaming ||
           buildStatus === BuildStatus.QUEUED ||
-          buildStatus === BuildStatus.BUILDING ||
-          (files.length === 0 && buildStatus === BuildStatus.IDLE) ? (
+          buildStatus === BuildStatus.BUILDING ? (
           <div className="flex flex-col items-center gap-4">
             <div className="relative">
               <div className="h-16 w-16 rounded-3xl bg-amber-500/10 flex items-center justify-center">
@@ -135,9 +134,7 @@ export function SandboxEmptyState() {
                   ? "Coding..."
                   : buildStatus === BuildStatus.QUEUED
                     ? "Queued..."
-                    : buildStatus === BuildStatus.BUILDING
-                      ? "Deploying..."
-                      : "Provisioning..."}
+                    : "Deploying..."}
               </span>
               <p className="text-[11px] text-muted-foreground">
                 {isStreaming
