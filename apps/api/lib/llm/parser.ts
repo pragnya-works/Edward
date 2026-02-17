@@ -17,6 +17,7 @@ const TAGS = {
   INSTALL_START: "<edward_install>",
   INSTALL_END: "</edward_install>",
   COMMAND: "<edward_command",
+  WEB_SEARCH: "<edward_web_search",
   RESPONSE_START: "<Response>",
   DONE: "<edward_done",
 } as const;
@@ -89,6 +90,12 @@ export function createStreamParser() {
         state: StreamState.TEXT,
         event: ParserEventType.COMMAND,
       },
+      {
+        idx: buffer.indexOf(TAGS.WEB_SEARCH),
+        tag: TAGS.WEB_SEARCH,
+        state: StreamState.TEXT,
+        event: ParserEventType.WEB_SEARCH,
+      },
     ].filter((c) => c.idx !== -1);
 
     if (candidates.length === 0) {
@@ -145,6 +152,32 @@ export function createStreamParser() {
         }
         events.push({ type: ParserEventType.COMMAND, command, args });
       }
+    } else if (buffer.startsWith("<edward_web_search")) {
+      const closeAngle = buffer.indexOf(">");
+      if (closeAngle === -1) return;
+
+      const tagContent = buffer.slice(0, closeAngle + 1);
+      buffer = buffer.slice(closeAngle + 1);
+
+      const queryMatch = tagContent.match(/query="([^"]+)"/);
+      if (!queryMatch || !queryMatch[1]?.trim()) {
+        events.push({
+          type: ParserEventType.ERROR,
+          message: 'edward_web_search tag missing required "query" attribute',
+        });
+      } else {
+        const query = queryMatch[1].trim();
+        const maxResultsMatch = tagContent.match(
+          /max_results="(\d+)"|maxResults="(\d+)"/,
+        );
+        const maxRaw = maxResultsMatch?.[1] ?? maxResultsMatch?.[2];
+        const maxResults = maxRaw ? Number.parseInt(maxRaw, 10) : undefined;
+        events.push({
+          type: ParserEventType.WEB_SEARCH,
+          query,
+          maxResults,
+        });
+      }
     }
   }
 
@@ -155,6 +188,7 @@ export function createStreamParser() {
       { idx: buffer.indexOf(TAGS.INSTALL_START), type: "install" as const },
       { idx: buffer.indexOf(TAGS.RESPONSE_START), type: "response" as const },
       { idx: buffer.indexOf(TAGS.COMMAND), type: "command" as const },
+      { idx: buffer.indexOf(TAGS.WEB_SEARCH), type: "command" as const },
       { idx: buffer.indexOf(TAGS.DONE), type: "done" as const },
     ].filter((p) => p.idx !== -1);
 

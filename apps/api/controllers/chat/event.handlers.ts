@@ -20,11 +20,15 @@ import {
   resolveDependencies,
   suggestAlternatives,
 } from "../../services/planning/resolvers/dependency.resolver.js";
+import { searchTavilyBasic } from "../../services/websearch/tavily.search.js";
 import { ensureError } from "../../utils/error.js";
 import { logger } from "../../utils/logger.js";
 import { safeSSEWrite, sendSSEError } from "./sse.utils.js";
 import { handleFileContent } from "./file.handlers.js";
-import type { CommandResult } from "./command.utils.js";
+import type {
+  AgentToolResult,
+  WebSearchResultItem,
+} from "./command.utils.js";
 
 export interface EventHandlerContext {
   workflow: WorkflowState;
@@ -38,7 +42,7 @@ export interface EventHandlerContext {
   isFirstFileChunk: boolean;
   generatedFiles: Map<string, string>;
   declaredPackages: string[];
-  commandResultsThisTurn: CommandResult[];
+  toolResultsThisTurn: AgentToolResult[];
 }
 
 export interface EventHandlerResult {
@@ -175,7 +179,8 @@ async function handleCommand(
       command,
       args,
     });
-    ctx.commandResultsThisTurn.push({
+    ctx.toolResultsThisTurn.push({
+      tool: "command",
       command,
       args,
       stdout: result.stdout ?? "",
@@ -192,13 +197,58 @@ async function handleCommand(
     );
   } catch (cmdError) {
     const err = ensureError(cmdError);
-    ctx.commandResultsThisTurn.push({
+    ctx.toolResultsThisTurn.push({
+      tool: "command",
       command,
       args,
       stdout: "",
       stderr: `Command failed: ${err.message}`,
     });
     sendSSEError(ctx.res, `Command failed: ${err.message}`);
+  }
+}
+
+async function handleWebSearch(
+  ctx: EventHandlerContext,
+  query: string,
+  maxResults?: number,
+): Promise<void> {
+  try {
+    const search = await searchTavilyBasic(query, maxResults ?? 5);
+    const normalizedResults: WebSearchResultItem[] = search.results.map(
+      (item) => ({
+        title: item.title,
+        url: item.url,
+        snippet: item.snippet,
+      }),
+    );
+
+    ctx.toolResultsThisTurn.push({
+      tool: "web_search",
+      query: search.query,
+      answer: search.answer,
+      results: normalizedResults,
+    });
+
+    safeSSEWrite(
+      ctx.res,
+      `data: ${JSON.stringify({
+        type: ParserEventType.WEB_SEARCH,
+        query: search.query,
+        maxResults,
+        answer: search.answer,
+        results: normalizedResults,
+      })}\n\n`,
+    );
+  } catch (webSearchError) {
+    const err = ensureError(webSearchError);
+    ctx.toolResultsThisTurn.push({
+      tool: "web_search",
+      query,
+      results: [],
+      error: err.message,
+    });
+    sendSSEError(ctx.res, `Web search failed: ${err.message}`);
   }
 }
 
@@ -246,6 +296,11 @@ export async function handleParserEvent(
 
       case ParserEventType.COMMAND:
         await handleCommand(ctx, event.command, event.args ?? []);
+        handled = true;
+        break;
+
+      case ParserEventType.WEB_SEARCH:
+        await handleWebSearch(ctx, event.query, event.maxResults);
         handled = true;
         break;
     }

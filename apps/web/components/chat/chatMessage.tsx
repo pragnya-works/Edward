@@ -21,6 +21,7 @@ import { ThinkingIndicator } from "./thinkingIndicator";
 import { FileBlock } from "./fileBlock";
 import { CommandBlock } from "./commandBlock";
 import { InstallBlock } from "./installBlock";
+import { WebSearchBlock } from "./webSearchBlock";
 
 import { MarkdownRenderer } from "./markdownRenderer";
 import Image from "next/image";
@@ -229,6 +230,17 @@ export const ChatMessage = memo(function ChatMessage({
                           type: ParserEventType.COMMAND,
                           command: block.command,
                           args: block.args,
+                        }}
+                      />
+                    );
+                  case MessageBlockType.WEB_SEARCH:
+                    return (
+                      <WebSearchBlock
+                        key={i}
+                        search={{
+                          type: ParserEventType.WEB_SEARCH,
+                          query: block.query,
+                          maxResults: block.maxResults,
                         }}
                       />
                     );

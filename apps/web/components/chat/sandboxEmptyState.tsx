@@ -2,7 +2,6 @@
 
 import { useCallback, useState } from "react";
 import { RefreshCw, X, Copy, Check, FileCode } from "lucide-react";
-import { Button } from "@edward/ui/components/button";
 import { cn } from "@edward/ui/lib/utils";
 import { BuildStatus, useSandbox } from "@/contexts/sandboxContext";
 
@@ -109,16 +108,6 @@ export function SandboxEmptyState() {
                 </div>
               )}
             </div>
-
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => window.location.reload()}
-              className="h-10 text-xs font-bold text-muted-foreground/60 hover:text-foreground hover:bg-transparent tracking-widest uppercase transition-all"
-            >
-              <RefreshCw className="h-3.5 w-3.5 mr-2 opacity-50" />
-              Retry Provisioning
-            </Button>
           </div>
         ) : isStreaming ||
           buildStatus === BuildStatus.QUEUED ||

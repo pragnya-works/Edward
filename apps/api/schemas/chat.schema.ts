@@ -38,6 +38,7 @@ export enum ParserEventType {
   ERROR = "error",
   META = "meta",
   COMMAND = "command",
+  WEB_SEARCH = "web_search",
   PREVIEW_URL = "preview_url",
 }
 
@@ -168,6 +169,22 @@ export const ParserEventSchema = z.discriminatedUnion("type", [
     exitCode: z.number().optional(),
     stdout: z.string().optional(),
     stderr: z.string().optional(),
+  }),
+  z.object({
+    type: z.literal(ParserEventType.WEB_SEARCH),
+    query: z.string().min(1),
+    maxResults: z.number().int().positive().max(8).optional(),
+    answer: z.string().optional(),
+    results: z
+      .array(
+        z.object({
+          title: z.string(),
+          url: z.string(),
+          snippet: z.string(),
+        }),
+      )
+      .optional(),
+    error: z.string().optional(),
   }),
   z.object({
     type: z.literal(ParserEventType.PREVIEW_URL),

@@ -92,12 +92,7 @@ export const ProjectButton = memo(function ProjectButton({
             )}
         >
             <motion.div
-            className={cn(
-                "h-8 w-8 rounded-xl flex items-center justify-center shrink-0 transition-transform duration-500",
-                sandboxOpen
-                    ? "bg-primary/15 shadow-lg shadow-primary/15"
-                    : "bg-primary/10 dark:bg-primary/20",
-            )}
+            className="h-8 w-8 rounded-lg flex items-center justify-center shrink-0 transition-transform duration-500"
             animate={isStreaming ? { rotate: 360 } : {}}
             transition={{
                 duration: 2,
@@ -108,7 +103,7 @@ export const ProjectButton = memo(function ProjectButton({
             {isStreaming ? (
                 <Loader2 className="h-4 w-4 text-primary animate-spin" />
             ) : framework ? (
-                <FrameworkIcon framework={framework} className="h-4 w-4" />
+                <FrameworkIcon framework={framework} />
             ) : (
                 <Code2 className="h-4 w-4 text-primary/70" />
             )}

@@ -2,6 +2,7 @@ export enum MessageBlockType {
   THINKING = "thinking",
   FILE = "file",
   COMMAND = "command",
+  WEB_SEARCH = "web_search",
   INSTALL = "install",
   SANDBOX = "sandbox",
   DONE = "done",
@@ -13,6 +14,7 @@ enum MessageParseTokenType {
   FILE = "file",
   INSTALL = "install",
   COMMAND = "command",
+  WEB_SEARCH = "web_search",
   SANDBOX = "sandbox",
   SANDBOX_END = "sandbox_end",
   DONE = "done",
@@ -28,6 +30,7 @@ const TAGS = {
   INSTALL_START: "<edward_install>",
   INSTALL_END: "</edward_install>",
   COMMAND_START: "<edward_command",
+  WEB_SEARCH_START: "<edward_web_search",
   SANDBOX_START: "<edward_sandbox",
   SANDBOX_END: "</edward_sandbox>",
   DONE_START: "<edward_done",
@@ -44,10 +47,23 @@ export type MessageBlock =
       isInternal?: boolean;
     }
   | { type: MessageBlockType.COMMAND; command: string; args: string[] }
+  | {
+      type: MessageBlockType.WEB_SEARCH;
+      query: string;
+      maxResults?: number;
+    }
   | { type: MessageBlockType.INSTALL; dependencies: string[] }
   | { type: MessageBlockType.SANDBOX; project?: string; base?: string }
   | { type: MessageBlockType.DONE }
   | { type: MessageBlockType.TEXT; content: string };
+
+function decodeHtmlAttribute(value: string): string {
+  return value
+    .replaceAll("&quot;", '"')
+    .replaceAll("&lt;", "<")
+    .replaceAll("&gt;", ">")
+    .replaceAll("&amp;", "&");
+}
 
 export function parseMessageContent(content: string): MessageBlock[] {
   const blocks: MessageBlock[] = [];
@@ -62,6 +78,7 @@ export function parseMessageContent(content: string): MessageBlock[] {
     const fileStart = remaining.indexOf(TAGS.FILE_START);
     const installStart = remaining.indexOf(TAGS.INSTALL_START);
     const commandStart = remaining.indexOf(TAGS.COMMAND_START);
+    const webSearchStart = remaining.indexOf(TAGS.WEB_SEARCH_START);
     const sandboxStart = remaining.indexOf(TAGS.SANDBOX_START);
     const sandboxEnd = remaining.indexOf(TAGS.SANDBOX_END);
     const doneStart = remaining.indexOf(TAGS.DONE_START);
@@ -73,6 +90,7 @@ export function parseMessageContent(content: string): MessageBlock[] {
       { type: MessageParseTokenType.FILE, idx: fileStart },
       { type: MessageParseTokenType.INSTALL, idx: installStart },
       { type: MessageParseTokenType.COMMAND, idx: commandStart },
+      { type: MessageParseTokenType.WEB_SEARCH, idx: webSearchStart },
       { type: MessageParseTokenType.SANDBOX, idx: sandboxStart },
       { type: MessageParseTokenType.SANDBOX_END, idx: sandboxEnd },
       { type: MessageParseTokenType.DONE, idx: doneStart },
@@ -116,11 +134,12 @@ export function parseMessageContent(content: string): MessageBlock[] {
         const nextInstall = remaining.indexOf("<edward_install");
         const nextSandbox = remaining.indexOf(TAGS.SANDBOX_START);
         const nextCommand = remaining.indexOf(TAGS.COMMAND_START);
+        const nextWebSearch = remaining.indexOf(TAGS.WEB_SEARCH_START);
         const nextDone = remaining.indexOf(TAGS.DONE_START);
 
         const exitPoints = [
           nextResponse, nextFile, nextInstall,
-          nextSandbox, nextCommand, nextDone
+          nextSandbox, nextCommand, nextWebSearch, nextDone
         ].filter(idx => idx !== -1);
 
         if (exitPoints.length > 0) {
@@ -212,6 +231,21 @@ export function parseMessageContent(content: string): MessageBlock[] {
         }
 
         blocks.push({ type: MessageBlockType.COMMAND, command, args });
+        remaining = remaining.slice(closeTagIdx + 1);
+      } else {
+        break;
+      }
+    } else if (earliest.type === MessageParseTokenType.WEB_SEARCH) {
+      const closeTagIdx = remaining.indexOf(">");
+      if (closeTagIdx !== -1) {
+        const tag = remaining.slice(0, closeTagIdx + 1);
+        const queryMatch = tag.match(/query="([^"]*)"/);
+        const query = decodeHtmlAttribute(queryMatch ? (queryMatch[1] ?? "") : "");
+        const maxResultsMatch = tag.match(/max_results="(\d+)"|maxResults="(\d+)"/);
+        const maxRaw = maxResultsMatch?.[1] ?? maxResultsMatch?.[2];
+        const maxResults = maxRaw ? Number.parseInt(maxRaw, 10) : undefined;
+
+        blocks.push({ type: MessageBlockType.WEB_SEARCH, query, maxResults });
         remaining = remaining.slice(closeTagIdx + 1);
       } else {
         break;

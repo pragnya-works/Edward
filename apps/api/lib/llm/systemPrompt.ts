@@ -127,6 +127,25 @@ Examples:
   <edward_command command="ls" args='["-la", "src/components"]'>
 `;
 
+const WEB_SEARCH_FORMAT = `
+## WEB SEARCH FORMAT
+
+Use <edward_web_search> when you need up-to-date external information that is not in project files.
+
+Syntax:
+  <edward_web_search query="YOUR QUERY" max_results="5">
+
+Protocol:
+- Emit the tag, then STOP generating.
+- The system executes Tavily web search in basic mode and returns summarized results in the next turn.
+- Continue the task using those results and cite the source URLs when relevant.
+
+Use this only when needed:
+- Current docs, versions, API changes, release notes
+- Error messages that require external references
+- Product/library comparisons that depend on recent data
+`;
+
 const SANDBOX_FORMAT = `
 <edward_sandbox_format>
 Use <edward_sandbox> for multi-file projects (the primary output mode).
@@ -318,6 +337,7 @@ export const CORE_SYSTEM_PROMPT = [
    FRAMEWORK_SELECTION,
    INSTALL_FORMAT,
    COMMAND_FORMAT,
+   WEB_SEARCH_FORMAT,
    SANDBOX_FORMAT,
    CODE_BLOCKS,
    QUICK_REFERENCE,

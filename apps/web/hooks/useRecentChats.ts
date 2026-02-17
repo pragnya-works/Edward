@@ -56,10 +56,19 @@ export function useRecentChats() {
     enabled: !!userId,
   });
 
-  const projects = useMemo(
-    () => data?.pages.flatMap((page) => page.data) ?? [],
-    [data?.pages],
-  );
+  const projects = useMemo(() => {
+    const allProjects = data?.pages.flatMap((page) => page.data) ?? [];
+    const seen = new Set<string>();
+    const uniqueProjects: Project[] = [];
+
+    for (const project of allProjects) {
+      if (seen.has(project.id)) continue;
+      seen.add(project.id);
+      uniqueProjects.push(project);
+    }
+
+    return uniqueProjects;
+  }, [data?.pages]);
   const total = useMemo(
     () => data?.pages[0]?.metadata?.total ?? 0,
     [data?.pages],

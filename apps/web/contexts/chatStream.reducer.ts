@@ -23,6 +23,7 @@ export enum StreamActionType {
   SET_INSTALLING_DEPS = "SET_INSTALLING_DEPS",
   SET_SANDBOXING = "SET_SANDBOXING",
   SET_COMMAND = "SET_COMMAND",
+  SET_WEB_SEARCH = "SET_WEB_SEARCH",
   SET_METRICS = "SET_METRICS",
   SET_PREVIEW_URL = "SET_PREVIEW_URL",
   RENAME_STREAM = "RENAME_STREAM",
@@ -49,6 +50,11 @@ export type StreamAction =
   | { type: StreamActionType.SET_INSTALLING_DEPS; chatId: string; deps: string[] }
   | { type: StreamActionType.SET_SANDBOXING; chatId: string; isSandboxing: boolean }
   | { type: StreamActionType.SET_COMMAND; chatId: string; command: StreamState["command"] }
+  | {
+      type: StreamActionType.SET_WEB_SEARCH;
+      chatId: string;
+      webSearch: NonNullable<StreamState["webSearches"][number]>;
+    }
   | { type: StreamActionType.SET_METRICS; chatId: string; metrics: StreamState["metrics"] }
   | { type: StreamActionType.SET_PREVIEW_URL; chatId: string; url: string }
   | { type: StreamActionType.RENAME_STREAM; oldChatId: string; newChatId: string };
@@ -63,6 +69,13 @@ function setStream(
   stream: StreamState,
 ): StreamMap {
   return { ...state, [chatId]: stream };
+}
+
+function isSameWebSearch(
+  a: NonNullable<StreamState["webSearches"][number]>,
+  b: NonNullable<StreamState["webSearches"][number]>,
+): boolean {
+  return JSON.stringify(a) === JSON.stringify(b);
 }
 
 export function streamReducer(
@@ -165,6 +178,18 @@ export function streamReducer(
       return setStream(state, action.chatId, {
         ...getStream(state, action.chatId),
         command: action.command,
+      });
+    case StreamActionType.SET_WEB_SEARCH:
+      return setStream(state, action.chatId, {
+        ...getStream(state, action.chatId),
+        webSearches: (() => {
+          const existing = getStream(state, action.chatId).webSearches;
+          const last = existing[existing.length - 1];
+          if (last && isSameWebSearch(last, action.webSearch)) {
+            return existing;
+          }
+          return [...existing, action.webSearch];
+        })(),
       });
     case StreamActionType.SET_METRICS:
       return setStream(state, action.chatId, {

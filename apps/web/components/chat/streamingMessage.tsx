@@ -7,9 +7,10 @@ import { TypingIndicator } from "./typingIndicator";
 import { CommandBlock } from "./commandBlock";
 import { SandboxIndicator } from "./sandboxIndicator";
 import { InstallBlock } from "./installBlock";
+import { WebSearchBlock } from "./webSearchBlock";
 import { EdwardAvatar } from "./avatars";
 import type { StreamState } from "@/lib/chatTypes";
-import { Terminal, Box } from "lucide-react";
+import { Terminal, Box, Search } from "lucide-react";
 import { MessageMetrics } from "./messageMetrics";
 import { MarkdownRenderer } from "./markdownRenderer";
 import { useSandbox } from "@/contexts/sandboxContext";
@@ -39,6 +40,7 @@ export const StreamingMessage = memo(function StreamingMessage({
       stream.isThinking ||
       stream.isSandboxing ||
       stream.command ||
+      stream.webSearches.length > 0 ||
       stream.installingDeps.length > 0,
     [stream],
   );
@@ -155,6 +157,24 @@ export const StreamingMessage = memo(function StreamingMessage({
             <CommandBlock command={stream.command} />
           </motion.div>
         )}
+
+        {!sandboxOpen &&
+          stream.webSearches.map((webSearch, idx) => (
+            <motion.div
+              key={`${webSearch.query}-${idx}`}
+              initial={{ opacity: 0, y: 4 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="w-full"
+            >
+              <div className="flex items-center gap-1.5 sm:gap-2 mb-1">
+                <Search className="h-2.5 w-2.5 sm:h-3 sm:w-3 text-sky-500/70" />
+                <span className="text-[10px] sm:text-[11px] text-muted-foreground/70 font-mono">
+                  Searching web...
+                </span>
+              </div>
+              <WebSearchBlock search={webSearch} />
+            </motion.div>
+          ))}
 
         {stream.installingDeps.length > 0 && !sandboxOpen && (
           <motion.div

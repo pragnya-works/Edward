@@ -50,8 +50,23 @@ export function detectFramework(
     }
   }
 
-  if (hasPath(/(^|\/)next\.config\./)) return "next";
-  if (hasPath(/(^|\/)vite\.config\./)) return "vite";
+  if (
+    hasPath(/(^|\/)next\.config\./) ||
+    hasPath(/(^|\/)(src\/)?app\/layout\.(js|jsx|ts|tsx)$/) ||
+    hasPath(/(^|\/)(src\/)?app\/page\.(js|jsx|ts|tsx)$/) ||
+    hasPath(/(^|\/)next-env\.d\.ts$/)
+  ) {
+    return "next";
+  }
+
+  if (
+    hasPath(/(^|\/)vite\.config\./) ||
+    hasPath(/(^|\/)src\/main\.(js|jsx|ts|tsx)$/) ||
+    hasPath(/(^|\/)src\/vite-env\.d\.ts$/)
+  ) {
+    return "vite";
+  }
+
   if (
     hasPath(/(^|\/)index\.html$/) &&
     hasPath(/(^|\/)src\/main\.(js|jsx|ts|tsx)$/)
@@ -59,7 +74,12 @@ export function detectFramework(
     return "vite";
   }
 
-  if (hasPath(/\.(js|mjs|cjs|html|css)$/)) return "javascript";
+  if (
+    hasPath(/(^|\/)index\.html$/) ||
+    hasPath(/\.(js|mjs|cjs|css)$/)
+  ) {
+    return "javascript";
+  }
 
   return null;
 }
@@ -152,4 +172,3 @@ const JavaScript = (props: SVGProps<SVGSVGElement>) => (
     />
   </svg>
 );
-

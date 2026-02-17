@@ -39,7 +39,7 @@ import {
 } from "../../utils/sharedConstants.js";
 
 import { safeSSEWrite, sendSSEDone } from "./sse.utils.js";
-import { formatCommandResults, type CommandResult } from "./command.utils.js";
+import { formatToolResults, type AgentToolResult } from "./command.utils.js";
 import {
   handleParserEvent,
   handleFlushEvents,
@@ -72,15 +72,15 @@ export interface StreamSessionParams {
 function buildAgentContinuationPrompt(
   fullUserContent: string,
   turnRawResponse: string,
-  commandResults: CommandResult[],
+  toolResults: AgentToolResult[],
 ): string {
-  const formattedResults = formatCommandResults(commandResults);
+  const formattedResults = formatToolResults(toolResults);
   const prevSummary =
     turnRawResponse.length > 4000
       ? turnRawResponse.slice(0, 4000) + "\n...[truncated]"
       : turnRawResponse;
 
-  return `ORIGINAL REQUEST:\n${fullUserContent}\n\nYOUR PREVIOUS RESPONSE:\n${prevSummary}\n\nCOMMAND RESULTS:\n${formattedResults}\n\nContinue with the task. If you wrote fixes, verify by running the build. If you need more information, use <edward_command>. Do not stop until you have completed the request and emitted <edward_done />.`;
+  return `ORIGINAL REQUEST:\n${fullUserContent}\n\nYOUR PREVIOUS RESPONSE:\n${prevSummary}\n\nTOOL RESULTS:\n${formattedResults}\n\nContinue with the task. If you wrote fixes, verify by running the build. If you need more information, use <edward_command> or <edward_web_search>. Do not stop until you have completed the request and emitted <edward_done />.`;
 }
 
 export async function runStreamSession(
@@ -202,7 +202,7 @@ export async function runStreamSession(
     agentLoop: while (agentTurn < MAX_AGENT_TURNS) {
       agentTurn++;
       const parser = createStreamParser();
-      const commandResultsThisTurn: CommandResult[] = [];
+      const toolResultsThisTurn: AgentToolResult[] = [];
       let turnRawResponse = "";
       let currentFilePath: string | undefined;
       let isFirstFileChunk = true;
@@ -242,7 +242,7 @@ export async function runStreamSession(
             isFirstFileChunk,
             generatedFiles,
             declaredPackages,
-            commandResultsThisTurn,
+            toolResultsThisTurn,
           };
 
           const result = await handleParserEvent(ctx, event);
@@ -272,7 +272,7 @@ export async function runStreamSession(
         isFirstFileChunk,
         generatedFiles,
         declaredPackages,
-        commandResultsThisTurn,
+        toolResultsThisTurn,
       };
       const flushResult = await handleFlushEvents(flushCtx, parser.flush());
       currentFilePath = flushResult.currentFilePath;
@@ -280,7 +280,7 @@ export async function runStreamSession(
       sandboxTagDetected = flushResult.sandboxTagDetected;
 
       if (
-        commandResultsThisTurn.length > 0 &&
+        toolResultsThisTurn.length > 0 &&
         agentTurn < MAX_AGENT_TURNS &&
         !abortController.signal.aborted
       ) {
@@ -291,16 +291,16 @@ export async function runStreamSession(
         const continuation = buildAgentContinuationPrompt(
           userTextContent,
           turnRawResponse,
-          commandResultsThisTurn,
+          toolResultsThisTurn,
         );
         agentMessages = [{ role: MessageRole.User, content: continuation }];
         logger.info(
           {
             chatId,
             turn: agentTurn,
-            commandCount: commandResultsThisTurn.length,
+            toolCount: toolResultsThisTurn.length,
           },
-          "Agent loop: continuing with command results",
+          "Agent loop: continuing with tool results",
         );
         continue agentLoop;
       }

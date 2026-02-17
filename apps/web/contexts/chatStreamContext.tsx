@@ -153,6 +153,7 @@ export function ChatStreamProvider({ children }: { children: ReactNode }) {
           completedFiles: streamResult.completedFiles,
           installingDeps: streamResult.installingDeps,
           command: streamResult.command,
+          webSearches: streamResult.webSearches,
           metrics: streamResult.metrics,
           previewUrl: streamResult.previewUrl,
           meta: metaEvt,

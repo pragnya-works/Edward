@@ -125,6 +125,10 @@ export const config = {
       );
     },
   },
+
+  webSearch: {
+    tavilyApiKey: process.env.TAVILY_API_KEY?.trim() || undefined,
+  },
 } as const;
 
 export type Config = typeof config;

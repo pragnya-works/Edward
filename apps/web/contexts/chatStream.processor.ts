@@ -23,6 +23,7 @@ export interface ProcessedStreamResult {
   completedFiles: StreamedFile[];
   installingDeps: string[];
   command: StreamState["command"];
+  webSearches: StreamState["webSearches"];
   metrics: StreamState["metrics"];
   previewUrl: string | null;
 }
@@ -54,6 +55,7 @@ export async function processStreamResponse({
     completedFiles: [] as StreamedFile[],
     deps: [] as string[],
     command: null as StreamState["command"],
+    webSearches: [] as StreamState["webSearches"],
     metrics: null as StreamState["metrics"],
     previewUrl: null as string | null,
   };
@@ -168,6 +170,20 @@ export async function processStreamResponse({
           accumulated.command = event;
           dispatch({ type: StreamActionType.SET_COMMAND, chatId: activeChatId, command: event });
           break;
+        case ParserEventType.WEB_SEARCH:
+          if (
+            accumulated.webSearches.length === 0 ||
+            JSON.stringify(accumulated.webSearches[accumulated.webSearches.length - 1]) !==
+              JSON.stringify(event)
+          ) {
+            accumulated.webSearches.push(event);
+          }
+          dispatch({
+            type: StreamActionType.SET_WEB_SEARCH,
+            chatId: activeChatId,
+            webSearch: event,
+          });
+          break;
         case ParserEventType.ERROR:
           dispatch({ type: StreamActionType.SET_ERROR, chatId: activeChatId, error: event.message });
           break;
@@ -198,6 +214,7 @@ export async function processStreamResponse({
     completedFiles: accumulated.completedFiles,
     installingDeps: accumulated.deps,
     command: accumulated.command,
+    webSearches: accumulated.webSearches,
     metrics: accumulated.metrics,
     previewUrl: accumulated.previewUrl,
   };

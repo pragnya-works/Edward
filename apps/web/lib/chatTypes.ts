@@ -14,6 +14,7 @@ export enum ParserEventType {
   ERROR = "error",
   META = "meta",
   COMMAND = "command",
+  WEB_SEARCH = "web_search",
   METRICS = "metrics",
   PREVIEW_URL = "preview_url",
 }
@@ -120,6 +121,21 @@ export interface CommandEvent {
   stderr?: string;
 }
 
+export interface WebSearchResultItem {
+  title: string;
+  url: string;
+  snippet: string;
+}
+
+export interface WebSearchEvent {
+  type: ParserEventType.WEB_SEARCH;
+  query: string;
+  maxResults?: number;
+  answer?: string;
+  results?: WebSearchResultItem[];
+  error?: string;
+}
+
 export interface MetricsEvent {
   type: ParserEventType.METRICS;
   completionTime: number;
@@ -148,6 +164,7 @@ export type SSEEvent =
   | InstallEndEvent
   | ErrorEvent
   | CommandEvent
+  | WebSearchEvent
   | MetricsEvent
   | PreviewUrlEvent;
 
@@ -198,6 +215,7 @@ export interface StreamState {
   installingDeps: string[];
   isSandboxing: boolean;
   command: CommandEvent | null;
+  webSearches: WebSearchEvent[];
   error: string | null;
   meta: MetaEvent | null;
   codeOnly: boolean;
@@ -221,6 +239,7 @@ export const INITIAL_STREAM_STATE: StreamState = {
   installingDeps: [],
   isSandboxing: false,
   command: null,
+  webSearches: [],
   error: null,
   meta: null,
   codeOnly: false,

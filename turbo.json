@@ -122,7 +122,8 @@
         "CLOUDFRONT_DISTRIBUTION_ID",
         "PREWARM_SANDBOX_IMAGE",
         "DOCKER_REGISTRY_BASE",
-        "REDIS_URL"
+        "REDIS_URL",
+        "TAVILY_API_KEY"
       ]
     }
   }

@@ -76,6 +76,15 @@ describe('createStreamParser', () => {
       ]);
     });
 
+    it('should handle WEB_SEARCH tags', () => {
+      const parser = createStreamParser();
+      const events = parser.process('<edward_web_search query="latest react docs" max_results="3">');
+
+      expect(events).toEqual([
+        { type: ParserEventType.WEB_SEARCH, query: 'latest react docs', maxResults: 3 },
+      ]);
+    });
+
     it('should handle COMMAND tags with non-JSON args gracefully', () => {
       const parser = createStreamParser();
       const events = parser.process('<edward_command command="grep" args=\'useEffect .\'>');
@@ -302,6 +311,19 @@ describe('createStreamParser', () => {
       const cmds = all.filter((e) => e.type === ParserEventType.COMMAND);
       expect(cmds).toHaveLength(3);
       expect(cmds.map((c) => 'command' in c ? c.command : '')).toEqual(['cat', 'ls', 'grep']);
+    });
+  });
+
+  describe('edward_web_search parsing', () => {
+    it('emits error for <edward_web_search> missing query attribute', () => {
+      const parser = createStreamParser();
+      const events = [...parser.process('<edward_web_search max_results="3">'), ...parser.flush()];
+
+      const err = events.find((e) => e.type === ParserEventType.ERROR);
+      expect(err).toBeDefined();
+      if (err && 'message' in err) {
+        expect(err.message).toContain('missing required "query" attribute');
+      }
     });
   });
 });

@@ -18,7 +18,7 @@ export function sendStreamError(
   if (res.headersSent) {
     if (!res.writableEnded && res.writable) {
       res.write(
-        `data: ${JSON.stringify({ type: ParserEventType.ERROR, message: error })}\\n\\n`,
+        `data: ${JSON.stringify({ type: ParserEventType.ERROR, message: error })}\n\n`,
       );
     }
     if (!res.writableEnded) {

@@ -301,6 +301,23 @@ describe("chat schemas", () => {
       expect(result.success).toBe(true);
     });
 
+    it("should validate WEB_SEARCH event", () => {
+      const result = ParserEventSchema.safeParse({
+        type: ParserEventType.WEB_SEARCH,
+        query: "latest next.js release",
+        maxResults: 3,
+        results: [
+          {
+            title: "Next.js Releases",
+            url: "https://github.com/vercel/next.js/releases",
+            snippet: "Release notes",
+          },
+        ],
+      });
+
+      expect(result.success).toBe(true);
+    });
+
     it("should reject unknown event type", () => {
       const result = ParserEventSchema.safeParse({
         type: "unknown_type",

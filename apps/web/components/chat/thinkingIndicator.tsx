@@ -21,7 +21,7 @@ interface ThinkingIndicatorProps {
 }
 
 const EDWARD_TAGS_REGEX =
-  /<(Thinking|Response|edward_install|edward_sandbox|edward_command|edward_done|file|file_start|file_end)[^>]*>|<\/(Thinking|Response|edward_install|edward_sandbox|edward_command|edward_done|file|file_start|file_end)>/gi;
+  /<(Thinking|Response|edward_install|edward_sandbox|edward_command|edward_web_search|edward_done|file|file_start|file_end)[^>]*>|<\/(Thinking|Response|edward_install|edward_sandbox|edward_command|edward_web_search|edward_done|file|file_start|file_end)>/gi;
 
 export const ThinkingIndicator = memo(function ThinkingIndicator({
   text,

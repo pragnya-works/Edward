@@ -1,5 +1,13 @@
 import { ChatRole, type StreamState, type MetaEvent, type ChatMessage } from "./chatTypes";
 
+function escapeHtmlAttribute(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;");
+}
+
 export function buildMessageFromStream(
   stream: StreamState,
   meta: MetaEvent,
@@ -24,6 +32,17 @@ export function buildMessageFromStream(
     const argsJson = JSON.stringify(stream.command.args);
     contentParts.push(
       `<edward_command command="${stream.command.command}" args='${argsJson}' />`,
+    );
+  }
+  for (const webSearch of stream.webSearches) {
+    if (!webSearch.query) continue;
+    const query = escapeHtmlAttribute(webSearch.query);
+    const maxResultsAttr =
+      typeof webSearch.maxResults === "number"
+        ? ` max_results="${webSearch.maxResults}"`
+        : "";
+    contentParts.push(
+      `<edward_web_search query="${query}"${maxResultsAttr} />`,
     );
   }
   if (stream.streamingText) {

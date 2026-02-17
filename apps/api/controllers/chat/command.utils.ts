@@ -7,6 +7,29 @@ export interface CommandResult {
     stderr: string;
 }
 
+export interface WebSearchResultItem {
+    title: string;
+    url: string;
+    snippet: string;
+}
+
+export interface WebSearchResult {
+    query: string;
+    answer?: string;
+    results: WebSearchResultItem[];
+    error?: string;
+}
+
+export interface CommandToolResult extends CommandResult {
+    tool: "command";
+}
+
+export interface WebSearchToolResult extends WebSearchResult {
+    tool: "web_search";
+}
+
+export type AgentToolResult = CommandToolResult | WebSearchToolResult;
+
 export interface CommandSpec {
     command: string;
     args: string[];
@@ -38,6 +61,38 @@ export function formatCommandResults(results: CommandResult[]): string {
             let out = `$ ${r.command} ${r.args.join(" ")}\n${r.stdout}`;
             if (r.stderr) out += `\nSTDERR: ${r.stderr}`;
             return out;
+        })
+        .join("\n---\n");
+}
+
+function formatWebSearchResult(result: WebSearchToolResult): string {
+    if (result.error) {
+        return `[web_search] query="${result.query}"\nERROR: ${result.error}`;
+    }
+
+    const lines: string[] = [`[web_search] query="${result.query}"`];
+    if (result.answer) {
+        lines.push(`Answer: ${result.answer}`);
+    }
+    if (result.results.length > 0) {
+        lines.push("Sources:");
+        for (const item of result.results) {
+            lines.push(`- ${item.title} (${item.url})`);
+            if (item.snippet) {
+                lines.push(`  ${item.snippet}`);
+            }
+        }
+    }
+    return lines.join("\n");
+}
+
+export function formatToolResults(results: AgentToolResult[]): string {
+    return results
+        .map((result) => {
+            if (result.tool === "command") {
+                return formatCommandResults([result]);
+            }
+            return formatWebSearchResult(result);
         })
         .join("\n---\n");
 }

@@ -24,10 +24,8 @@ export function parseSSELines(buffer: string): {
       const parsed = JSON.parse(payload) as SSEEvent;
       events.push(parsed);
     } catch {
-      return {
-        events,
-        remaining: `${chunk}\n\n${trailingChunk ?? ""}`,
-      };
+      // Skip malformed completed SSE chunks so one bad frame doesn't block the stream.
+      continue;
     }
   }
 

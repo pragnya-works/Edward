@@ -145,7 +145,7 @@ export async function unifiedSendMessage(
         assistantMessageId,
         isNewChat,
         intent,
-      })}\\n\\n`,
+      })}\n\n`,
     );
 
     const workflow = await createWorkflow(userId, chatId, {

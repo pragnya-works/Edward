@@ -35,6 +35,10 @@ vi.mock("../../../services/planning/resolvers/dependency.resolver.js", () => ({
   suggestAlternatives: vi.fn(() => []),
 }));
 
+vi.mock("../../../services/websearch/tavily.search.js", () => ({
+  searchTavilyBasic: vi.fn(),
+}));
+
 describe("event handlers sandbox gating", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -66,7 +70,7 @@ describe("event handlers sandbox gating", () => {
       isFirstFileChunk: true,
       generatedFiles: new Map<string, string>(),
       declaredPackages: [],
-      commandResultsThisTurn: [],
+      toolResultsThisTurn: [],
     };
   }
 
@@ -99,5 +103,40 @@ describe("event handlers sandbox gating", () => {
 
     expect(ensureSandboxMock).toHaveBeenCalledTimes(1);
     expect(result.sandboxTagDetected).toBe(true);
+  });
+
+  it("executes web search event and stores tool results", async () => {
+    const { searchTavilyBasic } = await import(
+      "../../../services/websearch/tavily.search.js"
+    );
+    vi.mocked(searchTavilyBasic).mockResolvedValueOnce({
+      query: "latest next.js version",
+      answer: "Use the latest stable release.",
+      results: [
+        {
+          title: "Next.js Releases",
+          url: "https://github.com/vercel/next.js/releases",
+          snippet: "Release notes...",
+        },
+      ],
+    });
+
+    const { handleParserEvent } = await import(
+      "../../../controllers/chat/event.handlers.js"
+    );
+    const ctx = createCtx();
+
+    const result = await handleParserEvent(ctx, {
+      type: ParserEventType.WEB_SEARCH,
+      query: "latest next.js version",
+      maxResults: 3,
+    });
+
+    expect(result.handled).toBe(true);
+    expect(ctx.toolResultsThisTurn).toHaveLength(1);
+    expect(ctx.toolResultsThisTurn[0]).toMatchObject({
+      tool: "web_search",
+      query: "latest next.js version",
+    });
   });
 });
