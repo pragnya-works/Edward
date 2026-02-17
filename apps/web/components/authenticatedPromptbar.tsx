@@ -7,7 +7,11 @@ import {
   useChatStreamActions,
   useChatStream,
 } from "@/contexts/chatStreamContext";
-import { filesToMessageContent } from "@/lib/api";
+import {
+  filesToMessageContent,
+  uploadImageToCdn,
+  type UploadedImage,
+} from "@/lib/api";
 import { useCallback, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import type { MetaEvent } from "@/lib/chatTypes";
@@ -74,20 +78,24 @@ export default function AuthenticatedPromptbar({
   }, [chatId, onMetaRef, router]);
 
   const handleProtectedAction = useCallback(
-    async (text: string, files?: File[]) => {
+    async (text: string, images?: UploadedImage[]) => {
       if (stream.isStreaming && activeStreamKey) {
         cancelStream(activeStreamKey);
         return;
       }
 
+      const uploadedImages = (images || []).filter(
+        (image) => typeof image.url === "string" && image.url.trim().length > 0,
+      );
+
       if (
         (!text || text.trim().length === 0) &&
-        (!files || files.length === 0)
+        uploadedImages.length === 0
       ) {
         return;
       }
 
-      const content = await filesToMessageContent(text, files || []);
+      const content = await filesToMessageContent(text, uploadedImages);
       startStream(content, {
         chatId,
         model: preferredModel || undefined,
@@ -104,6 +112,7 @@ export default function AuthenticatedPromptbar({
           signIn();
         }}
         onProtectedAction={handleProtectedAction}
+        onImageUpload={uploadImageToCdn}
         hasApiKey={hasApiKey}
         isApiKeyLoading={isLoading}
         apiKeyError={error}

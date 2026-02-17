@@ -1,95 +1,136 @@
-import { INITIAL_STREAM_STATE, type MetaEvent, type StreamState, type StreamedFile } from "@/lib/chatTypes";
+import {
+  INITIAL_STREAM_STATE,
+  type MetaEvent,
+  type StreamState,
+  type StreamedFile,
+} from "@/lib/chatTypes";
 
 export type StreamMap = Record<string, StreamState>;
 
+export enum StreamActionType {
+  REMOVE_STREAM = "REMOVE_STREAM",
+  START_STREAMING = "START_STREAMING",
+  STOP_STREAMING = "STOP_STREAMING",
+  SET_ERROR = "SET_ERROR",
+  SET_META = "SET_META",
+  APPEND_TEXT = "APPEND_TEXT",
+  START_THINKING = "START_THINKING",
+  APPEND_THINKING = "APPEND_THINKING",
+  END_THINKING = "END_THINKING",
+  START_FILE = "START_FILE",
+  APPEND_FILE_CONTENT = "APPEND_FILE_CONTENT",
+  COMPLETE_FILE = "COMPLETE_FILE",
+  SET_INSTALLING_DEPS = "SET_INSTALLING_DEPS",
+  SET_SANDBOXING = "SET_SANDBOXING",
+  SET_COMMAND = "SET_COMMAND",
+  SET_METRICS = "SET_METRICS",
+  SET_PREVIEW_URL = "SET_PREVIEW_URL",
+  RENAME_STREAM = "RENAME_STREAM",
+}
+
 export type StreamAction =
-  | { type: "REMOVE_STREAM"; chatId: string }
-  | { type: "START_STREAMING"; chatId: string }
-  | { type: "STOP_STREAMING"; chatId: string }
-  | { type: "SET_ERROR"; chatId: string; error: string }
-  | { type: "SET_META"; chatId: string; meta: MetaEvent }
-  | { type: "APPEND_TEXT"; chatId: string; text: string }
-  | { type: "START_THINKING"; chatId: string }
-  | { type: "APPEND_THINKING"; chatId: string; text: string }
-  | { type: "END_THINKING"; chatId: string; duration: number | null }
-  | { type: "START_FILE"; chatId: string; file: StreamedFile }
-  | { type: "APPEND_FILE_CONTENT"; chatId: string; path: string; content: string }
-  | { type: "COMPLETE_FILE"; chatId: string; path: string }
-  | { type: "SET_INSTALLING_DEPS"; chatId: string; deps: string[] }
-  | { type: "SET_SANDBOXING"; chatId: string; isSandboxing: boolean }
-  | { type: "SET_COMMAND"; chatId: string; command: StreamState["command"] }
-  | { type: "SET_METRICS"; chatId: string; metrics: StreamState["metrics"] }
-  | { type: "SET_PREVIEW_URL"; chatId: string; url: string }
-  | { type: "RENAME_STREAM"; oldChatId: string; newChatId: string };
+  | { type: StreamActionType.REMOVE_STREAM; chatId: string }
+  | { type: StreamActionType.START_STREAMING; chatId: string }
+  | { type: StreamActionType.STOP_STREAMING; chatId: string }
+  | { type: StreamActionType.SET_ERROR; chatId: string; error: string }
+  | { type: StreamActionType.SET_META; chatId: string; meta: MetaEvent }
+  | { type: StreamActionType.APPEND_TEXT; chatId: string; text: string }
+  | { type: StreamActionType.START_THINKING; chatId: string }
+  | { type: StreamActionType.APPEND_THINKING; chatId: string; text: string }
+  | { type: StreamActionType.END_THINKING; chatId: string; duration: number | null }
+  | { type: StreamActionType.START_FILE; chatId: string; file: StreamedFile }
+  | {
+      type: StreamActionType.APPEND_FILE_CONTENT;
+      chatId: string;
+      path: string;
+      content: string;
+    }
+  | { type: StreamActionType.COMPLETE_FILE; chatId: string; path: string }
+  | { type: StreamActionType.SET_INSTALLING_DEPS; chatId: string; deps: string[] }
+  | { type: StreamActionType.SET_SANDBOXING; chatId: string; isSandboxing: boolean }
+  | { type: StreamActionType.SET_COMMAND; chatId: string; command: StreamState["command"] }
+  | { type: StreamActionType.SET_METRICS; chatId: string; metrics: StreamState["metrics"] }
+  | { type: StreamActionType.SET_PREVIEW_URL; chatId: string; url: string }
+  | { type: StreamActionType.RENAME_STREAM; oldChatId: string; newChatId: string };
 
 function getStream(state: StreamMap, chatId: string): StreamState {
   return state[chatId] ?? INITIAL_STREAM_STATE;
 }
 
-function setStream(state: StreamMap, chatId: string, stream: StreamState): StreamMap {
+function setStream(
+  state: StreamMap,
+  chatId: string,
+  stream: StreamState,
+): StreamMap {
   return { ...state, [chatId]: stream };
 }
 
-export function streamReducer(state: StreamMap, action: StreamAction): StreamMap {
+export function streamReducer(
+  state: StreamMap,
+  action: StreamAction,
+): StreamMap {
   switch (action.type) {
-    case "REMOVE_STREAM": {
-      const { [action.chatId]: _, ...rest } = state;
+    case StreamActionType.REMOVE_STREAM: {
+      const { [action.chatId]: _removed, ...rest } = state;
       return rest;
     }
-    case "START_STREAMING":
+    case StreamActionType.START_STREAMING:
       return setStream(state, action.chatId, {
         ...INITIAL_STREAM_STATE,
         isStreaming: true,
         streamChatId: action.chatId,
       });
-    case "STOP_STREAMING":
+    case StreamActionType.STOP_STREAMING:
       return setStream(state, action.chatId, {
         ...getStream(state, action.chatId),
         isStreaming: false,
       });
-    case "SET_ERROR":
+    case StreamActionType.SET_ERROR:
       return setStream(state, action.chatId, {
         ...getStream(state, action.chatId),
         error: action.error,
       });
-    case "SET_META":
+    case StreamActionType.SET_META:
       return setStream(state, action.chatId, {
         ...getStream(state, action.chatId),
         meta: action.meta,
         streamChatId: action.meta.chatId,
       });
-    case "APPEND_TEXT": {
+    case StreamActionType.APPEND_TEXT: {
       const s = getStream(state, action.chatId);
       return setStream(state, action.chatId, {
         ...s,
         streamingText: s.streamingText + action.text,
       });
     }
-    case "START_THINKING":
+    case StreamActionType.START_THINKING:
       return setStream(state, action.chatId, {
         ...getStream(state, action.chatId),
         isThinking: true,
         thinkingDuration: null,
       });
-    case "APPEND_THINKING": {
+    case StreamActionType.APPEND_THINKING: {
       const s = getStream(state, action.chatId);
       return setStream(state, action.chatId, {
         ...s,
         thinkingText: s.thinkingText + action.text,
       });
     }
-    case "END_THINKING":
+    case StreamActionType.END_THINKING:
       return setStream(state, action.chatId, {
         ...getStream(state, action.chatId),
         isThinking: false,
         thinkingDuration: action.duration,
       });
-    case "START_FILE":
+    case StreamActionType.START_FILE:
       return setStream(state, action.chatId, {
         ...getStream(state, action.chatId),
-        activeFiles: [...getStream(state, action.chatId).activeFiles, action.file],
+        activeFiles: [
+          ...getStream(state, action.chatId).activeFiles,
+          action.file,
+        ],
       });
-    case "APPEND_FILE_CONTENT": {
+    case StreamActionType.APPEND_FILE_CONTENT: {
       const s = getStream(state, action.chatId);
       return setStream(state, action.chatId, {
         ...s,
@@ -100,7 +141,7 @@ export function streamReducer(state: StreamMap, action: StreamAction): StreamMap
         ),
       });
     }
-    case "COMPLETE_FILE": {
+    case StreamActionType.COMPLETE_FILE: {
       const s = getStream(state, action.chatId);
       const file = s.activeFiles.find((f) => f.path === action.path);
       if (!file) return state;
@@ -110,36 +151,39 @@ export function streamReducer(state: StreamMap, action: StreamAction): StreamMap
         completedFiles: [...s.completedFiles, { ...file, isComplete: true }],
       });
     }
-    case "SET_INSTALLING_DEPS":
+    case StreamActionType.SET_INSTALLING_DEPS:
       return setStream(state, action.chatId, {
         ...getStream(state, action.chatId),
         installingDeps: action.deps,
       });
-    case "SET_SANDBOXING":
+    case StreamActionType.SET_SANDBOXING:
       return setStream(state, action.chatId, {
         ...getStream(state, action.chatId),
         isSandboxing: action.isSandboxing,
       });
-    case "SET_COMMAND":
+    case StreamActionType.SET_COMMAND:
       return setStream(state, action.chatId, {
         ...getStream(state, action.chatId),
         command: action.command,
       });
-    case "SET_METRICS":
+    case StreamActionType.SET_METRICS:
       return setStream(state, action.chatId, {
         ...getStream(state, action.chatId),
         metrics: action.metrics,
       });
-    case "SET_PREVIEW_URL":
+    case StreamActionType.SET_PREVIEW_URL:
       return setStream(state, action.chatId, {
         ...getStream(state, action.chatId),
         previewUrl: action.url,
       });
-    case "RENAME_STREAM": {
+    case StreamActionType.RENAME_STREAM: {
       const existing = state[action.oldChatId];
       if (!existing) return state;
-      const { [action.oldChatId]: _, ...rest } = state;
-      return { ...rest, [action.newChatId]: { ...existing, streamChatId: action.newChatId } };
+      const { [action.oldChatId]: _removed, ...rest } = state;
+      return {
+        ...rest,
+        [action.newChatId]: { ...existing, streamChatId: action.newChatId },
+      };
     }
     default:
       return state;

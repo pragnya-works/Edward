@@ -12,6 +12,13 @@ import {
   DEFAULT_OPENAI_MODEL,
   DEFAULT_GEMINI_MODEL,
 } from "@edward/shared/schema";
+import type { LlmConversationRole } from "./messageRole.js";
+import {
+  type MessageContent,
+  isMultimodalContent,
+  formatContentForOpenAI,
+  formatContentForGemini,
+} from "./types.js";
 
 const logger = createLogger("LLM");
 
@@ -43,14 +50,26 @@ function getClient(apiKey: string, modelOverride?: string) {
   }
 }
 
-function normalizeMessages(messages: LlmChatMessage[]): LlmChatMessage[] {
-  return (messages || []).flatMap((m) => {
-    if (!m || typeof m.content !== "string") return [];
+interface NormalizedMessage {
+  role: LlmConversationRole;
+  content: MessageContent;
+}
+
+function normalizeMessages(messages: LlmChatMessage[]): NormalizedMessage[] {
+  const result: NormalizedMessage[] = [];
+
+  for (const m of messages || []) {
+    if (!m) continue;
     const role = normalizeConversationRole((m as { role?: unknown }).role);
-    const content = m.content.trim();
-    if (!role || content.length === 0) return [];
-    return [{ role, content }];
-  });
+    if (!role) continue;
+
+    const content = m.content;
+    if (typeof content === "string" && content.trim().length === 0) continue;
+    if (Array.isArray(content) && content.length === 0) continue;
+    result.push({ role, content });
+  }
+
+  return result;
 }
 
 export async function* streamResponse(
@@ -89,13 +108,38 @@ export async function* streamResponse(
   try {
     if (type === Provider.OPENAI) {
       const openai = client as OpenAI;
+
+      const openaiMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] =
+        [{ role: MessageRole.System, content: fullSystemPrompt }];
+
+      for (const msg of normalized) {
+        const openaiRole = msg.role as "user" | "assistant";
+        const formattedContent = isMultimodalContent(msg.content)
+          ? formatContentForOpenAI(msg.content)
+          : msg.content;
+
+        if (openaiRole === "user") {
+          openaiMessages.push({
+            role: "user",
+            content: formattedContent,
+          });
+        } else {
+          openaiMessages.push({
+            role: "assistant",
+            content:
+              typeof formattedContent === "string"
+                ? formattedContent
+                : formattedContent
+                    .map((p) => (p.type === "text" ? p.text : ""))
+                    .join(""),
+          });
+        }
+      }
+
       const stream = await openai.chat.completions.create(
         {
           model,
-          messages: [
-            { role: MessageRole.System, content: fullSystemPrompt },
-            ...normalized,
-          ],
+          messages: openaiMessages,
           stream: true,
         },
         { signal },
@@ -113,10 +157,17 @@ export async function* streamResponse(
         systemInstruction: fullSystemPrompt,
       });
 
-      const contents = normalized.map((m) => ({
-        role: toGeminiRole(m.role),
-        parts: [{ text: m.content }],
-      }));
+      const contents = normalized.map((msg) => {
+        const geminiRole = toGeminiRole(msg.role!);
+        const formattedContent = isMultimodalContent(msg.content)
+          ? formatContentForGemini(msg.content)
+          : [{ text: msg.content }];
+
+        return {
+          role: geminiRole,
+          parts: formattedContent,
+        };
+      });
 
       const result = await geminiModel.generateContentStream(
         {

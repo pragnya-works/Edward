@@ -1,4 +1,4 @@
-import type { StreamState, MetaEvent, ChatMessage } from "./chatTypes";
+import { ChatRole, type StreamState, type MetaEvent, type ChatMessage } from "./chatTypes";
 
 export function buildMessageFromStream(
   stream: StreamState,
@@ -36,7 +36,7 @@ export function buildMessageFromStream(
   return {
     id: meta.assistantMessageId,
     chatId: meta.chatId,
-    role: "assistant",
+    role: ChatRole.ASSISTANT,
     content,
     userId: null,
     createdAt: new Date().toISOString(),

@@ -4,11 +4,20 @@ import { ParserEventType } from "../../schemas/chat.schema.js";
 import { createStreamParser } from "../../lib/llm/parser.js";
 import { streamResponse } from "../../lib/llm/response.js";
 import { composePrompt } from "../../lib/llm/compose.js";
-import { computeTokenUsage, isOverContextLimit, countOutputTokens, type TokenUsage } from "../../lib/llm/tokens.js";
+import {
+  computeTokenUsage,
+  isOverContextLimit,
+  countOutputTokens,
+  type TokenUsage,
+} from "../../lib/llm/tokens.js";
 import { cleanupSandbox } from "../../services/sandbox/lifecycle/cleanup.js";
 import { flushSandbox } from "../../services/sandbox/writes.sandbox.js";
 import { enqueueBuildJob } from "../../services/queue/enqueue.js";
-import { saveMessage, updateChatMeta, type MessageMetadata } from "../../services/chat.service.js";
+import {
+  saveMessage,
+  updateChatMeta,
+  type MessageMetadata,
+} from "../../services/chat.service.js";
 import { generateResponse } from "../../lib/llm/response.js";
 import { getSandboxState } from "../../services/sandbox/state.sandbox.js";
 import { normalizeFramework } from "../../services/sandbox/templates/template.registry.js";
@@ -37,6 +46,10 @@ import {
   type EventHandlerContext,
 } from "./event.handlers.js";
 import type { LlmChatMessage } from "../../lib/llm/context.js";
+import {
+  type MessageContent,
+  getTextFromContent,
+} from "../../lib/llm/types.js";
 
 export interface StreamSessionParams {
   req: AuthenticatedRequest;
@@ -45,7 +58,7 @@ export interface StreamSessionParams {
   userId: string;
   chatId: string;
   decryptedApiKey: string;
-  userContent: string;
+  userContent: MessageContent;
   userMessageId: string;
   assistantMessageId: string;
   preVerifiedDeps: string[];
@@ -114,7 +127,7 @@ export async function runStreamSession(
   try {
     let framework: Framework | undefined =
       workflow.context.framework || workflow.context.intent?.suggestedFramework;
-    const complexity = workflow.context.intent?.complexity;
+    const complexity = workflow.context.intent?.complexity ?? "moderate";
     const mode =
       intent === ChatAction.FIX
         ? ChatAction.FIX
@@ -133,7 +146,7 @@ export async function runStreamSession(
 
     const systemPrompt = composePrompt({
       framework,
-      complexity: (complexity || "moderate") as "simple" | "moderate" | "complex",
+      complexity,
       verifiedDependencies: preVerifiedDeps,
       mode,
     });
@@ -271,8 +284,12 @@ export async function runStreamSession(
         agentTurn < MAX_AGENT_TURNS &&
         !abortController.signal.aborted
       ) {
+        const userTextContent =
+          typeof userContent === "string"
+            ? userContent
+            : getTextFromContent(userContent);
         const continuation = buildAgentContinuationPrompt(
-          userContent,
+          userTextContent,
           turnRawResponse,
           commandResultsThisTurn,
         );
@@ -410,7 +427,7 @@ Return ONLY a JSON object: {"title": "...", "description": "..."}
             details:
               queueErr instanceof Error ? queueErr.message : String(queueErr),
           } as Record<string, unknown>,
-        } as Parameters<typeof updateBuild>[1]).catch(() => { });
+        } as Parameters<typeof updateBuild>[1]).catch(() => {});
 
         logger.error(
           ensureError(queueErr),
@@ -455,7 +472,9 @@ Return ONLY a JSON object: {"title": "...", "description": "..."}
       if (committedMessageContent === null) {
         const errorCompletionTime = Date.now() - messageStartTime;
         const errorInputTokens = tokenUsage?.inputTokens ?? 0;
-        const errorOutputTokens = fullRawResponse ? countOutputTokens(fullRawResponse, model) : 0;
+        const errorOutputTokens = fullRawResponse
+          ? countOutputTokens(fullRawResponse, model)
+          : 0;
 
         const errorMetadata: MessageMetadata = {
           completionTime: errorCompletionTime,

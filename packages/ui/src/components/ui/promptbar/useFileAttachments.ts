@@ -1,14 +1,16 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import {
-  ACCEPTED_IMAGE_TYPES,
-  MAX_FILE_SIZE,
-  MAX_FILES,
+  AttachmentUploadStatus,
   type AttachedFile,
 } from "./promptbar.constants";
+import { IMAGE_UPLOAD_CONFIG } from "@edward/shared/constants";
 
 export function useFileAttachments(
   isAuthenticated: boolean,
   supportsVision: boolean,
+  onImageUpload?: (
+    file: File,
+  ) => Promise<{ url: string; mimeType: string; sizeBytes?: number }>,
 ) {
   const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([]);
   const [isDragging, setIsDragging] = useState(false);
@@ -29,39 +31,97 @@ export function useFileAttachments(
   }, []);
 
   const handleFiles = useCallback(
-    (files: FileList | null) => {
+    async (files: FileList | null) => {
       if (!isAuthenticated || !supportsVision) return;
       if (!files || files.length === 0) return;
 
       const validFiles = Array.from(files).filter((file) => {
-        if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) {
+        if (
+          !(
+            IMAGE_UPLOAD_CONFIG.ALLOWED_MIME_TYPES as readonly string[]
+          ).includes(file.type)
+        ) {
           console.warn(`File type ${file.type} not supported`);
           return false;
         }
-        if (file.size > MAX_FILE_SIZE) {
-          console.warn(`File ${file.name} exceeds 10MB limit`);
+        if (file.size > IMAGE_UPLOAD_CONFIG.MAX_SIZE_BYTES) {
+          console.warn(
+            `File ${file.name} exceeds ${IMAGE_UPLOAD_CONFIG.MAX_SIZE_MB}MB limit`,
+          );
           return false;
         }
         return true;
       });
 
-      const remainingSlots = MAX_FILES - attachedFiles.length;
+      const remainingSlots =
+        IMAGE_UPLOAD_CONFIG.MAX_FILES - attachedFiles.length;
       const filesToAdd = validFiles.slice(0, remainingSlots);
 
       const newFiles: AttachedFile[] = filesToAdd.map((file) => ({
-        id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        id: `${Date.now()}-${Math.random().toString(36).substring(2, 11)}`,
         file,
         preview: URL.createObjectURL(file),
+        status: AttachmentUploadStatus.UPLOADING,
       }));
 
       setAttachedFiles((prev) => [...prev, ...newFiles]);
+
+      await Promise.all(
+        newFiles.map(async (attachedFile) => {
+          if (!onImageUpload) {
+            setAttachedFiles((prev) =>
+              prev.map((item) =>
+                item.id === attachedFile.id
+                  ? {
+                      ...item,
+                      status: AttachmentUploadStatus.FAILED,
+                      error: "Image upload is not configured.",
+                    }
+                  : item,
+              ),
+            );
+            return;
+          }
+
+          try {
+            const uploaded = await onImageUpload(attachedFile.file);
+            setAttachedFiles((prev) =>
+              prev.map((item) =>
+                item.id === attachedFile.id
+                  ? {
+                      ...item,
+                      status: AttachmentUploadStatus.UPLOADED,
+                      cdnUrl: uploaded.url,
+                      mimeType: uploaded.mimeType,
+                      error: undefined,
+                    }
+                  : item,
+              ),
+            );
+          } catch (error) {
+            const errorMessage =
+              error instanceof Error ? error.message : "Upload failed";
+            setAttachedFiles((prev) =>
+              prev.map((item) =>
+                item.id === attachedFile.id
+                  ? {
+                      ...item,
+                      status: AttachmentUploadStatus.FAILED,
+                      error: errorMessage,
+                    }
+                  : item,
+              ),
+            );
+          }
+        }),
+      );
     },
-    [attachedFiles.length, isAuthenticated, supportsVision],
+    [attachedFiles.length, isAuthenticated, supportsVision, onImageUpload],
   );
 
   const handleFileInputChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
-      handleFiles(e.target.files);
+      void handleFiles(e.target.files);
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
       }
@@ -117,7 +177,7 @@ export function useFileAttachments(
       e.stopPropagation();
       setIsDragging(false);
       dragCounter.current = 0;
-      handleFiles(e.dataTransfer.files);
+      void handleFiles(e.dataTransfer.files);
     },
     [handleFiles],
   );
@@ -128,7 +188,9 @@ export function useFileAttachments(
   }, [isAuthenticated, supportsVision]);
 
   const canAttachMore =
-    isAuthenticated && supportsVision && attachedFiles.length < MAX_FILES;
+    isAuthenticated &&
+    supportsVision &&
+    attachedFiles.length < IMAGE_UPLOAD_CONFIG.MAX_FILES;
 
   return {
     attachedFiles,

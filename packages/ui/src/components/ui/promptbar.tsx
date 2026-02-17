@@ -9,7 +9,10 @@ import { modelSupportsVision } from "@edward/shared/schema";
 import { cn } from "@edward/ui/lib/utils";
 import {
   SUGGESTIONS,
+  isUploaded,
+  isUploading,
   type PromptbarProps,
+  type UploadedImageRef,
 } from "./promptbar/promptbar.constants";
 import { useFileAttachments } from "./promptbar/useFileAttachments";
 import { DragDropOverlay } from "./promptbar/dragDropOverlay";
@@ -30,6 +33,7 @@ export default function Promptbar({
   hideSuggestions = false,
   isStreaming = false,
   onCancel,
+  onImageUpload,
 }: PromptbarProps) {
   const [inputValue, setInputValue] = useState("");
   const [suggestionIndex, setSuggestionIndex] = useState(0);
@@ -57,7 +61,23 @@ export default function Promptbar({
     handleDragOver,
     handleDrop,
     handleAttachmentClick,
-  } = useFileAttachments(isAuthenticated, supportsVision);
+  } = useFileAttachments(isAuthenticated, supportsVision, onImageUpload);
+
+  const uploadedImages = useMemo<UploadedImageRef[]>(() => {
+    return attachedFiles
+      .filter((file) => isUploaded(file) && file.cdnUrl)
+      .map((file) => ({
+        url: file.cdnUrl!,
+        mimeType: file.mimeType || file.file.type || "image/jpeg",
+        name: file.file.name,
+        sizeBytes: file.file.size,
+      }));
+  }, [attachedFiles]);
+
+  const hasPendingUploads = useMemo(
+    () => attachedFiles.some((file) => isUploading(file)),
+    [attachedFiles],
+  );
 
   useEffect(() => {
     let interval: ReturnType<typeof setInterval> | null = null;
@@ -83,15 +103,13 @@ export default function Promptbar({
   }, []);
 
   const handleProtectedAction = useCallback(() => {
+    if (hasPendingUploads) return;
     if (!isAuthenticated) {
       setShowLoginModal(true);
     } else if (hasApiKey !== true) {
       if (!isApiKeyLoading) setShowBYOK(true);
     } else {
-      onProtectedAction?.(
-        inputValue,
-        attachedFiles.map((f) => f.file),
-      );
+      onProtectedAction?.(inputValue, uploadedImages);
       setInputValue("");
       handleClearAllFiles();
     }
@@ -100,9 +118,10 @@ export default function Promptbar({
     hasApiKey,
     isApiKeyLoading,
     onProtectedAction,
-    attachedFiles,
     inputValue,
     handleClearAllFiles,
+    uploadedImages,
+    hasPendingUploads,
   ]);
 
   useEffect(() => {
@@ -180,7 +199,10 @@ export default function Promptbar({
           onProtectedAction={handleProtectedAction}
           isStreaming={isStreaming}
           onCancel={onCancel}
-          disabled={!inputValue.trim() && attachedFiles.length === 0}
+          disabled={
+            (!inputValue.trim() && uploadedImages.length === 0) ||
+            hasPendingUploads
+          }
         />
       </div>
       {showLoginModal && (
@@ -195,10 +217,8 @@ export default function Promptbar({
           isOpen={showBYOK}
           onClose={() => setShowBYOK(false)}
           onValidate={() => {
-            onProtectedAction?.(
-              inputValue,
-              attachedFiles.map((f) => f.file),
-            );
+            if (hasPendingUploads) return;
+            onProtectedAction?.(inputValue, uploadedImages);
             setInputValue("");
             handleClearAllFiles();
             setShowBYOK(false);

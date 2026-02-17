@@ -8,10 +8,9 @@ import {
 } from "@edward/ui/components/tooltip";
 import { cn } from "@edward/ui/lib/utils";
 import {
-  ACCEPTED_IMAGE_TYPES,
-  MAX_FILES,
   type AttachedFile,
 } from "./promptbar.constants";
+import { IMAGE_UPLOAD_CONFIG } from "@edward/shared/constants";
 
 interface PromptToolbarProps {
   isMobile: boolean;
@@ -104,7 +103,7 @@ export function PromptToolbar({
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept={ACCEPTED_IMAGE_TYPES.join(",")}
+                  accept={IMAGE_UPLOAD_CONFIG.ALLOWED_EXTENSIONS.join(",")}
                   multiple={canAttachMore}
                   onChange={onFileInputChange}
                   className="sr-only"
@@ -139,7 +138,7 @@ export function PromptToolbar({
                 ? "Sign in to attach images"
                 : !supportsVision
                   ? "Vision not supported"
-                  : `Attach images${attachedFiles.length > 0 ? ` (${attachedFiles.length}/${MAX_FILES})` : ""}`}
+                  : `Attach images${attachedFiles.length > 0 ? ` (${attachedFiles.length}/${IMAGE_UPLOAD_CONFIG.MAX_FILES})` : ""}`}
             </TooltipContent>
           </TooltipPositioner>
         </Tooltip>

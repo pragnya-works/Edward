@@ -2,14 +2,7 @@
 
 import { memo, useEffect, useRef } from "react";
 import { EditorState, Compartment } from "@codemirror/state";
-import {
-  EditorView,
-  lineNumbers,
-  highlightActiveLineGutter,
-  highlightActiveLine,
-  drawSelection,
-  keymap,
-} from "@codemirror/view";
+import { EditorView, drawSelection, keymap } from "@codemirror/view";
 import {
   defaultKeymap,
   history,
@@ -36,6 +29,10 @@ import { BuildStatus } from "@/contexts/sandboxContext";
 const languageCompartment = new Compartment();
 const themeCompartment = new Compartment();
 const readOnlyCompartment = new Compartment();
+const FILE_EXTENSIONS = {
+  HTML: "html",
+  JSON: "json",
+} as const;
 
 // Premium High-Contrast AI Theme
 const premiumHighlightStyle = HighlightStyle.define([
@@ -63,10 +60,10 @@ function getLanguageExtension(filename: string) {
   if (["css", "scss"].includes(ext)) {
     return css();
   }
-  if (ext === "html") {
+  if (ext === FILE_EXTENSIONS.HTML) {
     return html();
   }
-  if (ext === "json") {
+  if (ext === FILE_EXTENSIONS.JSON) {
     return json();
   }
   if (["md", "mdx"].includes(ext)) {
@@ -178,7 +175,9 @@ export const CodeEditor = memo(function CodeEditor({
       syntaxHighlighting(premiumHighlightStyle),
       themeCompartment.of([premiumEditorTheme]),
       EditorView.lineWrapping,
-      readOnlyCompartment.of(EditorState.readOnly.of(initialReadOnlyRef.current)),
+      readOnlyCompartment.of(
+        EditorState.readOnly.of(initialReadOnlyRef.current),
+      ),
     ];
 
     const state = EditorState.create({
@@ -209,7 +208,9 @@ export const CodeEditor = memo(function CodeEditor({
     if (!viewRef.current) return;
 
     viewRef.current.dispatch({
-      effects: readOnlyCompartment.reconfigure(EditorState.readOnly.of(readOnly)),
+      effects: readOnlyCompartment.reconfigure(
+        EditorState.readOnly.of(readOnly),
+      ),
     });
   }, [readOnly]);
 

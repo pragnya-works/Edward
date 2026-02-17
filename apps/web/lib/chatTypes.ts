@@ -18,6 +18,19 @@ export enum ParserEventType {
   PREVIEW_URL = "preview_url",
 }
 
+export enum MessageAttachmentType {
+  IMAGE = "image",
+  PDF = "pdf",
+  FIGMA = "figma",
+}
+
+export enum ChatRole {
+  SYSTEM = "system",
+  USER = "user",
+  ASSISTANT = "assistant",
+  DATA = "data",
+}
+
 export interface MetaEvent {
   type: ParserEventType.META;
   chatId: string;
@@ -138,10 +151,17 @@ export type SSEEvent =
   | MetricsEvent
   | PreviewUrlEvent;
 
+export interface MessageAttachment {
+  id: string;
+  name: string;
+  url: string;
+  type: MessageAttachmentType;
+}
+
 export interface ChatMessage {
   id: string;
   chatId: string;
-  role: "system" | "user" | "assistant" | "data";
+  role: ChatRole;
   content: string | null;
   userId: string | null;
   createdAt: string;
@@ -149,6 +169,7 @@ export interface ChatMessage {
   completionTime: number | null;
   inputTokens: number | null;
   outputTokens: number | null;
+  attachments?: MessageAttachment[];
 }
 
 export interface ChatHistoryResponse {

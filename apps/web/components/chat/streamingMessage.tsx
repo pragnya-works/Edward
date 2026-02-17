@@ -14,7 +14,7 @@ import { MessageMetrics } from "./messageMetrics";
 import { MarkdownRenderer } from "./markdownRenderer";
 import { useSandbox } from "@/contexts/sandboxContext";
 import { ProjectButton } from "./projectButton";
-import { parseMessageContent } from "@/lib/messageParser";
+import { MessageBlockType, parseMessageContent } from "@/lib/messageParser";
 import { FileBlock } from "./fileBlock";
 
 interface StreamingMessageProps {
@@ -82,7 +82,7 @@ export const StreamingMessage = memo(function StreamingMessage({
         <div className="flex flex-col gap-3 w-full">
           {blocks.map((block, i) => {
             switch (block.type) {
-              case "text":
+              case MessageBlockType.TEXT:
                 return (
                   <div
                     key={i}
@@ -98,7 +98,7 @@ export const StreamingMessage = memo(function StreamingMessage({
                     )}
                   </div>
                 );
-              case "file":
+              case MessageBlockType.FILE:
                 if (block.isInternal) return null;
                 return (
                   <FileBlock
@@ -195,7 +195,7 @@ export const StreamingMessage = memo(function StreamingMessage({
         ) : null}
 
         {stream.metrics ? (
-          <div className="flex flex-wrap items-center gap-x-1.5 sm:gap-x-2 gap-y-1 px-1 mt-0.5 sm:mt-1">
+          <div className="flex flex-wrap items-center gap-x-1.5 sm:gap-x-2 gap-y-1 px-1 mt-1.5 sm:mt-2">
             <span className="text-[9px] sm:text-[10px] font-bold text-foreground/40 uppercase tracking-widest select-none leading-none shrink-0">
               Edward
             </span>

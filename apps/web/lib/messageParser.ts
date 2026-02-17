@@ -1,11 +1,53 @@
+export enum MessageBlockType {
+  THINKING = "thinking",
+  FILE = "file",
+  COMMAND = "command",
+  INSTALL = "install",
+  SANDBOX = "sandbox",
+  DONE = "done",
+  TEXT = "text",
+}
+
+enum MessageParseTokenType {
+  THINKING = "thinking",
+  FILE = "file",
+  INSTALL = "install",
+  COMMAND = "command",
+  SANDBOX = "sandbox",
+  SANDBOX_END = "sandbox_end",
+  DONE = "done",
+  RESPONSE = "response",
+  RESPONSE_END = "response_end",
+}
+
+const TAGS = {
+  THINKING_START: "<Thinking>",
+  THINKING_END: "</Thinking>",
+  FILE_START: "<file",
+  FILE_END: "</file>",
+  INSTALL_START: "<edward_install>",
+  INSTALL_END: "</edward_install>",
+  COMMAND_START: "<edward_command",
+  SANDBOX_START: "<edward_sandbox",
+  SANDBOX_END: "</edward_sandbox>",
+  DONE_START: "<edward_done",
+  RESPONSE_START: "<Response>",
+  RESPONSE_END: "</Response>",
+} as const;
+
 export type MessageBlock =
-  | { type: "thinking"; content: string }
-  | { type: "file"; path: string; content: string; isInternal?: boolean }
-  | { type: "command"; command: string; args: string[] }
-  | { type: "install"; dependencies: string[] }
-  | { type: "sandbox"; project?: string; base?: string }
-  | { type: "done" }
-  | { type: "text"; content: string };
+  | { type: MessageBlockType.THINKING; content: string }
+  | {
+      type: MessageBlockType.FILE;
+      path: string;
+      content: string;
+      isInternal?: boolean;
+    }
+  | { type: MessageBlockType.COMMAND; command: string; args: string[] }
+  | { type: MessageBlockType.INSTALL; dependencies: string[] }
+  | { type: MessageBlockType.SANDBOX; project?: string; base?: string }
+  | { type: MessageBlockType.DONE }
+  | { type: MessageBlockType.TEXT; content: string };
 
 export function parseMessageContent(content: string): MessageBlock[] {
   const blocks: MessageBlock[] = [];
@@ -13,36 +55,36 @@ export function parseMessageContent(content: string): MessageBlock[] {
   let inSandbox = false;
   let inResponse = false;
 
-  const hasResponseTags = content.includes("<Response>");
+  const hasResponseTags = content.includes(TAGS.RESPONSE_START);
 
   while (remaining.length > 0) {
-    const thinkingStart = remaining.indexOf("<Thinking>");
-    const fileStart = remaining.indexOf("<file");
-    const installStart = remaining.indexOf("<edward_install>");
-    const commandStart = remaining.indexOf("<edward_command");
-    const sandboxStart = remaining.indexOf("<edward_sandbox");
-    const sandboxEnd = remaining.indexOf("</edward_sandbox>");
-    const doneStart = remaining.indexOf("<edward_done");
-    const responseStart = remaining.indexOf("<Response>");
-    const responseEnd = remaining.indexOf("</Response>");
+    const thinkingStart = remaining.indexOf(TAGS.THINKING_START);
+    const fileStart = remaining.indexOf(TAGS.FILE_START);
+    const installStart = remaining.indexOf(TAGS.INSTALL_START);
+    const commandStart = remaining.indexOf(TAGS.COMMAND_START);
+    const sandboxStart = remaining.indexOf(TAGS.SANDBOX_START);
+    const sandboxEnd = remaining.indexOf(TAGS.SANDBOX_END);
+    const doneStart = remaining.indexOf(TAGS.DONE_START);
+    const responseStart = remaining.indexOf(TAGS.RESPONSE_START);
+    const responseEnd = remaining.indexOf(TAGS.RESPONSE_END);
 
     const candidates = [
-      { type: "thinking", idx: thinkingStart },
-      { type: "file", idx: fileStart },
-      { type: "install", idx: installStart },
-      { type: "command", idx: commandStart },
-      { type: "sandbox", idx: sandboxStart },
-      { type: "sandbox_end", idx: sandboxEnd },
-      { type: "done", idx: doneStart },
-      { type: "response", idx: responseStart },
-      { type: "response_end", idx: responseEnd },
+      { type: MessageParseTokenType.THINKING, idx: thinkingStart },
+      { type: MessageParseTokenType.FILE, idx: fileStart },
+      { type: MessageParseTokenType.INSTALL, idx: installStart },
+      { type: MessageParseTokenType.COMMAND, idx: commandStart },
+      { type: MessageParseTokenType.SANDBOX, idx: sandboxStart },
+      { type: MessageParseTokenType.SANDBOX_END, idx: sandboxEnd },
+      { type: MessageParseTokenType.DONE, idx: doneStart },
+      { type: MessageParseTokenType.RESPONSE, idx: responseStart },
+      { type: MessageParseTokenType.RESPONSE_END, idx: responseEnd },
     ].filter((i) => i.idx !== -1);
 
     if (candidates.length === 0) {
       // If we are in strictly tagged mode, only push if inResponse
       // Otherwise (legacy), push everything
       if (!hasResponseTags || inResponse) {
-        blocks.push({ type: "text", content: remaining });
+        blocks.push({ type: MessageBlockType.TEXT, content: remaining });
       }
       break;
     }
@@ -54,27 +96,27 @@ export function parseMessageContent(content: string): MessageBlock[] {
     if (earliest.idx > 0) {
       const text = remaining.slice(0, earliest.idx);
       if (!hasResponseTags || inResponse) {
-        blocks.push({ type: "text", content: text });
+        blocks.push({ type: MessageBlockType.TEXT, content: text });
       }
     }
 
     remaining = remaining.slice(earliest.idx);
 
-    if (earliest.type === "thinking") {
-      const endIdx = remaining.indexOf("</Thinking>");
+    if (earliest.type === MessageParseTokenType.THINKING) {
+      const endIdx = remaining.indexOf(TAGS.THINKING_END);
       if (endIdx !== -1) {
         const thinkingContent = remaining
-          .slice("<Thinking>".length, endIdx)
+          .slice(TAGS.THINKING_START.length, endIdx)
           .trim();
-        blocks.push({ type: "thinking", content: thinkingContent });
-        remaining = remaining.slice(endIdx + "</Thinking>".length);
+        blocks.push({ type: MessageBlockType.THINKING, content: thinkingContent });
+        remaining = remaining.slice(endIdx + TAGS.THINKING_END.length);
       } else {
-        const nextResponse = remaining.indexOf("<Response>");
-        const nextFile = remaining.indexOf("<file");
+        const nextResponse = remaining.indexOf(TAGS.RESPONSE_START);
+        const nextFile = remaining.indexOf(TAGS.FILE_START);
         const nextInstall = remaining.indexOf("<edward_install");
-        const nextSandbox = remaining.indexOf("<edward_sandbox");
-        const nextCommand = remaining.indexOf("<edward_command");
-        const nextDone = remaining.indexOf("<edward_done");
+        const nextSandbox = remaining.indexOf(TAGS.SANDBOX_START);
+        const nextCommand = remaining.indexOf(TAGS.COMMAND_START);
+        const nextDone = remaining.indexOf(TAGS.DONE_START);
 
         const exitPoints = [
           nextResponse, nextFile, nextInstall,
@@ -83,44 +125,46 @@ export function parseMessageContent(content: string): MessageBlock[] {
 
         if (exitPoints.length > 0) {
           const earliestExit = Math.min(...exitPoints);
-          const thinkingContent = remaining.slice("<Thinking>".length, earliestExit).trim();
+          const thinkingContent = remaining
+            .slice(TAGS.THINKING_START.length, earliestExit)
+            .trim();
           if (thinkingContent) {
-            blocks.push({ type: "thinking", content: thinkingContent });
+            blocks.push({ type: MessageBlockType.THINKING, content: thinkingContent });
           }
           remaining = remaining.slice(earliestExit);
         } else {
           // Partial thinking tag while streaming
-          const thinkingContent = remaining.slice("<Thinking>".length).trim();
+          const thinkingContent = remaining.slice(TAGS.THINKING_START.length).trim();
           if (thinkingContent) {
-            blocks.push({ type: "thinking", content: thinkingContent });
+            blocks.push({ type: MessageBlockType.THINKING, content: thinkingContent });
           }
           break;
         }
       }
-    } else if (earliest.type === "file") {
+    } else if (earliest.type === MessageParseTokenType.FILE) {
       const closeTagIdx = remaining.indexOf(">");
       if (closeTagIdx !== -1) {
         const tag = remaining.slice(0, closeTagIdx + 1);
         const pathMatch = tag.match(/path="([^"]*)"/);
         const filePath = pathMatch ? (pathMatch[1] ?? "unknown") : "unknown";
 
-        const endTagIdx = remaining.indexOf("</file>");
+        const endTagIdx = remaining.indexOf(TAGS.FILE_END);
         if (endTagIdx !== -1) {
           const fileContent = remaining
             .slice(closeTagIdx + 1, endTagIdx)
             .trim();
           blocks.push({
-            type: "file",
+            type: MessageBlockType.FILE,
             path: filePath,
             content: fileContent,
             isInternal: inSandbox,
           });
-          remaining = remaining.slice(endTagIdx + "</file>".length);
+          remaining = remaining.slice(endTagIdx + TAGS.FILE_END.length);
         } else {
           // Partial file content while streaming
           const fileContent = remaining.slice(closeTagIdx + 1).trim();
           blocks.push({
-            type: "file",
+            type: MessageBlockType.FILE,
             path: filePath,
             content: fileContent,
             isInternal: inSandbox,
@@ -130,11 +174,11 @@ export function parseMessageContent(content: string): MessageBlock[] {
       } else {
         break;
       }
-    } else if (earliest.type === "install") {
-      const endIdx = remaining.indexOf("</edward_install>");
+    } else if (earliest.type === MessageParseTokenType.INSTALL) {
+      const endIdx = remaining.indexOf(TAGS.INSTALL_END);
       if (endIdx !== -1) {
         const installContent = remaining
-          .slice("<edward_install>".length, endIdx)
+          .slice(TAGS.INSTALL_START.length, endIdx)
           .trim();
         const dependencies = installContent
           .split("\n")
@@ -145,12 +189,12 @@ export function parseMessageContent(content: string): MessageBlock[] {
           )
           .map((l) => l.replace(/^\s*[-*]\s*/, "").trim());
 
-        blocks.push({ type: "install", dependencies });
-        remaining = remaining.slice(endIdx + "</edward_install>".length);
+        blocks.push({ type: MessageBlockType.INSTALL, dependencies });
+        remaining = remaining.slice(endIdx + TAGS.INSTALL_END.length);
       } else {
         break;
       }
-    } else if (earliest.type === "command") {
+    } else if (earliest.type === MessageParseTokenType.COMMAND) {
       const closeTagIdx = remaining.indexOf(">");
       if (closeTagIdx !== -1) {
         const tag = remaining.slice(0, closeTagIdx + 1);
@@ -167,12 +211,12 @@ export function parseMessageContent(content: string): MessageBlock[] {
           }
         }
 
-        blocks.push({ type: "command", command, args });
+        blocks.push({ type: MessageBlockType.COMMAND, command, args });
         remaining = remaining.slice(closeTagIdx + 1);
       } else {
         break;
       }
-    } else if (earliest.type === "sandbox") {
+    } else if (earliest.type === MessageParseTokenType.SANDBOX) {
       const closeTagIdx = remaining.indexOf(">");
       if (closeTagIdx !== -1) {
         const tag = remaining.slice(0, closeTagIdx + 1);
@@ -180,7 +224,7 @@ export function parseMessageContent(content: string): MessageBlock[] {
         const baseMatch = tag.match(/base="([^"]*)"/);
 
         blocks.push({
-          type: "sandbox",
+          type: MessageBlockType.SANDBOX,
           project: projectMatch?.[1],
           base: baseMatch?.[1],
         });
@@ -189,25 +233,27 @@ export function parseMessageContent(content: string): MessageBlock[] {
       } else {
         break;
       }
-    } else if (earliest.type === "sandbox_end") {
+    } else if (earliest.type === MessageParseTokenType.SANDBOX_END) {
       inSandbox = false;
-      remaining = remaining.slice("</edward_sandbox>".length);
-    } else if (earliest.type === "done") {
+      remaining = remaining.slice(TAGS.SANDBOX_END.length);
+    } else if (earliest.type === MessageParseTokenType.DONE) {
       const closeTagIdx = remaining.indexOf(">");
       if (closeTagIdx !== -1) {
-        blocks.push({ type: "done" });
+        blocks.push({ type: MessageBlockType.DONE });
         remaining = remaining.slice(closeTagIdx + 1);
       } else {
         break;
       }
-    } else if (earliest.type === "response") {
+    } else if (earliest.type === MessageParseTokenType.RESPONSE) {
       inResponse = true;
-      remaining = remaining.slice("<Response>".length);
-    } else if (earliest.type === "response_end") {
+      remaining = remaining.slice(TAGS.RESPONSE_START.length);
+    } else if (earliest.type === MessageParseTokenType.RESPONSE_END) {
       inResponse = false;
-      remaining = remaining.slice("</Response>".length);
+      remaining = remaining.slice(TAGS.RESPONSE_END.length);
     }
   }
 
-  return blocks.filter((b) => b.type !== "text" || b.content.trim().length > 0);
+  return blocks.filter(
+    (b) => b.type !== MessageBlockType.TEXT || b.content.trim().length > 0,
+  );
 }

@@ -23,14 +23,21 @@ export interface ChangelogIssue {
 
 export interface FetchIssuesResult {
   issues: ChangelogIssue[];
-  error: string | null;
+  error: LinearFetchError | null;
 }
+
+export enum LinearFetchError {
+  MISSING_API_KEY = "missing_api_key",
+  CONNECTION_FAILED = "connection_failed",
+}
+
+export const GENERAL_LABEL = "General";
 
 export const getLinearIssues = cache(async (): Promise<FetchIssuesResult> => {
   const apiKey = process.env.LINEAR_API_KEY;
 
   if (!apiKey) {
-    return { issues: [], error: "Missing LINEAR_API_KEY environment variable" };
+    return { issues: [], error: LinearFetchError.MISSING_API_KEY };
   }
 
   try {
@@ -75,7 +82,7 @@ export const getLinearIssues = cache(async (): Promise<FetchIssuesResult> => {
     return { issues: formattedIssues, error: null };
   } catch (error) {
     console.error("Failed to fetch Linear issues:", error);
-    return { issues: [], error: "Failed to connect to Linear API" };
+    return { issues: [], error: LinearFetchError.CONNECTION_FAILED };
   }
 });
 
@@ -84,7 +91,7 @@ export function groupAndSortIssues(issues: ChangelogIssue[]): {
   sortedLabels: string[]
 } {
   const categorizedIssues = issues.reduce((acc, issue) => {
-    const label = issue.labels[0]?.name || "General";
+    const label = issue.labels[0]?.name || GENERAL_LABEL;
     if (!acc[label]) {
       acc[label] = [];
     }
@@ -93,8 +100,8 @@ export function groupAndSortIssues(issues: ChangelogIssue[]): {
   }, {} as Record<string, ChangelogIssue[]>);
 
   const sortedLabels = Object.keys(categorizedIssues).sort((a, b) => {
-    if (a === "General") return 1;
-    if (b === "General") return -1;
+    if (a === GENERAL_LABEL) return 1;
+    if (b === GENERAL_LABEL) return -1;
     return a.localeCompare(b);
   });
 
@@ -111,4 +118,3 @@ export function groupAndSortIssues(issues: ChangelogIssue[]): {
 
   return { categorizedIssues, sortedLabels };
 }
-

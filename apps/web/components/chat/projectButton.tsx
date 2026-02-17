@@ -4,13 +4,14 @@ import { memo, useMemo } from "react";
 import { motion } from "motion/react";
 import {
     Loader2,
-    CheckCircle2,
     Code2,
-    ExternalLink,
-    ChevronRight,
 } from "lucide-react";
 import { cn } from "@edward/ui/lib/utils";
 import { useSandbox } from "@/contexts/sandboxContext";
+import { FrameworkIcon, detectFramework } from "./frameworkIcons";
+
+const ENTER_KEY = "Enter";
+const SPACE_KEY = " ";
 
 interface ProjectButtonProps {
     isStreaming: boolean;
@@ -44,6 +45,8 @@ export const ProjectButton = memo(function ProjectButton({
         return parts.length > 1 ? parts[0] : "Project";
     }, [files, customProjectName]);
 
+    const framework = useMemo(() => detectFramework(files), [files]);
+
     const getButtonText = () => {
         if (isStreaming && activeFileName) {
             return `Writing ${activeFileName}...`;
@@ -75,7 +78,7 @@ export const ProjectButton = memo(function ProjectButton({
             }}
             onClick={handleToggle}
             onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
+                if (e.key === ENTER_KEY || e.key === SPACE_KEY) {
                     e.preventDefault();
                     handleToggle();
                 }
@@ -89,27 +92,27 @@ export const ProjectButton = memo(function ProjectButton({
             )}
         >
             <motion.div
-                className={cn(
-                    "h-8 w-8 rounded-xl flex items-center justify-center shrink-0 transition-transform duration-500",
-                    sandboxOpen
-                        ? "bg-gradient-to-br from-primary to-primary/60 shadow-lg shadow-primary/20 rotate-12"
-                        : "bg-primary/10 dark:bg-primary/20",
-                )}
-                animate={isStreaming ? { rotate: 360 } : {}}
-                transition={{
-                    duration: 2,
-                    repeat: isStreaming ? Infinity : 0,
-                    ease: "linear",
-                }}
-            >
-                {isStreaming ? (
-                    <Loader2 className="h-4 w-4 text-primary animate-spin" />
-                ) : previewUrl ? (
-                    <CheckCircle2 className="h-4 w-4 text-primary" />
-                ) : (
-                    <Code2 className="h-4 w-4 text-primary/70" />
-                )}
-            </motion.div>
+            className={cn(
+                "h-8 w-8 rounded-xl flex items-center justify-center shrink-0 transition-transform duration-500",
+                sandboxOpen
+                    ? "bg-primary/15 shadow-lg shadow-primary/15"
+                    : "bg-primary/10 dark:bg-primary/20",
+            )}
+            animate={isStreaming ? { rotate: 360 } : {}}
+            transition={{
+                duration: 2,
+                repeat: isStreaming ? Infinity : 0,
+                ease: "linear",
+            }}
+        >
+            {isStreaming ? (
+                <Loader2 className="h-4 w-4 text-primary animate-spin" />
+            ) : framework ? (
+                <FrameworkIcon framework={framework} className="h-4 w-4" />
+            ) : (
+                <Code2 className="h-4 w-4 text-primary/70" />
+            )}
+        </motion.div>
 
             <div className="flex flex-col items-start min-w-0 flex-1">
                 <span className="text-[11px] font-semibold truncate max-w-[220px]">
@@ -130,26 +133,6 @@ export const ProjectButton = memo(function ProjectButton({
                     </span>
                 )}
             </div>
-
-            {previewUrl && !isStreaming && (
-                <button
-                    type="button"
-                    aria-label="Open preview in new tab"
-                    className="ml-1 shrink-0 text-emerald-500/60 hover:text-emerald-500"
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        window.open(previewUrl, "_blank", "noopener,noreferrer");
-                    }}
-                >
-                    <ExternalLink className="h-3.5 w-3.5" />
-                </button>
-            )}
-            <ChevronRight
-                className={cn(
-                    "h-3.5 w-3.5 ml-auto transition-transform duration-200 shrink-0",
-                    sandboxOpen && "rotate-90",
-                )}
-            />
         </motion.div>
     );
 });

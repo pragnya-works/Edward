@@ -5,11 +5,23 @@ import { motion, AnimatePresence } from "motion/react";
 import { Search, FileCode, Edit3, Terminal, CheckCircle2, User, Bot, Loader2 } from "lucide-react";
 import { useTabVisibility } from "@/hooks/useTabVisibility";
 
+enum ToolCallKind {
+    SEARCH = "search",
+    READ = "read",
+    EDIT = "edit",
+    COMMAND = "command",
+}
+
+enum ToolCallStatus {
+    RUNNING = "running",
+    DONE = "done",
+}
+
 interface ToolCall {
     id: string;
-    tool: "search" | "read" | "edit" | "command";
+    tool: ToolCallKind;
     context: string;
-    status: "running" | "done";
+    status: ToolCallStatus;
 }
 
 interface ConversationStep {
@@ -22,19 +34,19 @@ const CONVERSATION: ConversationStep[] = [
     {
         user: "Build a responsive analytics dashboard with real-time metrics.",
         tools: [
-            { id: "t1", tool: "search", context: "locating [packages/ui/charts]", status: "done" },
-            { id: "t2", tool: "read", context: "analyzing [theme.json]", status: "done" },
-            { id: "t3", tool: "edit", context: "generating [dashboard.tsx] +142 lines", status: "done" }
+            { id: "t1", tool: ToolCallKind.SEARCH, context: "locating [packages/ui/charts]", status: ToolCallStatus.DONE },
+            { id: "t2", tool: ToolCallKind.READ, context: "analyzing [theme.json]", status: ToolCallStatus.DONE },
+            { id: "t3", tool: ToolCallKind.EDIT, context: "generating [dashboard.tsx] +142 lines", status: ToolCallStatus.DONE }
         ],
         assistant: "I've analyzed your project structure and generated a dashboard using your existing chart library. Would you like to add a date range picker?"
     }
 ];
 
 const TOOL_ICONS = {
-    search: Search,
-    read: FileCode,
-    edit: Edit3,
-    command: Terminal
+    [ToolCallKind.SEARCH]: Search,
+    [ToolCallKind.READ]: FileCode,
+    [ToolCallKind.EDIT]: Edit3,
+    [ToolCallKind.COMMAND]: Terminal
 };
 
 const HighlightedText = memo(({ text }: { text: string }) => {
@@ -73,7 +85,7 @@ const ToolCallUI = memo(({ call }: { call: ToolCall }) => {
 
             <HighlightedText text={call.context} />
 
-            {call.status === "running" ? (
+            {call.status === ToolCallStatus.RUNNING ? (
                 <Loader2 className="w-2.5 h-2.5 text-primary/30 animate-spin" />
             ) : (
                 <CheckCircle2 className="w-2.5 h-2.5 text-emerald-500/50" />

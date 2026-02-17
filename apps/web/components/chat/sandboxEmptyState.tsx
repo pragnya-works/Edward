@@ -7,7 +7,7 @@ import { cn } from "@edward/ui/lib/utils";
 import { BuildStatus, useSandbox } from "@/contexts/sandboxContext";
 
 export function SandboxEmptyState() {
-  const { files, buildStatus, isStreaming, fullErrorReport } = useSandbox();
+  const { buildStatus, isStreaming, fullErrorReport } = useSandbox();
   const [copied, setCopied] = useState(false);
 
   const handleCopyLogs = useCallback(() => {
@@ -36,7 +36,9 @@ export function SandboxEmptyState() {
                   Build Failure
                 </h3>
                 <p className="text-sm text-muted-foreground font-medium max-w-md mx-auto leading-relaxed italic opacity-80">
-                  Diagnostics detected {fullErrorReport?.errors?.length || "significant"} issues blocking deployment.
+                  Diagnostics detected{" "}
+                  {fullErrorReport?.errors?.length || "significant"} issues
+                  blocking deployment.
                 </p>
               </div>
 
@@ -78,26 +80,28 @@ export function SandboxEmptyState() {
 
                   <div className="relative p-6 max-h-96 overflow-y-auto custom-scrollbar selection:bg-destructive/30">
                     <div className="space-y-1 font-mono text-[12px] leading-6 tracking-tight">
-                      {fullErrorReport.rawOutput.split("\n").map((line: string, index: number) => (
-                        <div
-                          key={index}
-                          className={cn(
-                            "flex gap-4 group/line transition-colors hover:bg-white/[0.02]",
-                            line.toLowerCase().includes("error")
-                              ? "text-destructive/90 bg-destructive/[0.02]"
-                              : line.toLowerCase().includes("warn")
-                                ? "text-amber-500/90"
-                                : "text-foreground/70",
-                          )}
-                        >
-                          <span className="shrink-0 text-muted-foreground/30 text-right w-6 select-none leading-inherit">
-                            {index + 1}
-                          </span>
-                          <span className="break-all whitespace-pre-wrap leading-inherit">
-                            {line}
-                          </span>
-                        </div>
-                      ))}
+                      {fullErrorReport.rawOutput
+                        .split("\n")
+                        .map((line: string, index: number) => (
+                          <div
+                            key={index}
+                            className={cn(
+                              "flex gap-4 group/line transition-colors hover:bg-white/[0.02]",
+                              line.toLowerCase().includes("error")
+                                ? "text-destructive/90 bg-destructive/[0.02]"
+                                : line.toLowerCase().includes("warn")
+                                  ? "text-amber-500/90"
+                                  : "text-foreground/70",
+                            )}
+                          >
+                            <span className="shrink-0 text-muted-foreground/30 text-right w-6 select-none leading-inherit">
+                              {index + 1}
+                            </span>
+                            <span className="break-all whitespace-pre-wrap leading-inherit">
+                              {line}
+                            </span>
+                          </div>
+                        ))}
                     </div>
 
                     <div className="absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-black/5 dark:from-black/20 to-transparent pointer-events-none" />
@@ -148,7 +152,9 @@ export function SandboxEmptyState() {
             <div className="h-12 w-12 rounded-2xl bg-foreground/[0.05] flex items-center justify-center">
               <FileCode className="h-6 w-6" />
             </div>
-            <span className="text-[11px] font-medium tracking-tight">Select a file</span>
+            <span className="text-[11px] font-medium tracking-tight">
+              Select a file
+            </span>
           </div>
         )}
       </div>

@@ -11,6 +11,9 @@ import {
 import { Menu, X } from "lucide-react";
 import React, { createContext, useContext, useRef, useState } from "react";
 
+const TYPEOF_FUNCTION = "function";
+const BUTTON_ELEMENT = "button";
+
 interface NavbarProps {
     children: React.ReactNode;
     className?: string;
@@ -28,6 +31,12 @@ interface NavbarContextType {
 }
 
 const NavbarContext = createContext<NavbarContextType | undefined>(undefined);
+
+function isNavBodyRenderProp(
+    children: NavBodyProps["children"],
+): children is (props: { visible: boolean }) => React.ReactNode {
+    return typeof children === TYPEOF_FUNCTION;
+}
 
 const useNavbarContext = () => {
     const context = useContext(NavbarContext);
@@ -89,7 +98,7 @@ export const NavBody = ({ children, className }: NavBodyProps) => {
                 className,
             )}
         >
-            {typeof children === "function" ? children({ visible }) : children}
+            {isNavBodyRenderProp(children) ? children({ visible }) : children}
         </motion.div>
     );
 };
@@ -296,10 +305,10 @@ export const NavbarButton = ({
             "bg-gradient-to-b from-blue-500 to-blue-700 text-white shadow-[0px_2px_0px_0px_rgba(255,255,255,0.3)_inset]",
     };
 
-    const Component = Tag || (href ? Link : "button");
+    const Component = Tag || (href ? Link : BUTTON_ELEMENT);
     const buttonType =
-        Component === "button"
-            ? ((props as React.ComponentPropsWithoutRef<"button">).type ?? "button")
+        Component === BUTTON_ELEMENT
+            ? ((props as React.ComponentPropsWithoutRef<"button">).type ?? BUTTON_ELEMENT)
             : undefined;
 
     return (

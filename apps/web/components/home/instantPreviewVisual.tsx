@@ -12,6 +12,7 @@ import {
   BrowserHeader,
   Sidebar,
   SkeletonUI,
+  LayoutType,
   LayoutRenderer,
   LAYOUT_ORDER,
 } from "./instantPreviewLayouts";
@@ -52,7 +53,7 @@ export function InstantPreviewVisual() {
     };
   }, []);
 
-  const currentLayoutType = LAYOUT_ORDER[index] ?? "dashboard";
+  const currentLayoutType = LAYOUT_ORDER[index] ?? LayoutType.DASHBOARD;
 
   return (
     <div className="absolute inset-0 flex justify-center opacity-95 pointer-events-none group-hover:scale-[1.03] transition-transform duration-[1.5s] ease-out pt-4">

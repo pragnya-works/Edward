@@ -7,6 +7,10 @@ import {
   MAX_DEPENDENCIES,
   MAX_PACKAGE_NAME_LENGTH,
 } from "../utils/sharedConstants.js";
+import {
+  MessageContentPartSchema,
+  MultimodalContentSchema,
+} from "../utils/imageValidation.js";
 
 const ModelValues = Object.values(Model) as [string, ...string[]];
 
@@ -42,13 +46,19 @@ export const ChatIdParamSchema = z.object({
 });
 
 export const UnifiedSendMessageSchema = z.object({
-  content: z.string().min(1, "Message content cannot be empty"),
+  content: z.union([
+    z.string().min(1, "Message content cannot be empty"),
+    MultimodalContentSchema,
+  ]),
   chatId: z.string().optional(),
   title: z.string().optional(),
   description: z.string().optional(),
   visibility: z.boolean().optional(),
   model: z.enum(ModelValues).optional(),
 });
+
+export type MessageContentPart = z.infer<typeof MessageContentPartSchema>;
+export type MultimodalContent = z.infer<typeof MultimodalContentSchema>;
 
 export const UnifiedSendMessageRequestSchema = z.object({
   body: UnifiedSendMessageSchema,

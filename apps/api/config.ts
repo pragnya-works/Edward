@@ -76,8 +76,8 @@ export const config = {
   cors: {
     origins: process.env.CORS_ORIGIN
       ? process.env.CORS_ORIGIN.split(",")
-        .map((o) => o.trim())
-        .filter(Boolean)
+          .map((o) => o.trim())
+          .filter(Boolean)
       : [],
   },
 
@@ -86,11 +86,18 @@ export const config = {
   },
 
   aws: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+    accessKeyId: validateEnvVar(
+      "AWS_ACCESS_KEY_ID",
+      process.env.AWS_ACCESS_KEY_ID,
+    ),
+    secretAccessKey: validateEnvVar(
+      "AWS_SECRET_ACCESS_KEY",
+      process.env.AWS_SECRET_ACCESS_KEY,
+    ),
     region: process.env.AWS_REGION || "us-east-1",
-    s3Bucket: process.env.AWS_BUCKET_NAME,
-    cloudfrontDomain: process.env.CLOUDFRONT_DOMAIN,
+    s3Bucket: validateEnvVar("AWS_BUCKET_NAME", process.env.AWS_BUCKET_NAME),
+    s3CdnBucket: validateEnvVar("AWS_CDN_BUCKET_NAME", process.env.AWS_CDN_BUCKET_NAME),
+    assetsUrl: process.env.ASSETS_URL,
     cloudfrontDistributionUrl: process.env.CLOUDFRONT_DISTRIBUTION_URL,
     cloudfrontDistributionId: process.env.CLOUDFRONT_DISTRIBUTION_ID,
   },

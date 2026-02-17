@@ -1,7 +1,12 @@
-import { X } from "lucide-react";
+import { X, Loader2, AlertCircle } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
-import { MAX_FILES, type AttachedFile } from "./promptbar.constants";
+import {
+  isUploading,
+  isUploadFailed,
+  type AttachedFile,
+} from "./promptbar.constants";
 import { Button } from "@edward/ui/components/button";
+import { IMAGE_UPLOAD_CONFIG } from "@edward/shared/constants";
 
 interface ImagePreviewStripProps {
   attachedFiles: AttachedFile[];
@@ -43,7 +48,7 @@ export function ImagePreviewStrip({
           transition={{ duration: 0.2, ease: "easeOut" }}
           className="overflow-hidden"
         >
-          <div className="px-4 border-b border-border/10">
+          <div className="px-4 border-b border-border/10 dark:bg-input/30">
             <div className="flex items-center gap-3 overflow-x-auto scrollbar-hide px-2 py-5">
               {attachedFiles.map((file, index) => (
                 <motion.div
@@ -59,6 +64,16 @@ export function ImagePreviewStrip({
                       alt={file.file.name}
                       className="h-full w-full object-cover"
                     />
+                    {isUploading(file) && (
+                      <div className="absolute inset-0 bg-black/35 flex items-center justify-center">
+                        <Loader2 className="h-4 w-4 text-white animate-spin" />
+                      </div>
+                    )}
+                    {isUploadFailed(file) && (
+                      <div className="absolute left-1 bottom-1 rounded-full bg-red-500/90 p-0.5">
+                        <AlertCircle className="h-3 w-3 text-white" />
+                      </div>
+                    )}
                     <Button
                       type="button"
                       variant="ghost"
@@ -86,7 +101,7 @@ export function ImagePreviewStrip({
                 </motion.button>
               )}
               <span className="flex-shrink-0 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/30 dark:text-muted-foreground/20 pl-2">
-                {attachedFiles.length} / {MAX_FILES}
+                {attachedFiles.length} / {IMAGE_UPLOAD_CONFIG.MAX_FILES}
               </span>
             </div>
           </div>

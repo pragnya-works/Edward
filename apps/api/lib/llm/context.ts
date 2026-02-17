@@ -1,6 +1,7 @@
 import {
   db,
   message,
+  attachment,
   eq,
   desc,
   getLatestBuildByChatId,
@@ -19,6 +20,9 @@ import {
   isAssistantConversationRole,
   normalizeConversationRole,
 } from "./messageRole.js";
+import { type MessageContentPart, type MessageContent } from "./types.js";
+import type { AllowedImageMimeType } from "../../utils/imageValidation.js";
+import { validateImageUrl } from "../../utils/imageValidation.js";
 
 const MAX_CONTEXT_BYTES = 150 * 1024;
 const MAX_HISTORY_BYTES = 35 * 1024;
@@ -27,7 +31,7 @@ const HISTORY_LIMIT = 8;
 
 export type LlmChatMessage = {
   role: LlmConversationRole;
-  content: string;
+  content: MessageContent;
 };
 
 function truncateUtf8(input: string, maxBytes: number): string {
@@ -65,19 +69,81 @@ export async function buildConversationMessages(chatId: string): Promise<{
     const role = normalizeConversationRole((msg as { role?: unknown }).role);
     if (!role) continue;
 
+    const msgId = (msg as { id?: string }).id;
     const rawContent = String((msg as { content?: unknown }).content ?? "");
-    const cleaned = isAssistantConversationRole(role)
-      ? stripAssistantArtifacts(rawContent)
-      : rawContent.trim();
-    if (!cleaned) continue;
 
-    const safeContent = truncateUtf8(cleaned, MAX_MESSAGE_BYTES);
-    const entry: LlmChatMessage = { role, content: safeContent };
+    if (isAssistantConversationRole(role)) {
+      const cleaned = stripAssistantArtifacts(rawContent);
+      if (!cleaned) continue;
+      const safeContent = truncateUtf8(cleaned, MAX_MESSAGE_BYTES);
+      const entry: LlmChatMessage = { role, content: safeContent };
+      const entryBytes = Buffer.byteLength(safeContent, "utf8") + 16;
+      if (historyBytes + entryBytes > MAX_HISTORY_BYTES) break;
+      history.push(entry);
+      historyBytes += entryBytes;
+    } else {
+      let messageContent: MessageContent = rawContent.trim();
+      let contentBytes = Buffer.byteLength(rawContent, "utf8");
 
-    const entryBytes = Buffer.byteLength(entry.content, "utf8") + 16;
-    if (historyBytes + entryBytes > MAX_HISTORY_BYTES) break;
-    history.push(entry);
-    historyBytes += entryBytes;
+      if (msgId) {
+        try {
+          const msgAttachments = await db
+            .select()
+            .from(attachment)
+            .where(eq(attachment.messageId, msgId));
+
+          const imageAttachments = msgAttachments.filter(
+            (a) => a.type === "image",
+          );
+
+          if (imageAttachments.length > 0) {
+            const parts: MessageContentPart[] = [];
+
+            if (rawContent.trim()) {
+              parts.push({ type: "text", text: rawContent.trim() });
+            }
+
+            for (const att of imageAttachments) {
+              if (att.url.startsWith("data:")) {
+                const match = att.url.match(/^data:([^;]+);base64,(.+)$/);
+                if (!match || !match[1] || !match[2]) continue;
+                parts.push({
+                  type: "image",
+                  base64: match[2],
+                  mimeType: match[1] as AllowedImageMimeType,
+                });
+                contentBytes += Math.ceil(match[2].length * 0.75);
+                continue;
+              }
+
+              const remoteImage = await validateImageUrl(att.url);
+              if (remoteImage.success) {
+                parts.push({
+                  type: "image",
+                  base64: remoteImage.data.base64,
+                  mimeType: remoteImage.data.mimeType,
+                });
+                contentBytes += remoteImage.data.sizeBytes;
+              }
+            }
+
+            messageContent = parts;
+          }
+        } catch (err) {
+          logger.warn(
+            { err, msgId },
+            "Failed to fetch attachments for message",
+          );
+        }
+      }
+
+      if (!rawContent.trim() && typeof messageContent === "string") continue;
+
+      const entry: LlmChatMessage = { role, content: messageContent };
+      if (historyBytes + contentBytes > MAX_HISTORY_BYTES) break;
+      history.push(entry);
+      historyBytes += contentBytes;
+    }
   }
 
   const latestBuild = await getLatestBuildByChatId(chatId);
@@ -116,18 +182,21 @@ export async function buildConversationMessages(chatId: string): Promise<{
       let projectFiles: Map<string, string>;
 
       const affectedFiles = errorReport
-        ? [...new Set(
-          errorReport.errors
-            .flatMap((e: typeof errorReport.errors[number]) => [
-              e.error.file,
-              ...(e.relatedFiles?.map(
-                (rf: typeof e.relatedFiles[number]) => rf.path,
-              ) || []),
-            ])
-            .filter(
-              (f: string): f is string => typeof f === "string" && f !== "unknown",
+        ? [
+            ...new Set(
+              errorReport.errors
+                .flatMap((e: (typeof errorReport.errors)[number]) => [
+                  e.error.file,
+                  ...(e.relatedFiles?.map(
+                    (rf: (typeof e.relatedFiles)[number]) => rf.path,
+                  ) || []),
+                ])
+                .filter(
+                  (f: string): f is string =>
+                    typeof f === "string" && f !== "unknown",
+                ),
             ),
-        )]
+          ]
         : [];
 
       if (affectedFiles.length > 0) {
@@ -149,7 +218,9 @@ export async function buildConversationMessages(chatId: string): Promise<{
         } else {
           const remaining = Math.max(0, MAX_CONTEXT_BYTES - currentBytes);
           if (remaining > 256) {
-            projectContext += (projectContext ? "\n\n" : "") + truncateUtf8(snapshot, remaining);
+            projectContext +=
+              (projectContext ? "\n\n" : "") +
+              truncateUtf8(snapshot, remaining);
           }
         }
       }

@@ -1,7 +1,12 @@
+export enum FileTreeNodeType {
+  FILE = "file",
+  FOLDER = "folder",
+}
+
 export interface FileTreeNode {
   name: string;
   path: string;
-  type: "file" | "folder";
+  type: FileTreeNodeType;
   children?: FileTreeNode[];
 }
 
@@ -23,7 +28,7 @@ export function buildFileTree(files: { path: string }[]): FileTreeNode[] {
         existing = {
           name: part,
           path: currentPath,
-          type: isFile ? "file" : "folder",
+          type: isFile ? FileTreeNodeType.FILE : FileTreeNodeType.FOLDER,
           children: isFile ? undefined : [],
         };
         current.push(existing);
@@ -43,7 +48,7 @@ export function buildFileTree(files: { path: string }[]): FileTreeNode[] {
       }))
       .sort((a, b) => {
         if (a.type !== b.type) {
-          return a.type === "folder" ? -1 : 1;
+          return a.type === FileTreeNodeType.FOLDER ? -1 : 1;
         }
         return a.name.localeCompare(b.name);
       });

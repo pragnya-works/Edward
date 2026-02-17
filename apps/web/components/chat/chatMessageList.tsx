@@ -10,6 +10,7 @@ import type {
   ChatMessage as ChatMessageType,
   StreamState,
 } from "@/lib/chatTypes";
+import { ChatRole } from "@/lib/chatTypes";
 
 interface ChatMessageListProps {
   messages: ChatMessageType[];
@@ -84,7 +85,7 @@ export const ChatMessageList = memo(function ChatMessageList({
     ]);
 
   const visibleMessages = messages.filter(
-    (m) => m.role === "user" || m.role === "assistant",
+    (m) => m.role === ChatRole.USER || m.role === ChatRole.ASSISTANT,
   );
 
   const isEmpty = visibleMessages.length === 0 && !stream.isStreaming;

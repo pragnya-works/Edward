@@ -313,13 +313,18 @@ const SettingsLayout = memo(function SettingsLayout() {
   );
 });
 
-export type LayoutType = "dashboard" | "marketing" | "kanban" | "settings";
+export enum LayoutType {
+  DASHBOARD = "dashboard",
+  MARKETING = "marketing",
+  KANBAN = "kanban",
+  SETTINGS = "settings",
+}
 
 export const LAYOUT_ORDER: LayoutType[] = [
-  "dashboard",
-  "marketing",
-  "kanban",
-  "settings",
+  LayoutType.DASHBOARD,
+  LayoutType.MARKETING,
+  LayoutType.KANBAN,
+  LayoutType.SETTINGS,
 ];
 
 export const LayoutRenderer = memo(function LayoutRenderer({
@@ -328,13 +333,13 @@ export const LayoutRenderer = memo(function LayoutRenderer({
   type: LayoutType;
 }) {
   switch (type) {
-    case "dashboard":
+    case LayoutType.DASHBOARD:
       return <DashboardLayout />;
-    case "marketing":
+    case LayoutType.MARKETING:
       return <MarketingLayout />;
-    case "kanban":
+    case LayoutType.KANBAN:
       return <KanbanLayout />;
-    case "settings":
+    case LayoutType.SETTINGS:
       return <SettingsLayout />;
   }
 });

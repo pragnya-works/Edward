@@ -1,5 +1,8 @@
+import { IMAGE_UPLOAD_CONFIG } from "@edward/shared/constants";
+
 const DEFAULT_API_URL = "http://localhost:8000";
 export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || DEFAULT_API_URL;
+const TYPEOF_UNDEFINED = "undefined";
 
 if (!process.env.NEXT_PUBLIC_API_URL) {
   console.warn(
@@ -11,6 +14,11 @@ if (!process.env.NEXT_PUBLIC_API_URL) {
 export interface ApiError extends Error {
   status: number;
   data?: unknown;
+}
+
+export enum MessageContentPartType {
+  TEXT = "text",
+  IMAGE = "image",
 }
 
 function buildApiUrl(endpoint: string): string {
@@ -30,8 +38,8 @@ async function toApiError(response: Response): Promise<ApiError> {
 }
 
 export type MessageContentPart =
-  | { type: "text"; text: string }
-  | { type: "image"; base64: string; mimeType: string };
+  | { type: MessageContentPartType.TEXT; text: string }
+  | { type: MessageContentPartType.IMAGE; url: string; mimeType?: string };
 
 export type MessageContent = string | MessageContentPart[];
 
@@ -44,7 +52,7 @@ export interface SendMessageRequest {
 
 function withDefaultHeaders(options: RequestInit): RequestInit {
   const hasFormDataBody =
-    typeof FormData !== "undefined" && options.body instanceof FormData;
+    typeof FormData !== TYPEOF_UNDEFINED && options.body instanceof FormData;
   const headers = new Headers(options.headers);
 
   if (!hasFormDataBody && !headers.has("Content-Type")) {
@@ -62,7 +70,10 @@ export async function fetchApiResponse(
   endpoint: string,
   options: RequestInit = {},
 ): Promise<Response> {
-  const response = await fetch(buildApiUrl(endpoint), withDefaultHeaders(options));
+  const response = await fetch(
+    buildApiUrl(endpoint),
+    withDefaultHeaders(options),
+  );
   if (!response.ok) {
     throw await toApiError(response);
   }
@@ -88,45 +99,131 @@ export async function postChatMessageStream(
   });
 }
 
-async function fileToContentPart(file: File): Promise<MessageContentPart> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = reader.result as string;
-      const base64 = result.split(",")[1] || "";
-      resolve({
-        type: "image",
-        base64,
-        mimeType: file.type || "image/jpeg",
-      });
+export type UploadableImageMimeType =
+  (typeof IMAGE_UPLOAD_CONFIG.ALLOWED_MIME_TYPES)[number];
+
+export interface UploadedImage {
+  url: string;
+  mimeType: string;
+  name?: string;
+  sizeBytes?: number;
+}
+
+function normalizeImageMimeType(
+  mimeType?: string,
+): UploadableImageMimeType | undefined {
+  if (!mimeType) return undefined;
+  if (
+    IMAGE_UPLOAD_CONFIG.ALLOWED_MIME_TYPES.includes(
+      mimeType as UploadableImageMimeType,
+    )
+  ) {
+    return mimeType as UploadableImageMimeType;
+  }
+  console.warn(`Image type ${mimeType} not supported. Sending URL without mime.`);
+  return undefined;
+}
+
+function validateFile(file: File): { valid: boolean; error?: string } {
+  if (
+    !IMAGE_UPLOAD_CONFIG.ALLOWED_MIME_TYPES.includes(
+      file.type as (typeof IMAGE_UPLOAD_CONFIG.ALLOWED_MIME_TYPES)[number],
+    )
+  ) {
+    return {
+      valid: false,
+      error: `File type ${file.type} not supported. Use JPEG, PNG, or WebP.`,
     };
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
+  }
+  if (file.size > IMAGE_UPLOAD_CONFIG.MAX_SIZE_BYTES) {
+    return {
+      valid: false,
+      error: `File ${file.name} exceeds ${IMAGE_UPLOAD_CONFIG.MAX_SIZE_MB}MB limit.`,
+    };
+  }
+  return { valid: true };
 }
 
 export async function filesToMessageContent(
   text: string,
-  files: File[],
+  images: UploadedImage[],
 ): Promise<MessageContent> {
-  if (files.length === 0) return text;
-  if (files.length === 1 && !text) {
-    const fileContent = await fileToContentPart(files[0]!);
-    return [fileContent];
+  const uploadedImages = images
+    .slice(0, IMAGE_UPLOAD_CONFIG.MAX_FILES)
+    .map((image) => ({
+      ...image,
+      url: image.url?.trim(),
+      mimeType: normalizeImageMimeType(image.mimeType),
+    }))
+    .filter((image) => Boolean(image.url));
+
+  if (uploadedImages.length === 0) return text;
+
+  if (uploadedImages.length === 1 && !text) {
+    return [
+      {
+        type: MessageContentPartType.IMAGE,
+        url: uploadedImages[0]!.url,
+        mimeType: uploadedImages[0]!.mimeType,
+      },
+    ];
   }
 
   const parts: MessageContentPart[] = [];
 
   if (text) {
-    parts.push({ type: "text", text });
+    parts.push({ type: MessageContentPartType.TEXT, text });
   }
 
-  for (const file of files) {
-    const fileContent = await fileToContentPart(file);
-    parts.push(fileContent);
-  }
+  parts.push(
+    ...uploadedImages.map((image) => ({
+      type: MessageContentPartType.IMAGE as const,
+      url: image.url,
+      mimeType: image.mimeType,
+    })),
+  );
 
   return parts;
+}
+
+interface UploadImageResponse {
+  message: string;
+  data: {
+    url: string;
+    key: string;
+    mimeType: UploadableImageMimeType;
+    sizeBytes: number;
+  };
+  timestamp: string;
+}
+
+export async function uploadImageToCdn(file: File): Promise<UploadedImage> {
+  const validation = validateFile(file);
+  if (!validation.valid) {
+    throw new Error(validation.error || "Invalid file");
+  }
+
+  const response = await fetch(buildApiUrl("/chat/image-upload"), {
+    method: "POST",
+    body: file,
+    credentials: "include",
+    headers: {
+      "Content-Type": file.type || "image/jpeg",
+      "x-file-name": encodeURIComponent(file.name),
+    },
+  });
+
+  if (!response.ok) {
+    throw await toApiError(response);
+  }
+
+  const result = (await response.json()) as UploadImageResponse;
+  return {
+    url: result.data.url,
+    mimeType: result.data.mimeType,
+    name: file.name,
+    sizeBytes: result.data.sizeBytes,
+  };
 }
 
 export interface BuildError {

@@ -1,4 +1,4 @@
-import { Provider } from "@edward/shared/constants";
+import type { Provider } from "@edward/shared/constants";
 
 export const SUGGESTIONS: string[] = [
   "Build a high-fidelity SaaS landing page with Bento grid layouts and subtle motion reveals",
@@ -8,16 +8,14 @@ export const SUGGESTIONS: string[] = [
   "Develop a glassmorphic analytics dashboard using interactive charting and Tailwind CSS",
 ];
 
-export const ACCEPTED_IMAGE_TYPES = [
-  "image/jpeg",
-  "image/png",
-  "image/webp",
-  "image/gif",
-  "image/heic",
-  "image/heif",
-];
-export const MAX_FILE_SIZE = 10 * 1024 * 1024;
-export const MAX_FILES = 5;
+export const AttachmentUploadStatus = {
+  UPLOADING: "uploading",
+  UPLOADED: "uploaded",
+  FAILED: "failed",
+} as const;
+
+export type AttachmentUploadStatus =
+  (typeof AttachmentUploadStatus)[keyof typeof AttachmentUploadStatus];
 
 export type PromptMode = "agent" | "chat";
 
@@ -33,12 +31,41 @@ export interface AttachedFile {
   id: string;
   file: File;
   preview: string;
+  status: AttachmentUploadStatus;
+  cdnUrl?: string;
+  mimeType?: string;
+  error?: string;
+}
+
+export function isUploading(file: AttachedFile): boolean {
+  return file.status === AttachmentUploadStatus.UPLOADING;
+}
+
+export function isUploaded(file: AttachedFile): boolean {
+  return file.status === AttachmentUploadStatus.UPLOADED;
+}
+
+export function isUploadFailed(file: AttachedFile): boolean {
+  return file.status === AttachmentUploadStatus.FAILED;
+}
+
+export interface UploadedImageRef {
+  url: string;
+  mimeType: string;
+  name: string;
+  sizeBytes?: number;
 }
 
 export interface PromptbarProps {
   isAuthenticated?: boolean;
   onSignIn?: () => void | Promise<void>;
-  onProtectedAction?: (text: string, files?: File[]) => void | Promise<void>;
+  onProtectedAction?: (
+    text: string,
+    images?: UploadedImageRef[],
+  ) => void | Promise<void>;
+  onImageUpload?: (
+    file: File,
+  ) => Promise<{ url: string; mimeType: string; sizeBytes?: number }>;
   hasApiKey?: boolean | null;
   isApiKeyLoading?: boolean;
   apiKeyError?: string;

@@ -8,7 +8,7 @@
     "lint": "turbo lint",
     "lint:fix": "turbo lint:fix",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
-    "ci:local": "pnpm audit --audit-level=high && pnpm turbo typecheck && pnpm turbo lint && pnpm --filter api test:coverage && pnpm turbo build"
+    "ci:local": "NODE_OPTIONS=--no-deprecation pnpm audit --audit-level=high && pnpm turbo typecheck && pnpm turbo lint && pnpm --filter api test:coverage && pnpm turbo build"
   },
   "pnpm": {
     "overrides": {

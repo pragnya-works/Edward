@@ -12,24 +12,34 @@ interface MarkdownRendererProps {
   className?: string;
 }
 
+const TYPEOF_STRING = "string";
+const TYPEOF_OBJECT = "object";
+
+function isStringNode(node: unknown): node is string {
+  return typeof node === TYPEOF_STRING;
+}
+
+function isObjectNode(
+  node: unknown,
+): node is { props?: { children?: React.ReactNode } } {
+  return typeof node === TYPEOF_OBJECT && node !== null;
+}
+
 const components: Components = {
   code({ className, children, ...props }) {
     const match = /language-(\w+)/.exec(className || "");
-    const isBlock =
-      typeof children === "string" ? children.includes("\n") : false;
+    const isBlock = isStringNode(children) ? children.includes("\n") : false;
 
     const getTextFromChildren = (nodes: React.ReactNode): string => {
       if (!nodes) return "";
-      if (typeof nodes === "string") return nodes;
+      if (isStringNode(nodes)) return nodes;
       if (Array.isArray(nodes)) return nodes.map(getTextFromChildren).join("");
       if (
-        typeof nodes === "object" &&
+        isObjectNode(nodes) &&
         "props" in nodes &&
-        (nodes as { props?: { children?: React.ReactNode } }).props?.children
+        nodes.props?.children
       )
-        return getTextFromChildren(
-          (nodes as { props: { children: React.ReactNode } }).props.children,
-        );
+        return getTextFromChildren(nodes.props.children);
       return String(nodes);
     };
 

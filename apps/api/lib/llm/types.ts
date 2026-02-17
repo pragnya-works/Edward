@@ -1,7 +1,9 @@
+import type { AllowedImageMimeType } from "../../utils/imageValidation.js";
+
 export interface VisionImage {
   type: "image";
   base64: string;
-  mimeType: string;
+  mimeType: AllowedImageMimeType;
 }
 
 export interface TextContent {

@@ -9,15 +9,66 @@ import { cn } from "@edward/ui/lib/utils";
 import { useSandbox } from "@/contexts/sandboxContext";
 import { ProjectButton } from "./projectButton";
 import type { ChatMessage as ChatMessageType } from "@/lib/chatTypes";
-import { ParserEventType } from "@/lib/chatTypes";
+import {
+  ChatRole,
+  MessageAttachmentType,
+  ParserEventType,
+} from "@/lib/chatTypes";
+import { MessageContentPartType } from "@/lib/api";
 
-import { parseMessageContent } from "@/lib/messageParser";
+import { MessageBlockType, parseMessageContent } from "@/lib/messageParser";
 import { ThinkingIndicator } from "./thinkingIndicator";
 import { FileBlock } from "./fileBlock";
 import { CommandBlock } from "./commandBlock";
 import { InstallBlock } from "./installBlock";
 
 import { MarkdownRenderer } from "./markdownRenderer";
+import Image from "next/image";
+
+interface ImageAttachmentGridProps {
+  attachments: NonNullable<ChatMessageType["attachments"]>;
+}
+
+const ImageAttachmentGrid = memo(function ImageAttachmentGrid({
+  attachments,
+}: ImageAttachmentGridProps) {
+  const imageAttachments = attachments.filter(
+    (a) => a.type === MessageAttachmentType.IMAGE,
+  );
+
+  if (imageAttachments.length === 0) return null;
+
+  return (
+    <div
+      className={cn(
+        "grid gap-2 mb-2",
+        imageAttachments.length === 1 && "grid-cols-1",
+        imageAttachments.length === 2 && "grid-cols-2",
+        imageAttachments.length >= 3 && "grid-cols-3",
+      )}
+    >
+      {imageAttachments.map((attachment) => (
+        <motion.div
+          key={attachment.id}
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="relative rounded-xl overflow-hidden bg-foreground/[0.03] border border-foreground/[0.05]"
+        >
+          <Image
+            src={attachment.url}
+            alt={attachment.name || "Uploaded image"}
+            width={1200}
+            height={800}
+            sizes="(max-width: 640px) 85vw, (max-width: 1024px) 60vw, 420px"
+            className="w-full h-auto max-h-48 object-cover"
+            loading="lazy"
+            decoding="async"
+          />
+        </motion.div>
+      ))}
+    </div>
+  );
+});
 
 interface ChatMessageProps {
   message: ChatMessageType;
@@ -45,12 +96,9 @@ export const ChatMessage = memo(function ChatMessage({
   message,
   index,
 }: ChatMessageProps) {
-  const {
-    setFiles,
-    files: globalFiles,
-  } = useSandbox();
+  const { setFiles, files: globalFiles } = useSandbox();
 
-  const isUser = message.role === "user";
+  const isUser = message.role === ChatRole.USER;
   const time = useMemo(
     () => formatTime(message.createdAt),
     [message.createdAt],
@@ -66,7 +114,7 @@ export const ChatMessage = memo(function ChatMessage({
       }>;
       if (Array.isArray(parsed)) {
         return parsed
-          .filter((p) => p.type === "text" && p.text)
+          .filter((p) => p.type === MessageContentPartType.TEXT && p.text)
           .map((p) => p.text)
           .join("\n");
       }
@@ -82,18 +130,17 @@ export const ChatMessage = memo(function ChatMessage({
   }, [displayContent, isUser]);
 
   const sandboxBlock = useMemo(
-    () => blocks?.find((b) => b.type === "sandbox"),
+    () => blocks?.find((b) => b.type === MessageBlockType.SANDBOX),
     [blocks],
   );
   const fileBlocks = useMemo(
-    () => blocks?.filter((b) => b.type === "file") || [],
+    () => blocks?.filter((b) => b.type === MessageBlockType.FILE) || [],
     [blocks],
   );
   const hasFiles = fileBlocks.length > 0 || !!sandboxBlock;
   const showFooterButton = hasFiles && !sandboxBlock;
 
   const handleToggle = useCallback(() => {
-    // If the global sandbox is empty but this message has files, hydrate the sandbox
     if (globalFiles.length === 0 && fileBlocks.length > 0) {
       setFiles(
         fileBlocks.map((f) => ({
@@ -138,14 +185,21 @@ export const ChatMessage = memo(function ChatMessage({
           )}
         >
           {isUser ? (
-            <p className="text-[14px] sm:text-[15px] leading-[1.7] sm:leading-[1.8] tracking-tight whitespace-pre-wrap break-words font-medium">
-              {displayContent}
-            </p>
+            <div className="flex flex-col gap-2">
+              {message.attachments && message.attachments.length > 0 && (
+                <ImageAttachmentGrid attachments={message.attachments} />
+              )}
+              {displayContent && (
+                <p className="text-[14px] sm:text-[15px] leading-[1.7] sm:leading-[1.8] tracking-tight whitespace-pre-wrap break-words font-medium">
+                  {displayContent}
+                </p>
+              )}
+            </div>
           ) : (
             <div className="flex flex-col gap-3 sm:gap-4 w-full">
               {blocks?.map((block, i) => {
                 switch (block.type) {
-                  case "thinking":
+                  case MessageBlockType.THINKING:
                     return (
                       <ThinkingIndicator
                         key={i}
@@ -154,7 +208,7 @@ export const ChatMessage = memo(function ChatMessage({
                         isCodeMode={false}
                       />
                     );
-                  case "file":
+                  case MessageBlockType.FILE:
                     if (block.isInternal) return null;
                     return (
                       <FileBlock
@@ -167,7 +221,7 @@ export const ChatMessage = memo(function ChatMessage({
                         index={i}
                       />
                     );
-                  case "command":
+                  case MessageBlockType.COMMAND:
                     return (
                       <CommandBlock
                         key={i}
@@ -178,11 +232,11 @@ export const ChatMessage = memo(function ChatMessage({
                         }}
                       />
                     );
-                  case "install":
+                  case MessageBlockType.INSTALL:
                     return (
                       <InstallBlock key={i} dependencies={block.dependencies} />
                     );
-                  case "sandbox":
+                  case MessageBlockType.SANDBOX:
                     return (
                       <motion.div
                         key={i}
@@ -203,9 +257,9 @@ export const ChatMessage = memo(function ChatMessage({
                         />
                       </motion.div>
                     );
-                  case "done":
+                  case MessageBlockType.DONE:
                     return null;
-                  case "text":
+                  case MessageBlockType.TEXT:
                     return (
                       <div
                         key={i}
@@ -244,7 +298,7 @@ export const ChatMessage = memo(function ChatMessage({
 
         <div
           className={cn(
-            "flex flex-wrap items-center gap-x-2 gap-y-1 mt-0.5 mt-1 px-1",
+            "flex flex-wrap items-center gap-x-2 gap-y-1 mt-1.5 sm:mt-2 px-1",
             isUser ? "flex-row-reverse" : "flex-row",
           )}
         >

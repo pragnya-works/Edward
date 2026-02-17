@@ -22,9 +22,16 @@ import {
   type ChatMessage,
 } from "@/lib/chatTypes";
 import { buildMessageFromStream } from "@/lib/streamToMessage";
-import { streamReducer, type StreamMap } from "./chatStream.reducer";
+import {
+  StreamActionType,
+  streamReducer,
+  type StreamMap,
+} from "./chatStream.reducer";
 import { processStreamResponse } from "./chatStream.processor";
 import { queryKeys } from "@/lib/queryKeys";
+
+const ABORT_ERROR_NAME = "AbortError";
+const PENDING_CHAT_ID_PREFIX = "pending_";
 
 interface ChatStreamStateContextValue {
   streams: StreamMap;
@@ -67,7 +74,7 @@ export function ChatStreamProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const resetStream = useCallback((chatId: string) => {
-    dispatch({ type: "REMOVE_STREAM", chatId });
+    dispatch({ type: StreamActionType.REMOVE_STREAM, chatId });
   }, []);
 
   const cancelStream = useCallback((chatId: string) => {
@@ -76,7 +83,7 @@ export function ChatStreamProvider({ children }: { children: ReactNode }) {
       controller.abort();
       abortControllersRef.current.delete(chatId);
     }
-    dispatch({ type: "STOP_STREAMING", chatId });
+    dispatch({ type: StreamActionType.STOP_STREAMING, chatId });
   }, []);
 
   const getStreamForChat = useCallback(
@@ -102,7 +109,7 @@ export function ChatStreamProvider({ children }: { children: ReactNode }) {
       const controller = new AbortController();
       abortControllersRef.current.set(streamKey, controller);
 
-      dispatch({ type: "START_STREAMING", chatId: streamKey });
+      dispatch({ type: StreamActionType.START_STREAMING, chatId: streamKey });
 
       const thinkingRef = { current: null as number | null };
 
@@ -119,7 +126,11 @@ export function ChatStreamProvider({ children }: { children: ReactNode }) {
         thinkingStartRef: thinkingRef,
         onChatIdResolved: (realChatId: string) => {
           if (realChatId !== streamKey) {
-            dispatch({ type: "RENAME_STREAM", oldChatId: streamKey, newChatId: realChatId });
+            dispatch({
+              type: StreamActionType.RENAME_STREAM,
+              oldChatId: streamKey,
+              newChatId: realChatId,
+            });
             const ctrl = abortControllersRef.current.get(streamKey);
             if (ctrl) {
               abortControllersRef.current.delete(streamKey);
@@ -132,7 +143,7 @@ export function ChatStreamProvider({ children }: { children: ReactNode }) {
 
       const metaEvt = streamResult?.meta;
 
-      dispatch({ type: "STOP_STREAMING", chatId: resolvedChatId });
+      dispatch({ type: StreamActionType.STOP_STREAMING, chatId: resolvedChatId });
 
       if (metaEvt?.chatId && streamResult) {
         const augmentedStreamState: StreamState = {
@@ -171,27 +182,27 @@ export function ChatStreamProvider({ children }: { children: ReactNode }) {
 
         await new Promise((resolve) => setTimeout(resolve, 150));
 
-        dispatch({ type: "REMOVE_STREAM", chatId: resolvedChatId });
+        dispatch({ type: StreamActionType.REMOVE_STREAM, chatId: resolvedChatId });
       }
 
       return metaEvt;
     },
     onError: (err: Error, variables) => {
       const chatId = variables.streamKey;
-      if (err.name === "AbortError") {
-        dispatch({ type: "STOP_STREAMING", chatId });
+      if (err.name === ABORT_ERROR_NAME) {
+        dispatch({ type: StreamActionType.STOP_STREAMING, chatId });
         return;
       }
-      dispatch({ type: "STOP_STREAMING", chatId });
+      dispatch({ type: StreamActionType.STOP_STREAMING, chatId });
       const apiError = err as Error & { status?: number };
       if (apiError.status === 429) {
         dispatch({
-          type: "SET_ERROR",
+          type: StreamActionType.SET_ERROR,
           chatId,
           error: "Too many concurrent chats. Please wait for one to finish.",
         });
       } else {
-        dispatch({ type: "SET_ERROR", chatId, error: err.message });
+        dispatch({ type: StreamActionType.SET_ERROR, chatId, error: err.message });
       }
     },
     onSettled: (_data, _error, variables) => {
@@ -203,12 +214,17 @@ export function ChatStreamProvider({ children }: { children: ReactNode }) {
     (content: MessageContent, opts?: { chatId?: string; model?: string }) => {
       if (!opts?.chatId) {
         for (const key of Object.keys(streamsRef.current)) {
-          if (key.startsWith("pending_") && !streamsRef.current[key]?.isStreaming) {
-            dispatch({ type: "REMOVE_STREAM", chatId: key });
+          if (
+            key.startsWith(PENDING_CHAT_ID_PREFIX) &&
+            !streamsRef.current[key]?.isStreaming
+          ) {
+            dispatch({ type: StreamActionType.REMOVE_STREAM, chatId: key });
           }
         }
       }
-      const streamKey = opts?.chatId ?? `pending_${crypto.randomUUID().slice(0, 8)}`;
+      const streamKey =
+        opts?.chatId ??
+        `${PENDING_CHAT_ID_PREFIX}${crypto.randomUUID().slice(0, 8)}`;
       mutation.mutate({
         content,
         chatId: opts?.chatId,

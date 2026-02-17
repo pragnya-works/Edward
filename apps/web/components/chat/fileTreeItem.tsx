@@ -11,7 +11,7 @@ import {
 import { AnimatePresence, motion } from "motion/react";
 import { ChevronRight, FileCode } from "lucide-react";
 import { cn } from "@edward/ui/lib/utils";
-import type { FileTreeNode } from "./fileTree";
+import { FileTreeNodeType, type FileTreeNode } from "./fileTree";
 
 interface FileTreeContextValue {
   activeFilePath: string | null;
@@ -87,7 +87,7 @@ export const FileTreeItem = memo(function FileTreeItem({
   const [isOpen, setIsOpen] = useState(depth < 2);
   const isActive = node.path === activeFilePath;
   const isStreaming = node.path === streamingFilePath;
-  const isFolder = node.type === "folder";
+  const isFolder = node.type === FileTreeNodeType.FOLDER;
 
   const handleClick = useCallback(() => {
     if (isFolder) {
