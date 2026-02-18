@@ -1,7 +1,14 @@
 "use client"
 
 import { ElementType, memo } from "react"
-import { AnimatePresence, motion, MotionProps, Variants } from "motion/react"
+import {
+  AnimatePresence,
+  LazyMotion,
+  domAnimation,
+  m,
+  type MotionProps,
+  type Variants,
+} from "motion/react"
 
 import { cn } from "@edward/ui/lib/utils"
 
@@ -291,7 +298,7 @@ const TextAnimateBase = ({
   accessible = true,
   ...props
 }: TextAnimateProps) => {
-  const MotionComponent = motion.create(Component)
+  const MotionComponent = m.create(Component)
 
   let segments: string[] = []
   switch (by) {
@@ -311,6 +318,7 @@ const TextAnimateBase = ({
   }
 
   const staggerChildren = segments.length > 0 ? duration / segments.length : 0
+  const segmentCounts = new Map<string, number>()
 
   const finalVariants = variants
     ? {
@@ -358,36 +366,43 @@ const TextAnimateBase = ({
       : { container: defaultContainerVariants, item: defaultItemVariants }
 
   return (
-    <AnimatePresence mode="popLayout">
-      <MotionComponent
-        variants={finalVariants.container as Variants}
-        initial="hidden"
-        whileInView={startOnView ? "show" : undefined}
-        animate={startOnView ? undefined : "show"}
-        exit="exit"
-        className={cn("whitespace-pre-wrap", className)}
-        viewport={{ once }}
-        aria-label={accessible ? text : undefined}
-        {...props}
-      >
-        {accessible && <span className="sr-only">{text}</span>}
-        {segments.map((segment, i) => (
-          <motion.span
-            key={`${by}-${segment}-${i}`}
-            variants={finalVariants.item}
-            custom={i * staggerTimings[by]}
-            className={cn(
-              by === "line" ? "block" : "inline-block whitespace-pre",
-              by === "character" && "",
-              segmentClassName
-            )}
-            aria-hidden={accessible ? true : undefined}
-          >
-            {segment}
-          </motion.span>
-        ))}
-      </MotionComponent>
-    </AnimatePresence>
+    <LazyMotion features={domAnimation}>
+      <AnimatePresence mode="popLayout">
+        <MotionComponent
+          variants={finalVariants.container as Variants}
+          initial="hidden"
+          whileInView={startOnView ? "show" : undefined}
+          animate={startOnView ? undefined : "show"}
+          exit="exit"
+          className={cn("whitespace-pre-wrap", className)}
+          viewport={{ once }}
+          aria-label={accessible ? text : undefined}
+          {...props}
+        >
+          {accessible && <span className="sr-only">{text}</span>}
+          {segments.map((segment, segmentIndex) => {
+            const count = segmentCounts.get(segment) ?? 0
+            segmentCounts.set(segment, count + 1)
+
+            return (
+              <m.span
+                key={`${by}-${segment}-${count}`}
+                variants={finalVariants.item}
+                custom={segmentIndex * staggerTimings[by]}
+                className={cn(
+                  by === "line" ? "block" : "inline-block whitespace-pre",
+                  by === "character" && "",
+                  segmentClassName
+                )}
+                aria-hidden={accessible ? true : undefined}
+              >
+                {segment}
+              </m.span>
+            )
+          })}
+        </MotionComponent>
+      </AnimatePresence>
+    </LazyMotion>
   )
 }
 

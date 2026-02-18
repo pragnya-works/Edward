@@ -1,6 +1,7 @@
 "use client";
 import { SidebarBody, SidebarLink, SidebarTrigger, useSidebar } from "@edward/ui/components/sidebar";
-import { motion } from "motion/react";
+import Link from "next/link";
+import { LazyMotion, domAnimation, m } from "motion/react";
 import { Home, ScrollText, ChevronRight } from "lucide-react";
 import { cn } from "@edward/ui/lib/utils";
 import {
@@ -9,7 +10,7 @@ import {
   TooltipPositioner,
   TooltipTrigger,
 } from "@edward/ui/components/tooltip";
-import { useState, useEffect } from "react";
+import { useSyncExternalStore } from "react";
 
 interface AppSidebarProps {
   open?: boolean;
@@ -43,8 +44,8 @@ export function AppSidebar({ children }: AppSidebarProps) {
           <Logo />
         </div>
         <div className="flex flex-col gap-2">
-          {links.map((link, idx) => (
-            <SidebarLink key={idx} link={link} />
+          {links.map((link) => (
+            <SidebarLink key={link.href} link={link} />
           ))}
         </div>
       </div>
@@ -57,11 +58,13 @@ export function AppSidebar({ children }: AppSidebarProps) {
 
 const ToggleHandle = () => {
   const { open } = useSidebar();
-  const [isMac, setIsMac] = useState(false);
-
-  useEffect(() => {
-    setIsMac(navigator.platform.toUpperCase().indexOf("MAC") >= 0);
-  }, []);
+  const isMac = useSyncExternalStore(
+    () => () => undefined,
+    () =>
+      typeof navigator !== "undefined" &&
+      navigator.platform.toUpperCase().includes("MAC"),
+    () => false,
+  );
 
   return (
     <Tooltip>
@@ -94,31 +97,33 @@ const ToggleHandle = () => {
 export const Logo = () => {
   const { open, animate } = useSidebar();
   return (
-    <a
+    <Link
       href="/"
       className="font-normal flex space-x-2 items-center text-sm text-black py-1 relative z-20"
     >
       <div className="h-5 w-6 bg-black dark:bg-white rounded-br-lg rounded-tr-sm rounded-tl-lg rounded-bl-sm shrink-0" />
-      <motion.span
-        animate={{
-          display: animate ? (open ? "inline-block" : "none") : "inline-block",
-          opacity: animate ? (open ? 1 : 0) : 1,
-        }}
-        className="font-medium text-black dark:text-white whitespace-pre"
-      >
-        Edward.
-      </motion.span>
-    </a>
+      <LazyMotion features={domAnimation}>
+        <m.span
+          animate={{
+            display: animate ? (open ? "inline-block" : "none") : "inline-block",
+            opacity: animate ? (open ? 1 : 0) : 1,
+          }}
+          className="font-medium text-black dark:text-white whitespace-pre"
+        >
+          Edward.
+        </m.span>
+      </LazyMotion>
+    </Link>
   );
 };
 
 export const LogoIcon = () => {
   return (
-    <a
+    <Link
       href="/"
       className="font-normal flex space-x-2 items-center text-sm text-black py-1 relative z-20"
     >
       <div className="h-5 w-6 bg-black dark:bg-white rounded-br-lg rounded-tr-sm rounded-tl-lg rounded-bl-sm shrink-0" />
-    </a>
+    </Link>
   );
 };

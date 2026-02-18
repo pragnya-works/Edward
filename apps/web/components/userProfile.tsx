@@ -125,17 +125,19 @@ export default function UserProfile() {
         </DropdownMenuPositioner>
       </DropdownMenu>
 
-      <BYOK
-        isOpen={isApiKeyModalOpen}
-        onClose={() => setIsApiKeyModalOpen(false)}
-        onValidate={() => {}}
-        onSaveApiKey={validateAndSaveApiKey}
-        keyPreview={keyPreview}
-        hasExistingKey={hasApiKey ?? false}
-        preferredModel={preferredModel || undefined}
-        initialProvider={getBestGuessProvider(preferredModel, keyPreview)}
-        error={error}
-      />
+      {isApiKeyModalOpen && (
+        <BYOK
+          isOpen={isApiKeyModalOpen}
+          onClose={() => setIsApiKeyModalOpen(false)}
+          onValidate={() => {}}
+          onSaveApiKey={validateAndSaveApiKey}
+          keyPreview={keyPreview}
+          hasExistingKey={hasApiKey ?? false}
+          preferredModel={preferredModel || undefined}
+          initialProvider={getBestGuessProvider(preferredModel, keyPreview)}
+          error={error}
+        />
+      )}
     </>
   );
 }
