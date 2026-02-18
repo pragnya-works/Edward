@@ -69,35 +69,44 @@ export const DottedMap = React.memo(function DottedMap({
         return { xStep: step || 1, yToRowIndex: rowMap }
     }, [points])
 
+    const pointCounts = new Map<string, number>()
+    const markerCounts = new Map<string, number>()
+
     return (
         <svg
             viewBox={`0 0 ${width} ${height}`}
             className={cn("text-gray-500 dark:text-gray-500", className)}
             style={{ width: "100%", height: "100%", ...style }}
         >
-            {points.map((point: MapPoint, index: number) => {
+            {points.map((point: MapPoint) => {
                 const rowIndex = yToRowIndex.get(point.y) ?? 0
                 const offsetX = stagger && rowIndex % 2 === 1 ? xStep / 2 : 0
+                const pointKeyBase = `${point.x}-${point.y}`
+                const pointOccurrence = pointCounts.get(pointKeyBase) ?? 0
+                pointCounts.set(pointKeyBase, pointOccurrence + 1)
                 return (
                     <circle
                         cx={point.x + offsetX}
                         cy={point.y}
                         r={dotRadius}
                         fill={dotColor || "currentColor"}
-                        key={`${point.x}-${point.y}-${index}`}
+                        key={`${pointKeyBase}-${pointOccurrence}`}
                     />
                 )
             })}
-            {processedMarkers.map((marker: MapPoint, index: number) => {
+            {processedMarkers.map((marker: MapPoint) => {
                 const rowIndex = yToRowIndex.get(marker.y) ?? 0
                 const offsetX = stagger && rowIndex % 2 === 1 ? xStep / 2 : 0
+                const markerKeyBase = `${marker.x}-${marker.y}-${marker.size ?? dotRadius}`
+                const markerOccurrence = markerCounts.get(markerKeyBase) ?? 0
+                markerCounts.set(markerKeyBase, markerOccurrence + 1)
                 return (
                     <circle
                         cx={marker.x + offsetX}
                         cy={marker.y}
                         r={marker.size ?? dotRadius}
                         fill={markerColor}
-                        key={`${marker.x}-${marker.y}-${index}`}
+                        key={`${markerKeyBase}-${markerOccurrence}`}
                     />
                 )
             })}

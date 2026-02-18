@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, type KeyboardEvent } from "react";
+import { useReducer, type KeyboardEvent } from "react";
 import { Check, Lock } from "lucide-react";
 import { Button } from "@edward/ui/components/button";
 import {
@@ -24,7 +24,7 @@ import {
   API_KEY_REGEX,
   API_KEY_VALIDATION_ERROR,
 } from "@edward/shared/constants";
-import { getDefaultModel } from "@edward/shared/schema";
+import { getDefaultModel, getModelSpecByProvider } from "@edward/shared/schema";
 import { ApiKeyInput } from "@edward/ui/components/ui/apiKeyInput";
 import { ModelSelector } from "@edward/ui/components/ui/modelSelector";
 
@@ -48,6 +48,25 @@ interface BYOKProps {
   onModelChange?: (modelId: string) => void;
 }
 
+interface BYOKState {
+  apiKey: string;
+  selectedProvider: Provider;
+  selectedModel?: string;
+  localError: string;
+  isSubmitting: boolean;
+  showPassword: boolean;
+  showSuccess: boolean;
+}
+
+type BYOKAction =
+  | { type: "set-api-key"; payload: string }
+  | { type: "set-provider"; payload: Provider }
+  | { type: "set-model"; payload?: string }
+  | { type: "set-local-error"; payload: string }
+  | { type: "set-submitting"; payload: boolean }
+  | { type: "toggle-password-visibility" }
+  | { type: "set-show-success"; payload: boolean };
+
 const PROVIDERS_CONFIG = [
   {
     id: Provider.OPENAI,
@@ -68,6 +87,43 @@ function validateApiKey(key: string, provider: Provider): boolean {
   return API_KEY_REGEX[provider].test(key);
 }
 
+function createInitialState(
+  initialApiKey: string,
+  initialProvider: Provider,
+  preferredModel?: string,
+): BYOKState {
+  return {
+    apiKey: initialApiKey,
+    selectedProvider: initialProvider,
+    selectedModel: preferredModel,
+    localError: "",
+    isSubmitting: false,
+    showPassword: false,
+    showSuccess: false,
+  };
+}
+
+function byokReducer(state: BYOKState, action: BYOKAction): BYOKState {
+  switch (action.type) {
+    case "set-api-key":
+      return { ...state, apiKey: action.payload };
+    case "set-provider":
+      return { ...state, selectedProvider: action.payload };
+    case "set-model":
+      return { ...state, selectedModel: action.payload };
+    case "set-local-error":
+      return { ...state, localError: action.payload };
+    case "set-submitting":
+      return { ...state, isSubmitting: action.payload };
+    case "toggle-password-visibility":
+      return { ...state, showPassword: !state.showPassword };
+    case "set-show-success":
+      return { ...state, showSuccess: action.payload };
+    default:
+      return state;
+  }
+}
+
 export function BYOK({
   isOpen = false,
   onClose,
@@ -81,16 +137,20 @@ export function BYOK({
   preferredModel,
   onModelChange,
 }: BYOKProps) {
-  const [apiKey, setApiKey] = useState(initialApiKey);
-  const [selectedProvider, setSelectedProvider] =
-    useState<Provider>(initialProvider);
-  const [selectedModel, setSelectedModel] = useState<string | undefined>(
-    preferredModel,
+  const [state, dispatch] = useReducer(
+    byokReducer,
+    createInitialState(initialApiKey, initialProvider, preferredModel),
   );
-  const [localError, setLocalError] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
-  const [showSuccess, setShowSuccess] = useState(false);
+
+  const {
+    apiKey,
+    selectedProvider,
+    selectedModel,
+    localError,
+    isSubmitting,
+    showPassword,
+    showSuccess,
+  } = state;
 
   const trimmedApiKey = apiKey.trim();
   const isExistingKeyCompatible =
@@ -121,30 +181,16 @@ export function BYOK({
     !providerMismatchError &&
     (trimmedApiKey ? true : hasExistingKey && isModelChanged);
 
-  useEffect(() => {
-    if (isOpen) {
-      setApiKey(initialApiKey);
-      setSelectedProvider(initialProvider);
-      setSelectedModel(preferredModel);
-      setLocalError("");
-      setShowSuccess(false);
-    } else {
-      setApiKey("");
-      setLocalError("");
-      setShowSuccess(false);
-    }
-  }, [isOpen, initialApiKey, preferredModel, initialProvider]);
-
   function handleModelChange(modelId: string) {
-    setSelectedModel(modelId);
+    dispatch({ type: "set-model", payload: modelId });
     onModelChange?.(modelId);
   }
 
   async function handleSubmit() {
     if (!canSubmit || !onSaveApiKey) return;
 
-    setIsSubmitting(true);
-    setLocalError("");
+    dispatch({ type: "set-submitting", payload: true });
+    dispatch({ type: "set-local-error", payload: "" });
 
     try {
       const success = await onSaveApiKey(
@@ -155,12 +201,15 @@ export function BYOK({
         selectedModel,
       );
       if (success) {
-        setShowSuccess(true);
+        dispatch({ type: "set-show-success", payload: true });
       }
     } catch {
-      setLocalError("Failed to save API key. Please try again.");
+      dispatch({
+        type: "set-local-error",
+        payload: "Failed to save API key. Please try again.",
+      });
     } finally {
-      setIsSubmitting(false);
+      dispatch({ type: "set-submitting", payload: false });
     }
   }
 
@@ -173,17 +222,19 @@ export function BYOK({
 
   function handleTabChange(value: string) {
     const newProvider = value as Provider;
-    setSelectedProvider(newProvider);
+    dispatch({ type: "set-provider", payload: newProvider });
 
-    if (!selectedModel) {
-      setSelectedModel(getDefaultModel(newProvider));
-    }
-
-    setLocalError("");
+    const compatibleModel =
+      selectedModel &&
+      getModelSpecByProvider(newProvider, selectedModel) !== null
+        ? selectedModel
+        : getDefaultModel(newProvider);
+    dispatch({ type: "set-model", payload: compatibleModel });
+    dispatch({ type: "set-local-error", payload: "" });
   }
 
   function togglePasswordVisibility() {
-    setShowPassword((prev) => !prev);
+    dispatch({ type: "toggle-password-visibility" });
   }
 
   return (
@@ -259,7 +310,9 @@ export function BYOK({
                       showPassword={showPassword}
                       isSubmitting={isSubmitting}
                       error={error}
-                      onChange={setApiKey}
+                      onChange={(nextApiKey) =>
+                        dispatch({ type: "set-api-key", payload: nextApiKey })
+                      }
                       onToggleVisibility={togglePasswordVisibility}
                       onKeyDown={handleKeyDown}
                     />

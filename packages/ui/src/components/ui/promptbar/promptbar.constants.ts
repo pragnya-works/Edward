@@ -17,16 +17,6 @@ export const AttachmentUploadStatus = {
 export type AttachmentUploadStatus =
   (typeof AttachmentUploadStatus)[keyof typeof AttachmentUploadStatus];
 
-export type PromptMode = "agent" | "chat";
-
-export const QUICK_TOOLS = [
-  { id: "slides", label: "AI Slides", icon: "Slides" },
-  { id: "stack", label: "Full-Stack", icon: "Stack" },
-  { id: "writing", label: "Writing", icon: "Writing" },
-  { id: "insight", label: "Data Insight", icon: "Insight" },
-  { id: "design", label: "Magic Design", icon: "Design" },
-];
-
 export interface AttachedFile {
   id: string;
   file: File;

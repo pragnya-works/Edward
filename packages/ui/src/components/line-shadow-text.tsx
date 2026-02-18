@@ -1,6 +1,6 @@
 "use client"
 
-import { motion, MotionProps } from "motion/react"
+import { LazyMotion, domAnimation, m, type MotionProps } from "motion/react"
 
 import { cn } from "@edward/ui/lib/utils"
 
@@ -19,7 +19,7 @@ export function LineShadowText({
   as: Component = "span",
   ...props
 }: LineShadowTextProps) {
-  const MotionComponent = motion.create(Component)
+  const MotionComponent = m.create(Component)
   const content = typeof children === "string" ? children : null
 
   if (!content) {
@@ -27,20 +27,22 @@ export function LineShadowText({
   }
 
   return (
-    <MotionComponent
-      style={{ "--shadow-color": shadowColor } as React.CSSProperties}
-      className={cn(
-        "relative z-0 inline-flex",
-        "after:absolute after:top-[0.04em] after:left-[0.04em] after:content-[attr(data-text)]",
-        "after:bg-[linear-gradient(45deg,transparent_45%,var(--shadow-color)_45%,var(--shadow-color)_55%,transparent_0)]",
-        "after:-z-10 after:bg-size-[0.06em_0.06em] after:bg-clip-text after:text-transparent",
-        "after:animate-line-shadow",
-        className
-      )}
-      data-text={content}
-      {...props}
-    >
-      {content}
-    </MotionComponent>
+    <LazyMotion features={domAnimation}>
+      <MotionComponent
+        style={{ "--shadow-color": shadowColor } as React.CSSProperties}
+        className={cn(
+          "relative z-0 inline-flex",
+          "after:absolute after:top-[0.04em] after:left-[0.04em] after:content-[attr(data-text)]",
+          "after:bg-[linear-gradient(45deg,transparent_45%,var(--shadow-color)_45%,var(--shadow-color)_55%,transparent_0)]",
+          "after:-z-10 after:bg-size-[0.06em_0.06em] after:bg-clip-text after:text-transparent",
+          "after:animate-line-shadow",
+          className
+        )}
+        data-text={content}
+        {...props}
+      >
+        {content}
+      </MotionComponent>
+    </LazyMotion>
   )
 }

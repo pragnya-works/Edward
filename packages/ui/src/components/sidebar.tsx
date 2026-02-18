@@ -1,7 +1,7 @@
 "use client";
 import { cn } from "@edward/ui/lib/utils";
 import { useState, createContext, useContext, useEffect, useMemo } from "react";
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, LazyMotion, domAnimation, m } from "motion/react";
 import { IconMenu2, IconX } from "@tabler/icons-react";
 
 interface Links {
@@ -80,7 +80,7 @@ export const Sidebar = ({
   );
 };
 
-export const SidebarBody = (props: React.ComponentProps<typeof motion.div>) => {
+export const SidebarBody = (props: React.ComponentProps<typeof m.div>) => {
   return (
     <>
       <DesktopSidebar {...props} />
@@ -93,21 +93,23 @@ export const DesktopSidebar = ({
   className,
   children,
   ...props
-}: React.ComponentProps<typeof motion.div>) => {
+}: React.ComponentProps<typeof m.div>) => {
   const { open, animate } = useSidebar();
   return (
-    <motion.div
-      className={cn(
-        "h-full px-4 py-4 hidden  md:flex md:flex-col bg-neutral-100 dark:bg-neutral-800 w-75 shrink-0 relative",
-        className
-      )}
-      animate={{
-        width: animate ? (open ? "300px" : "60px") : "300px",
-      }}
-      {...props}
-    >
-      {children}
-    </motion.div>
+    <LazyMotion features={domAnimation}>
+      <m.div
+        className={cn(
+          "h-full px-4 py-4 hidden  md:flex md:flex-col bg-neutral-100 dark:bg-neutral-800 w-75 shrink-0 relative",
+          className
+        )}
+        animate={{
+          width: animate ? (open ? "300px" : "60px") : "300px",
+        }}
+        {...props}
+      >
+        {children}
+      </m.div>
+    </LazyMotion>
   );
 };
 
@@ -136,29 +138,31 @@ export const MobileSidebar = ({
       </div>
       <AnimatePresence>
         {open && (
-          <motion.div
-            initial={{ x: "-100%", opacity: 0 }}
-            animate={{ x: 0, opacity: 1 }}
-            exit={{ x: "-100%", opacity: 0 }}
-            transition={{
-              duration: 0.3,
-              ease: "easeInOut",
-            }}
-            className={cn(
-              "fixed h-full w-full inset-0 bg-white dark:bg-neutral-900 p-10 z-100 flex flex-col justify-between",
-              className
-            )}
-          >
-            <button
-              type="button"
-              aria-label="Close sidebar"
-              className="absolute right-10 top-10 z-50 text-neutral-800 dark:text-neutral-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background rounded-md"
-              onClick={() => setOpen(!open)}
+          <LazyMotion features={domAnimation}>
+            <m.div
+              initial={{ x: "-100%", opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              exit={{ x: "-100%", opacity: 0 }}
+              transition={{
+                duration: 0.3,
+                ease: "easeInOut",
+              }}
+              className={cn(
+                "fixed h-full w-full inset-0 bg-white dark:bg-neutral-900 p-10 z-100 flex flex-col justify-between",
+                className
+              )}
             >
-              <IconX />
-            </button>
-            {children}
-          </motion.div>
+              <button
+                type="button"
+                aria-label="Close sidebar"
+                className="absolute right-10 top-10 z-50 text-neutral-800 dark:text-neutral-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background rounded-md"
+                onClick={() => setOpen(!open)}
+              >
+                <IconX />
+              </button>
+              {children}
+            </m.div>
+          </LazyMotion>
         )}
       </AnimatePresence>
     </div>
@@ -188,17 +192,19 @@ export const SidebarLink = ({
         {link.icon}
       </div>
 
-      <motion.span
-        animate={{
-          display: animate ? (open ? "inline-block" : "none") : "inline-block",
-          opacity: animate ? (open ? 1 : 0) : 1,
-          x: open ? 0 : -10,
-        }}
-        transition={{ duration: 0.2 }}
-        className="text-neutral-700 dark:text-neutral-200 group-hover/sidebar:translate-x-1 transition-transform duration-150 whitespace-pre inline-block p-0! m-0! text-sm font-medium"
-      >
-        {link.label}
-      </motion.span>
+      <LazyMotion features={domAnimation}>
+        <m.span
+          animate={{
+            display: animate ? (open ? "inline-block" : "none") : "inline-block",
+            opacity: animate ? (open ? 1 : 0) : 1,
+            x: open ? 0 : -10,
+          }}
+          transition={{ duration: 0.2 }}
+          className="text-neutral-700 dark:text-neutral-200 group-hover/sidebar:translate-x-1 transition-transform duration-150 whitespace-pre inline-block p-0! m-0! text-sm font-medium"
+        >
+          {link.label}
+        </m.span>
+      </LazyMotion>
     </a>
   );
 };
