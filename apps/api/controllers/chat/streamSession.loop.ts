@@ -9,11 +9,11 @@ import {
 } from "../../utils/sharedConstants.js";
 import { logger } from "../../utils/logger.js";
 import type { LlmChatMessage } from "../../lib/llm/context.js";
-import { getTextFromContent, type MessageContent } from "../../lib/llm/types.js";
-import type {
-  ChatAction,
-  Framework,
-} from "../../services/planning/schemas.js";
+import {
+  getTextFromContent,
+  type MessageContent,
+} from "../../lib/llm/types.js";
+import type { ChatAction, Framework } from "../../services/planning/schemas.js";
 import { handleFlushEvents, handleParserEvent } from "./event.handlers.js";
 import type { AgentToolResult } from "./command.utils.js";
 import {
@@ -151,7 +151,7 @@ export async function runAgentLoop(
           safeSSEWrite(res, `data: ${JSON.stringify(event)}\n\n`);
         }
 
-        if (toolResultsThisTurn.length > MAX_AGENT_TOOL_CALLS_PER_TURN) {
+        if (toolResultsThisTurn.length >= MAX_AGENT_TOOL_CALLS_PER_TURN) {
           toolBudgetExceededThisTurn = true;
           break;
         }
