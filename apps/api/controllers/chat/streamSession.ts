@@ -1,8 +1,6 @@
 import type { Response } from "express";
 import type { AuthenticatedRequest } from "../../middleware/auth.js";
 import { ParserEventType } from "../../schemas/chat.schema.js";
-import { createStreamParser } from "../../lib/llm/parser.js";
-import { streamResponse } from "../../lib/llm/response.js";
 import { composePrompt } from "../../lib/llm/compose.js";
 import {
   computeTokenUsage,
@@ -33,9 +31,7 @@ import {
 import { saveWorkflow } from "../../services/planning/workflow/store.js";
 import { validateGeneratedOutput } from "../../services/planning/validators/postgenValidator.js";
 import {
-  MAX_RESPONSE_SIZE,
   MAX_STREAM_DURATION_MS,
-  MAX_AGENT_TURNS,
 } from "../../utils/sharedConstants.js";
 import {
   formatUrlScrapeAssistantTags,
@@ -44,17 +40,16 @@ import {
 } from "../../services/websearch/urlScraper.service.js";
 
 import { safeSSEWrite, sendSSEDone } from "./sse.utils.js";
-import { formatToolResults, type AgentToolResult } from "./command.utils.js";
-import {
-  handleParserEvent,
-  handleFlushEvents,
-  type EventHandlerContext,
-} from "./event.handlers.js";
 import type { LlmChatMessage } from "../../lib/llm/context.js";
 import {
   type MessageContent,
   getTextFromContent,
 } from "../../lib/llm/types.js";
+import { runAgentLoop } from "./streamSession.loop.js";
+import {
+  createMetaEmitter,
+  type EmitMeta,
+} from "./streamSession.shared.js";
 
 export interface StreamSessionParams {
   req: AuthenticatedRequest;
@@ -73,20 +68,6 @@ export interface StreamSessionParams {
   historyMessages?: LlmChatMessage[];
   projectContext?: string;
   model?: string;
-}
-
-function buildAgentContinuationPrompt(
-  fullUserContent: string,
-  turnRawResponse: string,
-  toolResults: AgentToolResult[],
-): string {
-  const formattedResults = formatToolResults(toolResults);
-  const prevSummary =
-    turnRawResponse.length > 4000
-      ? turnRawResponse.slice(0, 4000) + "\n...[truncated]"
-      : turnRawResponse;
-
-  return `ORIGINAL REQUEST:\n${fullUserContent}\n\nYOUR PREVIOUS RESPONSE:\n${prevSummary}\n\nTOOL RESULTS:\n${formattedResults}\n\nContinue with the task. If you wrote fixes, verify by running the build. If you need more information, use <edward_command> or <edward_web_search>. Do not stop until you have completed the request and emitted <edward_done />.`;
 }
 
 export async function runStreamSession(
@@ -116,15 +97,24 @@ export async function runStreamSession(
   const generatedFiles = new Map<string, string>();
   const declaredPackages: string[] = [];
   const messageStartTime = Date.now();
+  const runId = assistantMessageId;
+  const isNewChat = !isFollowUp;
+  const emitMeta: EmitMeta = createMetaEmitter(res, {
+    chatId,
+    userMessageId,
+    assistantMessageId,
+    isNewChat,
+    runId,
+  });
 
   const abortController = new AbortController();
   const streamTimer = setTimeout(() => {
-    logger.warn({ chatId }, "Stream timeout reached");
+    logger.warn({ chatId, runId }, "Stream timeout reached");
     abortController.abort();
   }, MAX_STREAM_DURATION_MS);
 
   req.on("close", () => {
-    logger.info({ chatId }, "Connection closed by client");
+    logger.info({ chatId, runId }, "Connection closed by client");
     if (streamTimer) clearTimeout(streamTimer);
     abortController.abort();
   });
@@ -206,18 +196,11 @@ export async function runStreamSession(
       model,
     });
 
-    safeSSEWrite(
-      res,
-      `data: ${JSON.stringify({
-        type: ParserEventType.META,
-        chatId,
-        userMessageId,
-        assistantMessageId,
-        isNewChat: !isFollowUp,
-        intent,
-        tokenUsage,
-      })}\n\n`,
-    );
+    emitMeta({
+      phase: "session_start",
+      intent,
+      tokenUsage,
+    });
 
     if (isOverContextLimit(tokenUsage)) {
       safeSSEWrite(
@@ -243,118 +226,47 @@ export async function runStreamSession(
       }
     }
 
-    let agentMessages: LlmChatMessage[] = baseMessages;
-    let agentTurn = 0;
-    let sandboxTagDetected = false;
+    const loopResult = await runAgentLoop({
+      decryptedApiKey,
+      initialMessages: baseMessages,
+      preVerifiedDeps,
+      systemPrompt,
+      framework,
+      complexity,
+      mode,
+      model,
+      abortController,
+      userContent,
+      workflow,
+      res,
+      userId,
+      chatId,
+      isFollowUp,
+      generatedFiles,
+      declaredPackages,
+      emitMeta,
+      runId,
+    });
 
-    agentLoop: while (agentTurn < MAX_AGENT_TURNS) {
-      agentTurn++;
-      const parser = createStreamParser();
-      const toolResultsThisTurn: AgentToolResult[] = [];
-      let turnRawResponse = "";
-      let currentFilePath: string | undefined;
-      let isFirstFileChunk = true;
-
-      const stream = streamResponse(
-        decryptedApiKey,
-        agentMessages,
-        abortController.signal,
-        preVerifiedDeps,
-        systemPrompt,
-        framework,
-        complexity,
-        mode,
-        model,
-      );
-
-      for await (const chunk of stream) {
-        if (abortController.signal.aborted) break;
-
-        if (fullRawResponse.length + chunk.length > MAX_RESPONSE_SIZE) {
-          throw new Error("Response size exceeded maximum limit");
-        }
-        fullRawResponse += chunk;
-        turnRawResponse += chunk;
-
-        const events = parser.process(chunk);
-        for (const event of events) {
-          const ctx: EventHandlerContext = {
-            workflow,
-            res,
-            decryptedApiKey,
-            userId,
-            chatId,
-            isFollowUp,
-            sandboxTagDetected,
-            currentFilePath,
-            isFirstFileChunk,
-            generatedFiles,
-            declaredPackages,
-            toolResultsThisTurn,
-          };
-
-          const result = await handleParserEvent(ctx, event);
-          currentFilePath = result.currentFilePath;
-          isFirstFileChunk = result.isFirstFileChunk;
-          sandboxTagDetected = result.sandboxTagDetected;
-
-          if (!result.handled) {
-            safeSSEWrite(res, `data: ${JSON.stringify(event)}\n\n`);
-          }
-        }
-      }
-
-      if (abortController.signal.aborted) {
-        res.end();
-        return;
-      }
-      const flushCtx: EventHandlerContext = {
-        workflow,
-        res,
-        decryptedApiKey,
-        userId,
-        chatId,
-        isFollowUp,
-        sandboxTagDetected,
-        currentFilePath,
-        isFirstFileChunk,
-        generatedFiles,
-        declaredPackages,
-        toolResultsThisTurn,
-      };
-      const flushResult = await handleFlushEvents(flushCtx, parser.flush());
-      currentFilePath = flushResult.currentFilePath;
-      isFirstFileChunk = flushResult.isFirstFileChunk;
-      sandboxTagDetected = flushResult.sandboxTagDetected;
-
-      if (
-        toolResultsThisTurn.length > 0 &&
-        agentTurn < MAX_AGENT_TURNS &&
-        !abortController.signal.aborted
-      ) {
-        const userTextContent =
-          typeof userContent === "string"
-            ? userContent
-            : getTextFromContent(userContent);
-        const continuation = buildAgentContinuationPrompt(
-          userTextContent,
-          turnRawResponse,
-          toolResultsThisTurn,
-        );
-        agentMessages = [{ role: MessageRole.User, content: continuation }];
-        logger.info(
-          {
-            chatId,
-            turn: agentTurn,
-            toolCount: toolResultsThisTurn.length,
-          },
-          "Agent loop: continuing with tool results",
-        );
-        continue agentLoop;
-      }
-
-      break;
+    if (loopResult.aborted) {
+      res.end();
+      return;
     }
+
+    fullRawResponse = loopResult.fullRawResponse;
+    const agentTurn = loopResult.agentTurn;
+    const loopStopReason = loopResult.loopStopReason;
+
+    logger.info(
+      { chatId, runId, agentTurn, loopStopReason },
+      "Agent loop ended",
+    );
+
+    emitMeta({
+      turn: agentTurn,
+      phase: "session_complete",
+      loopStopReason,
+    });
 
     const completionTime = Date.now() - messageStartTime;
     const inputTokens = tokenUsage.inputTokens;
@@ -369,6 +281,7 @@ export async function runStreamSession(
     logger.info(
       {
         chatId,
+        runId,
         assistantMessageId,
         completionTime,
         inputTokens,
@@ -470,6 +383,7 @@ Return ONLY a JSON object: {"title": "...", "description": "..."}
           chatId,
           messageId: assistantMessageId,
           buildId: queuedBuild.id,
+          runId,
         });
       } catch (queueErr) {
         await updateBuild(queuedBuild.id, {
@@ -483,12 +397,20 @@ Return ONLY a JSON object: {"title": "...", "description": "..."}
         } as Parameters<typeof updateBuild>[1]).catch(() => {});
 
         logger.error(
-          ensureError(queueErr),
-          `Failed to enqueue build job for sandbox: ${workflow.sandboxId}`,
+          {
+            err: ensureError(queueErr),
+            chatId,
+            runId,
+            sandboxId: workflow.sandboxId,
+          },
+          "Failed to enqueue build job",
         );
       }
     } else {
-      logger.warn({ chatId }, "[Chat] No sandbox ID available, skipping build");
+      logger.warn(
+        { chatId, runId },
+        "[Chat] No sandbox ID available, skipping build",
+      );
     }
 
     sendSSEDone(res);
@@ -503,8 +425,7 @@ Return ONLY a JSON object: {"title": "...", "description": "..."}
       );
     }
 
-    logger.error(error, "Streaming error");
-    logger.error(error, "Streaming error");
+    logger.error({ error, chatId, runId }, "Streaming error");
 
     safeSSEWrite(
       res,
@@ -514,9 +435,6 @@ Return ONLY a JSON object: {"title": "...", "description": "..."}
       })}\n\n`,
     );
 
-    if (!res.writableEnded) {
-      res.end();
-    }
     if (!res.writableEnded) {
       res.end();
     }

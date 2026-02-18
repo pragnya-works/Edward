@@ -24,6 +24,7 @@ export enum StreamState {
 
 export enum ParserEventType {
   TEXT = "text",
+  DONE = "done",
   THINKING_START = "thinking_start",
   THINKING_CONTENT = "thinking_content",
   THINKING_END = "thinking_end",
@@ -87,6 +88,7 @@ export const RecentChatsQuerySchema = z.object({
 
 export const ParserEventSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal(ParserEventType.TEXT), content: z.string() }),
+  z.object({ type: z.literal(ParserEventType.DONE) }),
   z.object({ type: z.literal(ParserEventType.THINKING_START) }),
   z.object({
     type: z.literal(ParserEventType.THINKING_CONTENT),
@@ -139,6 +141,25 @@ export const ParserEventSchema = z.discriminatedUnion("type", [
     userMessageId: z.string(),
     assistantMessageId: z.string(),
     isNewChat: z.boolean(),
+    runId: z.string().optional(),
+    turn: z.number().int().positive().optional(),
+    phase: z
+      .enum([
+        "session_start",
+        "turn_start",
+        "turn_complete",
+        "session_complete",
+      ])
+      .optional(),
+    toolCount: z.number().int().nonnegative().optional(),
+    loopStopReason: z
+      .enum([
+        "done",
+        "no_tool_results",
+        "max_turns_reached",
+        "tool_budget_exceeded",
+      ])
+      .optional(),
     intent: ChatActionSchema.optional(),
     tokenUsage: z
       .object({

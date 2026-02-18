@@ -144,6 +144,8 @@ export async function unifiedSendMessage(
         userMessageId,
         assistantMessageId,
         isNewChat,
+        runId: assistantMessageId,
+        phase: "session_start",
         intent,
       })}\n\n`,
     );
