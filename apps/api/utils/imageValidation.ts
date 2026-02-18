@@ -228,6 +228,7 @@ async function fetchWithSafeRedirects(
         finalUrl: current,
       };
     }
+    await cancelResponseBody(response);
 
     const location = response.headers.get("location");
     if (!location) {
@@ -237,6 +238,10 @@ async function fetchWithSafeRedirects(
   }
 
   throw new Error("Too many redirects while fetching image URL");
+}
+
+async function cancelResponseBody(response: Response): Promise<void> {
+  await response.body?.cancel();
 }
 
 async function readResponseBufferWithLimit(
@@ -434,6 +439,7 @@ export async function validateImageUrl(
     clearTimeout(timeout);
 
     if (!response.ok) {
+      await cancelResponseBody(response);
       return {
         success: false,
         error: {
@@ -450,6 +456,7 @@ export async function validateImageUrl(
         !Number.isNaN(contentLength) &&
         contentLength > IMAGE_UPLOAD_CONFIG.MAX_SIZE_BYTES
       ) {
+        await cancelResponseBody(response);
         return {
           success: false,
           error: {
