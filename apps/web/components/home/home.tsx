@@ -7,9 +7,7 @@ import { CTASection } from "@/components/home/ctaSection";
 import { Footer } from "@/components/home/footer";
 import { TopFade } from "@/components/home/topFade";
 import { useSession } from "@/lib/auth-client";
-import { AnimatePresence, motion } from "motion/react";
-import { useTheme } from "next-themes";
-import { useEffect, useMemo } from "react";
+import { AnimatePresence, m } from "motion/react";
 import { RecentProjects } from "@/components/home/recentProjects";
 import { cn } from "@edward/ui/lib/utils";
 import { Skeleton } from "@edward/ui/components/skeleton";
@@ -24,8 +22,11 @@ function LoadingSkeleton() {
         <div className="container mx-auto px-4 py-12">
           <Skeleton className="h-8 w-48 mb-8" />
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {[1, 2, 3].map((i) => (
-              <Skeleton key={i} className="aspect-video w-full rounded-xl" />
+            {["skeleton-a", "skeleton-b", "skeleton-c"].map((skeletonId) => (
+              <Skeleton
+                key={skeletonId}
+                className="aspect-video w-full rounded-xl"
+              />
             ))}
           </div>
         </div>
@@ -36,17 +37,6 @@ function LoadingSkeleton() {
 
 export default function Home() {
   const { data: session, isPending } = useSession();
-  const { setTheme, resolvedTheme } = useTheme();
-
-  const shouldSetDarkTheme = useMemo(() => {
-    return !isPending && !session?.user && resolvedTheme !== "dark";
-  }, [isPending, session, resolvedTheme]);
-
-  useEffect(() => {
-    if (shouldSetDarkTheme) {
-      setTheme("dark");
-    }
-  }, [shouldSetDarkTheme, setTheme]);
 
   const isLoading = isPending;
 
@@ -58,7 +48,7 @@ export default function Home() {
     <div
       className={cn(
         "flex flex-col",
-        !session?.user ? "min-h-screen" : "h-full",
+        !session?.user ? "min-h-screen dark" : "h-full",
       )}
     >
       <TopFade />
@@ -67,16 +57,16 @@ export default function Home() {
         <Hero />
         <AnimatePresence mode="wait">
           {session?.user ? (
-            <motion.div
+            <m.div
               key="recent-projects"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.1 }}
             >
               <RecentProjects />
-            </motion.div>
+            </m.div>
           ) : (
-            <motion.div
+            <m.div
               key="landing-features"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -98,7 +88,7 @@ export default function Home() {
                 <CTASection />
                 <Footer />
               </div>
-            </motion.div>
+            </m.div>
           )}
         </AnimatePresence>
       </main>

@@ -18,7 +18,7 @@ function sharedRedisRateLimitConfig(prefix: string) {
 
 export const apiKeyRateLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    max: 10,
+    max: 1000,
     standardHeaders: true,
     legacyHeaders: false,
     handler: (_req, res) => {
@@ -40,7 +40,7 @@ export const chatRateLimiter = rateLimit({
 
 export const dailyChatRateLimiter = rateLimit({
     windowMs: 24 * 60 * 60 * 1000,
-    max: 100,
+    max: 1000,
     standardHeaders: true,
     legacyHeaders: false,
     keyGenerator: (req) => {

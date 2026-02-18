@@ -3,13 +3,19 @@ import { Model } from "@edward/shared/schema";
 
 const ModelValues = Object.values(Model) as [string, ...string[]];
 
-export const ApiKeySchema = z.object({
-  apiKey: z
-    .string()
-    .min(20, "API key must be at least 20 characters")
-    .max(500, "API key cannot exceed 500 characters"),
-  model: z.enum(ModelValues).optional(),
-});
+export const ApiKeySchema = z
+  .object({
+    apiKey: z
+      .string()
+      .min(20, "API key must be at least 20 characters")
+      .max(500, "API key cannot exceed 500 characters")
+      .optional(),
+    model: z.enum(ModelValues).optional(),
+  })
+  .refine((data) => data.apiKey || data.model, {
+    message: "Either apiKey or model must be provided",
+    path: ["apiKey"],
+  });
 
 export const ApiKeyDataSchema = z.object({
   hasApiKey: z.boolean(),

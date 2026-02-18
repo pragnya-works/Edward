@@ -45,6 +45,7 @@ interface BYOKProps {
   preferredModel?: string;
   keyPreview?: string | null;
   hasExistingKey?: boolean;
+  onModelChange?: (modelId: string) => void;
 }
 
 const PROVIDERS_CONFIG = [
@@ -62,6 +63,11 @@ const PROVIDERS_CONFIG = [
   },
 ];
 
+function validateApiKey(key: string, provider: Provider): boolean {
+  if (!key.trim()) return false;
+  return API_KEY_REGEX[provider].test(key);
+}
+
 export function BYOK({
   isOpen = false,
   onClose,
@@ -73,6 +79,7 @@ export function BYOK({
   keyPreview = null,
   hasExistingKey = false,
   preferredModel,
+  onModelChange,
 }: BYOKProps) {
   const [apiKey, setApiKey] = useState(initialApiKey);
   const [selectedProvider, setSelectedProvider] =
@@ -85,7 +92,34 @@ export function BYOK({
   const [showPassword, setShowPassword] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
 
-  const error = externalError || localError;
+  const trimmedApiKey = apiKey.trim();
+  const isExistingKeyCompatible =
+    !!keyPreview &&
+    (keyPreview === "Existing Key" ||
+      (selectedProvider === Provider.OPENAI &&
+        (keyPreview.startsWith("sk-") || keyPreview.includes("..."))) ||
+      (selectedProvider === Provider.GEMINI &&
+        (keyPreview.startsWith("AI") || keyPreview.includes("..."))));
+
+  const isApiKeyValid =
+    !trimmedApiKey || validateApiKey(trimmedApiKey, selectedProvider);
+  const isModelChanged = selectedModel !== preferredModel;
+
+  const providerMismatchError =
+    hasExistingKey && !trimmedApiKey && !isExistingKeyCompatible
+      ? `The active key might not be compatible with ${PROVIDERS_CONFIG.find((p) => p.id === selectedProvider)?.label}. Please provide a new key.`
+      : "";
+
+  const error =
+    externalError ||
+    providerMismatchError ||
+    (!isApiKeyValid ? API_KEY_VALIDATION_ERROR[selectedProvider] : localError);
+
+  const canSubmit =
+    !isSubmitting &&
+    isApiKeyValid &&
+    !providerMismatchError &&
+    (trimmedApiKey ? true : hasExistingKey && isModelChanged);
 
   useEffect(() => {
     if (isOpen) {
@@ -101,25 +135,20 @@ export function BYOK({
     }
   }, [isOpen, initialApiKey, preferredModel, initialProvider]);
 
-  function validateApiKey(key: string, provider: Provider): boolean {
-    if (!key.trim()) return false;
-    return API_KEY_REGEX[provider].test(key);
+  function handleModelChange(modelId: string) {
+    setSelectedModel(modelId);
+    onModelChange?.(modelId);
   }
 
   async function handleSubmit() {
-    if (isSubmitting || !onSaveApiKey) return;
-
-    if (!validateApiKey(apiKey, selectedProvider)) {
-      setLocalError(API_KEY_VALIDATION_ERROR[selectedProvider]);
-      return;
-    }
+    if (!canSubmit || !onSaveApiKey) return;
 
     setIsSubmitting(true);
     setLocalError("");
 
     try {
       const success = await onSaveApiKey(
-        apiKey,
+        trimmedApiKey,
         onValidate,
         onClose,
         selectedProvider,
@@ -166,12 +195,12 @@ export function BYOK({
               {hasExistingKey ? "Manage Your API Key" : "Add Your API Key"}
             </DialogTitle>
             <DialogDescription className="space-y-2">
-              <span className="block italic text-muted-foreground/50">
+              <span className="block italic text-muted-foreground/60 dark:text-muted-foreground/50">
                 {hasExistingKey
                   ? "Update your API key to continue using the service."
                   : "Select a provider and enter your API key to get started."}
               </span>
-              <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground/30">
+              <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground/50 dark:text-muted-foreground/30">
                 <Lock className="h-3 w-3" aria-hidden="true" />
                 Encrypted storage • Principle-level security
               </span>
@@ -182,7 +211,7 @@ export function BYOK({
             <div className="mt-4 rounded-xl border border-border/40 bg-muted/30 p-3.5 shadow-inner">
               <div className="flex items-center justify-between">
                 <div className="space-y-1">
-                  <p className="text-[10px] font-bold text-muted-foreground/40 uppercase tracking-widest">
+                  <p className="text-[10px] font-bold text-muted-foreground/50 dark:text-muted-foreground/40 uppercase tracking-widest">
                     Active key
                   </p>
                   <p className="font-mono text-sm tracking-tight text-foreground/70">
@@ -221,7 +250,7 @@ export function BYOK({
                   className="mt-6 space-y-6 outline-none focus-visible:ring-0"
                 >
                   <div className="space-y-2.5">
-                    <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/40 px-1">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/60 dark:text-muted-foreground/40 px-1">
                       Identity & Access
                     </p>
                     <ApiKeyInput
@@ -237,13 +266,13 @@ export function BYOK({
                   </div>
 
                   <div className="space-y-2.5">
-                    <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/40 px-1">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/60 dark:text-muted-foreground/40 px-1">
                       Engine Preference
                     </p>
                     <ModelSelector
                       provider={id}
                       selectedModelId={selectedModel}
-                      onSelect={setSelectedModel}
+                      onSelect={handleModelChange}
                     />
                   </div>
                 </TabsContent>
@@ -280,11 +309,7 @@ export function BYOK({
             <Button
               className="flex-1 rounded-xl h-12 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold shadow-md dark:shadow-lg dark:shadow-primary/10 transition-all active:scale-[0.98]"
               onClick={handleSubmit}
-              disabled={
-                !apiKey.trim() ||
-                isSubmitting ||
-                !validateApiKey(apiKey, selectedProvider)
-              }
+              disabled={!canSubmit}
             >
               {isSubmitting ? (
                 <div className="flex items-center gap-2.5">

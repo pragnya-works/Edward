@@ -1,6 +1,11 @@
 import { Metadata } from "next";
 import { Suspense } from "react";
-import { getLinearIssues, groupAndSortIssues, ChangelogIssue } from "@/lib/linear";
+import {
+  type ChangelogIssue,
+  LinearFetchError,
+  getLinearIssues,
+  groupAndSortIssues,
+} from "@/lib/linear";
 import { ChangelogHeader } from "@/components/changelog/header";
 import { IssueCard, IssueCardSkeleton } from "@/components/changelog/issueCard";
 import { AlertCircle, FolderGit } from "lucide-react";
@@ -15,14 +20,14 @@ export const metadata: Metadata = {
 function ChangelogSkeleton() {
   return (
     <div className="space-y-0">
-      {Array.from({ length: 5 }).map((_, i) => (
-        <IssueCardSkeleton key={i} index={i} />
+      {["one", "two", "three", "four", "five"].map((slot, index) => (
+        <IssueCardSkeleton key={slot} index={index} />
       ))}
     </div>
   );
 }
 
-function ErrorState({ error }: { error: string }) {
+function ErrorState({ error }: { error: LinearFetchError }) {
   return (
     <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
       <div className="w-12 h-12 rounded-full bg-destructive/10 flex items-center justify-center mb-4">
@@ -32,7 +37,7 @@ function ErrorState({ error }: { error: string }) {
         Unable to Load Changelog
       </h3>
       <p className="text-sm text-muted-foreground max-w-sm">
-        {error === "Missing LINEAR_API_KEY environment variable"
+        {error === LinearFetchError.MISSING_API_KEY
           ? "Please configure the LINEAR_API_KEY environment variable."
           : "There was an error connecting to Linear. Please try again later."}
       </p>

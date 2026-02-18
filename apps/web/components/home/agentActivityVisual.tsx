@@ -1,14 +1,27 @@
 "use client";
 
-import React, { memo, useState, useEffect, useMemo, useRef, useCallback, useSyncExternalStore } from "react";
-import { motion, AnimatePresence } from "motion/react";
+import React, { memo, useState, useEffect, useMemo, useRef, useCallback } from "react";
+import { m, AnimatePresence } from "motion/react";
 import { Search, FileCode, Edit3, Terminal, CheckCircle2, User, Bot, Loader2 } from "lucide-react";
+import { useTabVisibility } from "@/hooks/useTabVisibility";
+
+enum ToolCallKind {
+    SEARCH = "search",
+    READ = "read",
+    EDIT = "edit",
+    COMMAND = "command",
+}
+
+enum ToolCallStatus {
+    RUNNING = "running",
+    DONE = "done",
+}
 
 interface ToolCall {
     id: string;
-    tool: "search" | "read" | "edit" | "command";
+    tool: ToolCallKind;
     context: string;
-    status: "running" | "done";
+    status: ToolCallStatus;
 }
 
 interface ConversationStep {
@@ -21,31 +34,43 @@ const CONVERSATION: ConversationStep[] = [
     {
         user: "Build a responsive analytics dashboard with real-time metrics.",
         tools: [
-            { id: "t1", tool: "search", context: "locating [packages/ui/charts]", status: "done" },
-            { id: "t2", tool: "read", context: "analyzing [theme.json]", status: "done" },
-            { id: "t3", tool: "edit", context: "generating [dashboard.tsx] +142 lines", status: "done" }
+            { id: "t1", tool: ToolCallKind.SEARCH, context: "locating [packages/ui/charts]", status: ToolCallStatus.DONE },
+            { id: "t2", tool: ToolCallKind.READ, context: "analyzing [theme.json]", status: ToolCallStatus.DONE },
+            { id: "t3", tool: ToolCallKind.EDIT, context: "generating [dashboard.tsx] +142 lines", status: ToolCallStatus.DONE }
         ],
         assistant: "I've analyzed your project structure and generated a dashboard using your existing chart library. Would you like to add a date range picker?"
     }
 ];
 
 const TOOL_ICONS = {
-    search: Search,
-    read: FileCode,
-    edit: Edit3,
-    command: Terminal
+    [ToolCallKind.SEARCH]: Search,
+    [ToolCallKind.READ]: FileCode,
+    [ToolCallKind.EDIT]: Edit3,
+    [ToolCallKind.COMMAND]: Terminal
 };
 
 const HighlightedText = memo(({ text }: { text: string }) => {
-    const parts = useMemo(() => text.split(/(\[.*?\])/), [text]);
+    const parts = useMemo(() => {
+        const rawParts = text.split(/(\[.*?\])/);
+        const seen = new Map<string, number>();
+
+        return rawParts.map((part) => {
+            const count = (seen.get(part) ?? 0) + 1;
+            seen.set(part, count);
+            return {
+                part,
+                key: `${part}-${count}`,
+            };
+        });
+    }, [text]);
 
     return (
         <span className="font-mono text-[10px] text-foreground/60 flex-1 truncate">
-            {parts.map((part, i) => {
+            {parts.map(({ part, key }) => {
                 const isHighlight = part.startsWith('[') && part.endsWith(']');
                 return (
                     <span
-                        key={i}
+                        key={key}
                         className={isHighlight ? "text-primary/70" : ""}
                     >
                         {part}
@@ -61,7 +86,7 @@ const ToolCallUI = memo(({ call }: { call: ToolCall }) => {
     const Icon = TOOL_ICONS[call.tool];
 
     return (
-        <motion.div
+        <m.div
             initial={{ opacity: 0, y: 10, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             className="flex items-center gap-3 px-3 py-2 rounded-lg bg-white/[0.03] border border-white/5 my-1"
@@ -72,12 +97,12 @@ const ToolCallUI = memo(({ call }: { call: ToolCall }) => {
 
             <HighlightedText text={call.context} />
 
-            {call.status === "running" ? (
+            {call.status === ToolCallStatus.RUNNING ? (
                 <Loader2 className="w-2.5 h-2.5 text-primary/30 animate-spin" />
             ) : (
                 <CheckCircle2 className="w-2.5 h-2.5 text-emerald-500/50" />
             )}
-        </motion.div>
+        </m.div>
     );
 });
 ToolCallUI.displayName = "ToolCallUI";
@@ -91,29 +116,11 @@ const SEQUENCE = [
     { delay: 5000, next: 0 }
 ] as const;
 
-function subscribeToVisibility(callback: () => void) {
-    document.addEventListener('visibilitychange', callback);
-    return () => document.removeEventListener('visibilitychange', callback);
-}
-
-function getVisibilitySnapshot() {
-    return document.visibilityState === 'visible';
-}
-
-function getServerVisibilitySnapshot() {
-    return true;
-}
-
 export const AgentActivityVisual = memo(() => {
     const [step, setStep] = useState(0);
     const timeoutRef = useRef<NodeJS.Timeout | null>(null);
     const sequenceIndexRef = useRef(0);
-
-    const isDocumentVisible = useSyncExternalStore(
-        subscribeToVisibility,
-        getVisibilitySnapshot,
-        getServerVisibilitySnapshot
-    );
+    const isDocumentVisible = useTabVisibility();
 
     const clearCurrentTimeout = useCallback(() => {
         if (timeoutRef.current) {
@@ -153,7 +160,7 @@ export const AgentActivityVisual = memo(() => {
             <div className="flex-1 space-y-6 max-w-sm mx-auto w-full relative transition-all duration-700 group-hover:scale-105 group-hover:rotate-1">
                 <AnimatePresence mode="popLayout">
                     {step >= 1 && (
-                        <motion.div
+                        <m.div
                             key="user"
                             initial={{ opacity: 0, y: 20 }}
                             animate={{ opacity: 1, y: 0 }}
@@ -165,11 +172,11 @@ export const AgentActivityVisual = memo(() => {
                             <div className="bg-white/[0.03] border border-white/5 rounded-2xl p-3 md:p-4 text-[10px] md:text-[12px] text-foreground/80 leading-relaxed shadow-sm">
                                 {data.user}
                             </div>
-                        </motion.div>
+                        </m.div>
                     )}
 
                     {step >= 2 && (
-                        <motion.div
+                        <m.div
                             key="agent"
                             initial={{ opacity: 0, y: 20 }}
                             animate={{ opacity: 1, y: 0 }}
@@ -189,16 +196,16 @@ export const AgentActivityVisual = memo(() => {
                                 </div>
 
                                 {step >= 5 && (
-                                    <motion.div
+                                    <m.div
                                         initial={{ opacity: 0 }}
                                         animate={{ opacity: 1 }}
                                         className="bg-white/[0.03] border border-white/5 rounded-2xl p-4 text-[12px] text-foreground/80 leading-relaxed"
                                     >
                                         {data.assistant}
-                                    </motion.div>
+                                    </m.div>
                                 )}
                             </div>
-                        </motion.div>
+                        </m.div>
                     )}
                 </AnimatePresence>
             </div>

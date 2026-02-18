@@ -125,10 +125,14 @@ export const MobileSidebar = ({
       {...props}
     >
       <div className="flex justify-end z-20 w-full">
-        <IconMenu2
-          className="text-neutral-800 dark:text-neutral-200"
+        <button
+          type="button"
           onClick={() => setOpen(!open)}
-        />
+          aria-label="Open sidebar"
+          className="text-neutral-800 dark:text-neutral-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background rounded-md"
+        >
+          <IconMenu2 />
+        </button>
       </div>
       <AnimatePresence>
         {open && (
@@ -145,12 +149,14 @@ export const MobileSidebar = ({
               className
             )}
           >
-            <div
-              className="absolute right-10 top-10 z-50 text-neutral-800 dark:text-neutral-200"
+            <button
+              type="button"
+              aria-label="Close sidebar"
+              className="absolute right-10 top-10 z-50 text-neutral-800 dark:text-neutral-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background rounded-md"
               onClick={() => setOpen(!open)}
             >
               <IconX />
-            </div>
+            </button>
             {children}
           </motion.div>
         )}
@@ -201,11 +207,13 @@ export const SidebarTrigger = ({
   className,
   onClick,
   children,
+  type,
   ...props
 }: React.ComponentProps<"button">) => {
   const { open, setOpen } = useSidebar();
   return (
     <button
+      type={type ?? "button"}
       className={cn("", className)}
       onClick={(e) => {
         onClick?.(e);

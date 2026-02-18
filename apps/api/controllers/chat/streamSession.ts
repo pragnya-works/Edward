@@ -4,17 +4,26 @@ import { ParserEventType } from "../../schemas/chat.schema.js";
 import { createStreamParser } from "../../lib/llm/parser.js";
 import { streamResponse } from "../../lib/llm/response.js";
 import { composePrompt } from "../../lib/llm/compose.js";
-import { computeTokenUsage, isOverContextLimit, countOutputTokens, type TokenUsage } from "../../lib/llm/tokens.js";
-import { ensureSandbox } from "../../services/planning/workflowEngine.js";
+import {
+  computeTokenUsage,
+  isOverContextLimit,
+  countOutputTokens,
+  type TokenUsage,
+} from "../../lib/llm/tokens.js";
 import { cleanupSandbox } from "../../services/sandbox/lifecycle/cleanup.js";
 import { flushSandbox } from "../../services/sandbox/writes.sandbox.js";
 import { enqueueBuildJob } from "../../services/queue/enqueue.js";
-import { saveMessage, type MessageMetadata } from "../../services/chat.service.js";
+import {
+  saveMessage,
+  updateChatMeta,
+  type MessageMetadata,
+} from "../../services/chat.service.js";
+import { generateResponse } from "../../lib/llm/response.js";
 import { getSandboxState } from "../../services/sandbox/state.sandbox.js";
 import { normalizeFramework } from "../../services/sandbox/templates/template.registry.js";
 import { ensureError } from "../../utils/error.js";
 import { logger } from "../../utils/logger.js";
-import { MessageRole } from "@edward/auth";
+import { MessageRole, createBuild, updateBuild } from "@edward/auth";
 import {
   ChatAction,
   type WorkflowState,
@@ -28,15 +37,24 @@ import {
   MAX_STREAM_DURATION_MS,
   MAX_AGENT_TURNS,
 } from "../../utils/sharedConstants.js";
+import {
+  formatUrlScrapeAssistantTags,
+  prepareUrlScrapeContext,
+  type UrlScrapeResult,
+} from "../../services/websearch/urlScraper.service.js";
 
 import { safeSSEWrite, sendSSEDone } from "./sse.utils.js";
-import { formatCommandResults, type CommandResult } from "./command.utils.js";
+import { formatToolResults, type AgentToolResult } from "./command.utils.js";
 import {
   handleParserEvent,
   handleFlushEvents,
   type EventHandlerContext,
 } from "./event.handlers.js";
 import type { LlmChatMessage } from "../../lib/llm/context.js";
+import {
+  type MessageContent,
+  getTextFromContent,
+} from "../../lib/llm/types.js";
 
 export interface StreamSessionParams {
   req: AuthenticatedRequest;
@@ -45,7 +63,8 @@ export interface StreamSessionParams {
   userId: string;
   chatId: string;
   decryptedApiKey: string;
-  userContent: string;
+  userContent: MessageContent;
+  userTextContent: string;
   userMessageId: string;
   assistantMessageId: string;
   preVerifiedDeps: string[];
@@ -59,15 +78,15 @@ export interface StreamSessionParams {
 function buildAgentContinuationPrompt(
   fullUserContent: string,
   turnRawResponse: string,
-  commandResults: CommandResult[],
+  toolResults: AgentToolResult[],
 ): string {
-  const formattedResults = formatCommandResults(commandResults);
+  const formattedResults = formatToolResults(toolResults);
   const prevSummary =
     turnRawResponse.length > 4000
       ? turnRawResponse.slice(0, 4000) + "\n...[truncated]"
       : turnRawResponse;
 
-  return `ORIGINAL REQUEST:\n${fullUserContent}\n\nYOUR PREVIOUS RESPONSE:\n${prevSummary}\n\nCOMMAND RESULTS:\n${formattedResults}\n\nContinue with the task. If you wrote fixes, verify by running the build. If you need more information, use <edward_command>. Do not stop until you have completed the request and emitted <edward_done />.`;
+  return `ORIGINAL REQUEST:\n${fullUserContent}\n\nYOUR PREVIOUS RESPONSE:\n${prevSummary}\n\nTOOL RESULTS:\n${formattedResults}\n\nContinue with the task. If you wrote fixes, verify by running the build. If you need more information, use <edward_command> or <edward_web_search>. Do not stop until you have completed the request and emitted <edward_done />.`;
 }
 
 export async function runStreamSession(
@@ -81,6 +100,7 @@ export async function runStreamSession(
     chatId,
     decryptedApiKey,
     userContent,
+    userTextContent,
     userMessageId,
     assistantMessageId,
     preVerifiedDeps,
@@ -114,7 +134,7 @@ export async function runStreamSession(
   try {
     let framework: Framework | undefined =
       workflow.context.framework || workflow.context.intent?.suggestedFramework;
-    const complexity = workflow.context.intent?.complexity;
+    const complexity = workflow.context.intent?.complexity ?? "moderate";
     const mode =
       intent === ChatAction.FIX
         ? ChatAction.FIX
@@ -123,17 +143,58 @@ export async function runStreamSession(
           : ChatAction.GENERATE;
 
     const baseMessages: LlmChatMessage[] = [];
+
+    let urlScrapeResults: UrlScrapeResult[] = [];
+    let urlScrapeContextMessage: string | null = null;
+
+    const preparedUrlScrape = await prepareUrlScrapeContext({
+      promptText: userTextContent,
+    });
+
+    if (preparedUrlScrape.results.length > 0) {
+      urlScrapeResults = preparedUrlScrape.results;
+      urlScrapeContextMessage = preparedUrlScrape.contextMessage;
+
+      safeSSEWrite(
+        res,
+        `data: ${JSON.stringify({
+          type: ParserEventType.URL_SCRAPE,
+          results: preparedUrlScrape.results.map((result) =>
+            result.status === "success"
+              ? {
+                  status: "success",
+                  url: result.url,
+                  finalUrl: result.finalUrl,
+                  title: result.title,
+                  snippet: result.snippet,
+                }
+              : {
+                  status: "error",
+                  url: result.url,
+                  error: result.error,
+                },
+          ),
+        })}\n\n`,
+      );
+    }
+
     if (isFollowUp && historyMessages.length > 0) {
       baseMessages.push(...historyMessages);
     }
     if (isFollowUp && projectContext) {
       baseMessages.push({ role: MessageRole.User, content: projectContext });
     }
+    if (urlScrapeContextMessage) {
+      baseMessages.push({
+        role: MessageRole.User,
+        content: urlScrapeContextMessage,
+      });
+    }
     baseMessages.push({ role: MessageRole.User, content: userContent });
 
     const systemPrompt = composePrompt({
       framework,
-      complexity: (complexity || "moderate") as "simple" | "moderate" | "complex",
+      complexity,
       verifiedDependencies: preVerifiedDeps,
       mode,
     });
@@ -170,10 +231,6 @@ export async function runStreamSession(
       return;
     }
 
-    if (!workflow.sandboxId) {
-      await ensureSandbox(workflow, framework, isFollowUp);
-    }
-
     if (!framework && workflow.sandboxId) {
       const sandboxState = await getSandboxState(workflow.sandboxId);
       if (sandboxState?.scaffoldedFramework) {
@@ -188,11 +245,12 @@ export async function runStreamSession(
 
     let agentMessages: LlmChatMessage[] = baseMessages;
     let agentTurn = 0;
+    let sandboxTagDetected = false;
 
     agentLoop: while (agentTurn < MAX_AGENT_TURNS) {
       agentTurn++;
       const parser = createStreamParser();
-      const commandResultsThisTurn: CommandResult[] = [];
+      const toolResultsThisTurn: AgentToolResult[] = [];
       let turnRawResponse = "";
       let currentFilePath: string | undefined;
       let isFirstFileChunk = true;
@@ -227,16 +285,18 @@ export async function runStreamSession(
             userId,
             chatId,
             isFollowUp,
+            sandboxTagDetected,
             currentFilePath,
             isFirstFileChunk,
             generatedFiles,
             declaredPackages,
-            commandResultsThisTurn,
+            toolResultsThisTurn,
           };
 
           const result = await handleParserEvent(ctx, event);
           currentFilePath = result.currentFilePath;
           isFirstFileChunk = result.isFirstFileChunk;
+          sandboxTagDetected = result.sandboxTagDetected;
 
           if (!result.handled) {
             safeSSEWrite(res, `data: ${JSON.stringify(event)}\n\n`);
@@ -255,32 +315,40 @@ export async function runStreamSession(
         userId,
         chatId,
         isFollowUp,
+        sandboxTagDetected,
         currentFilePath,
         isFirstFileChunk,
         generatedFiles,
         declaredPackages,
-        commandResultsThisTurn,
+        toolResultsThisTurn,
       };
-      await handleFlushEvents(flushCtx, parser.flush());
+      const flushResult = await handleFlushEvents(flushCtx, parser.flush());
+      currentFilePath = flushResult.currentFilePath;
+      isFirstFileChunk = flushResult.isFirstFileChunk;
+      sandboxTagDetected = flushResult.sandboxTagDetected;
 
       if (
-        commandResultsThisTurn.length > 0 &&
+        toolResultsThisTurn.length > 0 &&
         agentTurn < MAX_AGENT_TURNS &&
         !abortController.signal.aborted
       ) {
+        const userTextContent =
+          typeof userContent === "string"
+            ? userContent
+            : getTextFromContent(userContent);
         const continuation = buildAgentContinuationPrompt(
-          userContent,
+          userTextContent,
           turnRawResponse,
-          commandResultsThisTurn,
+          toolResultsThisTurn,
         );
         agentMessages = [{ role: MessageRole.User, content: continuation }];
         logger.info(
           {
             chatId,
             turn: agentTurn,
-            commandCount: commandResultsThisTurn.length,
+            toolCount: toolResultsThisTurn.length,
           },
-          "Agent loop: continuing with command results",
+          "Agent loop: continuing with tool results",
         );
         continue agentLoop;
       }
@@ -310,15 +378,49 @@ export async function runStreamSession(
       "Assistant message completed with metrics",
     );
 
+    const urlScrapeTags = formatUrlScrapeAssistantTags(urlScrapeResults);
+    const storedAssistantContent = urlScrapeTags
+      ? `${urlScrapeTags}\n\n${fullRawResponse}`
+      : fullRawResponse;
+
     await saveMessage(
       chatId,
       userId,
       MessageRole.Assistant,
-      fullRawResponse,
+      storedAssistantContent,
       assistantMessageId,
       messageMetadata,
     );
-    committedMessageContent = fullRawResponse;
+    committedMessageContent = storedAssistantContent;
+
+    if (!isFollowUp) {
+      generateResponse(
+        decryptedApiKey,
+        `Generate a title and description for this chat based on the user's request. User said: "${getTextFromContent(userContent).slice(0, 500)}"
+
+Return ONLY a JSON object: {"title": "...", "description": "..."}
+- title: max 6 words, concise project name (e.g. "Cloud Storage Dashboard", "Portfolio Website")
+- description: max 15 words, what the project does`,
+        [],
+        undefined,
+        { jsonMode: true },
+      )
+        .then((resp) => {
+          const match = resp.match(/\{[\s\S]*\}/);
+          if (!match) return;
+          const parsed = JSON.parse(match[0]);
+          if (parsed.title || parsed.description) {
+            return updateChatMeta(chatId, {
+              title: parsed.title?.slice(0, 100),
+              description: parsed.description?.slice(0, 200),
+            });
+          }
+          return undefined;
+        })
+        .catch((err) =>
+          logger.warn({ err, chatId }, "Title generation failed (non-fatal)"),
+        );
+    }
 
     if (workflow.sandboxId) {
       if (generatedFiles.size > 0) {
@@ -355,14 +457,31 @@ export async function runStreamSession(
         ),
       );
 
+      const queuedBuild = await createBuild({
+        chatId,
+        messageId: assistantMessageId,
+        status: "queued",
+      });
+
       try {
         await enqueueBuildJob({
           sandboxId: workflow.sandboxId,
           userId,
           chatId,
           messageId: assistantMessageId,
+          buildId: queuedBuild.id,
         });
       } catch (queueErr) {
+        await updateBuild(queuedBuild.id, {
+          status: "failed",
+          errorReport: {
+            failed: true,
+            headline: "Failed to enqueue build job",
+            details:
+              queueErr instanceof Error ? queueErr.message : String(queueErr),
+          } as Record<string, unknown>,
+        } as Parameters<typeof updateBuild>[1]).catch(() => {});
+
         logger.error(
           ensureError(queueErr),
           `Failed to enqueue build job for sandbox: ${workflow.sandboxId}`,
@@ -406,7 +525,9 @@ export async function runStreamSession(
       if (committedMessageContent === null) {
         const errorCompletionTime = Date.now() - messageStartTime;
         const errorInputTokens = tokenUsage?.inputTokens ?? 0;
-        const errorOutputTokens = fullRawResponse ? countOutputTokens(fullRawResponse, model) : 0;
+        const errorOutputTokens = fullRawResponse
+          ? countOutputTokens(fullRawResponse, model)
+          : 0;
 
         const errorMetadata: MessageMetadata = {
           completionTime: errorCompletionTime,

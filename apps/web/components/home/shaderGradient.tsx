@@ -2,7 +2,7 @@
 
 import React, { Suspense, useState, useEffect, memo } from "react"
 import dynamic from "next/dynamic"
-import { motion } from "motion/react"
+import { m } from "motion/react"
 import type { GradientT } from "@shadergradient/react"
 import { useTabVisibility } from "../../hooks/useTabVisibility"
 import { useInView } from "../../hooks/useInView"
@@ -68,7 +68,7 @@ const FALLBACK_GRADIENT_STYLE = {
 
 const StaticGradientFallback = memo(function StaticGradientFallback({ opacity }: { opacity: number }) {
   return (
-    <motion.div 
+    <m.div 
       className="absolute inset-0 z-0"
       initial={{ opacity: 0.4 }}
       animate={{ opacity }}
@@ -89,7 +89,7 @@ const ShaderContent = memo(function ShaderContent({
   
   return (
     <Suspense fallback={null}>
-      <motion.div
+      <m.div
         initial={{ opacity: 0 }}
         animate={{ opacity: hasAppeared ? 1 : 0 }}
         transition={{ duration: 2.5, ease: [0.22, 1, 0.36, 1] }}
@@ -103,7 +103,7 @@ const ShaderContent = memo(function ShaderContent({
         >
           <ShaderGradient {...GRADIENT_CONFIG} />
         </ShaderGradientCanvas>
-      </motion.div>
+      </m.div>
     </Suspense>
   )
 })

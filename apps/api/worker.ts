@@ -64,12 +64,18 @@ async function createErrorReportIfPossible(
 }
 
 async function processBuildJob(payload: BuildJobPayload): Promise<void> {
-  const { sandboxId, chatId, messageId, userId } = payload;
+  const { sandboxId, chatId, messageId, userId, buildId } = payload;
   const startTime = Date.now();
 
-  const buildRecord = await createBuild({
-    chatId,
-    messageId,
+  const buildRecord = buildId
+    ? { id: buildId }
+    : await createBuild({
+        chatId,
+        messageId,
+        status: "queued",
+      });
+
+  await updateBuild(buildRecord.id, {
     status: "building",
   });
 

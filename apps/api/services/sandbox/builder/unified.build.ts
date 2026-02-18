@@ -121,44 +121,60 @@ export async function buildAndUploadUnified(
     const nodeModulesMissing = nodeModulesCheck.exitCode !== 0;
 
     if (nodeModulesMissing) {
-      logger.warn(
-        { sandboxId },
-        "node_modules missing before build, running pnpm install",
-      );
-
-      const installResult = await execCommand(
+      const pkgJsonCheck = await execCommand(
         container,
-        ["pnpm", "install", "--frozen-lockfile=false"],
+        ["test", "-f", "package.json"],
         false,
-        TIMEOUT_DEPENDENCY_INSTALL_MS,
+        5000,
         undefined,
         CONTAINER_WORKDIR,
-        ["NEXT_TELEMETRY_DISABLED=1", "CI=true"],
       );
 
-      if (installResult.exitCode !== 0) {
-        logger.error(
-          {
-            sandboxId,
-            exitCode: installResult.exitCode,
-            stderr: installResult.stderr.slice(-500),
-          },
-          "pnpm install failed",
+      if (pkgJsonCheck.exitCode === 0) {
+        logger.warn(
+          { sandboxId },
+          "node_modules missing before build, running pnpm install",
         );
-        await disconnectContainerFromNetwork(containerId, sandboxId);
-        return {
-          success: false,
-          buildDirectory: null,
-          error: [
-            `Dependency installation failed (exit ${installResult.exitCode})`,
-            "--- STDERR (tail) ---",
-            (installResult.stderr || "").slice(-8000),
-            "--- STDOUT (tail) ---",
-            (installResult.stdout || "").slice(-8000),
-          ].join("\n"),
-          previewUploaded: false,
-          previewUrl: null,
-        };
+
+        const installResult = await execCommand(
+          container,
+          ["pnpm", "install", "--frozen-lockfile=false"],
+          false,
+          TIMEOUT_DEPENDENCY_INSTALL_MS,
+          undefined,
+          CONTAINER_WORKDIR,
+          ["NEXT_TELEMETRY_DISABLED=1", "CI=true"],
+        );
+
+        if (installResult.exitCode !== 0) {
+          logger.error(
+            {
+              sandboxId,
+              exitCode: installResult.exitCode,
+              stderr: installResult.stderr.slice(-500),
+            },
+            "pnpm install failed",
+          );
+          await disconnectContainerFromNetwork(containerId, sandboxId);
+          return {
+            success: false,
+            buildDirectory: null,
+            error: [
+              `Dependency installation failed (exit ${installResult.exitCode})`,
+              "--- STDERR (tail) ---",
+              (installResult.stderr || "").slice(-8000),
+              "--- STDOUT (tail) ---",
+              (installResult.stdout || "").slice(-8000),
+            ].join("\n"),
+            previewUploaded: false,
+            previewUrl: null,
+          };
+        }
+      } else {
+        logger.info(
+          { sandboxId },
+          "No package.json found, skipping dependency installation",
+        );
       }
     }
 
@@ -205,16 +221,28 @@ export async function buildAndUploadUnified(
     const buildDirectory = buildResult.outputInfo!.directory;
 
     const framework = (scaffoldedFramework || "vanilla") as Framework;
+    let previewUploaded = false;
+    let previewUrl: string | null = null;
+    let uploadWarning: string | undefined;
 
-    const uploadResult = await uploadBuildFilesToS3(
-      sandbox,
-      buildDirectory,
-      framework,
-    );
+    if (userId && chatId) {
+      const uploadResult = await uploadBuildFilesToS3(
+        sandbox,
+        buildDirectory,
+        framework,
+      );
 
-    const allSuccessful = uploadResult.totalFiles === uploadResult.successful;
+      if (uploadResult.successful < uploadResult.totalFiles) {
+        logger.warn(
+          {
+            sandboxId,
+            successful: uploadResult.successful,
+            total: uploadResult.totalFiles,
+          },
+          "Some build files failed to upload to S3 (non-fatal)",
+        );
+      }
 
-    if (allSuccessful && userId && chatId) {
       const previewPrefix = buildS3Key(userId, chatId, "preview/");
       if (framework !== "vanilla") {
         const fallbackKey = buildS3Key(userId, chatId, "preview/404.html");
@@ -228,40 +256,45 @@ export async function buildAndUploadUnified(
           );
         },
       );
-    }
 
-    if (framework !== "vanilla") {
-      await uploadSpaFallback(sandbox, framework).catch((err) =>
-        logger.warn({ err, sandboxId }, "SPA fallback upload failed"),
-      );
-    }
+      if (framework !== "vanilla") {
+        await uploadSpaFallback(sandbox, framework).catch((err) =>
+          logger.warn({ err, sandboxId }, "SPA fallback upload failed"),
+        );
+      }
 
-    if (userId && chatId) {
       await invalidatePreviewCache(userId, chatId).catch((err) =>
         logger.warn(
           { err, sandboxId },
           "CloudFront invalidation failed (non-fatal)",
         ),
       );
+
+      previewUploaded = uploadResult.successful > 0;
+      previewUrl = buildPreviewUrl(userId, chatId);
+      uploadWarning =
+        uploadResult.successful < uploadResult.totalFiles
+          ? `Warning: ${uploadResult.totalFiles - uploadResult.successful} files failed to upload to S3`
+          : undefined;
+    } else {
+      logger.warn(
+        { sandboxId, userIdPresent: Boolean(userId), chatIdPresent: Boolean(chatId) },
+        "Skipping preview upload/cleanup because sandbox is missing userId or chatId",
+      );
     }
 
     await disconnectContainerFromNetwork(containerId, sandboxId);
 
-    const previewUrl =
-      userId && chatId ? buildPreviewUrl(userId, chatId) : null;
-
     return {
-      success: allSuccessful,
+      success: true,
       buildDirectory,
-      previewUploaded: uploadResult.successful > 0,
-      previewUrl: allSuccessful ? previewUrl : null,
-      error: allSuccessful
-        ? undefined
-        : `Upload incomplete: ${uploadResult.successful}/${uploadResult.totalFiles} files uploaded`,
+      previewUploaded,
+      previewUrl,
+      error: uploadWarning,
     };
   } catch (error) {
     await disconnectContainerFromNetwork(containerId, sandboxId).catch(
-      () => {},
+      () => { },
     );
     const err = ensureError(error);
     logger.error(

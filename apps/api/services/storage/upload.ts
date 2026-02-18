@@ -81,7 +81,8 @@ export async function uploadWithRetry(
   contentType: string,
   metadata: Record<string, string>,
   contentLength?: number,
-  cacheControl?: string
+  cacheControl?: string,
+  bucketName?: string,
 ): Promise<void> {
   let lastError: Error | null = null;
 
@@ -100,6 +101,7 @@ export async function uploadWithRetry(
         client: s3Client,
         params: {
           Bucket: BUCKET_NAME!,
+          ...(bucketName ? { Bucket: bucketName } : {}),
           Key: key,
           Body: body,
           ContentType: contentType,

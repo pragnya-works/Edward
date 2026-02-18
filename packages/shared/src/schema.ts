@@ -22,7 +22,7 @@ export interface ModelSpec {
   context: string;
   reasoning: string;
   type: ModelType;
-  supportsVision?: boolean;
+  supportsVision: boolean;
 }
 
 export enum Model {
@@ -52,6 +52,7 @@ export const OPENAI_MODELS: Record<string, ModelSpec> = {
     context: "512k",
     reasoning: "Max",
     type: "codex",
+    supportsVision: true,
   },
   [Model.GPT_5_2_PRO]: {
     provider: Provider.OPENAI,
@@ -64,6 +65,7 @@ export const OPENAI_MODELS: Record<string, ModelSpec> = {
     context: "400k",
     reasoning: "High",
     type: "pro",
+    supportsVision: true,
   },
   [Model.GPT_5_1_CODEX]: {
     provider: Provider.OPENAI,
@@ -76,6 +78,7 @@ export const OPENAI_MODELS: Record<string, ModelSpec> = {
     context: "256k",
     reasoning: "Mid",
     type: "codex",
+    supportsVision: true,
   },
   [Model.GPT_5_MINI]: {
     provider: Provider.OPENAI,
@@ -88,6 +91,7 @@ export const OPENAI_MODELS: Record<string, ModelSpec> = {
     context: "200k",
     reasoning: "Fast",
     type: "mini",
+    supportsVision: true,
   },
   [Model.GPT_5_NANO]: {
     provider: Provider.OPENAI,
@@ -100,6 +104,7 @@ export const OPENAI_MODELS: Record<string, ModelSpec> = {
     context: "128k",
     reasoning: "Fast",
     type: "mini",
+    supportsVision: true,
   },
 };
 
@@ -114,6 +119,7 @@ export const GEMINI_MODELS: Record<string, ModelSpec> = {
     context: "2.1M",
     reasoning: "Peak",
     type: "pro",
+    supportsVision: true,
   },
   [Model.GEMINI_3_FLASH]: {
     provider: Provider.GEMINI,
@@ -125,6 +131,7 @@ export const GEMINI_MODELS: Record<string, ModelSpec> = {
     context: "1M",
     reasoning: "Fast",
     type: "flash",
+    supportsVision: true,
   },
   [Model.GEMINI_2_5_PRO]: {
     provider: Provider.GEMINI,
@@ -136,6 +143,7 @@ export const GEMINI_MODELS: Record<string, ModelSpec> = {
     context: "1M",
     reasoning: "High",
     type: "pro",
+    supportsVision: true,
   },
   [Model.GEMINI_2_5_FLASH]: {
     provider: Provider.GEMINI,
@@ -147,6 +155,7 @@ export const GEMINI_MODELS: Record<string, ModelSpec> = {
     context: "1M",
     reasoning: "Fast",
     type: "flash",
+    supportsVision: true,
   },
 };
 
@@ -168,8 +177,6 @@ export function getModelSpec(model: string): ModelSpec | undefined {
   return OPENAI_MODELS[model] ?? GEMINI_MODELS[model];
 }
 
-
-
 export function getModelSpecByProvider(
   provider: Provider,
   model: string,
@@ -177,6 +184,11 @@ export function getModelSpecByProvider(
   const normalized = normalizeModelId(model);
   const catalog = MODEL_CATALOG[provider];
   return catalog[normalized] ?? null;
+}
+
+export function modelSupportsVision(model: string): boolean {
+  const spec = getModelSpec(model);
+  return spec?.supportsVision ?? false;
 }
 
 export function getFallbackModelSpec(
@@ -195,6 +207,7 @@ export function getFallbackModelSpec(
       context: "128k",
       reasoning: "Unknown",
       type: "standard",
+      supportsVision: true,
     };
   }
   return {
@@ -207,6 +220,7 @@ export function getFallbackModelSpec(
     context: "1M",
     reasoning: "Unknown",
     type: "standard",
+    supportsVision: true,
   };
 }
 

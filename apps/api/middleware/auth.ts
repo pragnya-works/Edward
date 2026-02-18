@@ -1,4 +1,5 @@
 import type { Request, Response, NextFunction } from 'express';
+import type { IncomingHttpHeaders } from "node:http";
 import { auth } from '@edward/auth';
 import { logger } from '../utils/logger.js';
 import { HttpMethod, HttpStatus, ERROR_MESSAGES } from '../utils/constants.js';
@@ -15,6 +16,20 @@ function sendUnauthorized(res: Response): void {
   });
 }
 
+function toFetchHeaders(headers: IncomingHttpHeaders): Headers {
+  const normalized = new Headers();
+  for (const [key, value] of Object.entries(headers)) {
+    if (typeof value === "string") {
+      normalized.set(key, value);
+      continue;
+    }
+    if (Array.isArray(value)) {
+      normalized.set(key, value.join(", "));
+    }
+  }
+  return normalized;
+}
+
 export async function authMiddleware(
   req: AuthenticatedRequest,
   res: Response,
@@ -27,7 +42,7 @@ export async function authMiddleware(
     }
 
     const sessionData = await auth.api.getSession({
-      headers: req.headers,
+      headers: toFetchHeaders(req.headers),
     });
 
     if (!sessionData?.session || !sessionData?.user) {

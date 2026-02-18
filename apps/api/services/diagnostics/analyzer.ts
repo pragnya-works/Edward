@@ -55,65 +55,79 @@ export function groupRelatedErrors(errors: BuildError[]): BuildError[] {
   return errors;
 }
 
+type DiagnosticContext = {
+  packageJson?: Record<string, unknown>;
+};
+
+interface DiagnosticStrategy {
+  layman: (error: BuildError, context: DiagnosticContext) => string;
+}
+
+const DIAGNOSTIC_STRATEGIES: Record<string, DiagnosticStrategy> = {
+  missing_import: {
+    layman: (err) => {
+      const target = err.error.target || "something";
+      return `I can't find '${target}'. It looks like a plugin or package is missing in your project. Ask me to 'Install ${target.split("/")[0]}' to fix this.`;
+    },
+  },
+  type_mismatch: {
+    layman: (err) => {
+      if (err.error.code === "TS2554")
+        return "You're missing some required information (arguments) for a function call. Check the highlighted code.";
+      if (err.error.code === "TS2786")
+        return "This component isn't a valid React component. Check if it's imported correctly or if the file has the right extension (.tsx).";
+      const target = err.error.target;
+      return target
+        ? `It looks like '${target}' is being used incorrectly or has a typo in its definition.`
+        : "There's a mismatch in how data is being used here. Check the types.";
+    },
+  },
+  syntax: {
+    layman: (err) =>
+      `There's a typo in '${err.error.file}' on line ${err.error.line}. It looks like a bracket, semicolon, or symbol is misplaced. Check the code I've highlighted.`,
+  },
+  config: {
+    layman: (err) => {
+      const msg = err.error.message.toLowerCase();
+      if (msg.includes("eslint") && msg.includes("next.config")) {
+        return "Your Next.js configuration is using an outdated 'eslint' key which is no longer supported. Ask me to 'Remove eslint from next.config.ts'.";
+      }
+      if (msg.includes("invalid next.config")) {
+        return "There's an invalid setting in your next.config.ts. Check the file for typos or unsupported options.";
+      }
+      return `Your configuration in '${err.error.file}' isn't valid. Something is missing or typed incorrectly in the settings.`;
+    },
+  },
+  resource: {
+    layman: (err) =>
+      err.severity === "critical"
+        ? "The build ran out of memory. This usually happens with very large projects or heavy plugins."
+        : "The system is low on resources (disk or memory), preventing the build from finishing.",
+  },
+  environment: {
+    layman: () =>
+      "There's an issue with the development environment (like a missing command or bad permissions). I need to check the system setup.",
+  },
+  network: {
+    layman: () =>
+      "I couldn't reach the package registry. Check your connection or the registry stats.",
+  },
+  unknown: {
+    layman: (err) =>
+      `The build failed due to an error in '${err.error.file}'. Check the message for clues: ${err.error.message.split("\n")[0]}`,
+  },
+};
+
 export function generateSuggestion(
   error: BuildError,
-  context: { packageJson?: Record<string, unknown> },
-): string | undefined {
-  const { type, error: err } = error;
-
-  switch (type) {
-    case "missing_import":
-      if (err.target) {
-        const deps = {
-          ...(context.packageJson?.dependencies as Record<string, string>),
-          ...(context.packageJson?.devDependencies as Record<string, string>),
-        };
-        const parts = err.target.split("/").filter(Boolean);
-        const packageName = err.target.startsWith("@")
-          ? parts.slice(0, 2).join("/")
-          : parts[0];
-        if (!packageName) {
-          return "Check import path or install missing package";
-        }
-        if (deps[packageName]) {
-          return `Package '${packageName}' is in package.json but module '${err.target}' cannot be resolved. Check export paths or reinstall with 'rm -rf node_modules && pnpm install'`;
-        }
-        return `Install missing package: pnpm add ${packageName}`;
-      }
-      return "Check import path or install missing package";
-
-    case "type_mismatch":
-      if (err.code === "TS2554") {
-        return "Check function signature and provide correct number of arguments";
-      }
-      if (err.code === "TS2786") {
-        return "Ensure component is properly imported and is a valid React component";
-      }
-      return err.target
-        ? `Fix type definition or import for '${err.target}'`
-        : "Fix type annotation";
-
-    case "syntax":
-      return "Check for missing brackets, semicolons, or typos in the highlighted code";
-
-    case "config":
-      return "Review configuration file for syntax errors or missing properties";
-
-    case "resource":
-      if (error.severity === "critical") {
-        return "Increase Node.js memory limit: NODE_OPTIONS='--max-old-space-size=4096'";
-      }
-      return "Free up disk space or increase resource limits";
-
-    case "environment":
-      return "Check Node.js/npm installation and permissions";
-
-    case "network":
-      return "Check network connection and retry. If using a registry mirror, verify it's accessible";
-
-    default:
-      return undefined;
+  context: DiagnosticContext,
+): string {
+  const strategy =
+    DIAGNOSTIC_STRATEGIES[error.type] ?? DIAGNOSTIC_STRATEGIES.unknown;
+  if (!strategy) {
+    return `The build failed due to an error in '${error.error.file}'. Check the message for clues.`;
   }
+  return strategy.layman(error, context);
 }
 
 export function formatErrorForLLM(report: BuildErrorReport): string {

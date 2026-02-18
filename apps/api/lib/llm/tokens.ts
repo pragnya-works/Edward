@@ -10,6 +10,11 @@ import {
 } from "@edward/shared/schema";
 import { MessageRole } from "@edward/auth";
 import { toGeminiRole, type TokenBreakdownRole } from "./messageRole.js";
+import {
+  getTextFromContent,
+  hasImages,
+  type MessageContentPart,
+} from "./types.js";
 
 type TokenCountMethod = "openai-tiktoken" | "gemini-countTokens" | "approx";
 
@@ -67,6 +72,32 @@ function getEncodingForOpenAIModel(model: string) {
   }
 }
 
+function estimateVisionTokens(content: MessageContentPart[] | string): number {
+  if (typeof content === "string") return 0;
+
+  let visionTokens = 0;
+  for (const part of content) {
+    if (part.type === "image") {
+      const base64Length = part.base64.length;
+      const estimatedBytes = Math.ceil(base64Length * 0.75);
+      const estimatedPixels = estimatedBytes;
+
+      if (estimatedPixels <= 512 * 512 * 3) {
+        visionTokens += 85;
+      } else if (estimatedPixels <= 768 * 768 * 3) {
+        visionTokens += 170;
+      } else if (estimatedPixels <= 1024 * 1024 * 3) {
+        visionTokens += 255;
+      } else if (estimatedPixels <= 2048 * 2048 * 3) {
+        visionTokens += 425;
+      } else {
+        visionTokens += 595;
+      }
+    }
+  }
+  return visionTokens;
+}
+
 function countOpenAIInputTokens(
   systemPrompt: string,
   messages: LlmChatMessage[],
@@ -94,7 +125,13 @@ function countOpenAIInputTokens(
 
   let total = systemTokens;
   messages.forEach((m, idx) => {
-    const msgTokens = tokensPerMessage + enc.encode(m.content).length;
+    const textContent =
+      typeof m.content === "string" ? m.content : getTextFromContent(m.content);
+    const textTokens = enc.encode(textContent).length;
+    const visionTokens = hasImages(m.content)
+      ? estimateVisionTokens(m.content)
+      : 0;
+    const msgTokens = tokensPerMessage + textTokens + visionTokens;
     perMessage.push({ index: idx + 1, role: m.role, tokens: msgTokens });
     total += msgTokens;
   });
@@ -146,7 +183,15 @@ async function countGeminiInputTokens(
     });
     let total = systemTokens;
     messages.forEach((m, idx) => {
-      const t = approx(m.content);
+      const textContent =
+        typeof m.content === "string"
+          ? m.content
+          : getTextFromContent(m.content);
+      const textTokens = approx(textContent);
+      const visionTokens = hasImages(m.content)
+        ? estimateVisionTokens(m.content)
+        : 0;
+      const t = textTokens + visionTokens;
       perMessage.push({ index: idx + 1, role: m.role, tokens: t });
       total += t;
     });
@@ -255,7 +300,9 @@ export function isOverContextLimit(usage: TokenUsage): boolean {
 export function countOutputTokens(content: string, model?: string): number {
   const modelName = model || DEFAULT_OPENAI_MODEL;
   try {
-    const enc = encodingForModel(modelName as Parameters<typeof encodingForModel>[0]);
+    const enc = encodingForModel(
+      modelName as Parameters<typeof encodingForModel>[0],
+    );
     return enc.encode(content).length;
   } catch {
     const enc = getEncoding("cl100k_base");
