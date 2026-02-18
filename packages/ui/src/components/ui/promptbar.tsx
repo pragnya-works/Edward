@@ -1,43 +1,55 @@
-import { ArrowRight, PaperclipIcon } from "lucide-react";
-import { useState, useEffect, useCallback, useRef } from "react";
-import { Button } from "@edward/ui/components/button";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { Card } from "@edward/ui/components/card";
 import { Textarea } from "@edward/ui/components/textarea";
 import { TextAnimate } from "@edward/ui/components/textAnimate";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-  TooltipPositioner,
-} from "@edward/ui/components/tooltip";
 import { useIsMobile } from "@edward/ui/hooks/useMobile";
 import { LoginModal } from "@edward/ui/components/ui/loginModal";
 import { BYOK } from "@edward/ui/components/ui/byok";
-import { Provider } from "@edward/shared/constants";
+import { modelSupportsVision } from "@edward/shared/schema";
+import { cn } from "@edward/ui/lib/utils";
+import {
+  SUGGESTIONS,
+  isUploaded,
+  isUploading,
+  type PromptbarProps,
+  type UploadedImageRef,
+} from "./promptbar/promptbar.constants";
+import { useFileAttachments } from "./promptbar/useFileAttachments";
+import { DragDropOverlay } from "./promptbar/dragDropOverlay";
+import { ImagePreviewStrip } from "./promptbar/imagePreviewStrip";
+import { PromptToolbar } from "./promptbar/promptToolbar";
+import { UrlSourceStrip } from "./promptbar/urlSourceStrip";
 
-const SUGGESTIONS: string[] = [
-  "Build a high-fidelity SaaS landing page with Bento grid layouts and subtle motion reveals",
-  "Create a complex multi-step onboarding flow with persistent state and Zod validation",
-  "Implement a responsive dashboard with dynamic sidebar navigation and CSS Grid",
-  "Design a dark-themed command palette with fuzzy search and keyboard shortcuts",
-  "Develop a glassmorphic analytics dashboard using interactive charting and Tailwind CSS",
-];
+const URL_PATTERN = /https?:\/\/[^\s<>"'`]+/gi;
+const URL_SOURCE_PREVIEW_LIMIT = 6;
 
-interface PromptbarProps {
-  isAuthenticated?: boolean;
-  onSignIn?: () => void | Promise<void>;
-  onProtectedAction?: () => void | Promise<void>;
-  hasApiKey?: boolean | null;
-  isApiKeyLoading?: boolean;
-  apiKeyError?: string;
-  onSaveApiKey?: (
-    apiKey: string,
-    onValidate: (key: string) => void,
-    onClose: () => void,
-    provider: Provider,
-    model?: string,
-  ) => Promise<boolean>;
-  preferredModel?: string;
+function normalizeDetectedUrl(raw: string): string | null {
+  try {
+    const sanitized = raw.trim().replace(/[.,!?;:]+$/g, "");
+    const parsed = new URL(sanitized);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      return null;
+    }
+    parsed.hash = "";
+    return parsed.toString();
+  } catch {
+    return null;
+  }
+}
+
+function extractUrlsFromPrompt(text: string): string[] {
+  const matches = text.match(URL_PATTERN) ?? [];
+  const seen = new Set<string>();
+  const urls: string[] = [];
+
+  for (const candidate of matches) {
+    const normalized = normalizeDetectedUrl(candidate);
+    if (!normalized || seen.has(normalized)) continue;
+    seen.add(normalized);
+    urls.push(normalized);
+  }
+
+  return urls.slice(0, URL_SOURCE_PREVIEW_LIMIT);
 }
 
 export default function Promptbar({
@@ -49,23 +61,68 @@ export default function Promptbar({
   apiKeyError = "",
   onSaveApiKey,
   preferredModel,
+  keyPreview,
+  selectedModelId,
+  hideSuggestions = false,
+  isStreaming = false,
+  onCancel,
+  onImageUpload,
 }: PromptbarProps) {
   const [inputValue, setInputValue] = useState("");
   const [suggestionIndex, setSuggestionIndex] = useState(0);
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [showBYOK, setShowBYOK] = useState(false);
+
   const isMobile = useIsMobile();
   const initialLoadTriggered = useRef(false);
 
-  useEffect(() => {
-    let interval: NodeJS.Timeout | null = null;
+  const supportsVision = useMemo(() => {
+    if (!selectedModelId) return true;
+    return modelSupportsVision(selectedModelId);
+  }, [selectedModelId]);
 
+  const {
+    attachedFiles,
+    isDragging,
+    fileInputRef,
+    canAttachMore,
+    handleFileInputChange,
+    handleClearAllFiles,
+    handleRemoveFile,
+    handleDragEnter,
+    handleDragLeave,
+    handleDragOver,
+    handleDrop,
+    handleAttachmentClick,
+  } = useFileAttachments(isAuthenticated, supportsVision, onImageUpload);
+
+  const uploadedImages = useMemo<UploadedImageRef[]>(() => {
+    return attachedFiles
+      .filter((file) => isUploaded(file) && file.cdnUrl)
+      .map((file) => ({
+        url: file.cdnUrl!,
+        mimeType: file.mimeType || file.file.type || "image/jpeg",
+        name: file.file.name,
+        sizeBytes: file.file.size,
+      }));
+  }, [attachedFiles]);
+
+  const hasPendingUploads = useMemo(
+    () => attachedFiles.some((file) => isUploading(file)),
+    [attachedFiles],
+  );
+  const detectedSourceUrls = useMemo(
+    () => extractUrlsFromPrompt(inputValue),
+    [inputValue],
+  );
+
+  useEffect(() => {
+    let interval: ReturnType<typeof setInterval> | null = null;
     const startInterval = () => {
       interval = setInterval(() => {
         setSuggestionIndex((prev) => (prev + 1) % SUGGESTIONS.length);
       }, 4000);
     };
-
     const handleVisibilityChange = () => {
       if (document.hidden) {
         if (interval) clearInterval(interval);
@@ -74,10 +131,8 @@ export default function Promptbar({
         startInterval();
       }
     };
-
     startInterval();
     document.addEventListener("visibilitychange", handleVisibilityChange);
-
     return () => {
       if (interval) clearInterval(interval);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
@@ -85,14 +140,26 @@ export default function Promptbar({
   }, []);
 
   const handleProtectedAction = useCallback(() => {
+    if (hasPendingUploads) return;
     if (!isAuthenticated) {
       setShowLoginModal(true);
     } else if (hasApiKey !== true) {
       if (!isApiKeyLoading) setShowBYOK(true);
     } else {
-      onProtectedAction?.();
+      onProtectedAction?.(inputValue, uploadedImages);
+      setInputValue("");
+      handleClearAllFiles();
     }
-  }, [isAuthenticated, hasApiKey, isApiKeyLoading, onProtectedAction]);
+  }, [
+    isAuthenticated,
+    hasApiKey,
+    isApiKeyLoading,
+    onProtectedAction,
+    inputValue,
+    handleClearAllFiles,
+    uploadedImages,
+    hasPendingUploads,
+  ]);
 
   useEffect(() => {
     if (
@@ -106,92 +173,103 @@ export default function Promptbar({
     }
   }, [isAuthenticated, hasApiKey, isApiKeyLoading]);
 
-  const ActionButton = isMobile ? (
-    <Button
-      type="button"
-      size="icon"
-      className="rounded-full"
-      onClick={handleProtectedAction}
-      aria-label="Build now"
-    >
-      <ArrowRight className="h-3.5 w-3.5" />
-    </Button>
-  ) : (
-    <Button
-      type="button"
-      className="shrink-0 rounded-full px-5 py-2 text-sm font-medium shadow-sm"
-      onClick={handleProtectedAction}
-    >
-      Build now
-      <ArrowRight className="ml-1 h-3.5 w-3.5" />
-    </Button>
-  );
-
   return (
-    <Card className="w-full rounded-2xl border-border bg-card/80 backdrop-blur-md shadow-xl py-0">
-      <div className="flex flex-col relative">
-        <div className="relative">
-          {!inputValue && (
-            <div className="absolute inset-0 px-4 py-4 pointer-events-none z-0">
-              <TextAnimate
-                key={suggestionIndex}
-                animation="blurInUp"
-                by="word"
-                className="text-base text-gray-500"
-                text={SUGGESTIONS[suggestionIndex]!}
-              />
-            </div>
+    <div className="relative w-full">
+      <UrlSourceStrip urls={detectedSourceUrls} />
+      <Card
+        className={cn(
+          "w-full rounded-2xl py-0 overflow-hidden transition-all duration-500",
+          isAuthenticated
+            ? "border border-sky-400/30 bg-card/80 dark:bg-card/35 backdrop-blur-3xl shadow-sm ring-1 ring-sky-400/20"
+            : "border border-white/20 bg-zinc-100/70 dark:bg-zinc-900/70 backdrop-blur-3xl shadow-sm ring-1 ring-white/10",
+        )}
+      >
+        <div
+          className={cn(
+            "flex flex-col relative transition-all duration-200",
+            isDragging && "bg-sky-500/10",
           )}
-          <Textarea
-            placeholder=""
-            value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
-            className="min-h-25 md:min-h-30 resize-none border-0 bg-transparent p-4 text-base text-foreground placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0 relative z-10"
+          onDragEnter={handleDragEnter}
+          onDragLeave={handleDragLeave}
+          onDragOver={handleDragOver}
+          onDrop={handleDrop}
+        >
+          {isDragging && <DragDropOverlay />}
+
+          <ImagePreviewStrip
+            attachedFiles={attachedFiles}
+            canAttachMore={canAttachMore}
+            onRemoveFile={handleRemoveFile}
+            onAddMore={handleAttachmentClick}
+          />
+
+          <div className="relative">
+            {!inputValue.trim() &&
+              attachedFiles.length === 0 &&
+              !hideSuggestions && (
+                <div className="absolute inset-0 pointer-events-none z-0">
+                  <TextAnimate
+                    key={suggestionIndex}
+                    animation="blurInUp"
+                    by="word"
+                    className="text-xs sm:text-sm md:text-[15px] text-muted-foreground font-medium leading-relaxed tracking-tight p-3 sm:p-4 md:p-6"
+                    text={SUGGESTIONS[suggestionIndex]!}
+                  />
+                </div>
+              )}
+            <Textarea
+              placeholder={hideSuggestions ? "Ask Edward anything..." : ""}
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
+              className="min-h-16 sm:min-h-20 md:min-h-24 resize-none border-0 bg-transparent p-3 sm:p-4 md:p-6 text-sm sm:text-[15px] text-foreground placeholder:text-muted-foreground/70 focus-visible:ring-0 focus-visible:ring-offset-0 relative z-10 font-medium leading-relaxed tracking-tight"
+            />
+          </div>
+
+          <PromptToolbar
+            isMobile={isMobile}
+            isAuthenticated={isAuthenticated}
+            supportsVision={supportsVision}
+            canAttachMore={canAttachMore}
+            attachedFiles={attachedFiles}
+            fileInputRef={fileInputRef}
+            onAttachmentClick={handleAttachmentClick}
+            onFileInputChange={handleFileInputChange}
+            onClearAllFiles={handleClearAllFiles}
+            onProtectedAction={handleProtectedAction}
+            isStreaming={isStreaming}
+            onCancel={onCancel}
+            disabled={
+              (!inputValue.trim() && uploadedImages.length === 0) ||
+              hasPendingUploads
+            }
           />
         </div>
-        <div className="flex items-center justify-between px-6 py-4 bg-input/30">
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="h-9 w-9 shrink-0 rounded-full p-0 bg-input/80"
-                  onClick={handleProtectedAction}
-                  aria-label="Attach images"
-                >
-                  <PaperclipIcon className="h-4 w-4 text-foreground" />
-                </Button>
-              }
-            />
-            <TooltipPositioner side="top" align="center">
-              <TooltipContent>Attach images</TooltipContent>
-            </TooltipPositioner>
-          </Tooltip>
-          {ActionButton}
-        </div>
-      </div>
-      {showLoginModal && (
-        <LoginModal
-          isOpen={showLoginModal}
-          onClose={() => setShowLoginModal(false)}
-          onSignIn={onSignIn}
-        />
-      )}
-      {showBYOK && isAuthenticated && (
-        <BYOK
-          isOpen={showBYOK}
-          onClose={() => setShowBYOK(false)}
-          onValidate={() => {
-            onProtectedAction?.();
-            setShowBYOK(false);
-          }}
-          onSaveApiKey={onSaveApiKey}
-          preferredModel={preferredModel}
-          error={apiKeyError}
-        />
-      )}
-    </Card>
+        {showLoginModal && (
+          <LoginModal
+            isOpen={showLoginModal}
+            onClose={() => setShowLoginModal(false)}
+            onSignIn={onSignIn}
+          />
+        )}
+        {showBYOK && isAuthenticated && (
+          <BYOK
+            isOpen={showBYOK}
+            onClose={() => setShowBYOK(false)}
+            onValidate={() => {
+              if (hasPendingUploads) return;
+              onProtectedAction?.(inputValue, uploadedImages);
+              setInputValue("");
+              handleClearAllFiles();
+              setShowBYOK(false);
+            }}
+            onSaveApiKey={onSaveApiKey}
+            preferredModel={preferredModel}
+            keyPreview={keyPreview}
+            hasExistingKey={hasApiKey === true}
+            error={apiKeyError}
+          />
+        )}
+      </Card>
+    </div>
   );
 }

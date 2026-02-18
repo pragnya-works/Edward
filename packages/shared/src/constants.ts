@@ -24,3 +24,11 @@ export const API_KEY_LABEL = {
   [Provider.OPENAI]: "OpenAI API Key",
   [Provider.GEMINI]: "Gemini API Key",
 };
+
+export const IMAGE_UPLOAD_CONFIG = {
+  MAX_SIZE_BYTES: 5 * 1024 * 1024,
+  MAX_SIZE_MB: 5,
+  ALLOWED_MIME_TYPES: ["image/jpeg", "image/png", "image/webp"] as const,
+  ALLOWED_EXTENSIONS: [".jpg", ".jpeg", ".png", ".webp"] as const,
+  MAX_FILES: 3,
+} as const;

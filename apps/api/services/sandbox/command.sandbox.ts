@@ -17,7 +17,7 @@ const DISALLOWED_PATTERNS = [
   /chown\s+/,
 ];
 
-const MAX_ARG_COUNT = 20;
+const MAX_ARG_COUNT = 60;
 const MAX_OUTPUT_CAT = 512 * 1024;
 const MAX_OUTPUT_DEFAULT = 1024 * 1024;
 

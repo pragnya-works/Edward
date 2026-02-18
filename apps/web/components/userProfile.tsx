@@ -28,7 +28,7 @@ import {
 } from "@edward/ui/components/animated-theme-toggler";
 import { useRef } from "react";
 import { useSidebar } from "@edward/ui/components/sidebar";
-import { motion } from "motion/react";
+import { m } from "motion/react";
 
 export default function UserProfile() {
   const router = useRouter();
@@ -78,7 +78,7 @@ export default function UserProfile() {
                     user.email?.charAt(0)?.toUpperCase()}
                 </AvatarFallback>
               </Avatar>
-              <motion.span
+              <m.span
                 animate={{
                   display: animate
                     ? open
@@ -90,7 +90,7 @@ export default function UserProfile() {
                 className="text-neutral-700 dark:text-neutral-200 text-sm group-hover/sidebar:translate-x-1 transition duration-150 whitespace-pre inline-block p-0! m-0!"
               >
                 {user.name || "User"}
-              </motion.span>
+              </m.span>
             </Button>
           }
         ></DropdownMenuTrigger>

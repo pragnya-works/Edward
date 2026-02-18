@@ -13,38 +13,33 @@ export const STRIP_ANSI = new RegExp(
 export const ERROR_PATTERNS: ErrorPattern[] = [
   {
     name: "typescript",
-    regex:
-      /([\w/.\\\\ @-]+\.(?:ts|tsx))[:(](\d+)[:;,](\d+)?\)?\s*(?:-?\s*error)?\s*(TS\d+)?:?\s*([^\n]+)/gi,
+    // anchored and optimized to prevent ReDoS
+    regex: /^([\w/.\\\\ @-]+\.(?:ts|tsx))[:(](\d+)[:;,](\d+)?\)?\s*(?:-?\s*error)?\s*(TS\d+)?:?\s*([^\n]+)/gim,
     stage: "typecheck",
   },
   {
     name: "vite_esbuild",
-    regex:
-      /✓?\s*(?:[\d.]+\s*)?([\w/.\\\\ @-]+\.(?:ts|tsx|js|jsx)):(\d+):(\d+):\s*(error|ERROR|warning)?:?\s*([^\n]+)/gi,
+    regex: /^\s*(?:[\d.]+\s*)?([\w/.\\\\ @-]+\.(?:ts|tsx|js|jsx)):(\d+):(\d+):\s*(?:error|ERROR|warning)?:?\s*([^\n]+)/gim,
     stage: "transform",
   },
   {
     name: "webpack",
-    regex:
-      /(?:ERROR|Error)\s+in\s+([\w/.\\\\ @-]+\.(?:ts|tsx|js|jsx))\s*\n?([^:]+):(\d+):(\d+)?/gi,
+    regex: /^(?:ERROR|Error)\s+in\s+([\w/.\\\\ @-]+\.(?:ts|tsx|js|jsx))\s*\n?([^:]+):(\d+):(\d+)?/gim,
     stage: "bundle",
   },
   {
     name: "rollup",
-    regex:
-      /[!✖]\s+([\w/.\\\\ @-]+\.(?:ts|tsx|js|jsx))\s*\((\d+):(\d+)\)\s*([^\n]+)/gi,
+    regex: /^[!✖]\s+([\w/.\\\\ @-]+\.(?:ts|tsx|js|jsx))\s*\((\d+):(\d+)\)\s*([^\n]+)/gim,
     stage: "bundle",
   },
   {
     name: "nextjs",
-    regex:
-      /(?:>\s*)?([\w/.\\\\ @-]+\.(?:ts|tsx|js|jsx)):(\d+):?(\d+)?\s*\n?\s*│?\s*([^\n]+)/gi,
+    regex: /^(?:>\s*)?([\w/.\\\\ @-]+\.(?:ts|tsx|js|jsx)):(\d+):?(\d+)?\s*\n?\s*│?\s*([^\n]+)/gim,
     stage: "compile",
   },
   {
     name: "stack_trace",
-    regex:
-      /at\s+(?:\w+\s+)?\(?(?:file:\/\/)?([\w/.\\\\ @-]+\.(?:ts|tsx|js|jsx)):(\d+):(\d+)\)?/gi,
+    regex: /^\s*at\s+(?:\w+\s+)?\(?(?:file:\/\/)?([\w/.\\\\ @-]+\.(?:ts|tsx|js|jsx)):(\d+):(\d+)\)?/gim,
     stage: "runtime",
   },
 ];
@@ -90,7 +85,7 @@ export const MODULE_ERROR_PATTERNS: ModuleErrorPattern[] = [
     severity: "critical",
   },
   {
-    regex: /(config|configuration|plugin|loader|webpack)/gi,
+    regex: /(config|configuration|plugin|loader|webpack|invalid\s+next\.config|no\s+longer\s+supported)/gi,
     type: "config",
   },
   {
@@ -147,10 +142,10 @@ export const STAGE_DETECTION_PATTERNS: {
   pattern: RegExp;
   stage: BuildStage;
 }[] = [
-  { pattern: /vite|esbuild|transform/i, stage: "transform" },
-  { pattern: /tsc|type.?check|diagnostic/i, stage: "typecheck" },
-  { pattern: /webpack|rollup|parcel|bundle/i, stage: "bundle" },
-  { pattern: /terser|optimize|minif/i, stage: "optimize" },
-  { pattern: /nextjs|next build|vercel/i, stage: "compile" },
-  { pattern: /babel|swc|parse/i, stage: "parse" },
-];
+    { pattern: /vite|esbuild|transform/i, stage: "transform" },
+    { pattern: /tsc|type.?check|diagnostic/i, stage: "typecheck" },
+    { pattern: /webpack|rollup|parcel|bundle/i, stage: "bundle" },
+    { pattern: /terser|optimize|minif/i, stage: "optimize" },
+    { pattern: /nextjs|next build|vercel/i, stage: "compile" },
+    { pattern: /babel|swc|parse/i, stage: "parse" },
+  ];

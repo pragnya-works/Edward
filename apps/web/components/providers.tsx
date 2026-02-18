@@ -1,8 +1,11 @@
-"use client"
+"use client";
 
-import { useState, type ReactNode } from "react"
-import { ThemeProvider as NextThemesProvider } from "next-themes"
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
+import { useState, type ReactNode } from "react";
+import { ThemeProvider as NextThemesProvider } from "next-themes";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { LazyMotion, domAnimation } from "motion/react";
+import { ChatStreamProvider } from "@/contexts/chatStreamContext";
+import { SandboxProvider } from "@/contexts/sandboxContext";
 
 function makeQueryClient() {
   return new QueryClient({
@@ -25,8 +28,13 @@ export function Providers({ children }: { children: ReactNode }) {
       disableTransitionOnChange
       enableColorScheme
     >
-      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+      <LazyMotion features={domAnimation}>
+        <QueryClientProvider client={queryClient}>
+          <ChatStreamProvider>
+            <SandboxProvider>{children}</SandboxProvider>
+          </ChatStreamProvider>
+        </QueryClientProvider>
+      </LazyMotion>
     </NextThemesProvider>
   );
 }
-

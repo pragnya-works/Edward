@@ -9,6 +9,7 @@ import {
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { fetchApi } from "@/lib/api";
+import { queryKeys } from "@/lib/queryKeys";
 
 interface ApiKeyResponse {
   message: string;
@@ -31,14 +32,25 @@ interface ApiKeySaveResponse {
   };
 }
 
+interface MutationVariables {
+  apiKey?: string;
+  model?: string;
+  method: "POST" | "PUT";
+}
+
+interface MutationContext {
+  previousData?: ApiKeyResponse | null;
+}
+
 export function useApiKey() {
   const { data: session } = useSession();
   const userId = session?.user?.id;
   const queryClient = useQueryClient();
   const [error, setError] = useState("");
+  const apiKeyQueryKey = queryKeys.apiKey.byUserId(userId);
 
   const { data, isLoading } = useQuery({
-    queryKey: ["apiKey", userId],
+    queryKey: apiKeyQueryKey,
     queryFn: async function () {
       if (!userId) return null;
       try {
@@ -64,24 +76,49 @@ export function useApiKey() {
     staleTime: 5 * 60 * 1000,
   });
 
-  const mutation = useMutation({
-    mutationFn: async function ({
-      apiKey,
-      model,
-      method,
-    }: {
-      apiKey: string;
-      model?: string;
-      method: "POST" | "PUT";
-    }) {
+  const mutation = useMutation<
+    ApiKeySaveResponse,
+    Error,
+    MutationVariables,
+    MutationContext
+  >({
+    mutationFn: async function ({ apiKey, model, method }) {
+      const body: Record<string, string> = {};
+      if (apiKey) body.apiKey = apiKey;
+      if (model) body.model = model;
+
       return fetchApi<ApiKeySaveResponse>("/api-key", {
         method,
-        body: JSON.stringify({ apiKey, model }),
+        body: JSON.stringify(body),
       });
+    },
+    onMutate: async (newSettings) => {
+      await queryClient.cancelQueries({ queryKey: apiKeyQueryKey });
+
+      const previousData = queryClient.getQueryData<ApiKeyResponse>(
+        apiKeyQueryKey,
+      );
+
+      queryClient.setQueryData(
+        apiKeyQueryKey,
+        (old: ApiKeyResponse | undefined) => {
+          if (!old) return old;
+          return {
+            ...old,
+            data: {
+              ...old.data,
+              hasApiKey: newSettings.apiKey ? true : old.data.hasApiKey,
+              preferredModel: newSettings.model || old.data.preferredModel,
+            },
+          };
+        },
+      );
+
+      return { previousData };
     },
     onSuccess: function (responseData) {
       queryClient.setQueryData(
-        ["apiKey", userId],
+        apiKeyQueryKey,
         function (old: ApiKeyResponse | undefined) {
           if (!old) return old;
           return {
@@ -95,10 +132,15 @@ export function useApiKey() {
           };
         },
       );
-      queryClient.invalidateQueries({ queryKey: ["apiKey", userId] });
     },
-    onError: function () {
+    onError: function (_err, _newSettings, context) {
+      if (context?.previousData) {
+        queryClient.setQueryData(apiKeyQueryKey, context.previousData);
+      }
       setError("Failed to save API key. Please try again.");
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: apiKeyQueryKey });
     },
   });
 
@@ -115,24 +157,51 @@ export function useApiKey() {
     }
 
     const trimmedKey = apiKey.trim();
-    if (!trimmedKey) {
+    const hasKey = !!data?.data?.hasApiKey;
+
+    if (!trimmedKey && !hasKey) {
       setError(
         `Please enter your ${provider === Provider.OPENAI ? "OpenAI" : "Gemini"} API key`,
       );
       return false;
     }
 
-    if (!API_KEY_REGEX[provider].test(trimmedKey)) {
+    if (trimmedKey && !API_KEY_REGEX[provider].test(trimmedKey)) {
       setError(API_KEY_VALIDATION_ERROR[provider]);
       return false;
     }
 
     try {
-      const method = data?.data?.hasApiKey ? "PUT" : "POST";
-      await mutation.mutateAsync({ apiKey: trimmedKey, model, method });
+      const method = hasKey ? "PUT" : "POST";
+      const currentPreferredModel = data?.data?.preferredModel;
+      const isModelChanged = model && model !== currentPreferredModel;
+
+      const payload: {
+        apiKey?: string;
+        model?: string;
+        method: "POST" | "PUT";
+      } = {
+        method,
+      };
+
+      if (trimmedKey) {
+        payload.apiKey = trimmedKey;
+      }
+
+      if (isModelChanged || !hasKey) {
+        payload.model = model;
+      }
+
+      if (!payload.apiKey && !payload.model && hasKey) {
+        onClose();
+        return true;
+      }
+
+      await mutation.mutateAsync(payload);
 
       setError("");
-      onValidate(trimmedKey);
+      const finalKey = trimmedKey || data?.data?.keyPreview || "";
+      onValidate(finalKey);
       onClose();
       return true;
     } catch {

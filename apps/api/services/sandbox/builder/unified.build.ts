@@ -121,44 +121,60 @@ export async function buildAndUploadUnified(
     const nodeModulesMissing = nodeModulesCheck.exitCode !== 0;
 
     if (nodeModulesMissing) {
-      logger.warn(
-        { sandboxId },
-        "node_modules missing before build, running pnpm install",
-      );
-
-      const installResult = await execCommand(
+      const pkgJsonCheck = await execCommand(
         container,
-        ["pnpm", "install", "--frozen-lockfile=false"],
+        ["test", "-f", "package.json"],
         false,
-        TIMEOUT_DEPENDENCY_INSTALL_MS,
+        5000,
         undefined,
         CONTAINER_WORKDIR,
-        ["NEXT_TELEMETRY_DISABLED=1", "CI=true"],
       );
 
-      if (installResult.exitCode !== 0) {
-        logger.error(
-          {
-            sandboxId,
-            exitCode: installResult.exitCode,
-            stderr: installResult.stderr.slice(-500),
-          },
-          "pnpm install failed",
+      if (pkgJsonCheck.exitCode === 0) {
+        logger.warn(
+          { sandboxId },
+          "node_modules missing before build, running pnpm install",
         );
-        await disconnectContainerFromNetwork(containerId, sandboxId);
-        return {
-          success: false,
-          buildDirectory: null,
-          error: [
-            `Dependency installation failed (exit ${installResult.exitCode})`,
-            "--- STDERR (tail) ---",
-            (installResult.stderr || "").slice(-8000),
-            "--- STDOUT (tail) ---",
-            (installResult.stdout || "").slice(-8000),
-          ].join("\n"),
-          previewUploaded: false,
-          previewUrl: null,
-        };
+
+        const installResult = await execCommand(
+          container,
+          ["pnpm", "install", "--frozen-lockfile=false"],
+          false,
+          TIMEOUT_DEPENDENCY_INSTALL_MS,
+          undefined,
+          CONTAINER_WORKDIR,
+          ["NEXT_TELEMETRY_DISABLED=1", "CI=true"],
+        );
+
+        if (installResult.exitCode !== 0) {
+          logger.error(
+            {
+              sandboxId,
+              exitCode: installResult.exitCode,
+              stderr: installResult.stderr.slice(-500),
+            },
+            "pnpm install failed",
+          );
+          await disconnectContainerFromNetwork(containerId, sandboxId);
+          return {
+            success: false,
+            buildDirectory: null,
+            error: [
+              `Dependency installation failed (exit ${installResult.exitCode})`,
+              "--- STDERR (tail) ---",
+              (installResult.stderr || "").slice(-8000),
+              "--- STDOUT (tail) ---",
+              (installResult.stdout || "").slice(-8000),
+            ].join("\n"),
+            previewUploaded: false,
+            previewUrl: null,
+          };
+        }
+      } else {
+        logger.info(
+          { sandboxId },
+          "No package.json found, skipping dependency installation",
+        );
       }
     }
 
@@ -212,23 +228,30 @@ export async function buildAndUploadUnified(
       framework,
     );
 
-    const allSuccessful = uploadResult.totalFiles === uploadResult.successful;
-
-    if (allSuccessful && userId && chatId) {
-      const previewPrefix = buildS3Key(userId, chatId, "preview/");
-      if (framework !== "vanilla") {
-        const fallbackKey = buildS3Key(userId, chatId, "preview/404.html");
-        uploadResult.uploadedKeys.add(fallbackKey);
-      }
-      cleanupS3FolderExcept(previewPrefix, uploadResult.uploadedKeys).catch(
-        (err) => {
-          logger.warn(
-            { err, sandboxId },
-            "Failed to cleanup stale preview files (non-fatal)",
-          );
+    if (uploadResult.successful < uploadResult.totalFiles) {
+      logger.warn(
+        {
+          sandboxId,
+          successful: uploadResult.successful,
+          total: uploadResult.totalFiles,
         },
+        "Some build files failed to upload to S3 (non-fatal)",
       );
     }
+
+    const previewPrefix = buildS3Key(userId, chatId, "preview/");
+    if (framework !== "vanilla") {
+      const fallbackKey = buildS3Key(userId, chatId, "preview/404.html");
+      uploadResult.uploadedKeys.add(fallbackKey);
+    }
+    cleanupS3FolderExcept(previewPrefix, uploadResult.uploadedKeys).catch(
+      (err) => {
+        logger.warn(
+          { err, sandboxId },
+          "Failed to cleanup stale preview files (non-fatal)",
+        );
+      },
+    );
 
     if (framework !== "vanilla") {
       await uploadSpaFallback(sandbox, framework).catch((err) =>
@@ -236,32 +259,30 @@ export async function buildAndUploadUnified(
       );
     }
 
-    if (userId && chatId) {
-      await invalidatePreviewCache(userId, chatId).catch((err) =>
-        logger.warn(
-          { err, sandboxId },
-          "CloudFront invalidation failed (non-fatal)",
-        ),
-      );
-    }
+    await invalidatePreviewCache(userId, chatId).catch((err) =>
+      logger.warn(
+        { err, sandboxId },
+        "CloudFront invalidation failed (non-fatal)",
+      ),
+    );
 
     await disconnectContainerFromNetwork(containerId, sandboxId);
 
-    const previewUrl =
-      userId && chatId ? buildPreviewUrl(userId, chatId) : null;
+    const previewUrl = buildPreviewUrl(userId, chatId);
 
     return {
-      success: allSuccessful,
+      success: true,
       buildDirectory,
       previewUploaded: uploadResult.successful > 0,
-      previewUrl: allSuccessful ? previewUrl : null,
-      error: allSuccessful
-        ? undefined
-        : `Upload incomplete: ${uploadResult.successful}/${uploadResult.totalFiles} files uploaded`,
+      previewUrl: previewUrl,
+      error:
+        uploadResult.successful < uploadResult.totalFiles
+          ? `Warning: ${uploadResult.totalFiles - uploadResult.successful} files failed to upload to S3`
+          : undefined,
     };
   } catch (error) {
     await disconnectContainerFromNetwork(containerId, sandboxId).catch(
-      () => {},
+      () => { },
     );
     const err = ensureError(error);
     logger.error(

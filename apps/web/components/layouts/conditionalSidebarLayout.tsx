@@ -7,6 +7,7 @@ import { cn } from "@edward/ui/lib/utils";
 import { ReactNode, useState } from "react";
 import UserProfile from "../userProfile";
 import { LoaderIcon } from "lucide-react";
+import { usePathname } from "next/navigation";
 
 interface ConditionalSidebarLayoutProps {
   children: ReactNode;
@@ -17,8 +18,10 @@ export default function ConditionalSidebarLayout({
 }: ConditionalSidebarLayoutProps) {
   const { data: session, isPending } = useSession();
   const [open, setOpen] = useState(false);
+  const pathname = usePathname();
+  const isChatConversationRoute = pathname.startsWith("/chat/");
 
-  if (isPending) {
+  if (isPending && !isChatConversationRoute) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <LoaderIcon className="h-8 w-8 animate-spin text-primary/70" />
@@ -32,14 +35,14 @@ export default function ConditionalSidebarLayout({
         <div
           className={cn(
             "rounded-md flex flex-col md:flex-row bg-gray-100 dark:bg-neutral-800 w-full flex-1 mx-auto border border-neutral-200 dark:border-neutral-700 overflow-hidden",
-            "h-screen"
+            "h-[100dvh] sm:h-screen",
           )}
         >
           <AppSidebar open={open} setOpen={setOpen}>
             <UserProfile />
           </AppSidebar>
-          <div className="flex flex-1 min-h-0">
-            <div className="p-2 md:p-10 rounded-tl-2xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 flex flex-col gap-2 flex-1 w-full min-h-0 overflow-y-auto">
+          <div className="flex flex-1 min-h-0 min-w-0">
+            <div className="p-1.5 sm:p-0 rounded-tl-xl sm:rounded-tl-2xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 flex flex-col gap-1.5 sm:gap-2 flex-1 w-full min-h-0 overflow-y-auto overflow-x-hidden">
               {children}
             </div>
           </div>
@@ -47,6 +50,5 @@ export default function ConditionalSidebarLayout({
       </SidebarProvider>
     );
   }
-  return <div>{children}</div>;
+  return <div className="min-h-[100dvh] sm:min-h-screen">{children}</div>;
 }
-

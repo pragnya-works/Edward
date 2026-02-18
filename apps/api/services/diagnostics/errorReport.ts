@@ -132,65 +132,69 @@ export async function createErrorReport(
     Promise.resolve(parseErrors(rawOutput)),
     snapshot
       ? Promise.resolve({
-          packageJson: (() => {
-            const content = getFromSnapshot(snapshot, "package.json");
-            if (!content) return undefined;
-            try {
-              return JSON.parse(content) as Record<string, unknown>;
-            } catch {
-              return undefined;
-            }
-          })(),
-          tsConfig: (() => {
-            const content = getFromSnapshot(snapshot, "tsconfig.json");
-            if (!content) return undefined;
-            try {
-              return JSON.parse(content) as Record<string, unknown>;
-            } catch {
-              return undefined;
-            }
-          })(),
-        })
+        packageJson: (() => {
+          const content = getFromSnapshot(snapshot, "package.json");
+          if (!content) return undefined;
+          try {
+            return JSON.parse(content) as Record<string, unknown>;
+          } catch {
+            return undefined;
+          }
+        })(),
+        tsConfig: (() => {
+          const content = getFromSnapshot(snapshot, "tsconfig.json");
+          if (!content) return undefined;
+          try {
+            return JSON.parse(content) as Record<string, unknown>;
+          } catch {
+            return undefined;
+          }
+        })(),
+      })
       : loadProjectContext(containerId, cache),
   ]);
 
   const totalErrorCount = parsedErrors.length;
   const stage = detectStage(rawOutput);
 
-  const errorPromises = parsedErrors.slice(0, 5).map(async (parsed) => {
+  const errorPromises = parsedErrors.slice(0, 5).map(async (parsed, index) => {
     const type = categorizeError(parsed.message, parsed.code).type;
     const target = extractTarget(type, parsed.message);
 
     const shouldReadFile = parsed.file !== "unknown";
+    const isTopError = index < 3; // Lazy loading: only fetch context for top 3 errors
+
     let content = "";
     let relatedFiles: Array<{ path: string; reason: string; snippet?: string }> = [];
     let importChain: Array<{ file: string; line: number; importPath: string }> = [];
 
-    if (snapshot) {
-      const filePath = normalizePath(parsed.file);
-      content = shouldReadFile ? getFromSnapshot(snapshot, filePath) || "" : "";
-      relatedFiles = await findRelatedFilesInSnapshot(snapshot, target, filePath);
-      importChain = shouldReadFile
-        ? extractImportChainInSnapshot(content, filePath, target)
-        : [];
-    } else {
-      const tuple = (await Promise.all([
-        shouldReadFile ? readFileWithCache(containerId, parsed.file, cache) : "",
-        findRelatedFiles(containerId, target, parsed.file, cache),
-        shouldReadFile
-          ? extractImportChain(containerId, parsed.file, target, cache)
-          : Promise.resolve([]),
-      ])) as [
-        string,
-        Array<{ path: string; reason: string; snippet?: string }>,
-        Array<{ file: string; line: number; importPath: string }>,
-      ];
+    if (isTopError) {
+      if (snapshot) {
+        const filePath = normalizePath(parsed.file);
+        content = shouldReadFile ? getFromSnapshot(snapshot, filePath) || "" : "";
+        relatedFiles = await findRelatedFilesInSnapshot(snapshot, target, filePath);
+        importChain = shouldReadFile
+          ? extractImportChainInSnapshot(content, filePath, target)
+          : [];
+      } else {
+        const tuple = (await Promise.all([
+          shouldReadFile ? readFileWithCache(containerId, parsed.file, cache) : "",
+          findRelatedFiles(containerId, target, parsed.file, cache),
+          shouldReadFile
+            ? extractImportChain(containerId, parsed.file, target, cache)
+            : Promise.resolve([]),
+        ])) as [
+            string,
+            Array<{ path: string; reason: string; snippet?: string }>,
+            Array<{ file: string; line: number; importPath: string }>,
+          ];
 
-      [content, relatedFiles, importChain] = tuple;
+        [content, relatedFiles, importChain] = tuple;
+      }
     }
 
     const snippet =
-      shouldReadFile && parsed.line > 0
+      isTopError && shouldReadFile && parsed.line > 0
         ? await readFileSnippet(content, parsed.line)
         : "";
 

@@ -1,0 +1,345 @@
+"use client";
+
+import { memo } from "react";
+import { m } from "motion/react";
+import { cn } from "@edward/ui/lib/utils";
+
+const variants = {
+  fadeIn: { initial: { opacity: 0 }, animate: { opacity: 1 } },
+  slideUp: { initial: { opacity: 0, y: 20 }, animate: { opacity: 1, y: 0 } },
+  slideRight: {
+    initial: { opacity: 0, x: -10 },
+    animate: { opacity: 1, x: 0 },
+  },
+  scaleUp: {
+    initial: { opacity: 0, scale: 0.95 },
+    animate: { opacity: 1, scale: 1 },
+  },
+};
+
+export const BrowserHeader = memo(function BrowserHeader() {
+  return (
+    <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/10">
+      <div className="flex gap-1.5">
+        <div className="h-2 w-2 rounded-full bg-red-400/20 border border-red-400/30" />
+        <div className="h-2 w-2 rounded-full bg-yellow-400/20 border border-yellow-400/30" />
+        <div className="h-2 w-2 rounded-full bg-green-400/20 border border-green-400/30" />
+      </div>
+      <div className="h-2 w-32 rounded-full bg-muted-foreground/10 border border-border/50" />
+      <div className="w-8" />
+    </div>
+  );
+});
+
+export const Sidebar = memo(function Sidebar() {
+  return (
+    <div className="w-10 md:w-12 border-r border-border bg-muted/5 p-3 space-y-4 shrink-0">
+      {[1, 2, 3, 4].map((slot) => (
+        <div
+          key={`sidebar-segment-${slot}`}
+          className={cn(
+            "h-1.5 w-full rounded-full",
+            slot === 1 ? "bg-primary/20" : "bg-muted-foreground/10",
+          )}
+        />
+      ))}
+    </div>
+  );
+});
+
+export const SkeletonUI = memo(function SkeletonUI() {
+  return (
+    <div className="flex-1 p-6 space-y-6">
+      <div className="space-y-3">
+        <div className="h-6 w-1/2 rounded-lg bg-muted/30 animate-pulse" />
+        <div className="h-3 w-3/4 rounded-md bg-muted/10 animate-pulse" />
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <div className="h-20 rounded-xl bg-muted/5 border border-border/20 animate-pulse" />
+        <div className="h-20 rounded-xl bg-muted/5 border border-border/20 animate-pulse" />
+      </div>
+      <div className="h-24 w-full rounded-xl bg-primary/5 border border-primary/10 relative overflow-hidden">
+        <m.div
+          animate={{ x: ["-100%", "200%"] }}
+          transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
+          className="absolute inset-0 bg-gradient-to-r from-transparent via-primary/5 to-transparent"
+        />
+      </div>
+    </div>
+  );
+});
+
+const DashboardLayout = memo(function DashboardLayout() {
+  return (
+    <div className="flex-1 p-5 md:p-6 space-y-5 overflow-hidden">
+      <div className="flex items-center justify-between">
+        <m.div
+          variants={variants.slideRight}
+          initial="initial"
+          animate="animate"
+          className="space-y-1"
+        >
+          <h3 className="text-sm md:text-base font-bold text-foreground">
+            Cloud Analytics
+          </h3>
+          <p className="text-[10px] text-muted-foreground">
+            Real-time infrastructure health
+          </p>
+        </m.div>
+        <div className="w-8 h-8 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center">
+          <div className="w-1.5 h-1.5 rounded-full bg-primary" />
+        </div>
+      </div>
+
+      <m.div
+        initial={{ opacity: 0, scale: 0.98, y: 30 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        className="h-28 md:h-32 w-full rounded-xl bg-gradient-to-br from-primary/10 via-background to-background border border-border p-4 relative"
+      >
+        <div className="flex items-end gap-1.5 h-full pt-8">
+          {[50, 80, 45, 95, 70, 85, 60, 90, 55, 75].map((height, index) => (
+            <m.div
+              key={`dashboard-bar-${height}`}
+              initial={{ height: 0 }}
+              animate={{ height: `${height}%` }}
+              transition={{
+                duration: 0.8,
+                delay: 0.1 + index * 0.03,
+                ease: [0.33, 1, 0.68, 1],
+              }}
+              className="flex-1 bg-primary/40 rounded-t-[2px]"
+            />
+          ))}
+        </div>
+        <div className="absolute top-4 left-4">
+          <span className="text-xl font-bold font-mono tracking-tighter text-foreground">
+            $12.4k
+          </span>
+        </div>
+      </m.div>
+
+      <div className="grid grid-cols-2 gap-3">
+        {[1, 2].map((slot) => (
+          <m.div
+            key={`dashboard-card-${slot}`}
+            variants={variants.slideUp}
+            initial="initial"
+            animate="animate"
+            transition={{ delay: 0.4 + slot * 0.1 }}
+            className="p-3 rounded-xl bg-card border border-border shadow-sm space-y-2"
+          >
+            <div className="flex gap-2">
+              <div className="w-4 h-4 rounded bg-primary/20" />
+              <div className="h-1.5 w-12 rounded bg-muted mt-1.5" />
+            </div>
+            <div className="h-1 w-full rounded-full bg-muted/40 overflow-hidden">
+              <m.div
+                initial={{ width: 0 }}
+                animate={{ width: slot === 1 ? "70%" : "45%" }}
+                transition={{ duration: 1, delay: 0.8 }}
+                className="h-full bg-primary/60"
+              />
+            </div>
+          </m.div>
+        ))}
+      </div>
+    </div>
+  );
+});
+
+const MarketingLayout = memo(function MarketingLayout() {
+  return (
+    <div className="flex-1 p-6 space-y-6 overflow-hidden flex flex-col items-center">
+      <m.div
+        variants={variants.scaleUp}
+        initial="initial"
+        animate="animate"
+        className="text-center space-y-4"
+      >
+        <div className="inline-flex px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-[7px] font-bold text-emerald-500 uppercase tracking-widest">
+          New Feature
+        </div>
+        <h3 className="text-xl font-bold tracking-tight text-foreground leading-[1.2]">
+          Design at the speed <br /> of{" "}
+          <span className="text-primary underline decoration-primary/30 underline-offset-4">
+            thought
+          </span>
+        </h3>
+      </m.div>
+
+      <m.div
+        initial={{ opacity: 0, y: 30 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.3 }}
+        className="w-full grid grid-cols-3 gap-2 px-2"
+      >
+        {[1, 2, 3].map((slot) => (
+          <div
+            key={`marketing-card-${slot}`}
+            className="aspect-[4/5] rounded-lg bg-card border border-border shadow-sm flex flex-col p-2 space-y-2"
+          >
+            <div className="flex-1 rounded-md bg-muted/30" />
+            <div className="h-1 w-3/4 rounded bg-muted/50" />
+          </div>
+        ))}
+      </m.div>
+
+      <m.div
+        variants={variants.fadeIn}
+        initial="initial"
+        animate="animate"
+        transition={{ delay: 0.6 }}
+        className="px-6 py-2 rounded-full bg-primary text-primary-foreground text-[9px] font-bold shadow-lg shadow-primary/20"
+      >
+        Join the waitlist
+      </m.div>
+    </div>
+  );
+});
+
+const KanbanLayout = memo(function KanbanLayout() {
+  return (
+    <div className="flex-1 p-5 md:p-6 space-y-5 overflow-hidden">
+      <div className="flex items-center justify-between">
+        <h3 className="text-xs md:text-sm font-bold">Project Sprint</h3>
+        <div className="flex -space-x-2">
+          {[1, 2, 3].map((slot) => (
+            <div
+              key={`kanban-avatar-${slot}`}
+              className="w-5 h-5 rounded-full border border-background bg-muted"
+            />
+          ))}
+        </div>
+      </div>
+
+      <div className="flex gap-4 h-full">
+        <div className="flex-1 space-y-3">
+          <div className="flex items-center gap-2">
+            <div className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+            <span className="text-[9px] font-bold opacity-50 uppercase tracking-wider">
+              In Progress
+            </span>
+          </div>
+          {[1, 2].map((slot) => (
+            <m.div
+              key={`kanban-task-${slot}`}
+              variants={variants.slideRight}
+              initial="initial"
+              animate="animate"
+              transition={{ delay: slot * 0.1 }}
+              className="p-3 rounded-xl bg-card border border-border shadow-sm space-y-2"
+            >
+              <div className="h-1 w-full rounded bg-muted/50" />
+              <div className="h-1 w-2/3 rounded bg-muted/30" />
+              <div className="flex justify-between items-center pt-1">
+                <div className="h-3 w-8 rounded bg-primary/10 border border-primary/20" />
+                <div className="w-3 h-3 rounded-full bg-muted" />
+              </div>
+            </m.div>
+          ))}
+        </div>
+
+        <div className="flex-1 space-y-3 opacity-40">
+          <div className="flex items-center gap-2">
+            <div className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+            <span className="text-[9px] font-bold opacity-50 uppercase tracking-wider">
+              Done
+            </span>
+          </div>
+          <div className="p-3 rounded-xl bg-card border border-border shadow-sm space-y-2">
+            <div className="h-1 w-full rounded bg-muted/50" />
+            <div className="h-3 w-8 rounded bg-emerald-500/10" />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+});
+
+const SettingsLayout = memo(function SettingsLayout() {
+  return (
+    <div className="flex-1 p-5 md:p-6 space-y-5 overflow-hidden">
+      <div className="space-y-1 pb-2 border-b border-border/50">
+        <h3 className="text-sm font-bold">Workspace Settings</h3>
+        <p className="text-[9px] text-muted-foreground">
+          Manage your organization preferences
+        </p>
+      </div>
+
+      <div className="space-y-4 pt-2">
+        {[1, 2, 3].map((slot) => (
+          <m.div
+            key={`settings-row-${slot}`}
+            variants={variants.slideUp}
+            initial="initial"
+            animate="animate"
+            transition={{ delay: slot * 0.1 }}
+            className="flex items-center justify-between"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-muted/30 border border-border" />
+              <div className="space-y-1">
+                <div className="h-2 w-20 rounded bg-muted/60" />
+                <div className="h-1.5 w-12 rounded bg-muted/30" />
+              </div>
+            </div>
+            <div
+              className={cn(
+                "w-8 h-4 rounded-full border border-border relative",
+                slot === 1 ? "bg-primary/20" : "bg-muted/30",
+              )}
+            >
+              <div
+                className={cn(
+                  "absolute top-0.5 w-2.5 h-2.5 rounded-full transition-all",
+                  slot === 1
+                    ? "right-0.5 bg-primary"
+                    : "left-0.5 bg-muted-foreground/30",
+                )}
+              />
+            </div>
+          </m.div>
+        ))}
+      </div>
+
+      <div className="mt-8 p-3 rounded-xl bg-primary/5 border border-primary/20 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div className="w-2 h-2 rounded-full bg-primary" />
+          <div className="h-1.5 w-16 rounded bg-primary/20" />
+        </div>
+        <div className="w-12 h-4 rounded bg-primary/10 border border-primary/20" />
+      </div>
+    </div>
+  );
+});
+
+export enum LayoutType {
+  DASHBOARD = "dashboard",
+  MARKETING = "marketing",
+  KANBAN = "kanban",
+  SETTINGS = "settings",
+}
+
+export const LAYOUT_ORDER: LayoutType[] = [
+  LayoutType.DASHBOARD,
+  LayoutType.MARKETING,
+  LayoutType.KANBAN,
+  LayoutType.SETTINGS,
+];
+
+export const LayoutRenderer = memo(function LayoutRenderer({
+  type,
+}: {
+  type: LayoutType;
+}) {
+  switch (type) {
+    case LayoutType.DASHBOARD:
+      return <DashboardLayout />;
+    case LayoutType.MARKETING:
+      return <MarketingLayout />;
+    case LayoutType.KANBAN:
+      return <KanbanLayout />;
+    case LayoutType.SETTINGS:
+      return <SettingsLayout />;
+  }
+});

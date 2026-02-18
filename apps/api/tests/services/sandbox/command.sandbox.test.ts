@@ -7,13 +7,18 @@ import type { SandboxInstance } from "../../../services/sandbox/types.sandbox.js
 
 vi.mock("../../../services/sandbox/state.sandbox.js");
 vi.mock("../../../services/sandbox/docker.sandbox.js");
-vi.mock("../../../utils/logger.js", () => ({
-  logger: {
+vi.mock("../../../utils/logger.js", () => {
+  const mockedLogger = {
     info: vi.fn(),
     error: vi.fn(),
     debug: vi.fn(),
-  },
-}));
+  };
+
+  return {
+    logger: mockedLogger,
+    createLogger: vi.fn(() => mockedLogger),
+  };
+});
 
 describe("executeSandboxCommand", () => {
   const sandboxId = "test-sandbox";

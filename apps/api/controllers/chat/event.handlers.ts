@@ -20,11 +20,15 @@ import {
   resolveDependencies,
   suggestAlternatives,
 } from "../../services/planning/resolvers/dependency.resolver.js";
+import { searchTavilyBasic } from "../../services/websearch/tavily.search.js";
 import { ensureError } from "../../utils/error.js";
 import { logger } from "../../utils/logger.js";
 import { safeSSEWrite, sendSSEError } from "./sse.utils.js";
 import { handleFileContent } from "./file.handlers.js";
-import type { CommandResult } from "./command.utils.js";
+import type {
+  AgentToolResult,
+  WebSearchResultItem,
+} from "./command.utils.js";
 
 export interface EventHandlerContext {
   workflow: WorkflowState;
@@ -33,17 +37,19 @@ export interface EventHandlerContext {
   userId: string;
   chatId: string;
   isFollowUp: boolean;
+  sandboxTagDetected: boolean;
   currentFilePath: string | undefined;
   isFirstFileChunk: boolean;
   generatedFiles: Map<string, string>;
   declaredPackages: string[];
-  commandResultsThisTurn: CommandResult[];
+  toolResultsThisTurn: AgentToolResult[];
 }
 
 export interface EventHandlerResult {
   handled: boolean;
   currentFilePath: string | undefined;
   isFirstFileChunk: boolean;
+  sandboxTagDetected: boolean;
 }
 
 async function handleSandboxStart(ctx: EventHandlerContext): Promise<void> {
@@ -56,8 +62,8 @@ async function handleFileStart(
   ctx: EventHandlerContext,
   filePath: string,
 ): Promise<{ currentFilePath: string; isFirstFileChunk: boolean }> {
-  if (!ctx.workflow.sandboxId) {
-    await ensureSandbox(ctx.workflow, undefined, ctx.isFollowUp);
+  if (!ctx.workflow.sandboxId || !ctx.sandboxTagDetected) {
+    throw new Error("FILE_START received without an active sandbox session");
   }
   await prepareSandboxFile(ctx.workflow.sandboxId!, filePath);
   return { currentFilePath: filePath, isFirstFileChunk: true };
@@ -108,12 +114,20 @@ async function handleInstallContent(
       ctx.workflow.context.framework = normalized;
     }
   }
-  if (!ctx.workflow.sandboxId) {
+  if (ctx.sandboxTagDetected && !ctx.workflow.sandboxId) {
     await ensureSandbox(
       ctx.workflow,
       ctx.workflow.context.framework,
       ctx.isFollowUp,
     );
+  }
+
+  if (!ctx.workflow.sandboxId) {
+    logger.warn(
+      { chatId: ctx.chatId },
+      "INSTALL_CONTENT received without sandbox tag; skipping install",
+    );
+    return;
   }
 
   const rawDependencies = dependencies || [];
@@ -152,8 +166,12 @@ async function handleCommand(
   command: string,
   args: string[],
 ): Promise<void> {
-  if (!ctx.workflow.sandboxId) {
-    await ensureSandbox(ctx.workflow, undefined, ctx.isFollowUp);
+  if (!ctx.sandboxTagDetected || !ctx.workflow.sandboxId) {
+    sendSSEError(
+      ctx.res,
+      "Command skipped: no active sandbox session. Emit <edward_sandbox> first.",
+    );
+    return;
   }
 
   try {
@@ -161,7 +179,8 @@ async function handleCommand(
       command,
       args,
     });
-    ctx.commandResultsThisTurn.push({
+    ctx.toolResultsThisTurn.push({
+      tool: "command",
       command,
       args,
       stdout: result.stdout ?? "",
@@ -178,7 +197,8 @@ async function handleCommand(
     );
   } catch (cmdError) {
     const err = ensureError(cmdError);
-    ctx.commandResultsThisTurn.push({
+    ctx.toolResultsThisTurn.push({
+      tool: "command",
       command,
       args,
       stdout: "",
@@ -188,16 +208,63 @@ async function handleCommand(
   }
 }
 
+async function handleWebSearch(
+  ctx: EventHandlerContext,
+  query: string,
+  maxResults?: number,
+): Promise<void> {
+  try {
+    const search = await searchTavilyBasic(query, maxResults ?? 5);
+    const normalizedResults: WebSearchResultItem[] = search.results.map(
+      (item) => ({
+        title: item.title,
+        url: item.url,
+        snippet: item.snippet,
+      }),
+    );
+
+    ctx.toolResultsThisTurn.push({
+      tool: "web_search",
+      query: search.query,
+      answer: search.answer,
+      results: normalizedResults,
+    });
+
+    safeSSEWrite(
+      ctx.res,
+      `data: ${JSON.stringify({
+        type: ParserEventType.WEB_SEARCH,
+        query: search.query,
+        maxResults,
+        answer: search.answer,
+        results: normalizedResults,
+      })}\n\n`,
+    );
+  } catch (webSearchError) {
+    const err = ensureError(webSearchError);
+    ctx.toolResultsThisTurn.push({
+      tool: "web_search",
+      query,
+      results: [],
+      error: err.message,
+    });
+    sendSSEError(ctx.res, `Web search failed: ${err.message}`);
+  }
+}
+
 export async function handleParserEvent(
   ctx: EventHandlerContext,
   event: ParserEvent,
 ): Promise<EventHandlerResult> {
   let handled = false;
+  let sandboxTagDetected = ctx.sandboxTagDetected;
   let { currentFilePath, isFirstFileChunk } = ctx;
 
   try {
     switch (event.type) {
       case ParserEventType.SANDBOX_START:
+        sandboxTagDetected = true;
+        ctx.sandboxTagDetected = true;
         await handleSandboxStart(ctx);
         break;
 
@@ -231,6 +298,11 @@ export async function handleParserEvent(
         await handleCommand(ctx, event.command, event.args ?? []);
         handled = true;
         break;
+
+      case ParserEventType.WEB_SEARCH:
+        await handleWebSearch(ctx, event.query, event.maxResults);
+        handled = true;
+        break;
     }
   } catch (sandboxError) {
     logger.error(
@@ -240,20 +312,27 @@ export async function handleParserEvent(
     sendSSEError(ctx.res, "Sandbox execution failed");
   }
 
-  return { handled, currentFilePath, isFirstFileChunk };
+  return { handled, currentFilePath, isFirstFileChunk, sandboxTagDetected };
 }
 
 export async function handleFlushEvents(
   ctx: EventHandlerContext,
   events: ParserEvent[],
 ): Promise<EventHandlerResult> {
+  let sandboxTagDetected = ctx.sandboxTagDetected;
   let { currentFilePath, isFirstFileChunk } = ctx;
 
   for (const event of events) {
     try {
       switch (event.type) {
+        case ParserEventType.SANDBOX_START:
+          sandboxTagDetected = true;
+          ctx.sandboxTagDetected = true;
+          await handleSandboxStart(ctx);
+          break;
+
         case ParserEventType.FILE_START:
-          if (!ctx.workflow.sandboxId) {
+          if (!ctx.workflow.sandboxId || !sandboxTagDetected) {
             logger.error("[Chat] FILE_START in flush without active sandbox");
             break;
           }
@@ -303,5 +382,5 @@ export async function handleFlushEvents(
     safeSSEWrite(ctx.res, `data: ${JSON.stringify(event)}\n\n`);
   }
 
-  return { handled: false, currentFilePath, isFirstFileChunk };
+  return { handled: false, currentFilePath, isFirstFileChunk, sandboxTagDetected };
 }

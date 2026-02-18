@@ -90,7 +90,7 @@ app.use(
       HttpMethod.DELETE,
       HttpMethod.PATCH,
     ],
-    allowedHeaders: ["Content-Type", "Authorization"],
+    allowedHeaders: ["Content-Type", "Authorization", "x-file-name"],
   }),
 );
 

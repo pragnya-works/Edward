@@ -19,7 +19,13 @@ Action Rules:
 - "edit": If the user wants to change, update, or add features to an existing project.
 - "generate": Default for new projects or complete regenerations.
 
-CRITICAL RESTRICTIONS - REJECT if the request includes:
+Framework Selection Rules (CRITICAL — follow strictly):
+- "vite-react": Use when the user says "react", "in react", "using react", "react app", or requests a component-driven SPA without mentioning Next.js. This is the DEFAULT for most apps.
+- "nextjs": Use ONLY when the user explicitly mentions "next", "next.js", "nextjs", or requests features that specifically require Next.js (SSR, server components, file-based routing with API routes).
+- "vanilla": Use when the user wants plain HTML/CSS/JS, no framework, or a simple static page without components.
+- When in doubt, prefer "vite-react" — it is lighter, faster, and sufficient for most frontend apps.
+
+CRITICAL RESTRICTIONS — REJECT if the request includes:
 - Backend/API development (API routes, GraphQL servers, REST endpoints)
 - Database setup (Prisma schema, migrations, queries)
 - Authentication backends (JWT generation, password hashing)
@@ -61,7 +67,7 @@ export async function analyzeIntent(input: string, apiKey: string): Promise<Inte
             complexity: 'moderate',
             features: [],
             recommendedPackages: [],
-            suggestedFramework: 'nextjs',
+            suggestedFramework: 'vite-react',
             reasoning: 'Fallback logic invoked'
         });
     }

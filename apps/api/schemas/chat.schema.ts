@@ -7,6 +7,10 @@ import {
   MAX_DEPENDENCIES,
   MAX_PACKAGE_NAME_LENGTH,
 } from "../utils/sharedConstants.js";
+import {
+  MessageContentPartSchema,
+  MultimodalContentSchema,
+} from "../utils/imageValidation.js";
 
 const ModelValues = Object.values(Model) as [string, ...string[]];
 
@@ -34,6 +38,9 @@ export enum ParserEventType {
   ERROR = "error",
   META = "meta",
   COMMAND = "command",
+  WEB_SEARCH = "web_search",
+  URL_SCRAPE = "url_scrape",
+  PREVIEW_URL = "preview_url",
 }
 
 export const ChatIdParamSchema = z.object({
@@ -41,13 +48,19 @@ export const ChatIdParamSchema = z.object({
 });
 
 export const UnifiedSendMessageSchema = z.object({
-  content: z.string().min(1, "Message content cannot be empty"),
+  content: z.union([
+    z.string().min(1, "Message content cannot be empty"),
+    MultimodalContentSchema,
+  ]),
   chatId: z.string().optional(),
   title: z.string().optional(),
   description: z.string().optional(),
   visibility: z.boolean().optional(),
   model: z.enum(ModelValues).optional(),
 });
+
+export type MessageContentPart = z.infer<typeof MessageContentPartSchema>;
+export type MultimodalContent = z.infer<typeof MultimodalContentSchema>;
 
 export const UnifiedSendMessageRequestSchema = z.object({
   body: UnifiedSendMessageSchema,
@@ -157,6 +170,45 @@ export const ParserEventSchema = z.discriminatedUnion("type", [
     exitCode: z.number().optional(),
     stdout: z.string().optional(),
     stderr: z.string().optional(),
+  }),
+  z.object({
+    type: z.literal(ParserEventType.WEB_SEARCH),
+    query: z.string().min(1),
+    maxResults: z.number().int().positive().max(8).optional(),
+    answer: z.string().optional(),
+    results: z
+      .array(
+        z.object({
+          title: z.string(),
+          url: z.string(),
+          snippet: z.string(),
+        }),
+      )
+      .optional(),
+    error: z.string().optional(),
+  }),
+  z.object({
+    type: z.literal(ParserEventType.URL_SCRAPE),
+    results: z.array(
+      z.discriminatedUnion("status", [
+        z.object({
+          status: z.literal("success"),
+          url: z.string().url(),
+          finalUrl: z.string().url(),
+          title: z.string(),
+          snippet: z.string(),
+        }),
+        z.object({
+          status: z.literal("error"),
+          url: z.string().url(),
+          error: z.string(),
+        }),
+      ]),
+    ),
+  }),
+  z.object({
+    type: z.literal(ParserEventType.PREVIEW_URL),
+    url: z.string(),
   }),
 ]);
 

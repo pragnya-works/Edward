@@ -3,13 +3,16 @@
 import { cn } from "@edward/ui/lib/utils";
 import Link from "next/link";
 import {
-    motion,
+    m,
     useScroll,
     useMotionValueEvent,
     AnimatePresence,
 } from "motion/react";
 import { Menu, X } from "lucide-react";
 import React, { createContext, useContext, useRef, useState } from "react";
+
+const TYPEOF_FUNCTION = "function";
+const BUTTON_ELEMENT = "button";
 
 interface NavbarProps {
     children: React.ReactNode;
@@ -28,6 +31,12 @@ interface NavbarContextType {
 }
 
 const NavbarContext = createContext<NavbarContextType | undefined>(undefined);
+
+function isNavBodyRenderProp(
+    children: NavBodyProps["children"],
+): children is (props: { visible: boolean }) => React.ReactNode {
+    return typeof children === TYPEOF_FUNCTION;
+}
 
 const useNavbarContext = () => {
     const context = useContext(NavbarContext);
@@ -55,12 +64,12 @@ export const Navbar = ({ children, className }: NavbarProps) => {
 
     return (
         <NavbarContext.Provider value={{ visible }}>
-            <motion.div
+            <m.div
                 ref={ref}
                 className={cn("sticky inset-x-0 top-20 z-40 w-full", className)}
             >
                 {children}
-            </motion.div>
+            </m.div>
         </NavbarContext.Provider>
     );
 };
@@ -69,7 +78,7 @@ export const NavBody = ({ children, className }: NavBodyProps) => {
     const { visible } = useNavbarContext();
 
     return (
-        <motion.div
+        <m.div
             animate={{
                 backdropFilter: visible ? "blur(10px)" : "none",
                 boxShadow: visible
@@ -89,8 +98,8 @@ export const NavBody = ({ children, className }: NavBodyProps) => {
                 className,
             )}
         >
-            {typeof children === "function" ? children({ visible }) : children}
-        </motion.div>
+            {isNavBodyRenderProp(children) ? children({ visible }) : children}
+        </m.div>
     );
 };
 
@@ -111,7 +120,9 @@ export const MobileNav = ({
         <>
             <AnimatePresence>
                 {isOpen && (
-                    <motion.div
+                    <m.button
+                        type="button"
+                        aria-label="Close mobile menu"
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
@@ -120,7 +131,7 @@ export const MobileNav = ({
                     />
                 )}
             </AnimatePresence>
-            <motion.div
+            <m.div
                 animate={{
                     backdropFilter: visible ? "blur(10px)" : "none",
                     boxShadow: visible
@@ -142,7 +153,7 @@ export const MobileNav = ({
                 )}
             >
                 {children}
-            </motion.div>
+            </m.div>
         </>
     );
 };
@@ -176,7 +187,8 @@ export const MobileNavToggle = ({
             onClick={onClick}
             aria-label={isOpen ? "Close menu" : "Open menu"}
             className={cn(
-                "flex h-10 w-10 items-center justify-center rounded-md text-foreground hover:bg-accent focus:outline-none",
+                "flex h-10 w-10 items-center justify-center rounded-md text-foreground hover:bg-accent",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
                 className,
             )}
         >
@@ -197,7 +209,7 @@ export const MobileNavMenu = ({
     return (
         <AnimatePresence>
             {isOpen && (
-                <motion.div
+                <m.div
                     initial={{ height: 0, opacity: 0 }}
                     animate={{ height: "auto", opacity: 1 }}
                     exit={{ height: 0, opacity: 0 }}
@@ -208,7 +220,7 @@ export const MobileNavMenu = ({
                     )}
                 >
                     {children}
-                </motion.div>
+                </m.div>
             )}
         </AnimatePresence>
     );
@@ -235,28 +247,6 @@ export const NavbarLogo = ({
                 </span>
             )}
         </Link>
-    );
-};
-
-export const NavItems = ({
-    items,
-    className,
-}: {
-    items: { name: string; link: string }[];
-    className?: string;
-}) => {
-    return (
-        <div className={cn("flex items-center gap-4", className)}>
-            {items.map((item, idx) => (
-                <Link
-                    key={idx}
-                    href={item.link}
-                    className="relative text-muted-foreground hover:text-foreground transition-colors"
-                >
-                    {item.name}
-                </Link>
-            ))}
-        </div>
     );
 };
 
@@ -293,11 +283,16 @@ export const NavbarButton = ({
             "bg-gradient-to-b from-blue-500 to-blue-700 text-white shadow-[0px_2px_0px_0px_rgba(255,255,255,0.3)_inset]",
     };
 
-    const Component = Tag || (href ? Link : "button");
+    const Component = Tag || (href ? Link : BUTTON_ELEMENT);
+    const buttonType =
+        Component === BUTTON_ELEMENT
+            ? ((props as React.ComponentPropsWithoutRef<"button">).type ?? BUTTON_ELEMENT)
+            : undefined;
 
     return (
         <Component
             href={href || undefined}
+            type={buttonType}
             className={cn(baseStyles, variantStyles[variant], className)}
             {...props}
         >

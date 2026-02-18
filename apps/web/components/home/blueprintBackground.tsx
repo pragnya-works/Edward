@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "motion/react";
+import { m } from "motion/react";
 
 interface BeamProps {
   x: string;
@@ -11,7 +11,7 @@ interface BeamProps {
 
 function Beam({ x, delay, duration, width = "1px" }: BeamProps) {
   return (
-    <motion.div
+    <m.div
       initial={{ y: "-20%", opacity: 0 }}
       animate={{ 
         y: "120%", 

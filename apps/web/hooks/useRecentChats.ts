@@ -5,6 +5,7 @@ import { useSession } from "@/lib/auth-client";
 import { useInfiniteQuery } from "@tanstack/react-query";
 
 import { fetchApi } from "@/lib/api";
+import { queryKeys } from "@/lib/queryKeys";
 const PAGE_SIZE = 6;
 
 export interface Project {
@@ -43,7 +44,7 @@ export function useRecentChats() {
     isError,
     refetch,
   } = useInfiniteQuery({
-    queryKey: ["recentChats", userId],
+    queryKey: queryKeys.recentChats.byUserId(userId),
     queryFn,
     getNextPageParam: (lastPage) => {
       if (!lastPage.metadata) return undefined;
@@ -55,10 +56,19 @@ export function useRecentChats() {
     enabled: !!userId,
   });
 
-  const projects = useMemo(
-    () => data?.pages.flatMap((page) => page.data) ?? [],
-    [data?.pages],
-  );
+  const projects = useMemo(() => {
+    const allProjects = data?.pages.flatMap((page) => page.data) ?? [];
+    const seen = new Set<string>();
+    const uniqueProjects: Project[] = [];
+
+    for (const project of allProjects) {
+      if (seen.has(project.id)) continue;
+      seen.add(project.id);
+      uniqueProjects.push(project);
+    }
+
+    return uniqueProjects;
+  }, [data?.pages]);
   const total = useMemo(
     () => data?.pages[0]?.metadata?.total ?? 0,
     [data?.pages],
