@@ -72,8 +72,10 @@ export function useFileAttachments(
         } catch (error) {
           if (item.retries < MAX_RETRIES) {
             item.retries++;
-            uploadQueueRef.current.push(item);
-            setTimeout(attemptUpload, RETRY_DELAY_MS * item.retries);
+            setTimeout(() => {
+              uploadQueueRef.current.push(item);
+              processUploadQueue();
+            }, RETRY_DELAY_MS * item.retries);
           } else {
             const errorMessage =
               error instanceof Error ? error.message : "Upload failed";
