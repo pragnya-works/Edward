@@ -12,4 +12,5 @@ export type Framework = (typeof FRAMEWORKS)[keyof typeof FRAMEWORKS];
 export const MAX_RESPONSE_SIZE = 10 * 1024 * 1024;
 export const MAX_STREAM_DURATION_MS = 5 * 60 * 1000;
 export const MAX_AGENT_TURNS = 5;
+export const MAX_AGENT_TOOL_CALLS_PER_TURN = 6;
 export const CLEANUP_INTERVAL_MS = 60 * 1000;

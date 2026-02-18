@@ -64,7 +64,8 @@ async function createErrorReportIfPossible(
 }
 
 async function processBuildJob(payload: BuildJobPayload): Promise<void> {
-  const { sandboxId, chatId, messageId, userId, buildId } = payload;
+  const { sandboxId, chatId, messageId, userId, buildId, runId } = payload;
+  const correlationRunId = runId ?? messageId;
   const startTime = Date.now();
 
   const buildRecord = buildId
@@ -78,6 +79,17 @@ async function processBuildJob(payload: BuildJobPayload): Promise<void> {
   await updateBuild(buildRecord.id, {
     status: "building",
   });
+
+  logger.info(
+    {
+      sandboxId,
+      chatId,
+      messageId,
+      buildId: buildRecord.id,
+      runId: correlationRunId,
+    },
+    "[Worker] Build job started",
+  );
 
   let handled = false;
 
@@ -96,6 +108,7 @@ async function processBuildJob(payload: BuildJobPayload): Promise<void> {
         `edward:build-status:${chatId}`,
         JSON.stringify({
           buildId: buildRecord.id,
+          runId: correlationRunId,
           status: "success",
           previewUrl: result.previewUrl,
         }),
@@ -104,6 +117,8 @@ async function processBuildJob(payload: BuildJobPayload): Promise<void> {
       logger.info(
         {
           sandboxId,
+          chatId,
+          runId: correlationRunId,
           buildDirectory: result.buildDirectory,
           previewUploaded: result.previewUploaded,
           previewUrl: result.previewUrl,
@@ -132,6 +147,7 @@ async function processBuildJob(payload: BuildJobPayload): Promise<void> {
         `edward:build-status:${chatId}`,
         JSON.stringify({
           buildId: buildRecord.id,
+          runId: correlationRunId,
           status: "failed",
           errorReport,
         }),
@@ -140,6 +156,8 @@ async function processBuildJob(payload: BuildJobPayload): Promise<void> {
       logger.warn(
         {
           sandboxId,
+          chatId,
+          runId: correlationRunId,
           buildDirectory: result.buildDirectory,
           previewUploaded: result.previewUploaded,
           error: result.error,
@@ -179,6 +197,7 @@ async function processBuildJob(payload: BuildJobPayload): Promise<void> {
           `edward:build-status:${chatId}`,
           JSON.stringify({
             buildId: buildRecord.id,
+            runId: correlationRunId,
             status: "failed",
             errorReport,
           }),
@@ -186,7 +205,10 @@ async function processBuildJob(payload: BuildJobPayload): Promise<void> {
         .catch(() => {});
     }
 
-    logger.error({ error, sandboxId }, "[Worker] Build job failed");
+    logger.error(
+      { error, sandboxId, chatId, runId: correlationRunId },
+      "[Worker] Build job failed",
+    );
     throw error;
   }
 }

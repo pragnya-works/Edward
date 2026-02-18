@@ -203,6 +203,14 @@ describe("chat schemas", () => {
       expect(result.success).toBe(true);
     });
 
+    it("should validate DONE event", () => {
+      const result = ParserEventSchema.safeParse({
+        type: ParserEventType.DONE,
+      });
+
+      expect(result.success).toBe(true);
+    });
+
     it("should validate THINKING_START event", () => {
       const result = ParserEventSchema.safeParse({
         type: ParserEventType.THINKING_START,
@@ -296,6 +304,35 @@ describe("chat schemas", () => {
         userMessageId: "msg-1",
         assistantMessageId: "msg-2",
         isNewChat: true,
+      });
+
+      expect(result.success).toBe(true);
+    });
+
+    it("should validate META event with loopStopReason", () => {
+      const result = ParserEventSchema.safeParse({
+        type: ParserEventType.META,
+        chatId: "chat-123",
+        userMessageId: "msg-1",
+        assistantMessageId: "msg-2",
+        isNewChat: false,
+        loopStopReason: "done",
+      });
+
+      expect(result.success).toBe(true);
+    });
+
+    it("should validate META event with run correlation fields", () => {
+      const result = ParserEventSchema.safeParse({
+        type: ParserEventType.META,
+        chatId: "chat-123",
+        userMessageId: "msg-1",
+        assistantMessageId: "msg-2",
+        isNewChat: false,
+        runId: "run-1",
+        turn: 2,
+        phase: "turn_complete",
+        toolCount: 3,
       });
 
       expect(result.success).toBe(true);
