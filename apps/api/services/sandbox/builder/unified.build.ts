@@ -221,64 +221,76 @@ export async function buildAndUploadUnified(
     const buildDirectory = buildResult.outputInfo!.directory;
 
     const framework = (scaffoldedFramework || "vanilla") as Framework;
+    let previewUploaded = false;
+    let previewUrl: string | null = null;
+    let uploadWarning: string | undefined;
 
-    const uploadResult = await uploadBuildFilesToS3(
-      sandbox,
-      buildDirectory,
-      framework,
-    );
-
-    if (uploadResult.successful < uploadResult.totalFiles) {
-      logger.warn(
-        {
-          sandboxId,
-          successful: uploadResult.successful,
-          total: uploadResult.totalFiles,
-        },
-        "Some build files failed to upload to S3 (non-fatal)",
+    if (userId && chatId) {
+      const uploadResult = await uploadBuildFilesToS3(
+        sandbox,
+        buildDirectory,
+        framework,
       );
-    }
 
-    const previewPrefix = buildS3Key(userId, chatId, "preview/");
-    if (framework !== "vanilla") {
-      const fallbackKey = buildS3Key(userId, chatId, "preview/404.html");
-      uploadResult.uploadedKeys.add(fallbackKey);
-    }
-    cleanupS3FolderExcept(previewPrefix, uploadResult.uploadedKeys).catch(
-      (err) => {
+      if (uploadResult.successful < uploadResult.totalFiles) {
+        logger.warn(
+          {
+            sandboxId,
+            successful: uploadResult.successful,
+            total: uploadResult.totalFiles,
+          },
+          "Some build files failed to upload to S3 (non-fatal)",
+        );
+      }
+
+      const previewPrefix = buildS3Key(userId, chatId, "preview/");
+      if (framework !== "vanilla") {
+        const fallbackKey = buildS3Key(userId, chatId, "preview/404.html");
+        uploadResult.uploadedKeys.add(fallbackKey);
+      }
+      cleanupS3FolderExcept(previewPrefix, uploadResult.uploadedKeys).catch(
+        (err) => {
+          logger.warn(
+            { err, sandboxId },
+            "Failed to cleanup stale preview files (non-fatal)",
+          );
+        },
+      );
+
+      if (framework !== "vanilla") {
+        await uploadSpaFallback(sandbox, framework).catch((err) =>
+          logger.warn({ err, sandboxId }, "SPA fallback upload failed"),
+        );
+      }
+
+      await invalidatePreviewCache(userId, chatId).catch((err) =>
         logger.warn(
           { err, sandboxId },
-          "Failed to cleanup stale preview files (non-fatal)",
-        );
-      },
-    );
+          "CloudFront invalidation failed (non-fatal)",
+        ),
+      );
 
-    if (framework !== "vanilla") {
-      await uploadSpaFallback(sandbox, framework).catch((err) =>
-        logger.warn({ err, sandboxId }, "SPA fallback upload failed"),
+      previewUploaded = uploadResult.successful > 0;
+      previewUrl = buildPreviewUrl(userId, chatId);
+      uploadWarning =
+        uploadResult.successful < uploadResult.totalFiles
+          ? `Warning: ${uploadResult.totalFiles - uploadResult.successful} files failed to upload to S3`
+          : undefined;
+    } else {
+      logger.warn(
+        { sandboxId, userIdPresent: Boolean(userId), chatIdPresent: Boolean(chatId) },
+        "Skipping preview upload/cleanup because sandbox is missing userId or chatId",
       );
     }
 
-    await invalidatePreviewCache(userId, chatId).catch((err) =>
-      logger.warn(
-        { err, sandboxId },
-        "CloudFront invalidation failed (non-fatal)",
-      ),
-    );
-
     await disconnectContainerFromNetwork(containerId, sandboxId);
-
-    const previewUrl = buildPreviewUrl(userId, chatId);
 
     return {
       success: true,
       buildDirectory,
-      previewUploaded: uploadResult.successful > 0,
-      previewUrl: previewUrl,
-      error:
-        uploadResult.successful < uploadResult.totalFiles
-          ? `Warning: ${uploadResult.totalFiles - uploadResult.successful} files failed to upload to S3`
-          : undefined,
+      previewUploaded,
+      previewUrl,
+      error: uploadWarning,
     };
   } catch (error) {
     await disconnectContainerFromNetwork(containerId, sandboxId).catch(

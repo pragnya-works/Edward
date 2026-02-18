@@ -436,7 +436,6 @@ export async function validateImageUrl(
       parsedUrl,
       abortController.signal,
     );
-    clearTimeout(timeout);
 
     if (!response.ok) {
       await cancelResponseBody(response);

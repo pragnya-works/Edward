@@ -302,6 +302,15 @@ async function fetchPinned(
   });
 }
 
+async function cancelResponseBody(response: Response): Promise<void> {
+  if (!response.body) return;
+  try {
+    await response.body.cancel();
+  } catch {
+    // Best effort: connection might already be closed or consumed.
+  }
+}
+
 async function fetchWithSafeRedirects(
   sourceUrl: string,
   signal: AbortSignal,
@@ -320,6 +329,7 @@ async function fetchWithSafeRedirects(
     }
 
     const nextLocation = response.headers.get("location");
+    await cancelResponseBody(response);
     if (!nextLocation) {
       throw new Error(`Redirect response missing location header`);
     }

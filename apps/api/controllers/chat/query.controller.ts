@@ -31,6 +31,33 @@ import {
   sendStreamError,
 } from "./shared.utils.js";
 
+function parseNonNegativeIntegerQueryParam(
+  rawValue: unknown,
+  fieldName: string,
+  defaultValue: number,
+): { valid: true; value: number } | { valid: false; error: string } {
+  if (rawValue === undefined) {
+    return { valid: true, value: defaultValue };
+  }
+
+  if (typeof rawValue !== "string") {
+    return {
+      valid: false,
+      error: `Query parameter "${fieldName}" must be a non-negative integer`,
+    };
+  }
+
+  const normalized = rawValue.trim();
+  if (!/^\d+$/.test(normalized)) {
+    return {
+      valid: false,
+      error: `Query parameter "${fieldName}" must be a non-negative integer`,
+    };
+  }
+
+  return { valid: true, value: Number.parseInt(normalized, 10) };
+}
+
 export async function getChatHistory(
   req: AuthenticatedRequest,
   res: Response,
@@ -163,10 +190,28 @@ export async function getRecentChats(
 ): Promise<void> {
   try {
     const userId = getAuthenticatedUserId(req);
-    const limit =
-      typeof req.query.limit === "string" ? parseInt(req.query.limit, 10) : 6;
-    const offset =
-      typeof req.query.offset === "string" ? parseInt(req.query.offset, 10) : 0;
+    const limitResult = parseNonNegativeIntegerQueryParam(
+      req.query.limit,
+      "limit",
+      6,
+    );
+    if (!limitResult.valid) {
+      sendStandardError(res, HttpStatus.BAD_REQUEST, limitResult.error);
+      return;
+    }
+
+    const offsetResult = parseNonNegativeIntegerQueryParam(
+      req.query.offset,
+      "offset",
+      0,
+    );
+    if (!offsetResult.valid) {
+      sendStandardError(res, HttpStatus.BAD_REQUEST, offsetResult.error);
+      return;
+    }
+
+    const { value: limit } = limitResult;
+    const { value: offset } = offsetResult;
 
     const chats = await db
       .select()
