@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Check, Copy } from "lucide-react";
-import { motion, AnimatePresence } from "motion/react";
+import { m, AnimatePresence } from "motion/react";
 
 interface CopyButtonProps {
     content: string;
@@ -32,7 +32,7 @@ export function CopyButton({ content, className = "" }: CopyButtonProps) {
         >
             <AnimatePresence mode="wait" initial={false}>
                 {isCopied ? (
-                    <motion.div
+                    <m.div
                         key="check"
                         initial={{ opacity: 0, scale: 0.5, rotate: -45 }}
                         animate={{ opacity: 1, scale: 1, rotate: 0 }}
@@ -40,9 +40,9 @@ export function CopyButton({ content, className = "" }: CopyButtonProps) {
                         transition={{ duration: 0.2, ease: "easeOut" }}
                     >
                         <Check className="w-3.5 h-3.5 text-emerald-500" />
-                    </motion.div>
+                    </m.div>
                 ) : (
-                    <motion.div
+                    <m.div
                         key="copy"
                         initial={{ opacity: 0, scale: 0.5 }}
                         animate={{ opacity: 1, scale: 1 }}
@@ -50,7 +50,7 @@ export function CopyButton({ content, className = "" }: CopyButtonProps) {
                         transition={{ duration: 0.2, ease: "easeOut" }}
                     >
                         <Copy className="w-3.5 h-3.5" />
-                    </motion.div>
+                    </m.div>
                 )}
             </AnimatePresence>
         </button>

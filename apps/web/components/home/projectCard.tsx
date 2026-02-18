@@ -1,5 +1,5 @@
 import { memo, useMemo } from "react";
-import { motion } from "motion/react";
+import { m } from "motion/react";
 import { FolderOpen, ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { TechnicalBlueprint } from "./cardVisual";
@@ -38,7 +38,7 @@ export const ProjectCard = memo(function ProjectCard({
       href={`/chat/${project.id}`}
       className="block w-full"
     >
-      <motion.div
+      <m.div
         initial={{ opacity: 0, filter: "blur(8px)", y: 8 }}
         animate={{ opacity: 1, filter: "blur(0px)", y: 0 }}
         transition={{
@@ -73,7 +73,7 @@ export const ProjectCard = memo(function ProjectCard({
             Updated {formattedDate}
           </div>
         </div>
-      </motion.div>
+      </m.div>
     </Link>
   );
 });

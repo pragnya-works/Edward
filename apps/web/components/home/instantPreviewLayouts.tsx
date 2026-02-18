@@ -1,7 +1,7 @@
 "use client";
 
 import { memo } from "react";
-import { motion } from "motion/react";
+import { m } from "motion/react";
 import { cn } from "@edward/ui/lib/utils";
 
 const variants = {
@@ -34,12 +34,12 @@ export const BrowserHeader = memo(function BrowserHeader() {
 export const Sidebar = memo(function Sidebar() {
   return (
     <div className="w-10 md:w-12 border-r border-border bg-muted/5 p-3 space-y-4 shrink-0">
-      {[1, 2, 3, 4].map((index) => (
+      {[1, 2, 3, 4].map((slot) => (
         <div
-          key={index}
+          key={`sidebar-segment-${slot}`}
           className={cn(
             "h-1.5 w-full rounded-full",
-            index === 1 ? "bg-primary/20" : "bg-muted-foreground/10",
+            slot === 1 ? "bg-primary/20" : "bg-muted-foreground/10",
           )}
         />
       ))}
@@ -59,7 +59,7 @@ export const SkeletonUI = memo(function SkeletonUI() {
         <div className="h-20 rounded-xl bg-muted/5 border border-border/20 animate-pulse" />
       </div>
       <div className="h-24 w-full rounded-xl bg-primary/5 border border-primary/10 relative overflow-hidden">
-        <motion.div
+        <m.div
           animate={{ x: ["-100%", "200%"] }}
           transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
           className="absolute inset-0 bg-gradient-to-r from-transparent via-primary/5 to-transparent"
@@ -73,7 +73,7 @@ const DashboardLayout = memo(function DashboardLayout() {
   return (
     <div className="flex-1 p-5 md:p-6 space-y-5 overflow-hidden">
       <div className="flex items-center justify-between">
-        <motion.div
+        <m.div
           variants={variants.slideRight}
           initial="initial"
           animate="animate"
@@ -85,21 +85,21 @@ const DashboardLayout = memo(function DashboardLayout() {
           <p className="text-[10px] text-muted-foreground">
             Real-time infrastructure health
           </p>
-        </motion.div>
+        </m.div>
         <div className="w-8 h-8 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center">
           <div className="w-1.5 h-1.5 rounded-full bg-primary" />
         </div>
       </div>
 
-      <motion.div
+      <m.div
         initial={{ opacity: 0, scale: 0.98, y: 30 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         className="h-28 md:h-32 w-full rounded-xl bg-gradient-to-br from-primary/10 via-background to-background border border-border p-4 relative"
       >
         <div className="flex items-end gap-1.5 h-full pt-8">
           {[50, 80, 45, 95, 70, 85, 60, 90, 55, 75].map((height, index) => (
-            <motion.div
-              key={index}
+            <m.div
+              key={`dashboard-bar-${height}`}
               initial={{ height: 0 }}
               animate={{ height: `${height}%` }}
               transition={{
@@ -116,16 +116,16 @@ const DashboardLayout = memo(function DashboardLayout() {
             $12.4k
           </span>
         </div>
-      </motion.div>
+      </m.div>
 
       <div className="grid grid-cols-2 gap-3">
-        {[1, 2].map((index) => (
-          <motion.div
-            key={index}
+        {[1, 2].map((slot) => (
+          <m.div
+            key={`dashboard-card-${slot}`}
             variants={variants.slideUp}
             initial="initial"
             animate="animate"
-            transition={{ delay: 0.4 + index * 0.1 }}
+            transition={{ delay: 0.4 + slot * 0.1 }}
             className="p-3 rounded-xl bg-card border border-border shadow-sm space-y-2"
           >
             <div className="flex gap-2">
@@ -133,14 +133,14 @@ const DashboardLayout = memo(function DashboardLayout() {
               <div className="h-1.5 w-12 rounded bg-muted mt-1.5" />
             </div>
             <div className="h-1 w-full rounded-full bg-muted/40 overflow-hidden">
-              <motion.div
+              <m.div
                 initial={{ width: 0 }}
-                animate={{ width: index === 1 ? "70%" : "45%" }}
+                animate={{ width: slot === 1 ? "70%" : "45%" }}
                 transition={{ duration: 1, delay: 0.8 }}
                 className="h-full bg-primary/60"
               />
             </div>
-          </motion.div>
+          </m.div>
         ))}
       </div>
     </div>
@@ -150,7 +150,7 @@ const DashboardLayout = memo(function DashboardLayout() {
 const MarketingLayout = memo(function MarketingLayout() {
   return (
     <div className="flex-1 p-6 space-y-6 overflow-hidden flex flex-col items-center">
-      <motion.div
+      <m.div
         variants={variants.scaleUp}
         initial="initial"
         animate="animate"
@@ -165,26 +165,26 @@ const MarketingLayout = memo(function MarketingLayout() {
             thought
           </span>
         </h3>
-      </motion.div>
+      </m.div>
 
-      <motion.div
+      <m.div
         initial={{ opacity: 0, y: 30 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.3 }}
         className="w-full grid grid-cols-3 gap-2 px-2"
       >
-        {[1, 2, 3].map((index) => (
+        {[1, 2, 3].map((slot) => (
           <div
-            key={index}
+            key={`marketing-card-${slot}`}
             className="aspect-[4/5] rounded-lg bg-card border border-border shadow-sm flex flex-col p-2 space-y-2"
           >
             <div className="flex-1 rounded-md bg-muted/30" />
             <div className="h-1 w-3/4 rounded bg-muted/50" />
           </div>
         ))}
-      </motion.div>
+      </m.div>
 
-      <motion.div
+      <m.div
         variants={variants.fadeIn}
         initial="initial"
         animate="animate"
@@ -192,7 +192,7 @@ const MarketingLayout = memo(function MarketingLayout() {
         className="px-6 py-2 rounded-full bg-primary text-primary-foreground text-[9px] font-bold shadow-lg shadow-primary/20"
       >
         Join the waitlist
-      </motion.div>
+      </m.div>
     </div>
   );
 });
@@ -203,9 +203,9 @@ const KanbanLayout = memo(function KanbanLayout() {
       <div className="flex items-center justify-between">
         <h3 className="text-xs md:text-sm font-bold">Project Sprint</h3>
         <div className="flex -space-x-2">
-          {[1, 2, 3].map((index) => (
+          {[1, 2, 3].map((slot) => (
             <div
-              key={index}
+              key={`kanban-avatar-${slot}`}
               className="w-5 h-5 rounded-full border border-background bg-muted"
             />
           ))}
@@ -220,13 +220,13 @@ const KanbanLayout = memo(function KanbanLayout() {
               In Progress
             </span>
           </div>
-          {[1, 2].map((index) => (
-            <motion.div
-              key={index}
+          {[1, 2].map((slot) => (
+            <m.div
+              key={`kanban-task-${slot}`}
               variants={variants.slideRight}
               initial="initial"
               animate="animate"
-              transition={{ delay: index * 0.1 }}
+              transition={{ delay: slot * 0.1 }}
               className="p-3 rounded-xl bg-card border border-border shadow-sm space-y-2"
             >
               <div className="h-1 w-full rounded bg-muted/50" />
@@ -235,7 +235,7 @@ const KanbanLayout = memo(function KanbanLayout() {
                 <div className="h-3 w-8 rounded bg-primary/10 border border-primary/20" />
                 <div className="w-3 h-3 rounded-full bg-muted" />
               </div>
-            </motion.div>
+            </m.div>
           ))}
         </div>
 
@@ -267,13 +267,13 @@ const SettingsLayout = memo(function SettingsLayout() {
       </div>
 
       <div className="space-y-4 pt-2">
-        {[1, 2, 3].map((index) => (
-          <motion.div
-            key={index}
+        {[1, 2, 3].map((slot) => (
+          <m.div
+            key={`settings-row-${slot}`}
             variants={variants.slideUp}
             initial="initial"
             animate="animate"
-            transition={{ delay: index * 0.1 }}
+            transition={{ delay: slot * 0.1 }}
             className="flex items-center justify-between"
           >
             <div className="flex items-center gap-3">
@@ -286,19 +286,19 @@ const SettingsLayout = memo(function SettingsLayout() {
             <div
               className={cn(
                 "w-8 h-4 rounded-full border border-border relative",
-                index === 1 ? "bg-primary/20" : "bg-muted/30",
+                slot === 1 ? "bg-primary/20" : "bg-muted/30",
               )}
             >
               <div
                 className={cn(
                   "absolute top-0.5 w-2.5 h-2.5 rounded-full transition-all",
-                  index === 1
+                  slot === 1
                     ? "right-0.5 bg-primary"
                     : "left-0.5 bg-muted-foreground/30",
                 )}
               />
             </div>
-          </motion.div>
+          </m.div>
         ))}
       </div>
 

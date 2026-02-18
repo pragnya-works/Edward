@@ -6,7 +6,7 @@ import {
   useRef,
   useCallback,
 } from "react";
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, m } from "motion/react";
 import { useVisibilityAwareInterval } from "@/hooks/useVisibilityAwareInterval";
 import {
   BrowserHeader,
@@ -65,28 +65,28 @@ export function InstantPreviewVisual() {
 
           <AnimatePresence mode="wait">
             {isGenerating ? (
-              <motion.div
+              <m.div
                 key="skeleton"
                 variants={fadeInVariant}
                 initial="initial"
                 animate="animate"
                 exit={{
                   opacity: 0,
-                  filter: "blur(12px)",
+                  filter: "blur(8px)",
                   scale: 1.05,
                   transition: { duration: 0.3 },
                 }}
                 className="flex-1 h-full relative"
               >
                 <SkeletonUI />
-                <motion.div
+                <m.div
                   animate={{ top: ["0%", "100%"] }}
                   transition={{ duration: 1.2, repeat: Infinity, ease: "linear" }}
                   className="absolute inset-x-0 h-px bg-gradient-to-r from-transparent via-primary/60 to-transparent shadow-[0_0_15px_rgba(var(--color-primary),0.3)] z-20"
                 />
-              </motion.div>
+              </m.div>
             ) : (
-              <motion.div
+              <m.div
                 key={`layout-${currentLayoutType}`}
                 initial={{ opacity: 0, scale: 0.95, y: 15 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -94,7 +94,7 @@ export function InstantPreviewVisual() {
                 className="flex-1 h-full bg-background/20"
               >
                 <LayoutRenderer type={currentLayoutType} />
-              </motion.div>
+              </m.div>
             )}
           </AnimatePresence>
         </div>

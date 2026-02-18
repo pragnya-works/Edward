@@ -8,7 +8,7 @@ import {
   useMemo,
   useState,
 } from "react";
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, m } from "motion/react";
 import { ChevronRight, FileCode } from "lucide-react";
 import { cn } from "@edward/ui/lib/utils";
 import { FileTreeNodeType, type FileTreeNode } from "./fileTree";
@@ -79,7 +79,7 @@ function getFileIconClass(name: string): string {
   return colors[ext] || "text-gray-500/80";
 }
 
-export const FileTreeItem = memo(function FileTreeItem({
+const FileTreeItem = memo(function FileTreeItem({
   node,
   depth,
 }: FileTreeItemProps) {
@@ -100,7 +100,7 @@ export const FileTreeItem = memo(function FileTreeItem({
 
   return (
     <div className="select-none">
-      <motion.button
+      <m.button
         type="button"
         onClick={handleClick}
         className={cn(
@@ -113,12 +113,12 @@ export const FileTreeItem = memo(function FileTreeItem({
         style={{ paddingLeft: `${depth * 8 + 12}px` }}
       >
         {isFolder ? (
-          <motion.div
+          <m.div
             animate={{ rotate: isOpen ? 90 : 0 }}
             transition={{ duration: 0.15 }}
           >
             <ChevronRight className="h-3 w-3 text-slate-400" />
-          </motion.div>
+          </m.div>
         ) : (
           <FileCode className={cn("h-3.5 w-3.5 shrink-0", getFileIconClass(node.name))} />
         )}
@@ -126,18 +126,18 @@ export const FileTreeItem = memo(function FileTreeItem({
         <span className="text-[11px] font-medium truncate flex-1">{node.name}</span>
 
         {isStreaming && (
-          <motion.div
+          <m.div
             className="h-1.5 w-1.5 rounded-full bg-emerald-500"
             animate={{ scale: [1, 1.3, 1], opacity: [1, 0.6, 1] }}
             transition={{ duration: 1, repeat: Infinity }}
           />
         )}
-      </motion.button>
+      </m.button>
 
       {isFolder && node.children && (
         <AnimatePresence initial={false}>
           {isOpen && (
-            <motion.div
+            <m.div
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: "auto", opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
@@ -147,7 +147,7 @@ export const FileTreeItem = memo(function FileTreeItem({
               {node.children.map((child) => (
                 <FileTreeItem key={child.path} node={child} depth={depth + 1} />
               ))}
-            </motion.div>
+            </m.div>
           )}
         </AnimatePresence>
       )}

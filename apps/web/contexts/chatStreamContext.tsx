@@ -212,7 +212,10 @@ export function ChatStreamProvider({ children }: { children: ReactNode }) {
   });
 
   const startStream = useCallback(
-    (content: MessageContent, opts?: { chatId?: string; model?: string }) => {
+    (
+      content: MessageContent,
+      opts?: { chatId?: string; model?: string },
+    ) => {
       if (!opts?.chatId) {
         for (const key of Object.keys(streamsRef.current)) {
           if (

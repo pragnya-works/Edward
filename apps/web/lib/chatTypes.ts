@@ -15,6 +15,7 @@ export enum ParserEventType {
   META = "meta",
   COMMAND = "command",
   WEB_SEARCH = "web_search",
+  URL_SCRAPE = "url_scrape",
   METRICS = "metrics",
   PREVIEW_URL = "preview_url",
 }
@@ -136,6 +137,20 @@ export interface WebSearchEvent {
   error?: string;
 }
 
+export interface UrlScrapeResultItem {
+  status: "success" | "error";
+  url: string;
+  finalUrl?: string;
+  title?: string;
+  snippet?: string;
+  error?: string;
+}
+
+export interface UrlScrapeEvent {
+  type: ParserEventType.URL_SCRAPE;
+  results: UrlScrapeResultItem[];
+}
+
 export interface MetricsEvent {
   type: ParserEventType.METRICS;
   completionTime: number;
@@ -165,6 +180,7 @@ export type SSEEvent =
   | ErrorEvent
   | CommandEvent
   | WebSearchEvent
+  | UrlScrapeEvent
   | MetricsEvent
   | PreviewUrlEvent;
 
@@ -216,6 +232,7 @@ export interface StreamState {
   isSandboxing: boolean;
   command: CommandEvent | null;
   webSearches: WebSearchEvent[];
+  urlScrapes: UrlScrapeEvent[];
   error: string | null;
   meta: MetaEvent | null;
   codeOnly: boolean;
@@ -240,6 +257,7 @@ export const INITIAL_STREAM_STATE: StreamState = {
   isSandboxing: false,
   command: null,
   webSearches: [],
+  urlScrapes: [],
   error: null,
   meta: null,
   codeOnly: false,

@@ -1,11 +1,11 @@
 "use client";
 
-import { motion } from "motion/react";
+import { m } from "motion/react";
 import { GitCommitHorizontal } from "lucide-react";
 
 export function ChangelogHeader() {
   return (
-    <motion.div
+    <m.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5, ease: [0.23, 1, 0.32, 1] }}
@@ -27,6 +27,6 @@ export function ChangelogHeader() {
       <p className="mt-3 text-base md:text-lg text-muted-foreground/80 max-w-lg leading-relaxed">
         Track our progress. New features, improvements, and fixes as we build Edward.
       </p>
-    </motion.div>
+    </m.div>
   );
 }

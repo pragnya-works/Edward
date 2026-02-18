@@ -1,7 +1,7 @@
 "use client";
 
 import { memo, useMemo, useCallback } from "react";
-import { motion, AnimatePresence } from "motion/react";
+import { m, AnimatePresence } from "motion/react";
 import { User } from "lucide-react";
 import { EdwardAvatar } from "./avatars";
 import { MessageMetrics } from "./messageMetrics";
@@ -22,6 +22,7 @@ import { FileBlock } from "./fileBlock";
 import { CommandBlock } from "./commandBlock";
 import { InstallBlock } from "./installBlock";
 import { WebSearchBlock } from "./webSearchBlock";
+import { UrlScrapeBlock } from "./urlScrapeBlock";
 
 import { MarkdownRenderer } from "./markdownRenderer";
 import Image from "next/image";
@@ -49,7 +50,7 @@ const ImageAttachmentGrid = memo(function ImageAttachmentGrid({
       )}
     >
       {imageAttachments.map((attachment) => (
-        <motion.div
+        <m.div
           key={attachment.id}
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -65,7 +66,7 @@ const ImageAttachmentGrid = memo(function ImageAttachmentGrid({
             loading="lazy"
             decoding="async"
           />
-        </motion.div>
+        </m.div>
       ))}
     </div>
   );
@@ -154,7 +155,7 @@ export const ChatMessage = memo(function ChatMessage({
   }, [globalFiles.length, fileBlocks, setFiles]);
 
   return (
-    <motion.div
+    <m.div
       initial={{ opacity: 0, y: 12, scale: 0.98 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       transition={{
@@ -203,7 +204,7 @@ export const ChatMessage = memo(function ChatMessage({
                   case MessageBlockType.THINKING:
                     return (
                       <ThinkingIndicator
-                        key={i}
+                        key={`thinking-${block.content}`}
                         text={block.content}
                         isActive={false}
                         isCodeMode={false}
@@ -213,7 +214,7 @@ export const ChatMessage = memo(function ChatMessage({
                     if (block.isInternal) return null;
                     return (
                       <FileBlock
-                        key={i}
+                        key={`file-${block.path}`}
                         file={{
                           path: block.path,
                           content: block.content,
@@ -225,7 +226,7 @@ export const ChatMessage = memo(function ChatMessage({
                   case MessageBlockType.COMMAND:
                     return (
                       <CommandBlock
-                        key={i}
+                        key={`command-${block.command}-${block.args.join(" ")}`}
                         command={{
                           type: ParserEventType.COMMAND,
                           command: block.command,
@@ -236,7 +237,7 @@ export const ChatMessage = memo(function ChatMessage({
                   case MessageBlockType.WEB_SEARCH:
                     return (
                       <WebSearchBlock
-                        key={i}
+                        key={`web-search-${block.query}-${block.maxResults ?? "default"}`}
                         search={{
                           type: ParserEventType.WEB_SEARCH,
                           query: block.query,
@@ -244,14 +245,35 @@ export const ChatMessage = memo(function ChatMessage({
                         }}
                       />
                     );
+                  case MessageBlockType.URL_SCRAPE:
+                    return (
+                      <UrlScrapeBlock
+                        key={`url-scrape-${block.url}-${block.status}`}
+                        scrape={{
+                          type: ParserEventType.URL_SCRAPE,
+                          results: [
+                            {
+                              status: block.status,
+                              url: block.url,
+                              finalUrl: block.url,
+                              title: block.title,
+                              error: block.error,
+                            },
+                          ],
+                        }}
+                      />
+                    );
                   case MessageBlockType.INSTALL:
                     return (
-                      <InstallBlock key={i} dependencies={block.dependencies} />
+                      <InstallBlock
+                        key={`install-${block.dependencies.join("|")}`}
+                        dependencies={block.dependencies}
+                      />
                     );
                   case MessageBlockType.SANDBOX:
                     return (
-                      <motion.div
-                        key={i}
+                      <m.div
+                        key={`sandbox-${block.project ?? "project"}-${block.base ?? "base"}`}
                         initial={{ opacity: 0, scale: 0.98 }}
                         animate={{ opacity: 1, scale: 1 }}
                         className="w-full"
@@ -267,14 +289,14 @@ export const ChatMessage = memo(function ChatMessage({
                           projectName={block.project}
                           onBeforeToggle={handleToggle}
                         />
-                      </motion.div>
+                      </m.div>
                     );
                   case MessageBlockType.DONE:
                     return null;
                   case MessageBlockType.TEXT:
                     return (
                       <div
-                        key={i}
+                        key={`text-${block.content}`}
                         className="text-[14px] sm:text-[15px] leading-[1.7] sm:leading-[1.8] tracking-tight font-medium"
                       >
                         <MarkdownRenderer content={block.content} />
@@ -285,7 +307,7 @@ export const ChatMessage = memo(function ChatMessage({
 
               <AnimatePresence>
                 {showFooterButton && (
-                  <motion.div
+                  <m.div
                     initial={{ opacity: 0, scale: 0.98 }}
                     animate={{ opacity: 1, scale: 1 }}
                     className="mt-2"
@@ -301,7 +323,7 @@ export const ChatMessage = memo(function ChatMessage({
                       projectName={undefined}
                       onBeforeToggle={handleToggle}
                     />
-                  </motion.div>
+                  </m.div>
                 )}
               </AnimatePresence>
             </div>
@@ -332,6 +354,6 @@ export const ChatMessage = memo(function ChatMessage({
           )}
         </div>
       </div>
-    </motion.div>
+    </m.div>
   );
 });

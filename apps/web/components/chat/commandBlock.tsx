@@ -1,7 +1,7 @@
 "use client";
 
 import { memo } from "react";
-import { motion } from "motion/react";
+import { m } from "motion/react";
 import { Terminal, Check, X } from "lucide-react";
 import type { CommandEvent } from "@/lib/chatTypes";
 
@@ -16,7 +16,7 @@ export const CommandBlock = memo(function CommandBlock({
   const isSuccess = command.exitCode === 0;
 
   return (
-    <motion.div
+    <m.div
       initial={{ opacity: 0, y: 4 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.2 }}
@@ -45,7 +45,7 @@ export const CommandBlock = memo(function CommandBlock({
           </div>
         )}
         {!hasExitCode && (
-          <motion.div
+          <m.div
             className="h-1 sm:h-1.5 w-1 sm:w-1.5 rounded-full bg-emerald-500 dark:bg-emerald-400 shrink-0"
             animate={{ opacity: [0.3, 1, 0.3] }}
             transition={{
@@ -71,6 +71,6 @@ export const CommandBlock = memo(function CommandBlock({
           )}
         </div>
       )}
-    </motion.div>
+    </m.div>
   );
 });

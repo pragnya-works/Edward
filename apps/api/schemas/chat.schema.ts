@@ -39,6 +39,7 @@ export enum ParserEventType {
   META = "meta",
   COMMAND = "command",
   WEB_SEARCH = "web_search",
+  URL_SCRAPE = "url_scrape",
   PREVIEW_URL = "preview_url",
 }
 
@@ -185,6 +186,25 @@ export const ParserEventSchema = z.discriminatedUnion("type", [
       )
       .optional(),
     error: z.string().optional(),
+  }),
+  z.object({
+    type: z.literal(ParserEventType.URL_SCRAPE),
+    results: z.array(
+      z.discriminatedUnion("status", [
+        z.object({
+          status: z.literal("success"),
+          url: z.string().url(),
+          finalUrl: z.string().url(),
+          title: z.string(),
+          snippet: z.string(),
+        }),
+        z.object({
+          status: z.literal("error"),
+          url: z.string().url(),
+          error: z.string(),
+        }),
+      ]),
+    ),
   }),
   z.object({
     type: z.literal(ParserEventType.PREVIEW_URL),

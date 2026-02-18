@@ -1,7 +1,7 @@
 "use client";
 
-import React, { memo, useState, useCallback } from "react";
-import { motion, AnimatePresence } from "motion/react";
+import React, { memo, useState, useCallback, useMemo } from "react";
+import { m, AnimatePresence } from "motion/react";
 import { TextAnimate } from "@edward/ui/components/textAnimate";
 import { cn } from "@edward/ui/lib/utils";
 import { useVisibilityAwareInterval } from "@/hooks/useVisibilityAwareInterval";
@@ -59,15 +59,26 @@ const GenerationFlow = memo(function GenerationFlow() {
     useVisibilityAwareInterval(handleCycle, 8000);
 
     const current = EXAMPLES[index] || EXAMPLES[0];
+    const keyedCodeLines = useMemo(() => {
+        const seen = new Map<string, number>();
+        return (current?.code ?? []).map((line) => {
+            const count = (seen.get(line) ?? 0) + 1;
+            seen.set(line, count);
+            return {
+                line,
+                key: `code-line-${line}-${count}`,
+            };
+        });
+    }, [current]);
     if (!current) return null;
 
     return (
         <AnimatePresence mode="wait">
-            <motion.div 
-                key={index}
+            <m.div 
+                key={current.prompt}
                 initial={{ opacity: 0, scale: 0.98, y: 10 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, filter: "blur(20px)", scale: 1.02, y: -10 }}
+                exit={{ opacity: 0, filter: "blur(8px)", scale: 1.02, y: -10 }}
                 transition={{ duration: 0.8, ease: [0.19, 1, 0.22, 1] }}
                 className="flex flex-col items-center w-full max-w-xl gap-6 md:gap-8"
             >
@@ -94,17 +105,17 @@ const GenerationFlow = memo(function GenerationFlow() {
                             <div className="w-[3px] h-[3px] rounded-full bg-primary/20" />
                         </div>
 
-                        {current.code.map((line, i) => (
-                            <motion.div
-                                key={i}
+                        {keyedCodeLines.map(({ line, key }, lineIndex) => (
+                            <m.div
+                                key={key}
                                 initial={{ opacity: 0, x: 5 }}
                                 animate={{ opacity: 1, x: 0 }}
-                                transition={{ delay: 0.8 + (i * 0.08), duration: 0.4 }}
+                                transition={{ delay: 0.8 + (lineIndex * 0.08), duration: 0.4 }}
                                 className={cn(current.accent, "whitespace-pre tracking-tight flex items-start")}
                             >
-                                <span className="text-foreground/10 mr-4 select-none text-[8px] w-3 tabular-nums">{i+1}</span>
+                                <span className="text-foreground/10 mr-4 select-none text-[8px] w-3 tabular-nums">{lineIndex + 1}</span>
                                 <span className="flex-1 opacity-90">{line}</span>
-                            </motion.div>
+                            </m.div>
                         ))}
                     </div>
                 </div>
@@ -116,7 +127,7 @@ const GenerationFlow = memo(function GenerationFlow() {
                     </span>
                     <span>VECTORS::OPTIMIZED</span>
                 </div>
-            </motion.div>
+            </m.div>
         </AnimatePresence>
     );
 });

@@ -123,7 +123,12 @@ describe('auth middleware', () => {
 
       await authMiddleware(req, res, next);
 
-      expect(auth.api.getSession).toHaveBeenCalledWith({ headers });
+      expect(auth.api.getSession).toHaveBeenCalledTimes(1);
+      const callArg = vi.mocked(auth.api.getSession).mock.calls[0]?.[0];
+      expect(callArg).toBeDefined();
+      expect(callArg?.headers).toBeInstanceOf(Headers);
+      expect((callArg?.headers as Headers).get("authorization")).toBe(headers.authorization);
+      expect((callArg?.headers as Headers).get("content-type")).toBe(headers["content-type"]);
     });
   });
 

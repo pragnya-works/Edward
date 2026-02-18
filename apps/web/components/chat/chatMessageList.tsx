@@ -1,7 +1,7 @@
 "use client";
 
 import { memo } from "react";
-import { motion, AnimatePresence } from "motion/react";
+import { m, AnimatePresence } from "motion/react";
 import { ArrowDown } from "lucide-react";
 import { ChatMessage } from "./chatMessage";
 import { StreamingMessage } from "./streamingMessage";
@@ -27,7 +27,7 @@ const WELCOME_SCREEN = (
   <div className="flex-1 flex flex-col items-center justify-center relative overflow-hidden px-4">
     <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[90vw] max-w-lg aspect-square bg-gradient-to-tr from-sky-500/5 to-indigo-500/5 rounded-full blur-3xl -z-10 motion-safe:animate-pulse" />
 
-    <motion.div
+    <m.div
       initial={{ opacity: 0, y: 12, scale: 0.95 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       transition={{ duration: 0.6, ease: [0.23, 1, 0.32, 1] }}
@@ -54,7 +54,7 @@ const WELCOME_SCREEN = (
         </span>
         <div className="flex flex-wrap justify-center gap-1.5 sm:gap-2 max-w-full">
           {SUGGESTED_STARTS.map((text, i) => (
-            <motion.span
+            <m.span
               key={text}
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -62,11 +62,11 @@ const WELCOME_SCREEN = (
               className="px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full bg-foreground/[0.03] border border-foreground/[0.05] text-[10px] sm:text-[11px] text-muted-foreground/60 transition-colors touch-manipulation whitespace-nowrap"
             >
               {text}
-            </motion.span>
+            </m.span>
           ))}
         </div>
       </div>
-    </motion.div>
+    </m.div>
   </div>
 );
 
@@ -137,7 +137,7 @@ export const ChatMessageList = memo(function ChatMessageList({
       </div>
       <AnimatePresence mode="wait">
         {showScrollButton && (
-          <motion.button
+          <m.button
             type="button"
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
@@ -150,7 +150,7 @@ export const ChatMessageList = memo(function ChatMessageList({
             <span className="text-[9px] sm:text-[10px] font-bold text-foreground/40 uppercase tracking-[0.15em] leading-none">
               Recent
             </span>
-          </motion.button>
+          </m.button>
         )}
       </AnimatePresence>
     </div>

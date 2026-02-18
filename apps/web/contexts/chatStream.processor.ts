@@ -16,7 +16,7 @@ interface ProcessStreamResponseParams {
   onChatIdResolved?: (realChatId: string) => void;
 }
 
-export interface ProcessedStreamResult {
+interface ProcessedStreamResult {
   meta: MetaEvent | null;
   text: string;
   thinking: string;
@@ -182,6 +182,13 @@ export async function processStreamResponse({
             type: StreamActionType.SET_WEB_SEARCH,
             chatId: activeChatId,
             webSearch: event,
+          });
+          break;
+        case ParserEventType.URL_SCRAPE:
+          dispatch({
+            type: StreamActionType.SET_URL_SCRAPE,
+            chatId: activeChatId,
+            urlScrape: event,
           });
           break;
         case ParserEventType.ERROR:

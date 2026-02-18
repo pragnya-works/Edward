@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { RefreshCw, X, Copy, Check, FileCode } from "lucide-react";
 import { cn } from "@edward/ui/lib/utils";
 import { BuildStatus, useSandbox } from "@/contexts/sandboxContext";
@@ -15,6 +15,21 @@ export function SandboxEmptyState() {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     }
+  }, [fullErrorReport?.rawOutput]);
+
+  const logLines = useMemo(() => {
+    if (!fullErrorReport?.rawOutput) return [];
+
+    const seen = new Map<string, number>();
+    return fullErrorReport.rawOutput.split("\n").map((line, lineNumber) => {
+      const count = (seen.get(line) ?? 0) + 1;
+      seen.set(line, count);
+      return {
+        line,
+        lineNumber: lineNumber + 1,
+        key: `log-${line}-${count}`,
+      };
+    });
   }, [fullErrorReport?.rawOutput]);
 
   return (
@@ -79,11 +94,9 @@ export function SandboxEmptyState() {
 
                   <div className="relative p-6 max-h-96 overflow-y-auto custom-scrollbar selection:bg-destructive/30">
                     <div className="space-y-1 font-mono text-[12px] leading-6 tracking-tight">
-                      {fullErrorReport.rawOutput
-                        .split("\n")
-                        .map((line: string, index: number) => (
+                      {logLines.map(({ line, lineNumber, key }) => (
                           <div
-                            key={index}
+                            key={key}
                             className={cn(
                               "flex gap-4 group/line transition-colors hover:bg-white/[0.02]",
                               line.toLowerCase().includes("error")
@@ -94,7 +107,7 @@ export function SandboxEmptyState() {
                             )}
                           >
                             <span className="shrink-0 text-muted-foreground/30 text-right w-6 select-none leading-inherit">
-                              {index + 1}
+                              {lineNumber}
                             </span>
                             <span className="break-all whitespace-pre-wrap leading-inherit">
                               {line}

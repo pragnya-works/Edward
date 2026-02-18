@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "motion/react";
+import { m } from "motion/react";
 import { Timer, Zap } from "lucide-react";
 import {
   Tooltip,
@@ -28,7 +28,7 @@ export function MessageMetrics({
   const totalTokens = (inputTokens ?? 0) + (outputTokens ?? 0);
 
   return (
-    <motion.div
+    <m.div
       initial={{ opacity: 0, y: 4 }}
       animate={{ opacity: 1, y: 0 }}
       className="flex items-center gap-1 sm:gap-1.5 px-0.5 sm:px-1"
@@ -120,6 +120,6 @@ export function MessageMetrics({
           </TooltipPositioner>
         </Tooltip>
       )}
-    </motion.div>
+    </m.div>
   );
 }

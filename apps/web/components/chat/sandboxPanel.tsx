@@ -69,6 +69,7 @@ export function SandboxPanel() {
             {previewUrl ? (
               <iframe
                 src={previewUrl}
+                title={`Sandbox preview for chat ${chatId}`}
                 className="flex-1 w-full"
                 sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
               />

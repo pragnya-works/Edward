@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "motion/react";
+import { m } from "motion/react";
 import { RefreshCw, X, Code2 } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger } from "@edward/ui/components/tabs";
 import { Button } from "@edward/ui/components/button";
@@ -25,7 +25,7 @@ export function SandboxHeader() {
               buildStatus === BuildStatus.BUILDING ||
               (files.length === 0 && buildStatus === BuildStatus.IDLE) ||
               buildStatus === BuildStatus.FAILED ? (
-              <motion.div
+              <m.div
                 initial={{ opacity: 0, y: 2 }}
                 animate={{ opacity: 1, y: 0 }}
                 className="flex items-center gap-1"
@@ -33,7 +33,7 @@ export function SandboxHeader() {
                 {buildStatus === BuildStatus.FAILED ? (
                   <X className="h-2 w-2 text-destructive" />
                 ) : (
-                  <motion.div
+                  <m.div
                     animate={{
                       scale: [1, 1.2, 1],
                       opacity: [0.5, 1, 0.5]
@@ -45,7 +45,7 @@ export function SandboxHeader() {
                     }}
                   >
                     <RefreshCw className="h-2 w-2 text-amber-500 animate-spin-slow" />
-                  </motion.div>
+                  </m.div>
                 )}
                 <span
                   className={cn(
@@ -65,15 +65,15 @@ export function SandboxHeader() {
                           ? "Deploying"
                           : "Initializing"}
                 </span>
-              </motion.div>
+              </m.div>
             ) : (
-              <motion.span
+              <m.span
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 className="text-[8px] text-muted-foreground/50 font-medium uppercase tracking-tighter"
               >
                 {files.length} Files
-              </motion.span>
+              </m.span>
             )}
           </div>
         </div>

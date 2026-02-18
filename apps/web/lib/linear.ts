@@ -21,7 +21,7 @@ export interface ChangelogIssue {
   };
 }
 
-export interface FetchIssuesResult {
+interface FetchIssuesResult {
   issues: ChangelogIssue[];
   error: LinearFetchError | null;
 }
@@ -31,7 +31,7 @@ export enum LinearFetchError {
   CONNECTION_FAILED = "connection_failed",
 }
 
-export const GENERAL_LABEL = "General";
+const GENERAL_LABEL = "General";
 
 export const getLinearIssues = cache(async (): Promise<FetchIssuesResult> => {
   const apiKey = process.env.LINEAR_API_KEY;

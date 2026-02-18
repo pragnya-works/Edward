@@ -66,16 +66,23 @@ export default function AuthenticatedPromptbar({
     return { stream: INITIAL_STREAM_STATE, activeStreamKey: null };
   }, [chatId, streams]);
 
-  useEffect(() => {
-    onMetaRef.current = (meta: MetaEvent) => {
+  const handleMeta = useCallback(
+    (meta: MetaEvent) => {
       if (!chatId && meta.chatId) {
         router.push(`/chat/${meta.chatId}`);
       }
-    };
+    },
+    [chatId, router],
+  );
+
+  useEffect(() => {
+    onMetaRef.current = handleMeta;
     return () => {
-      onMetaRef.current = null;
+      if (onMetaRef.current === handleMeta) {
+        onMetaRef.current = null;
+      }
     };
-  }, [chatId, onMetaRef, router]);
+  }, [handleMeta, onMetaRef]);
 
   const handleProtectedAction = useCallback(
     async (text: string, images?: UploadedImage[]) => {

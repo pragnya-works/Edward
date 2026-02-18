@@ -1,4 +1,4 @@
-import { motion } from "motion/react";
+import { m } from "motion/react";
 
 interface EdwardAvatarProps {
   isActive?: boolean;
@@ -10,7 +10,7 @@ export const EdwardAvatar = ({ isActive }: EdwardAvatarProps = {}) => (
       <div className="h-2.5 w-3 sm:h-3 sm:w-3.5 bg-white rounded-br-md sm:rounded-br-md rounded-tr-[2px] rounded-tl-md sm:rounded-tl-md rounded-bl-[2px]" />
     </div>
     {isActive && (
-      <motion.div
+      <m.div
         className="absolute -inset-[2px] sm:-inset-[3px] rounded-[8px] sm:rounded-[10px] border border-sky-500/40 dark:border-sky-400/30"
         animate={{
           opacity: [0.3, 0.7, 0.3],

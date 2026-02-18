@@ -1,7 +1,7 @@
 "use client";
 
 import { memo } from "react";
-import { motion } from "motion/react";
+import { m } from "motion/react";
 import { ExternalLink, Globe, Search, AlertTriangle } from "lucide-react";
 import type { WebSearchEvent } from "@/lib/chatTypes";
 
@@ -25,7 +25,7 @@ export const WebSearchBlock = memo(function WebSearchBlock({
   const isError = Boolean(search.error);
 
   return (
-    <motion.div
+    <m.div
       initial={{ opacity: 0, y: 4 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.2 }}
@@ -56,9 +56,9 @@ export const WebSearchBlock = memo(function WebSearchBlock({
 
             {hasResults ? (
               <div className="flex flex-col gap-1.5">
-                {search.results!.map((result, idx) => (
+                {search.results!.map((result) => (
                   <a
-                    key={`${result.url}-${idx}`}
+                    key={`search-result-${result.url}`}
                     href={result.url}
                     target="_blank"
                     rel="noreferrer"
@@ -90,6 +90,6 @@ export const WebSearchBlock = memo(function WebSearchBlock({
           </>
         )}
       </div>
-    </motion.div>
+    </m.div>
   );
 });

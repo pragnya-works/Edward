@@ -1,7 +1,7 @@
 "use client";
 
 import { memo, useMemo } from "react";
-import { motion } from "motion/react";
+import { m } from "motion/react";
 import { FileCode, FileText, FileJson, FileImage } from "lucide-react";
 import type { StreamedFile } from "@/lib/chatTypes";
 
@@ -69,7 +69,7 @@ export const FileBlock = memo(function FileBlock({
   }, [file.path]);
 
   return (
-    <motion.div
+    <m.div
       initial={{ opacity: 0, y: 4 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{
@@ -94,7 +94,7 @@ export const FileBlock = memo(function FileBlock({
           </span>
         </div>
         {!file.isComplete && (
-          <motion.div
+          <m.div
             className="h-1 sm:h-1.5 w-1 sm:w-1.5 rounded-full bg-sky-400 shrink-0"
             animate={{ opacity: [0.3, 1, 0.3] }}
             transition={{ duration: 1.2, repeat: Infinity, ease: "easeInOut" }}
@@ -109,6 +109,6 @@ export const FileBlock = memo(function FileBlock({
           </pre>
         </div>
       )}
-    </motion.div>
+    </m.div>
   );
 });

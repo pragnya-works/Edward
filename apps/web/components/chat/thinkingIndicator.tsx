@@ -1,7 +1,7 @@
 "use client";
 
 import { memo, useMemo } from "react";
-import { motion } from "motion/react";
+import { m } from "motion/react";
 import { Brain, Zap } from "lucide-react";
 import {
   Accordion,
@@ -21,7 +21,7 @@ interface ThinkingIndicatorProps {
 }
 
 const EDWARD_TAGS_REGEX =
-  /<(Thinking|Response|edward_install|edward_sandbox|edward_command|edward_web_search|edward_done|file|file_start|file_end)[^>]*>|<\/(Thinking|Response|edward_install|edward_sandbox|edward_command|edward_web_search|edward_done|file|file_start|file_end)>/gi;
+  /<(Thinking|Response|edward_install|edward_sandbox|edward_command|edward_web_search|edward_url_scrape|edward_done|file|file_start|file_end)[^>]*>|<\/(Thinking|Response|edward_install|edward_sandbox|edward_command|edward_web_search|edward_url_scrape|edward_done|file|file_start|file_end)>/gi;
 
 export const ThinkingIndicator = memo(function ThinkingIndicator({
   text,
@@ -43,7 +43,7 @@ export const ThinkingIndicator = memo(function ThinkingIndicator({
   );
 
   return (
-    <motion.div
+    <m.div
       initial={{ opacity: 0, y: 4 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.25 }}
@@ -75,7 +75,7 @@ export const ThinkingIndicator = memo(function ThinkingIndicator({
             <div className="flex items-center gap-2 sm:gap-2.5 flex-1 min-w-0">
               <div className="relative shrink-0">
                 {isActive ? (
-                  <motion.div
+                  <m.div
                     className={cn(
                       "h-4 w-4 sm:h-5 sm:w-5 rounded-md flex items-center justify-center",
                       isCodeMode
@@ -99,7 +99,7 @@ export const ThinkingIndicator = memo(function ThinkingIndicator({
                           : "text-violet-600 dark:text-violet-400",
                       )}
                     />
-                  </motion.div>
+                  </m.div>
                 ) : (
                   <div
                     className={cn(
@@ -134,7 +134,7 @@ export const ThinkingIndicator = memo(function ThinkingIndicator({
                     >
                       {isCodeMode ? "Generating Code" : "Thinking"}
                     </span>
-                    <motion.span
+                    <m.span
                       className={cn(
                         isCodeMode
                           ? "text-amber-600/60 dark:text-amber-400/60"
@@ -148,7 +148,7 @@ export const ThinkingIndicator = memo(function ThinkingIndicator({
                       }}
                     >
                       ...
-                    </motion.span>
+                    </m.span>
                     {elapsed > 0 && (
                       <span className="text-slate-500 dark:text-muted-foreground/40 ml-0.5 font-normal">
                         {elapsed}s
@@ -186,7 +186,7 @@ export const ThinkingIndicator = memo(function ThinkingIndicator({
                   className="text-[10px] sm:text-xs text-slate-600 dark:text-muted-foreground/70 [&_p]:text-[10px] sm:[&_p]:text-xs [&_p]:text-slate-600 dark:[&_p]:text-muted-foreground/70 [&_code]:text-[9px] sm:[&_code]:text-[11px] [&_pre]:my-1.5 sm:[&_pre]:my-2 [&_pre]:rounded-lg [&_h1]:text-xs sm:[&_h1]:text-sm [&_h2]:text-xs sm:[&_h2]:text-sm [&_h3]:text-[10px] sm:[&_h3]:text-xs [&_ul]:text-[10px] sm:[&_ul]:text-xs [&_ol]:text-[10px] sm:[&_ol]:text-xs"
                 />
                 {isActive && (
-                  <motion.span
+                  <m.span
                     className={cn(
                       "inline-block w-[3px] h-2.5 sm:h-3 ml-0.5 align-text-bottom rounded-full",
                       isCodeMode
@@ -212,6 +212,6 @@ export const ThinkingIndicator = memo(function ThinkingIndicator({
           </AccordionContent>
         </AccordionItem>
       </Accordion>
-    </motion.div>
+    </m.div>
   );
 });

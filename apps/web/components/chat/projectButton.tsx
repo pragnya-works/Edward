@@ -1,7 +1,7 @@
 "use client";
 
 import { memo, useMemo } from "react";
-import { motion } from "motion/react";
+import { m } from "motion/react";
 import {
     Loader2,
     Code2,
@@ -65,7 +65,7 @@ export const ProjectButton = memo(function ProjectButton({
     };
 
     return (
-        <motion.div
+        <m.div
             role="button"
             tabIndex={0}
             initial={{ opacity: 0, y: 8, scale: 0.96 }}
@@ -91,7 +91,7 @@ export const ProjectButton = memo(function ProjectButton({
                     : "bg-transparent border-border/40 text-foreground/80 hover:text-foreground hover:bg-foreground/[0.02]",
             )}
         >
-            <motion.div
+            <m.div
             className="h-8 w-8 rounded-lg flex items-center justify-center shrink-0 transition-transform duration-500"
             animate={isStreaming ? { rotate: 360 } : {}}
             transition={{
@@ -107,20 +107,20 @@ export const ProjectButton = memo(function ProjectButton({
             ) : (
                 <Code2 className="h-4 w-4 text-primary/70" />
             )}
-        </motion.div>
+        </m.div>
 
             <div className="flex flex-col items-start min-w-0 flex-1">
                 <span className="text-[11px] font-semibold truncate max-w-[220px]">
                     {getButtonText()}
                 </span>
                 {isStreaming && (
-                    <motion.span
+                    <m.span
                         initial={{ opacity: 0, y: 4 }}
                         animate={{ opacity: 1, y: 0 }}
                         className="text-[9px] text-primary/70"
                     >
                         {files.length} file{files.length !== 1 ? "s" : ""} streaming
-                    </motion.span>
+                    </m.span>
                 )}
                 {!isStreaming && (
                     <span className="text-[9px] text-muted-foreground/70">
@@ -128,6 +128,6 @@ export const ProjectButton = memo(function ProjectButton({
                     </span>
                 )}
             </div>
-        </motion.div>
+        </m.div>
     );
 });

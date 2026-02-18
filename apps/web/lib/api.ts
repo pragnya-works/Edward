@@ -1,7 +1,7 @@
 import { IMAGE_UPLOAD_CONFIG } from "@edward/shared/constants";
 
 const DEFAULT_API_URL = "http://localhost:8000";
-export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || DEFAULT_API_URL;
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || DEFAULT_API_URL;
 const TYPEOF_UNDEFINED = "undefined";
 
 if (!process.env.NEXT_PUBLIC_API_URL) {
@@ -11,7 +11,7 @@ if (!process.env.NEXT_PUBLIC_API_URL) {
   );
 }
 
-export interface ApiError extends Error {
+interface ApiError extends Error {
   status: number;
   data?: unknown;
 }
@@ -66,7 +66,7 @@ function withDefaultHeaders(options: RequestInit): RequestInit {
   };
 }
 
-export async function fetchApiResponse(
+async function fetchApiResponse(
   endpoint: string,
   options: RequestInit = {},
 ): Promise<Response> {
@@ -99,7 +99,7 @@ export async function postChatMessageStream(
   });
 }
 
-export type UploadableImageMimeType =
+type UploadableImageMimeType =
   (typeof IMAGE_UPLOAD_CONFIG.ALLOWED_MIME_TYPES)[number];
 
 export interface UploadedImage {
@@ -120,7 +120,9 @@ function normalizeImageMimeType(
   ) {
     return mimeType as UploadableImageMimeType;
   }
-  console.warn(`Image type ${mimeType} not supported. Sending URL without mime.`);
+  console.warn(
+    `Image type ${mimeType} not supported. Sending URL without mime.`,
+  );
   return undefined;
 }
 
@@ -287,7 +289,7 @@ export enum BuildRecordStatus {
   FAILED = "failed",
 }
 
-export interface BuildStatusResponse {
+interface BuildStatusResponse {
   message: string;
   data: {
     chatId: string;
@@ -308,13 +310,13 @@ export async function getBuildStatus(
   return fetchApi<BuildStatusResponse>(`/chat/${chatId}/build-status`);
 }
 
-export interface SandboxFile {
+interface SandboxFile {
   path: string;
   content: string;
   isComplete: boolean;
 }
 
-export interface SandboxFilesResponse {
+interface SandboxFilesResponse {
   message: string;
   data: {
     chatId: string;

@@ -5,7 +5,7 @@ import dynamic from "next/dynamic";
 import { BentoCard, BentoGrid } from "@edward/ui/components/bento-grid";
 import { DottedMap } from "@edward/ui/components/dotted-map";
 import { LineShadowText } from "@edward/ui/components/line-shadow-text";
-import { motion, useReducedMotion } from "motion/react";
+import { m, useReducedMotion } from "motion/react";
 import { useTabVisibility } from "@/hooks/useTabVisibility";
 
 const AIGenerationVisual = dynamic(
@@ -62,7 +62,7 @@ const PulsingOrb = memo(function PulsingOrb() {
     const shouldAnimate = isDocumentVisible && isIntersecting && !shouldReduceMotion;
     
     return (
-        <motion.div
+        <m.div
             ref={elementRef}
             animate={shouldAnimate ? { scale: [1, 1.2, 1], opacity: [0.05, 0.1, 0.05] } : { scale: 1, opacity: 0.075 }}
             transition={shouldAnimate ? { duration: 4, repeat: Infinity, ease: "easeInOut" } : { duration: 0 }}
@@ -141,15 +141,15 @@ const features = [
 
 const FasterText = memo(({ shadowColor }: { shadowColor: string }) => {
     return (
-        <motion.span
+        <m.span
             initial="initial"
             whileHover="active"
             className="group relative inline-block cursor-default"
         >
             <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-12 pointer-events-none overflow-hidden">
-                {[...Array(3)].map((_, i) => (
-                    <motion.div
-                        key={i}
+                {["trace-a", "trace-b", "trace-c"].map((traceId, traceIndex) => (
+                    <m.div
+                        key={traceId}
                         variants={{
                             initial: { x: "-120%", opacity: 0 },
                             active: {
@@ -158,18 +158,18 @@ const FasterText = memo(({ shadowColor }: { shadowColor: string }) => {
                                 transition: {
                                     duration: 0.3,
                                     repeat: Infinity,
-                                    delay: i * 0.1,
+                                    delay: traceIndex * 0.1,
                                     ease: "linear"
                                 }
                             }
                         }}
-                        style={{ top: `${20 + i * 30}%` }}
+                        style={{ top: `${20 + traceIndex * 30}%` }}
                         className="absolute w-full h-[0.5px] bg-primary/30"
                     />
                 ))}
             </div>
 
-            <motion.span
+            <m.span
                 className="relative inline-block"
                 variants={{
                     initial: { y: 0, x: 0, scale: 1, rotate: 0 },
@@ -193,7 +193,7 @@ const FasterText = memo(({ shadowColor }: { shadowColor: string }) => {
                 >
                     faster
                 </LineShadowText>
-                <motion.div
+                <m.div
                     variants={{
                         initial: { opacity: 0, scale: 0.8 },
                         active: {
@@ -207,9 +207,9 @@ const FasterText = memo(({ shadowColor }: { shadowColor: string }) => {
                     }}
                     className="absolute -inset-2 bg-primary/10 blur-xl rounded-full -z-10"
                 />
-            </motion.span>
+            </m.span>
 
-            <motion.div
+            <m.div
                 variants={{
                     initial: { width: "0%", opacity: 0 },
                     active: {
@@ -220,7 +220,7 @@ const FasterText = memo(({ shadowColor }: { shadowColor: string }) => {
                 }}
                 className="absolute -bottom-1 left-1/2 -translate-x-1/2 h-[1px] bg-gradient-to-r from-transparent via-primary to-transparent"
             />
-        </motion.span>
+        </m.span>
     );
 });
 FasterText.displayName = "FasterText";

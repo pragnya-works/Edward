@@ -7,6 +7,7 @@ import { cn } from "@edward/ui/lib/utils";
 import { ReactNode, useState } from "react";
 import UserProfile from "../userProfile";
 import { LoaderIcon } from "lucide-react";
+import { usePathname } from "next/navigation";
 
 interface ConditionalSidebarLayoutProps {
   children: ReactNode;
@@ -17,8 +18,10 @@ export default function ConditionalSidebarLayout({
 }: ConditionalSidebarLayoutProps) {
   const { data: session, isPending } = useSession();
   const [open, setOpen] = useState(false);
+  const pathname = usePathname();
+  const isChatConversationRoute = pathname.startsWith("/chat/");
 
-  if (isPending) {
+  if (isPending && !isChatConversationRoute) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <LoaderIcon className="h-8 w-8 animate-spin text-primary/70" />

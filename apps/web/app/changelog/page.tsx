@@ -20,8 +20,8 @@ export const metadata: Metadata = {
 function ChangelogSkeleton() {
   return (
     <div className="space-y-0">
-      {Array.from({ length: 5 }).map((_, i) => (
-        <IssueCardSkeleton key={i} index={i} />
+      {["one", "two", "three", "four", "five"].map((slot, index) => (
+        <IssueCardSkeleton key={slot} index={index} />
       ))}
     </div>
   );

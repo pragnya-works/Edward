@@ -17,7 +17,7 @@ import { signIn } from "@/lib/auth-client";
 import { Skeleton } from "@edward/ui/components/skeleton";
 import { useSession } from "@/lib/auth-client";
 import { useState } from "react";
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, m } from "motion/react";
 import { GitHub } from "@edward/ui/components/icons/github";
 
 export default function Navbar() {
@@ -26,6 +26,7 @@ export default function Navbar() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const pathname = usePathname();
   const isChangelogPage = pathname === "/changelog";
+  const isChatConversationRoute = pathname.startsWith("/chat/");
 
   const handleSignIn = async () => {
     setIsLoading(true);
@@ -33,6 +34,10 @@ export default function Navbar() {
   };
 
   if (session?.user) {
+    return null;
+  }
+
+  if (isPending && isChatConversationRoute) {
     return null;
   }
 
@@ -46,7 +51,7 @@ export default function Navbar() {
             <div className="flex items-center gap-2">
               <AnimatePresence>
                 {visible && !isChangelogPage && (
-                  <motion.div
+                  <m.div
                     initial={{ opacity: 0, x: -10 }}
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, x: -10 }}
@@ -60,7 +65,7 @@ export default function Navbar() {
                         Changelog
                       </span>
                     </Link>
-                  </motion.div>
+                  </m.div>
                 )}
               </AnimatePresence>
               {isPending ? (

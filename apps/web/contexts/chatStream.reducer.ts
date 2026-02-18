@@ -24,6 +24,7 @@ export enum StreamActionType {
   SET_SANDBOXING = "SET_SANDBOXING",
   SET_COMMAND = "SET_COMMAND",
   SET_WEB_SEARCH = "SET_WEB_SEARCH",
+  SET_URL_SCRAPE = "SET_URL_SCRAPE",
   SET_METRICS = "SET_METRICS",
   SET_PREVIEW_URL = "SET_PREVIEW_URL",
   RENAME_STREAM = "RENAME_STREAM",
@@ -55,6 +56,11 @@ export type StreamAction =
       chatId: string;
       webSearch: NonNullable<StreamState["webSearches"][number]>;
     }
+  | {
+      type: StreamActionType.SET_URL_SCRAPE;
+      chatId: string;
+      urlScrape: NonNullable<StreamState["urlScrapes"][number]>;
+    }
   | { type: StreamActionType.SET_METRICS; chatId: string; metrics: StreamState["metrics"] }
   | { type: StreamActionType.SET_PREVIEW_URL; chatId: string; url: string }
   | { type: StreamActionType.RENAME_STREAM; oldChatId: string; newChatId: string };
@@ -74,6 +80,13 @@ function setStream(
 function isSameWebSearch(
   a: NonNullable<StreamState["webSearches"][number]>,
   b: NonNullable<StreamState["webSearches"][number]>,
+): boolean {
+  return JSON.stringify(a) === JSON.stringify(b);
+}
+
+function isSameUrlScrape(
+  a: NonNullable<StreamState["urlScrapes"][number]>,
+  b: NonNullable<StreamState["urlScrapes"][number]>,
 ): boolean {
   return JSON.stringify(a) === JSON.stringify(b);
 }
@@ -189,6 +202,18 @@ export function streamReducer(
             return existing;
           }
           return [...existing, action.webSearch];
+        })(),
+      });
+    case StreamActionType.SET_URL_SCRAPE:
+      return setStream(state, action.chatId, {
+        ...getStream(state, action.chatId),
+        urlScrapes: (() => {
+          const existing = getStream(state, action.chatId).urlScrapes;
+          const last = existing[existing.length - 1];
+          if (last && isSameUrlScrape(last, action.urlScrape)) {
+            return existing;
+          }
+          return [...existing, action.urlScrape];
         })(),
       });
     case StreamActionType.SET_METRICS:

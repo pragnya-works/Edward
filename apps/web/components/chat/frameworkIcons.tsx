@@ -1,6 +1,6 @@
 import { useId, type SVGProps } from "react";
 
-export type FrameworkKey = "next" | "vite" | "javascript";
+type FrameworkKey = "next" | "vite" | "javascript";
 
 interface FrameworkIconProps {
   framework: FrameworkKey;

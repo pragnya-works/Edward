@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { motion } from "motion/react";
+import { m } from "motion/react";
 import { useRecentChats, type Project } from "@/hooks/useRecentChats";
 import { TechnicalBlueprint } from "./cardVisual";
 import { ProjectCard } from "./projectCard";
@@ -72,15 +72,16 @@ export function RecentProjects() {
                 "linear-gradient(to bottom, black 40%, transparent 100%)",
             }}
           >
-            {[0, 1, 2].map((i) => (
-              <motion.div
-                key={i}
+            {["placeholder-a", "placeholder-b", "placeholder-c"].map(
+              (placeholderId, index) => (
+              <m.div
+                key={placeholderId}
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{
                   duration: 0.4,
                   ease: [0.25, 0.1, 0.25, 1],
-                  delay: i * 0.08,
+                  delay: index * 0.08,
                 }}
                 className="relative flex flex-col rounded-xl border border-dashed border-border/50 bg-foreground/[0.02] aspect-video overflow-hidden"
               >
@@ -88,7 +89,7 @@ export function RecentProjects() {
                   <TechnicalBlueprint />
                 </div>
 
-                {i === 1 && (
+                {index === 1 && (
                   <div className="relative z-10 flex flex-col items-center justify-center h-full px-4 text-center">
                     <h3 className="bg-gradient-to-r from-blue-400 via-violet-400 to-blue-400 bg-clip-text text-base font-semibold tracking-tight text-transparent sm:text-lg">
                       Your workspace awaits
@@ -98,8 +99,9 @@ export function RecentProjects() {
                     </p>
                   </div>
                 )}
-              </motion.div>
-            ))}
+              </m.div>
+              ),
+            )}
           </div>
         </div>
       </section>

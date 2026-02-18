@@ -3,6 +3,7 @@ export enum MessageBlockType {
   FILE = "file",
   COMMAND = "command",
   WEB_SEARCH = "web_search",
+  URL_SCRAPE = "url_scrape",
   INSTALL = "install",
   SANDBOX = "sandbox",
   DONE = "done",
@@ -15,6 +16,7 @@ enum MessageParseTokenType {
   INSTALL = "install",
   COMMAND = "command",
   WEB_SEARCH = "web_search",
+  URL_SCRAPE = "url_scrape",
   SANDBOX = "sandbox",
   SANDBOX_END = "sandbox_end",
   DONE = "done",
@@ -31,6 +33,7 @@ const TAGS = {
   INSTALL_END: "</edward_install>",
   COMMAND_START: "<edward_command",
   WEB_SEARCH_START: "<edward_web_search",
+  URL_SCRAPE_START: "<edward_url_scrape",
   SANDBOX_START: "<edward_sandbox",
   SANDBOX_END: "</edward_sandbox>",
   DONE_START: "<edward_done",
@@ -38,7 +41,7 @@ const TAGS = {
   RESPONSE_END: "</Response>",
 } as const;
 
-export type MessageBlock =
+type MessageBlock =
   | { type: MessageBlockType.THINKING; content: string }
   | {
       type: MessageBlockType.FILE;
@@ -51,6 +54,13 @@ export type MessageBlock =
       type: MessageBlockType.WEB_SEARCH;
       query: string;
       maxResults?: number;
+    }
+  | {
+      type: MessageBlockType.URL_SCRAPE;
+      url: string;
+      status: "success" | "error";
+      title?: string;
+      error?: string;
     }
   | { type: MessageBlockType.INSTALL; dependencies: string[] }
   | { type: MessageBlockType.SANDBOX; project?: string; base?: string }
@@ -79,6 +89,7 @@ export function parseMessageContent(content: string): MessageBlock[] {
     const installStart = remaining.indexOf(TAGS.INSTALL_START);
     const commandStart = remaining.indexOf(TAGS.COMMAND_START);
     const webSearchStart = remaining.indexOf(TAGS.WEB_SEARCH_START);
+    const urlScrapeStart = remaining.indexOf(TAGS.URL_SCRAPE_START);
     const sandboxStart = remaining.indexOf(TAGS.SANDBOX_START);
     const sandboxEnd = remaining.indexOf(TAGS.SANDBOX_END);
     const doneStart = remaining.indexOf(TAGS.DONE_START);
@@ -91,6 +102,7 @@ export function parseMessageContent(content: string): MessageBlock[] {
       { type: MessageParseTokenType.INSTALL, idx: installStart },
       { type: MessageParseTokenType.COMMAND, idx: commandStart },
       { type: MessageParseTokenType.WEB_SEARCH, idx: webSearchStart },
+      { type: MessageParseTokenType.URL_SCRAPE, idx: urlScrapeStart },
       { type: MessageParseTokenType.SANDBOX, idx: sandboxStart },
       { type: MessageParseTokenType.SANDBOX_END, idx: sandboxEnd },
       { type: MessageParseTokenType.DONE, idx: doneStart },
@@ -135,11 +147,12 @@ export function parseMessageContent(content: string): MessageBlock[] {
         const nextSandbox = remaining.indexOf(TAGS.SANDBOX_START);
         const nextCommand = remaining.indexOf(TAGS.COMMAND_START);
         const nextWebSearch = remaining.indexOf(TAGS.WEB_SEARCH_START);
+        const nextUrlScrape = remaining.indexOf(TAGS.URL_SCRAPE_START);
         const nextDone = remaining.indexOf(TAGS.DONE_START);
 
         const exitPoints = [
           nextResponse, nextFile, nextInstall,
-          nextSandbox, nextCommand, nextWebSearch, nextDone
+          nextSandbox, nextCommand, nextWebSearch, nextUrlScrape, nextDone
         ].filter(idx => idx !== -1);
 
         if (exitPoints.length > 0) {
@@ -246,6 +259,33 @@ export function parseMessageContent(content: string): MessageBlock[] {
         const maxResults = maxRaw ? Number.parseInt(maxRaw, 10) : undefined;
 
         blocks.push({ type: MessageBlockType.WEB_SEARCH, query, maxResults });
+        remaining = remaining.slice(closeTagIdx + 1);
+      } else {
+        break;
+      }
+    } else if (earliest.type === MessageParseTokenType.URL_SCRAPE) {
+      const closeTagIdx = remaining.indexOf(">");
+      if (closeTagIdx !== -1) {
+        const tag = remaining.slice(0, closeTagIdx + 1);
+        const urlMatch = tag.match(/url="([^"]*)"/);
+        const statusMatch = tag.match(/status="([^"]*)"/);
+        const titleMatch = tag.match(/title="([^"]*)"/);
+        const errorMatch = tag.match(/error="([^"]*)"/);
+        const url = decodeHtmlAttribute(urlMatch ? (urlMatch[1] ?? "") : "");
+        const statusRaw = statusMatch ? (statusMatch[1] ?? "") : "";
+        const status = statusRaw === "error" ? "error" : "success";
+        const title = decodeHtmlAttribute(titleMatch ? (titleMatch[1] ?? "") : "");
+        const error = decodeHtmlAttribute(errorMatch ? (errorMatch[1] ?? "") : "");
+
+        if (url) {
+          blocks.push({
+            type: MessageBlockType.URL_SCRAPE,
+            url,
+            status,
+            title: title || undefined,
+            error: error || undefined,
+          });
+        }
         remaining = remaining.slice(closeTagIdx + 1);
       } else {
         break;

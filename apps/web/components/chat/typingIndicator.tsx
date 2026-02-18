@@ -1,7 +1,7 @@
 "use client";
 
 import { memo } from "react";
-import { motion } from "motion/react";
+import { m } from "motion/react";
 import { cn } from "@edward/ui/lib/utils";
 
 interface TypingIndicatorProps {
@@ -13,15 +13,15 @@ export const TypingIndicator = memo(function TypingIndicator({
 }: TypingIndicatorProps) {
   return (
     <div className="flex items-center gap-1 sm:gap-1.5 p-1.5 sm:p-2">
-      <motion.div
+      <m.div
         className="flex items-center gap-0.5 sm:gap-1"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.4 }}
       >
-        {[0, 1, 2].map((i) => (
-          <motion.div
-            key={i}
+        {[0, 1, 2].map((dot) => (
+          <m.div
+            key={`typing-dot-${dot}`}
             className={cn(
               "h-1 sm:h-1.5 w-1 sm:w-1.5 rounded-full",
               isCodeMode
@@ -36,7 +36,7 @@ export const TypingIndicator = memo(function TypingIndicator({
               duration: 1.2,
               repeat: Infinity,
               ease: "easeInOut",
-              delay: i * 0.2,
+              delay: dot * 0.2,
             }}
           />
         ))}
@@ -50,7 +50,7 @@ export const TypingIndicator = memo(function TypingIndicator({
         >
           {isCodeMode ? "Generating code" : "Edward is processing"}
         </span>
-      </motion.div>
+      </m.div>
     </div>
   );
 });

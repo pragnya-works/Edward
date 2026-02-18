@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, memo } from "react";
-import { motion, AnimatePresence } from "motion/react";
+import { m, AnimatePresence } from "motion/react";
 import { ChevronDown } from "lucide-react";
 import { StatusBadge } from "./statusBadge";
 import { PriorityBadge } from "./priorityBadge";
@@ -32,7 +32,7 @@ function IssueCardComponent({ issue, index = 0 }: IssueCardProps) {
   }).format(new Date(dateToUse));
 
   return (
-    <motion.article
+    <m.article
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{
@@ -99,13 +99,13 @@ function IssueCardComponent({ issue, index = 0 }: IssueCardProps) {
                     color={issue.state.color}
                     type={issue.state.type}
                   />
-                  <motion.div
+                  <m.div
                     animate={{ rotate: isExpanded ? 180 : 0 }}
                     transition={{ duration: 0.2 }}
                     className="text-muted-foreground/40"
                   >
                     <ChevronDown className="w-4 h-4" />
-                  </motion.div>
+                  </m.div>
                 </div>
               </div>
             </div>
@@ -160,7 +160,7 @@ function IssueCardComponent({ issue, index = 0 }: IssueCardProps) {
       )}
       <AnimatePresence initial={false}>
         {isExpanded && hasDescription && (
-          <motion.div
+          <m.div
             id={`issue-description-${issue.id}`}
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: "auto", opacity: 1 }}
@@ -176,10 +176,10 @@ function IssueCardComponent({ issue, index = 0 }: IssueCardProps) {
                 {issue.description}
               </p>
             </div>
-          </motion.div>
+          </m.div>
         )}
       </AnimatePresence>
-    </motion.article>
+    </m.article>
   );
 }
 
@@ -188,7 +188,7 @@ IssueCard.displayName = "IssueCard";
 
 export function IssueCardSkeleton({ index = 0 }: { index?: number }) {
   return (
-    <motion.div
+    <m.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.2, delay: index * 0.03 }}
@@ -208,6 +208,6 @@ export function IssueCardSkeleton({ index = 0 }: { index?: number }) {
           </div>
         </div>
       </div>
-    </motion.div>
+    </m.div>
   );
 }

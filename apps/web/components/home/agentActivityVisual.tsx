@@ -1,7 +1,7 @@
 "use client";
 
 import React, { memo, useState, useEffect, useMemo, useRef, useCallback } from "react";
-import { motion, AnimatePresence } from "motion/react";
+import { m, AnimatePresence } from "motion/react";
 import { Search, FileCode, Edit3, Terminal, CheckCircle2, User, Bot, Loader2 } from "lucide-react";
 import { useTabVisibility } from "@/hooks/useTabVisibility";
 
@@ -50,15 +50,27 @@ const TOOL_ICONS = {
 };
 
 const HighlightedText = memo(({ text }: { text: string }) => {
-    const parts = useMemo(() => text.split(/(\[.*?\])/), [text]);
+    const parts = useMemo(() => {
+        const rawParts = text.split(/(\[.*?\])/);
+        const seen = new Map<string, number>();
+
+        return rawParts.map((part) => {
+            const count = (seen.get(part) ?? 0) + 1;
+            seen.set(part, count);
+            return {
+                part,
+                key: `${part}-${count}`,
+            };
+        });
+    }, [text]);
 
     return (
         <span className="font-mono text-[10px] text-foreground/60 flex-1 truncate">
-            {parts.map((part, i) => {
+            {parts.map(({ part, key }) => {
                 const isHighlight = part.startsWith('[') && part.endsWith(']');
                 return (
                     <span
-                        key={i}
+                        key={key}
                         className={isHighlight ? "text-primary/70" : ""}
                     >
                         {part}
@@ -74,7 +86,7 @@ const ToolCallUI = memo(({ call }: { call: ToolCall }) => {
     const Icon = TOOL_ICONS[call.tool];
 
     return (
-        <motion.div
+        <m.div
             initial={{ opacity: 0, y: 10, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             className="flex items-center gap-3 px-3 py-2 rounded-lg bg-white/[0.03] border border-white/5 my-1"
@@ -90,7 +102,7 @@ const ToolCallUI = memo(({ call }: { call: ToolCall }) => {
             ) : (
                 <CheckCircle2 className="w-2.5 h-2.5 text-emerald-500/50" />
             )}
-        </motion.div>
+        </m.div>
     );
 });
 ToolCallUI.displayName = "ToolCallUI";
@@ -148,7 +160,7 @@ export const AgentActivityVisual = memo(() => {
             <div className="flex-1 space-y-6 max-w-sm mx-auto w-full relative transition-all duration-700 group-hover:scale-105 group-hover:rotate-1">
                 <AnimatePresence mode="popLayout">
                     {step >= 1 && (
-                        <motion.div
+                        <m.div
                             key="user"
                             initial={{ opacity: 0, y: 20 }}
                             animate={{ opacity: 1, y: 0 }}
@@ -160,11 +172,11 @@ export const AgentActivityVisual = memo(() => {
                             <div className="bg-white/[0.03] border border-white/5 rounded-2xl p-3 md:p-4 text-[10px] md:text-[12px] text-foreground/80 leading-relaxed shadow-sm">
                                 {data.user}
                             </div>
-                        </motion.div>
+                        </m.div>
                     )}
 
                     {step >= 2 && (
-                        <motion.div
+                        <m.div
                             key="agent"
                             initial={{ opacity: 0, y: 20 }}
                             animate={{ opacity: 1, y: 0 }}
@@ -184,16 +196,16 @@ export const AgentActivityVisual = memo(() => {
                                 </div>
 
                                 {step >= 5 && (
-                                    <motion.div
+                                    <m.div
                                         initial={{ opacity: 0 }}
                                         animate={{ opacity: 1 }}
                                         className="bg-white/[0.03] border border-white/5 rounded-2xl p-4 text-[12px] text-foreground/80 leading-relaxed"
                                     >
                                         {data.assistant}
-                                    </motion.div>
+                                    </m.div>
                                 )}
                             </div>
-                        </motion.div>
+                        </m.div>
                     )}
                 </AnimatePresence>
             </div>

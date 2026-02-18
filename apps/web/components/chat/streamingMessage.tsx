@@ -1,16 +1,17 @@
 "use client";
 
 import { memo, useMemo } from "react";
-import { motion, AnimatePresence } from "motion/react";
+import { m, AnimatePresence } from "motion/react";
 import { ThinkingIndicator } from "./thinkingIndicator";
 import { TypingIndicator } from "./typingIndicator";
 import { CommandBlock } from "./commandBlock";
 import { SandboxIndicator } from "./sandboxIndicator";
 import { InstallBlock } from "./installBlock";
 import { WebSearchBlock } from "./webSearchBlock";
+import { UrlScrapeBlock } from "./urlScrapeBlock";
 import { EdwardAvatar } from "./avatars";
 import type { StreamState } from "@/lib/chatTypes";
-import { Terminal, Box, Search } from "lucide-react";
+import { Terminal, Box, Search, Link2 } from "lucide-react";
 import { MessageMetrics } from "./messageMetrics";
 import { MarkdownRenderer } from "./markdownRenderer";
 import { useSandbox } from "@/contexts/sandboxContext";
@@ -41,6 +42,7 @@ export const StreamingMessage = memo(function StreamingMessage({
       stream.isSandboxing ||
       stream.command ||
       stream.webSearches.length > 0 ||
+      stream.urlScrapes.length > 0 ||
       stream.installingDeps.length > 0,
     [stream],
   );
@@ -52,7 +54,7 @@ export const StreamingMessage = memo(function StreamingMessage({
   const showProjectButton = allFiles.length > 0 || stream.isSandboxing;
 
   return (
-    <motion.div
+    <m.div
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, ease: [0.23, 1, 0.32, 1] }}
@@ -66,7 +68,7 @@ export const StreamingMessage = memo(function StreamingMessage({
         ) : null}
 
         {stream.isThinking || stream.thinkingText ? (
-          <motion.div
+          <m.div
             layout
             initial={{ opacity: 0, scale: 0.98 }}
             animate={{ opacity: 1, scale: 1 }}
@@ -78,7 +80,7 @@ export const StreamingMessage = memo(function StreamingMessage({
               duration={stream.thinkingDuration}
               isCodeMode={stream.codeOnly}
             />
-          </motion.div>
+          </m.div>
         ) : null}
 
         <div className="flex flex-col gap-3 w-full">
@@ -87,12 +89,12 @@ export const StreamingMessage = memo(function StreamingMessage({
               case MessageBlockType.TEXT:
                 return (
                   <div
-                    key={i}
+                    key={`stream-text-${block.content}`}
                     className="text-[14px] sm:text-[15px] leading-[1.8] tracking-tight font-medium text-foreground w-full relative"
                   >
                     <MarkdownRenderer content={block.content} />
                     {i === blocks.length - 1 && stream.isStreaming && (
-                      <motion.span
+                      <m.span
                         className="inline-block w-[3px] h-4 bg-primary/60 ml-0.5 rounded-full align-text-bottom"
                         animate={{ opacity: [0, 1, 0] }}
                         transition={{ duration: 0.8, repeat: Infinity }}
@@ -104,7 +106,7 @@ export const StreamingMessage = memo(function StreamingMessage({
                 if (block.isInternal) return null;
                 return (
                   <FileBlock
-                    key={i}
+                    key={`stream-file-${block.path}`}
                     file={{
                       path: block.path,
                       content: block.content,
@@ -121,14 +123,14 @@ export const StreamingMessage = memo(function StreamingMessage({
 
         <AnimatePresence>
           {stream.isSandboxing && allFiles.length === 0 ? (
-            <motion.div
+            <m.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
               className="w-full"
             >
               <SandboxIndicator />
-            </motion.div>
+            </m.div>
           ) : null}
         </AnimatePresence>
 
@@ -143,7 +145,7 @@ export const StreamingMessage = memo(function StreamingMessage({
         </AnimatePresence>
 
         {stream.command && !sandboxOpen && (
-          <motion.div
+          <m.div
             initial={{ opacity: 0, y: 4 }}
             animate={{ opacity: 1, y: 0 }}
             className="w-full"
@@ -155,13 +157,13 @@ export const StreamingMessage = memo(function StreamingMessage({
               </span>
             </div>
             <CommandBlock command={stream.command} />
-          </motion.div>
+          </m.div>
         )}
 
         {!sandboxOpen &&
-          stream.webSearches.map((webSearch, idx) => (
-            <motion.div
-              key={`${webSearch.query}-${idx}`}
+          stream.webSearches.map((webSearch) => (
+            <m.div
+              key={`stream-search-${webSearch.query}-${webSearch.results?.[0]?.url ?? "none"}`}
               initial={{ opacity: 0, y: 4 }}
               animate={{ opacity: 1, y: 0 }}
               className="w-full"
@@ -173,11 +175,29 @@ export const StreamingMessage = memo(function StreamingMessage({
                 </span>
               </div>
               <WebSearchBlock search={webSearch} />
-            </motion.div>
+            </m.div>
+          ))}
+
+        {!sandboxOpen &&
+          stream.urlScrapes.map((urlScrape) => (
+            <m.div
+              key={`stream-url-scrape-${urlScrape.results.map((result) => result.url).join("|")}`}
+              initial={{ opacity: 0, y: 4 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="w-full"
+            >
+              <div className="flex items-center gap-1.5 sm:gap-2 mb-1">
+                <Link2 className="h-2.5 w-2.5 sm:h-3 sm:w-3 text-emerald-500/70" />
+                <span className="text-[10px] sm:text-[11px] text-muted-foreground/70 font-mono">
+                  Scraping URLs...
+                </span>
+              </div>
+              <UrlScrapeBlock scrape={urlScrape} />
+            </m.div>
           ))}
 
         {stream.installingDeps.length > 0 && !sandboxOpen && (
-          <motion.div
+          <m.div
             initial={{ opacity: 0, y: 4 }}
             animate={{ opacity: 1, y: 0 }}
             className="w-full"
@@ -189,11 +209,11 @@ export const StreamingMessage = memo(function StreamingMessage({
               </span>
             </div>
             <InstallBlock dependencies={stream.installingDeps} />
-          </motion.div>
+          </m.div>
         )}
 
         {stream.error ? (
-          <motion.div
+          <m.div
             initial={{ opacity: 0, y: 4, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             className="w-full rounded-lg sm:rounded-xl bg-destructive/5 border border-destructive/15 px-3 sm:px-4 py-2.5 sm:py-3 flex items-start gap-2 sm:gap-3 shadow-sm shadow-destructive/5"
@@ -211,7 +231,7 @@ export const StreamingMessage = memo(function StreamingMessage({
                 {stream.error}
               </p>
             </div>
-          </motion.div>
+          </m.div>
         ) : null}
 
         {stream.metrics ? (
@@ -228,6 +248,6 @@ export const StreamingMessage = memo(function StreamingMessage({
           </div>
         ) : null}
       </div>
-    </motion.div>
+    </m.div>
   );
 });

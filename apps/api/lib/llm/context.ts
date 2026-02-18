@@ -46,6 +46,7 @@ function stripAssistantArtifacts(content: string): string {
   out = out.replace(/<Thinking>[\s\S]*?<\/Thinking>/g, "");
   out = out.replace(/<edward_install>[\s\S]*?<\/edward_install>/g, "");
   out = out.replace(/<edward_sandbox[\s\S]*?<\/edward_sandbox>/g, "");
+  out = out.replace(/<edward_url_scrape[^>]*\/>/g, "");
   out = out.replace(/<\/?Response>/g, "");
   out = out.replace(/<\/?Thinking>/g, "");
   return out.trim();

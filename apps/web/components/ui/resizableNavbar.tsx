@@ -3,7 +3,7 @@
 import { cn } from "@edward/ui/lib/utils";
 import Link from "next/link";
 import {
-    motion,
+    m,
     useScroll,
     useMotionValueEvent,
     AnimatePresence,
@@ -64,12 +64,12 @@ export const Navbar = ({ children, className }: NavbarProps) => {
 
     return (
         <NavbarContext.Provider value={{ visible }}>
-            <motion.div
+            <m.div
                 ref={ref}
                 className={cn("sticky inset-x-0 top-20 z-40 w-full", className)}
             >
                 {children}
-            </motion.div>
+            </m.div>
         </NavbarContext.Provider>
     );
 };
@@ -78,7 +78,7 @@ export const NavBody = ({ children, className }: NavBodyProps) => {
     const { visible } = useNavbarContext();
 
     return (
-        <motion.div
+        <m.div
             animate={{
                 backdropFilter: visible ? "blur(10px)" : "none",
                 boxShadow: visible
@@ -99,7 +99,7 @@ export const NavBody = ({ children, className }: NavBodyProps) => {
             )}
         >
             {isNavBodyRenderProp(children) ? children({ visible }) : children}
-        </motion.div>
+        </m.div>
     );
 };
 
@@ -120,7 +120,7 @@ export const MobileNav = ({
         <>
             <AnimatePresence>
                 {isOpen && (
-                    <motion.button
+                    <m.button
                         type="button"
                         aria-label="Close mobile menu"
                         initial={{ opacity: 0 }}
@@ -131,7 +131,7 @@ export const MobileNav = ({
                     />
                 )}
             </AnimatePresence>
-            <motion.div
+            <m.div
                 animate={{
                     backdropFilter: visible ? "blur(10px)" : "none",
                     boxShadow: visible
@@ -153,7 +153,7 @@ export const MobileNav = ({
                 )}
             >
                 {children}
-            </motion.div>
+            </m.div>
         </>
     );
 };
@@ -209,7 +209,7 @@ export const MobileNavMenu = ({
     return (
         <AnimatePresence>
             {isOpen && (
-                <motion.div
+                <m.div
                     initial={{ height: 0, opacity: 0 }}
                     animate={{ height: "auto", opacity: 1 }}
                     exit={{ height: 0, opacity: 0 }}
@@ -220,7 +220,7 @@ export const MobileNavMenu = ({
                     )}
                 >
                     {children}
-                </motion.div>
+                </m.div>
             )}
         </AnimatePresence>
     );
@@ -247,28 +247,6 @@ export const NavbarLogo = ({
                 </span>
             )}
         </Link>
-    );
-};
-
-export const NavItems = ({
-    items,
-    className,
-}: {
-    items: { name: string; link: string }[];
-    className?: string;
-}) => {
-    return (
-        <div className={cn("flex items-center gap-4", className)}>
-            {items.map((item) => (
-                <Link
-                    key={item.link}
-                    href={item.link}
-                    className="relative text-muted-foreground hover:text-foreground transition-colors"
-                >
-                    {item.name}
-                </Link>
-            ))}
-        </div>
     );
 };
 

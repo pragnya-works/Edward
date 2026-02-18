@@ -318,6 +318,28 @@ describe("chat schemas", () => {
       expect(result.success).toBe(true);
     });
 
+    it("should validate URL_SCRAPE event", () => {
+      const result = ParserEventSchema.safeParse({
+        type: ParserEventType.URL_SCRAPE,
+        results: [
+          {
+            status: "success",
+            url: "https://example.com/docs",
+            finalUrl: "https://example.com/docs",
+            title: "Docs",
+            snippet: "Documentation",
+          },
+          {
+            status: "error",
+            url: "https://example.com/fail",
+            error: "Timeout",
+          },
+        ],
+      });
+
+      expect(result.success).toBe(true);
+    });
+
     it("should reject unknown event type", () => {
       const result = ParserEventSchema.safeParse({
         type: "unknown_type",

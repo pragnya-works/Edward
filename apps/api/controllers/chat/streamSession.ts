@@ -37,6 +37,11 @@ import {
   MAX_STREAM_DURATION_MS,
   MAX_AGENT_TURNS,
 } from "../../utils/sharedConstants.js";
+import {
+  formatUrlScrapeAssistantTags,
+  prepareUrlScrapeContext,
+  type UrlScrapeResult,
+} from "../../services/websearch/urlScraper.service.js";
 
 import { safeSSEWrite, sendSSEDone } from "./sse.utils.js";
 import { formatToolResults, type AgentToolResult } from "./command.utils.js";
@@ -59,6 +64,7 @@ export interface StreamSessionParams {
   chatId: string;
   decryptedApiKey: string;
   userContent: MessageContent;
+  userTextContent: string;
   userMessageId: string;
   assistantMessageId: string;
   preVerifiedDeps: string[];
@@ -94,6 +100,7 @@ export async function runStreamSession(
     chatId,
     decryptedApiKey,
     userContent,
+    userTextContent,
     userMessageId,
     assistantMessageId,
     preVerifiedDeps,
@@ -136,11 +143,52 @@ export async function runStreamSession(
           : ChatAction.GENERATE;
 
     const baseMessages: LlmChatMessage[] = [];
+
+    let urlScrapeResults: UrlScrapeResult[] = [];
+    let urlScrapeContextMessage: string | null = null;
+
+    const preparedUrlScrape = await prepareUrlScrapeContext({
+      promptText: userTextContent,
+    });
+
+    if (preparedUrlScrape.results.length > 0) {
+      urlScrapeResults = preparedUrlScrape.results;
+      urlScrapeContextMessage = preparedUrlScrape.contextMessage;
+
+      safeSSEWrite(
+        res,
+        `data: ${JSON.stringify({
+          type: ParserEventType.URL_SCRAPE,
+          results: preparedUrlScrape.results.map((result) =>
+            result.status === "success"
+              ? {
+                  status: "success",
+                  url: result.url,
+                  finalUrl: result.finalUrl,
+                  title: result.title,
+                  snippet: result.snippet,
+                }
+              : {
+                  status: "error",
+                  url: result.url,
+                  error: result.error,
+                },
+          ),
+        })}\n\n`,
+      );
+    }
+
     if (isFollowUp && historyMessages.length > 0) {
       baseMessages.push(...historyMessages);
     }
     if (isFollowUp && projectContext) {
       baseMessages.push({ role: MessageRole.User, content: projectContext });
+    }
+    if (urlScrapeContextMessage) {
+      baseMessages.push({
+        role: MessageRole.User,
+        content: urlScrapeContextMessage,
+      });
     }
     baseMessages.push({ role: MessageRole.User, content: userContent });
 
@@ -330,15 +378,20 @@ export async function runStreamSession(
       "Assistant message completed with metrics",
     );
 
+    const urlScrapeTags = formatUrlScrapeAssistantTags(urlScrapeResults);
+    const storedAssistantContent = urlScrapeTags
+      ? `${urlScrapeTags}\n\n${fullRawResponse}`
+      : fullRawResponse;
+
     await saveMessage(
       chatId,
       userId,
       MessageRole.Assistant,
-      fullRawResponse,
+      storedAssistantContent,
       assistantMessageId,
       messageMetadata,
     );
-    committedMessageContent = fullRawResponse;
+    committedMessageContent = storedAssistantContent;
 
     if (!isFollowUp) {
       generateResponse(

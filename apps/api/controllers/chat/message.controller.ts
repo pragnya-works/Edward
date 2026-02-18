@@ -187,6 +187,7 @@ export async function unifiedSendMessage(
       chatId,
       decryptedApiKey,
       userContent: userMultimodalContent,
+      userTextContent: parsedContent.textContent,
       userMessageId,
       assistantMessageId,
       preVerifiedDeps,
