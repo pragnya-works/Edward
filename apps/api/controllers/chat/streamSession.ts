@@ -396,7 +396,7 @@ export async function runStreamSession(
     if (!isFollowUp) {
       generateResponse(
         decryptedApiKey,
-        `Generate a title and description for this chat based on the user's request. User said: "${userContent.slice(0, 500)}"
+        `Generate a title and description for this chat based on the user's request. User said: "${getTextFromContent(userContent).slice(0, 500)}"
 
 Return ONLY a JSON object: {"title": "...", "description": "..."}
 - title: max 6 words, concise project name (e.g. "Cloud Storage Dashboard", "Portfolio Website")

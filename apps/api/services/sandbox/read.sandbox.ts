@@ -31,6 +31,7 @@ const EXCLUDED_DIRS = [
   ".turbo",
   ".vercel",
 ];
+const EXCLUDED_DIR_SET = new Set(EXCLUDED_DIRS);
 
 const TEXT_EXTENSIONS = new Set([
   ".ts",
@@ -51,6 +52,12 @@ const TEXT_EXTENSIONS = new Set([
   ".svg",
   ".txt",
 ]);
+
+function isExcludedRelPath(relPath: string): boolean {
+  return relPath
+    .split("/")
+    .some((segment) => segment.length > 0 && EXCLUDED_DIR_SET.has(segment));
+}
 
 const PRIORITY_FILES = [
   // Framework entrypoints
@@ -201,6 +208,7 @@ export async function readProjectFilesFromS3(
 
     const allRelPaths = paths.filter((p) => {
       if (!p) return false;
+      if (isExcludedRelPath(p)) return false;
       const dotIdx = p.lastIndexOf(".");
       return dotIdx !== -1 && TEXT_EXTENSIONS.has(p.slice(dotIdx));
     });
@@ -458,6 +466,10 @@ export async function mirrorSandboxToS3(sandboxId: string): Promise<void> {
       extract.on("entry", (header, fileStream, next) => {
         const relPath = header.name.replace(/^[^/]+\//, "");
         if (!relPath || header.type !== "file") {
+          fileStream.resume();
+          return next();
+        }
+        if (isExcludedRelPath(relPath)) {
           fileStream.resume();
           return next();
         }

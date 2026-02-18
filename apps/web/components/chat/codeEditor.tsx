@@ -165,9 +165,8 @@ export const CodeEditor = memo(function CodeEditor({
   } | null>(null);
 
   const codeRef = useRef(code);
-  const initialCodeRef = useRef(code);
-  const initialFilenameRef = useRef(filename);
-  const initialReadOnlyRef = useRef(readOnly);
+  const filenameRef = useRef(filename);
+  const readOnlyRef = useRef(readOnly);
 
   useEffect(() => {
     codeRef.current = code;
@@ -268,15 +267,15 @@ export const CodeEditor = memo(function CodeEditor({
         cm.keymap.of(cm.defaultKeymap),
         cm.keymap.of(cm.historyKeymap),
         cm.keymap.of([cm.indentWithTab]),
-        languageCompartment.of(getLanguageExtension(initialFilenameRef.current, cm)),
+        languageCompartment.of(getLanguageExtension(filenameRef.current, cm)),
         cm.syntaxHighlighting(premiumHighlightStyle),
         themeCompartment.of([premiumEditorTheme]),
         cm.EditorView.lineWrapping,
-        readOnlyCompartment.of(cm.EditorState.readOnly.of(initialReadOnlyRef.current)),
+        readOnlyCompartment.of(cm.EditorState.readOnly.of(readOnlyRef.current)),
       ];
 
       const state = cm.EditorState.create({
-        doc: initialCodeRef.current,
+        doc: codeRef.current,
         extensions,
       });
 
@@ -296,6 +295,7 @@ export const CodeEditor = memo(function CodeEditor({
   }, []);
 
   useEffect(() => {
+    filenameRef.current = filename;
     if (!viewRef.current || !cmRef.current || !languageCompartmentRef.current) return;
 
     viewRef.current.dispatch({
@@ -306,6 +306,7 @@ export const CodeEditor = memo(function CodeEditor({
   }, [filename]);
 
   useEffect(() => {
+    readOnlyRef.current = readOnly;
     if (!viewRef.current || !cmRef.current || !readOnlyCompartmentRef.current) return;
 
     viewRef.current.dispatch({

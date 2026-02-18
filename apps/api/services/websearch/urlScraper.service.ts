@@ -1,5 +1,8 @@
 import dns from "node:dns/promises";
+import http from "node:http";
+import https from "node:https";
 import net from "node:net";
+import { Readable } from "node:stream";
 import { Readability, isProbablyReaderable } from "@mozilla/readability";
 import { JSDOM, type DOMWindow } from "jsdom";
 import { logger } from "../../utils/logger.js";
@@ -198,18 +201,27 @@ function isPrivateAddress(address: string): boolean {
   return false;
 }
 
-async function assertSafeUrlTarget(url: URL): Promise<void> {
+type ResolvedUrlTarget = {
+  address: string;
+  family: 4 | 6;
+};
+
+async function resolveSafeUrlTarget(url: URL): Promise<ResolvedUrlTarget> {
   const hostname = url.hostname.toLowerCase();
   if (isBlockedHostname(hostname)) {
     throw new Error(`URL host is not allowed: ${hostname}`);
   }
 
   const ipVersion = net.isIP(hostname);
-  if (ipVersion > 0 && isPrivateAddress(hostname)) {
-    throw new Error(`Private IP targets are not allowed: ${hostname}`);
+  if (ipVersion > 0) {
+    if (isPrivateAddress(hostname)) {
+      throw new Error(`Private IP targets are not allowed: ${hostname}`);
+    }
+    return {
+      address: hostname,
+      family: ipVersion as 4 | 6,
+    };
   }
-
-  if (ipVersion > 0) return;
 
   const resolved = await dns.lookup(hostname, { all: true, verbatim: true });
   if (resolved.length === 0) {
@@ -221,6 +233,73 @@ async function assertSafeUrlTarget(url: URL): Promise<void> {
       throw new Error(`Resolved private IP is not allowed: ${entry.address}`);
     }
   }
+
+  const selected = resolved[0];
+  if (!selected) {
+    throw new Error(`Unable to resolve host: ${hostname}`);
+  }
+
+  return {
+    address: selected.address,
+    family: selected.family as 4 | 6,
+  };
+}
+
+async function fetchPinned(
+  url: URL,
+  target: ResolvedUrlTarget,
+  signal: AbortSignal,
+): Promise<Response> {
+  const transport = url.protocol === "https:" ? https : http;
+
+  return new Promise<Response>((resolve, reject) => {
+    const request = transport.request(
+      {
+        protocol: url.protocol,
+        hostname: target.address,
+        family: target.family,
+        port: url.port ? Number.parseInt(url.port, 10) : undefined,
+        path: `${url.pathname}${url.search}`,
+        method: "GET",
+        signal,
+        servername: url.protocol === "https:" ? url.hostname : undefined,
+        headers: {
+          accept: "text/html, text/plain, application/json, application/xml",
+          "user-agent":
+            "EdwardBot/1.0 (+https://www.pragnyaa.in; URL context fetcher)",
+          "accept-encoding": "identity",
+          host: url.host,
+        },
+      },
+      (incoming) => {
+        const headers = new Headers();
+        for (const [name, value] of Object.entries(incoming.headers)) {
+          if (value === undefined) continue;
+          if (Array.isArray(value)) {
+            for (const item of value) {
+              headers.append(name, item);
+            }
+            continue;
+          }
+          headers.set(name, value);
+        }
+
+        resolve(
+          new Response(
+            incoming ? (Readable.toWeb(incoming) as ReadableStream<Uint8Array>) : null,
+            {
+              status: incoming.statusCode ?? 500,
+              statusText: incoming.statusMessage ?? "",
+              headers,
+            },
+          ),
+        );
+      },
+    );
+
+    request.once("error", reject);
+    request.end();
+  });
 }
 
 async function fetchWithSafeRedirects(
@@ -230,18 +309,8 @@ async function fetchWithSafeRedirects(
   let current = new URL(sourceUrl);
 
   for (let attempt = 0; attempt <= MAX_REDIRECTS; attempt++) {
-    await assertSafeUrlTarget(current);
-
-    const response = await fetch(current.toString(), {
-      method: "GET",
-      redirect: "manual",
-      signal,
-      headers: {
-        accept: "text/html, text/plain, application/json, application/xml",
-        "user-agent":
-          "EdwardBot/1.0 (+https://www.pragnyaworks.com; URL context fetcher)",
-      },
-    });
+    const resolvedTarget = await resolveSafeUrlTarget(current);
+    const response = await fetchPinned(current, resolvedTarget, signal);
 
     if (!REDIRECT_STATUSES.has(response.status)) {
       return {

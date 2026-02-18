@@ -21,8 +21,10 @@ import {
   normalizeConversationRole,
 } from "./messageRole.js";
 import { type MessageContentPart, type MessageContent } from "./types.js";
-import type { AllowedImageMimeType } from "../../utils/imageValidation.js";
-import { validateImageUrl } from "../../utils/imageValidation.js";
+import {
+  validateBase64Image,
+  validateImageUrl,
+} from "../../utils/imageValidation.js";
 
 const MAX_CONTEXT_BYTES = 150 * 1024;
 const MAX_HISTORY_BYTES = 35 * 1024;
@@ -108,12 +110,14 @@ export async function buildConversationMessages(chatId: string): Promise<{
               if (att.url.startsWith("data:")) {
                 const match = att.url.match(/^data:([^;]+);base64,(.+)$/);
                 if (!match || !match[1] || !match[2]) continue;
+                const dataUrlImage = validateBase64Image(match[2], match[1]);
+                if (!dataUrlImage.success) continue;
                 parts.push({
                   type: "image",
-                  base64: match[2],
-                  mimeType: match[1] as AllowedImageMimeType,
+                  base64: dataUrlImage.data.base64,
+                  mimeType: dataUrlImage.data.mimeType,
                 });
-                contentBytes += Math.ceil(match[2].length * 0.75);
+                contentBytes += dataUrlImage.data.sizeBytes;
                 continue;
               }
 
