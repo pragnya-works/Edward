@@ -5,6 +5,16 @@ import {
 } from "./promptbar.constants";
 import { IMAGE_UPLOAD_CONFIG } from "@edward/shared/constants";
 
+const MAX_CONCURRENT_UPLOADS = 2;
+const MAX_RETRIES = 3;
+const RETRY_DELAY_MS = 1000;
+
+interface UploadQueueItem {
+  id: string;
+  file: File;
+  retries: number;
+}
+
 export function useFileAttachments(
   isAuthenticated: boolean,
   supportsVision: boolean,
@@ -18,6 +28,9 @@ export function useFileAttachments(
   const dragCounter = useRef(0);
   const filesRef = useRef(attachedFiles);
 
+  const uploadQueueRef = useRef<UploadQueueItem[]>([]);
+  const activeUploadsRef = useRef(0);
+
   useEffect(() => {
     filesRef.current = attachedFiles;
   }, [attachedFiles]);
@@ -29,6 +42,62 @@ export function useFileAttachments(
       });
     };
   }, []);
+
+  const processUploadQueue = useCallback(() => {
+    if (!onImageUpload) return;
+
+    while (
+      activeUploadsRef.current < MAX_CONCURRENT_UPLOADS &&
+      uploadQueueRef.current.length > 0
+    ) {
+      const item = uploadQueueRef.current.shift()!;
+      activeUploadsRef.current++;
+
+      const attemptUpload = async () => {
+        try {
+          const uploaded = await onImageUpload(item.file);
+          setAttachedFiles((prev) =>
+            prev.map((f) =>
+              f.id === item.id
+                ? {
+                    ...f,
+                    status: AttachmentUploadStatus.UPLOADED,
+                    cdnUrl: uploaded.url,
+                    mimeType: uploaded.mimeType,
+                    error: undefined,
+                  }
+                : f,
+            ),
+          );
+        } catch (error) {
+          if (item.retries < MAX_RETRIES) {
+            item.retries++;
+            uploadQueueRef.current.push(item);
+            setTimeout(attemptUpload, RETRY_DELAY_MS * item.retries);
+          } else {
+            const errorMessage =
+              error instanceof Error ? error.message : "Upload failed";
+            setAttachedFiles((prev) =>
+              prev.map((f) =>
+                f.id === item.id
+                  ? {
+                      ...f,
+                      status: AttachmentUploadStatus.FAILED,
+                      error: errorMessage,
+                    }
+                  : f,
+              ),
+            );
+          }
+        } finally {
+          activeUploadsRef.current--;
+          processUploadQueue();
+        }
+      };
+
+      attemptUpload();
+    }
+  }, [onImageUpload]);
 
   const handleFiles = useCallback(
     async (files: FileList | null) => {
@@ -66,57 +135,40 @@ export function useFileAttachments(
 
       setAttachedFiles((prev) => [...prev, ...newFiles]);
 
-      await Promise.all(
-        newFiles.map(async (attachedFile) => {
-          if (!onImageUpload) {
-            setAttachedFiles((prev) =>
-              prev.map((item) =>
-                item.id === attachedFile.id
-                  ? {
-                      ...item,
-                      status: AttachmentUploadStatus.FAILED,
-                      error: "Image upload is not configured.",
-                    }
-                  : item,
-              ),
-            );
-            return;
-          }
+      if (!onImageUpload) {
+        setAttachedFiles((prev) =>
+          prev.map((item) =>
+            newFiles.some((f) => f.id === item.id)
+              ? {
+                  ...item,
+                  status: AttachmentUploadStatus.FAILED,
+                  error: "Image upload is not configured.",
+                }
+              : item,
+          ),
+        );
+        return;
+      }
 
-          try {
-            const uploaded = await onImageUpload(attachedFile.file);
-            setAttachedFiles((prev) =>
-              prev.map((item) =>
-                item.id === attachedFile.id
-                  ? {
-                      ...item,
-                      status: AttachmentUploadStatus.UPLOADED,
-                      cdnUrl: uploaded.url,
-                      mimeType: uploaded.mimeType,
-                      error: undefined,
-                    }
-                  : item,
-              ),
-            );
-          } catch (error) {
-            const errorMessage =
-              error instanceof Error ? error.message : "Upload failed";
-            setAttachedFiles((prev) =>
-              prev.map((item) =>
-                item.id === attachedFile.id
-                  ? {
-                      ...item,
-                      status: AttachmentUploadStatus.FAILED,
-                      error: errorMessage,
-                    }
-                  : item,
-              ),
-            );
-          }
-        }),
-      );
+      for (const attachedFile of newFiles) {
+        const queueItem: UploadQueueItem = {
+          id: attachedFile.id,
+          file: attachedFile.file,
+          retries: 0,
+        };
+
+        uploadQueueRef.current.push(queueItem);
+      }
+
+      processUploadQueue();
     },
-    [attachedFiles.length, isAuthenticated, supportsVision, onImageUpload],
+    [
+      attachedFiles.length,
+      isAuthenticated,
+      supportsVision,
+      onImageUpload,
+      processUploadQueue,
+    ],
   );
 
   const handleFileInputChange = useCallback(

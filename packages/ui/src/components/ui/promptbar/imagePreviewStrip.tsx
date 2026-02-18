@@ -1,4 +1,4 @@
-import { X, Loader2, AlertCircle } from "lucide-react";
+import { X, AlertCircle, LoaderIcon } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import {
   isUploading,
@@ -65,8 +65,8 @@ export function ImagePreviewStrip({
                       className="h-full w-full object-cover"
                     />
                     {isUploading(file) && (
-                      <div className="absolute inset-0 bg-black/35 flex items-center justify-center">
-                        <Loader2 className="h-4 w-4 text-white animate-spin" />
+                      <div className="absolute inset-0 bg-black/50 backdrop-blur-[1px] flex flex-col items-center justify-center gap-1.5">
+                        <LoaderIcon className="h-5 w-5 animate-spin" />
                       </div>
                     )}
                     {isUploadFailed(file) && (
@@ -100,7 +100,7 @@ export function ImagePreviewStrip({
                   <PlusIcon className="h-6 w-6 text-muted-foreground/40 group-hover/add:text-sky-500 dark:group-hover/add:text-sky-400 group-hover/add:scale-110 transition-all" />
                 </motion.button>
               )}
-              <span className="flex-shrink-0 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/30 dark:text-muted-foreground/20 pl-2">
+              <span className="flex-shrink-0 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40 dark:text-muted-foreground/50 pl-2">
                 {attachedFiles.length} / {IMAGE_UPLOAD_CONFIG.MAX_FILES}
               </span>
             </div>
