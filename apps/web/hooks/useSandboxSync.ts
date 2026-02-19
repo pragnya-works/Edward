@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useCallback, useState } from "react";
 import { ParserEventType } from "@edward/shared/stream-events";
 import { useChatStream } from "@/contexts/chatStreamContext";
 import { BuildStatus, useSandbox } from "@/contexts/sandboxContext";
@@ -57,6 +57,7 @@ export function useSandboxSync(chatIdFromUrl: string | undefined) {
   const buildEventsChatIdRef = useRef<string | null>(null);
   const pushConnectedRef = useRef(false);
   const pushTerminalRef = useRef(false);
+  const [sseErrorCount, setSseErrorCount] = useState(0);
 
   const loadAllSandboxFiles = useCallback(
     async (chatId: string) => {
@@ -217,7 +218,9 @@ export function useSandboxSync(chatIdFromUrl: string | undefined) {
 
       source.onerror = () => {
         pushConnectedRef.current = false;
+        lastPolledChatIdRef.current = null;
         closeBuildEvents();
+        setSseErrorCount((c) => c + 1);
       };
     },
     [
@@ -448,6 +451,7 @@ export function useSandboxSync(chatIdFromUrl: string | undefined) {
     stream.meta?.chatId,
     chatIdFromUrl,
     buildStatus,
+    sseErrorCount,
     pollBuildStatus,
   ]);
 
