@@ -3,17 +3,17 @@
 import { memo, useMemo, useCallback } from "react";
 import { m, AnimatePresence } from "motion/react";
 import { User } from "lucide-react";
+import {
+  ParserEventType,
+  STREAM_EVENT_VERSION,
+} from "@edward/shared/stream-events";
 import { EdwardAvatar } from "./avatars";
 import { MessageMetrics } from "./messageMetrics";
 import { cn } from "@edward/ui/lib/utils";
 import { useSandbox } from "@/contexts/sandboxContext";
 import { ProjectButton } from "./projectButton";
 import type { ChatMessage as ChatMessageType } from "@/lib/chatTypes";
-import {
-  ChatRole,
-  MessageAttachmentType,
-  ParserEventType,
-} from "@/lib/chatTypes";
+import { ChatRole, MessageAttachmentType } from "@/lib/chatTypes";
 import { MessageContentPartType } from "@/lib/api";
 
 import { MessageBlockType, parseMessageContent } from "@/lib/messageParser";
@@ -229,6 +229,7 @@ export const ChatMessage = memo(function ChatMessage({
                         key={`command-${block.command}-${block.args.join(" ")}`}
                         command={{
                           type: ParserEventType.COMMAND,
+                          version: STREAM_EVENT_VERSION,
                           command: block.command,
                           args: block.args,
                         }}
@@ -240,6 +241,7 @@ export const ChatMessage = memo(function ChatMessage({
                         key={`web-search-${block.query}-${block.maxResults ?? "default"}`}
                         search={{
                           type: ParserEventType.WEB_SEARCH,
+                          version: STREAM_EVENT_VERSION,
                           query: block.query,
                           maxResults: block.maxResults,
                         }}
@@ -251,14 +253,21 @@ export const ChatMessage = memo(function ChatMessage({
                         key={`url-scrape-${block.url}-${block.status}`}
                         scrape={{
                           type: ParserEventType.URL_SCRAPE,
+                          version: STREAM_EVENT_VERSION,
                           results: [
-                            {
-                              status: block.status,
-                              url: block.url,
-                              finalUrl: block.url,
-                              title: block.title,
-                              error: block.error,
-                            },
+                            block.status === "success"
+                              ? {
+                                  status: "success",
+                                  url: block.url,
+                                  finalUrl: block.url,
+                                  title: block.title || block.url,
+                                  snippet: "",
+                                }
+                              : {
+                                  status: "error",
+                                  url: block.url,
+                                  error: block.error || "Failed to scrape URL",
+                                },
                           ],
                         }}
                       />
@@ -268,6 +277,7 @@ export const ChatMessage = memo(function ChatMessage({
                       <InstallBlock
                         key={`install-${block.dependencies.join("|")}`}
                         dependencies={block.dependencies}
+                        isActive={false}
                       />
                     );
                   case MessageBlockType.SANDBOX:

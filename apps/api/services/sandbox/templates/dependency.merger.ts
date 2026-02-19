@@ -5,6 +5,57 @@ import { getSandboxState } from '../state.sandbox.js';
 import { getFrameworkContract, validateFrameworkContract, type PackageJson } from './framework.contracts.js';
 import { Framework } from '../../planning/schemas.js';
 
+function uniquePackages(packages: string[]): string[] {
+    return [...new Set(packages.map((pkg) => pkg.trim()).filter(Boolean))];
+}
+
+function hasRuntimeDependency(
+    packageJson: PackageJson | null,
+    dep: string,
+): boolean {
+    if (!packageJson) return false;
+
+    return Boolean(packageJson.dependencies?.[dep]);
+}
+
+function hasAnyDependency(packageJson: PackageJson | null, dep: string): boolean {
+    if (!packageJson) return false;
+
+    return Boolean(packageJson.dependencies?.[dep] || packageJson.devDependencies?.[dep]);
+}
+
+function filterMissingDependencies(
+    packages: string[],
+    packageJson: PackageJson | null,
+    alreadyScheduled = new Set<string>(),
+    mode: 'runtime' | 'any' = 'any',
+): string[] {
+    const dependencyExists = mode === 'runtime' ? hasRuntimeDependency : hasAnyDependency;
+
+    return packages.filter(
+        (dep) => !alreadyScheduled.has(dep) && !dependencyExists(packageJson, dep),
+    );
+}
+
+async function readPackageJson(
+    container: ReturnType<typeof getContainer>,
+): Promise<PackageJson | null> {
+    const packageJsonResult = await execCommand(
+        container,
+        ['cat', 'package.json'],
+        false,
+        5000,
+        undefined,
+        CONTAINER_WORKDIR,
+    );
+
+    if (packageJsonResult.exitCode !== 0) {
+        return null;
+    }
+
+    return JSON.parse(packageJsonResult.stdout) as PackageJson;
+}
+
 export async function mergeAndInstallDependencies(
     containerId: string,
     userPackages: string[],
@@ -19,20 +70,56 @@ export async function mergeAndInstallDependencies(
         
         const contract = getFrameworkContract(framework);
         
-        const allRuntimeDeps = [...new Set([
+        const allRuntimeDeps = uniquePackages([
             ...contract.runtimeDependencies,
-            ...userPackages.filter(pkg => pkg.trim())
-        ])];
-        const allDevDeps = [...new Set(contract.developmentDependencies)];
+            ...userPackages
+        ]);
+        const allDevDeps = uniquePackages(contract.developmentDependencies);
 
         if (allRuntimeDeps.length === 0 && allDevDeps.length === 0) {
             return { success: true };
         }
 
-        if (allRuntimeDeps.length > 0) {
+        let packageJsonBeforeInstall: PackageJson | null = null;
+        try {
+            packageJsonBeforeInstall = await readPackageJson(container);
+        } catch (error) {
+            logger.warn(
+                { error, sandboxId },
+                'Failed to read package.json before dependency install; proceeding with full install',
+            );
+        }
+
+        const runtimeDepsToInstall = filterMissingDependencies(
+            allRuntimeDeps,
+            packageJsonBeforeInstall,
+            new Set<string>(),
+            'runtime',
+        );
+        const runtimeInstallSet = new Set(runtimeDepsToInstall);
+        const devDepsToInstall = filterMissingDependencies(
+            allDevDeps,
+            packageJsonBeforeInstall,
+            runtimeInstallSet,
+            'any',
+        );
+
+        logger.debug(
+            {
+                sandboxId,
+                framework,
+                requestedRuntime: allRuntimeDeps.length,
+                requestedDev: allDevDeps.length,
+                runtimeToInstall: runtimeDepsToInstall.length,
+                devToInstall: devDepsToInstall.length,
+            },
+            'Dependency install plan computed',
+        );
+
+        if (runtimeDepsToInstall.length > 0) {
             const depsResult = await execCommand(
                 container,
-                ['pnpm', 'add', ...allRuntimeDeps],
+                ['pnpm', 'add', ...runtimeDepsToInstall],
                 false,
                 TIMEOUT_DEPENDENCY_INSTALL_MS,
                 undefined,
@@ -56,11 +143,11 @@ export async function mergeAndInstallDependencies(
             
         }
 
-        if (allDevDeps.length > 0) {
+        if (devDepsToInstall.length > 0) {
             
             const devResult = await execCommand(
                 container,
-                ['pnpm', 'add', '-D', ...allDevDeps],
+                ['pnpm', 'add', '-D', ...devDepsToInstall],
                 false,
                 TIMEOUT_DEPENDENCY_INSTALL_MS,
                 undefined,
@@ -85,19 +172,17 @@ export async function mergeAndInstallDependencies(
         }
 
         try {
-            const packageJsonResult = await execCommand(
-                container,
-                ['cat', 'package.json'],
-                false,
-                5000,
-                undefined,
-                CONTAINER_WORKDIR
-            );
+            const packageJsonForValidation =
+                runtimeDepsToInstall.length > 0 || devDepsToInstall.length > 0
+                    ? await readPackageJson(container)
+                    : packageJsonBeforeInstall;
             
-            if (packageJsonResult.exitCode === 0) {
-                const packageJson = JSON.parse(packageJsonResult.stdout) as PackageJson;
-                const validation = validateFrameworkContract(framework, packageJson);
-                
+            if (packageJsonForValidation) {
+                const validation = validateFrameworkContract(
+                    framework,
+                    packageJsonForValidation,
+                );
+
                 if (!validation.valid) {
                     logger.warn({
                         sandboxId,
@@ -115,6 +200,8 @@ export async function mergeAndInstallDependencies(
                         ]
                     };
                 }
+            } else {
+                warnings.push('package.json not found; skipped dependency contract validation');
             }
         } catch (validationError) {
             logger.warn({ 

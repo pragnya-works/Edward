@@ -8,6 +8,8 @@ import {
   pgEnum,
   integer,
   jsonb,
+  uniqueIndex,
+  index,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { Model } from "@edward/shared/schema";
@@ -34,6 +36,23 @@ export const buildStatusEnum = pgEnum("build_status", [
   "building",
   "success",
   "failed",
+]);
+export const runStatusEnum = pgEnum("run_status", [
+  "queued",
+  "running",
+  "completed",
+  "failed",
+  "cancelled",
+]);
+export const runStateEnum = pgEnum("run_state", [
+  "INIT",
+  "LLM_STREAM",
+  "TOOL_EXEC",
+  "APPLY",
+  "NEXT_TURN",
+  "COMPLETE",
+  "FAILED",
+  "CANCELLED",
 ]);
 
 export enum MessageRole {
@@ -230,6 +249,93 @@ export const build = pgTable("build", {
     .$onUpdate(() => new Date()),
 });
 
+export const run = pgTable(
+  "run",
+  {
+    id: text("id").primaryKey(),
+    chatId: text("chat_id")
+      .notNull()
+      .references(() => chat.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    userMessageId: text("user_message_id")
+      .notNull()
+      .references(() => message.id, { onDelete: "cascade" }),
+    assistantMessageId: text("assistant_message_id").notNull(),
+    status: runStatusEnum("status").notNull().default("queued"),
+    state: runStateEnum("state").notNull().default("INIT"),
+    currentTurn: integer("current_turn").notNull().default(0),
+    nextEventSeq: integer("next_event_seq").notNull().default(0),
+    model: text("model"),
+    intent: text("intent"),
+    loopStopReason: text("loop_stop_reason"),
+    terminationReason: text("termination_reason"),
+    errorMessage: text("error_message"),
+    metadata: jsonb("metadata"),
+    startedAt: timestamp("started_at"),
+    completedAt: timestamp("completed_at"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at")
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [
+    index("idx_run_chat_id").on(table.chatId),
+    index("idx_run_user_id").on(table.userId),
+    index("idx_run_status").on(table.status),
+  ],
+);
+
+export const runEvent = pgTable(
+  "run_event",
+  {
+    id: text("id").primaryKey(),
+    runId: text("run_id")
+      .notNull()
+      .references(() => run.id, { onDelete: "cascade" }),
+    seq: integer("seq").notNull(),
+    eventType: text("event_type").notNull(),
+    event: jsonb("event").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("run_event_run_id_seq_unique").on(table.runId, table.seq),
+    index("idx_run_event_run_id_seq").on(table.runId, table.seq),
+  ],
+);
+
+export const runToolCall = pgTable(
+  "run_tool_call",
+  {
+    id: text("id").primaryKey(),
+    runId: text("run_id")
+      .notNull()
+      .references(() => run.id, { onDelete: "cascade" }),
+    turn: integer("turn").notNull().default(0),
+    toolName: text("tool_name").notNull(),
+    idempotencyKey: text("idempotency_key").notNull(),
+    input: jsonb("input").notNull(),
+    output: jsonb("output"),
+    status: text("status").notNull(),
+    errorMessage: text("error_message"),
+    durationMs: integer("duration_ms"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at")
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [
+    uniqueIndex("run_tool_call_run_id_idempotency_key_unique").on(
+      table.runId,
+      table.idempotencyKey,
+    ),
+    index("idx_run_tool_call_run_id").on(table.runId),
+  ],
+);
+
 export const attachment = pgTable("attachment", {
   id: text("id").primaryKey(),
   messageId: text("message_id")
@@ -251,6 +357,7 @@ export const userRelations = relations(user, ({ many }) => ({
   chats: many(chat),
   collaborations: many(chatCollaborator),
   messages: many(message),
+  runs: many(run),
 }));
 
 export const sessionRelations = relations(session, ({ one }) => ({
@@ -292,6 +399,7 @@ export const chatRelations = relations(chat, ({ one, many }) => ({
   invites: many(chatInvite),
   messages: many(message),
   builds: many(build),
+  runs: many(run),
 }));
 
 export const chatCollaboratorRelations = relations(
@@ -347,5 +455,37 @@ export const buildRelations = relations(build, ({ one }) => ({
   message: one(message, {
     fields: [build.messageId],
     references: [message.id],
+  }),
+}));
+
+export const runRelations = relations(run, ({ one, many }) => ({
+  chat: one(chat, {
+    fields: [run.chatId],
+    references: [chat.id],
+  }),
+  user: one(user, {
+    fields: [run.userId],
+    references: [user.id],
+  }),
+  userMessage: one(message, {
+    fields: [run.userMessageId],
+    references: [message.id],
+    relationName: "run_user_message",
+  }),
+  events: many(runEvent),
+  toolCalls: many(runToolCall),
+}));
+
+export const runEventRelations = relations(runEvent, ({ one }) => ({
+  run: one(run, {
+    fields: [runEvent.runId],
+    references: [run.id],
+  }),
+}));
+
+export const runToolCallRelations = relations(runToolCall, ({ one }) => ({
+  run: one(run, {
+    fields: [runToolCall.runId],
+    references: [run.id],
   }),
 }));

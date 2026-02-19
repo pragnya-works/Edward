@@ -1,5 +1,7 @@
 import type { Response } from "express";
+import { ParserEventType } from "@edward/shared/stream-events";
 import {
+  and,
   attachment,
   chat,
   count,
@@ -7,9 +9,12 @@ import {
   desc,
   eq,
   getLatestBuildByChatId,
+  getRunById,
   inArray,
   message,
+  run,
 } from "@edward/auth";
+import { createRedisClient } from "../../lib/redis.js";
 import type { AuthenticatedRequest } from "../../middleware/auth.js";
 import { getAuthenticatedUserId } from "../../middleware/auth.js";
 import { getActiveSandbox } from "../../services/sandbox/lifecycle/provisioning.js";
@@ -23,6 +28,10 @@ import {
 import { HttpStatus, ERROR_MESSAGES } from "../../utils/constants.js";
 import { ensureError } from "../../utils/error.js";
 import { logger } from "../../utils/logger.js";
+import {
+  MAX_SSE_QUEUE_BYTES,
+  MAX_SSE_QUEUE_EVENTS,
+} from "../../utils/sharedConstants.js";
 import { sendError as sendStandardError, sendSuccess } from "../../utils/response.js";
 import {
   assertChatOwnedOrRespond,
@@ -30,33 +39,14 @@ import {
   getChatIdOrRespond,
   sendStreamError,
 } from "./shared.utils.js";
-
-function parseNonNegativeIntegerQueryParam(
-  rawValue: unknown,
-  fieldName: string,
-  defaultValue: number,
-): { valid: true; value: number } | { valid: false; error: string } {
-  if (rawValue === undefined) {
-    return { valid: true, value: defaultValue };
-  }
-
-  if (typeof rawValue !== "string") {
-    return {
-      valid: false,
-      error: `Query parameter "${fieldName}" must be a non-negative integer`,
-    };
-  }
-
-  const normalized = rawValue.trim();
-  if (!/^\d+$/.test(normalized)) {
-    return {
-      valid: false,
-      error: `Query parameter "${fieldName}" must be a non-negative integer`,
-    };
-  }
-
-  return { valid: true, value: Number.parseInt(normalized, 10) };
-}
+import {
+  configureSSEBackpressure,
+  sendSSEComment,
+  sendSSEDone,
+  sendSSEEvent,
+} from "./sse.utils.js";
+import { streamRunEventsFromPersistence } from "./runEventStream.utils.js";
+import { RecentChatsQuerySchema } from "../../schemas/chat.schema.js";
 
 export async function getChatHistory(
   req: AuthenticatedRequest,
@@ -190,28 +180,18 @@ export async function getRecentChats(
 ): Promise<void> {
   try {
     const userId = getAuthenticatedUserId(req);
-    const limitResult = parseNonNegativeIntegerQueryParam(
-      req.query.limit,
-      "limit",
-      6,
-    );
-    if (!limitResult.valid) {
-      sendStandardError(res, HttpStatus.BAD_REQUEST, limitResult.error);
+    const parsedQuery = RecentChatsQuerySchema.safeParse({ query: req.query });
+    if (!parsedQuery.success) {
+      sendStandardError(
+        res,
+        HttpStatus.BAD_REQUEST,
+        parsedQuery.error.errors[0]?.message ??
+          'Query parameter "limit"/"offset" must be non-negative integers',
+      );
       return;
     }
 
-    const offsetResult = parseNonNegativeIntegerQueryParam(
-      req.query.offset,
-      "offset",
-      0,
-    );
-    if (!offsetResult.valid) {
-      sendStandardError(res, HttpStatus.BAD_REQUEST, offsetResult.error);
-      return;
-    }
-
-    const { value: limit } = limitResult;
-    const { value: offset } = offsetResult;
+    const { limit, offset } = parsedQuery.data.query;
 
     const chats = await db
       .select()
@@ -292,6 +272,230 @@ export async function getBuildStatus(
   }
 }
 
+export async function getActiveRun(
+  req: AuthenticatedRequest,
+  res: Response,
+): Promise<void> {
+  try {
+    const userId = getAuthenticatedUserId(req);
+    const chatId = getChatIdOrRespond(req.params.chatId, res, sendStandardError);
+
+    if (!chatId) {
+      return;
+    }
+
+    const hasAccess = await assertChatOwnedOrRespond(
+      chatId,
+      userId,
+      res,
+      sendStandardError,
+    );
+    if (!hasAccess) {
+      return;
+    }
+
+    const [activeRun] = await db
+      .select({
+        id: run.id,
+        status: run.status,
+        state: run.state,
+        currentTurn: run.currentTurn,
+        createdAt: run.createdAt,
+        startedAt: run.startedAt,
+        userMessageId: run.userMessageId,
+        assistantMessageId: run.assistantMessageId,
+      })
+      .from(run)
+      .where(
+        and(
+          eq(run.chatId, chatId),
+          eq(run.userId, userId),
+          inArray(run.status, ["queued", "running"]),
+        ),
+      )
+      .orderBy(desc(run.createdAt))
+      .limit(1);
+
+    sendSuccess(res, HttpStatus.OK, "Active run retrieved successfully", {
+      chatId,
+      run: activeRun
+        ? {
+            id: activeRun.id,
+            status: activeRun.status,
+            state: activeRun.state,
+            currentTurn: activeRun.currentTurn,
+            createdAt: activeRun.createdAt,
+            startedAt: activeRun.startedAt,
+            userMessageId: activeRun.userMessageId,
+            assistantMessageId: activeRun.assistantMessageId,
+          }
+        : null,
+    });
+  } catch (error) {
+    logger.error(ensureError(error), "getActiveRun error");
+    sendStandardError(
+      res,
+      HttpStatus.INTERNAL_SERVER_ERROR,
+      ERROR_MESSAGES.INTERNAL_SERVER_ERROR,
+    );
+  }
+}
+
+export async function streamBuildEvents(
+  req: AuthenticatedRequest,
+  res: Response,
+): Promise<void> {
+  const redisSub = createRedisClient();
+  let heartbeat: ReturnType<typeof setInterval> | null = null;
+  let closed = false;
+  let sseStarted = false;
+
+  const closeStream = async () => {
+    if (closed) return;
+    closed = true;
+
+    if (heartbeat) {
+      clearInterval(heartbeat);
+      heartbeat = null;
+    }
+
+    await redisSub.unsubscribe().catch(() => {});
+    await redisSub.quit().catch(() => {});
+
+    if (sseStarted && !res.writableEnded) {
+      sendSSEDone(res);
+    }
+  };
+
+  req.on("close", () => {
+    void closeStream();
+  });
+
+  try {
+    const userId = getAuthenticatedUserId(req);
+    const chatId = getChatIdOrRespond(req.params.chatId, res, sendStandardError);
+
+    if (!chatId) {
+      await closeStream();
+      return;
+    }
+
+    const hasAccess = await assertChatOwnedOrRespond(
+      chatId,
+      userId,
+      res,
+      sendStandardError,
+    );
+    if (!hasAccess) {
+      await closeStream();
+      return;
+    }
+
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+    sseStarted = true;
+
+    configureSSEBackpressure(res, {
+      maxQueueBytes: MAX_SSE_QUEUE_BYTES,
+      maxQueueEvents: MAX_SSE_QUEUE_EVENTS,
+    });
+
+    const channel = `edward:build-status:${chatId}`;
+
+    const latestBuild = await getLatestBuildByChatId(chatId);
+    if (latestBuild) {
+      sendSSEEvent(res, {
+        type: ParserEventType.BUILD_STATUS,
+        chatId,
+        status: latestBuild.status,
+        buildId: latestBuild.id,
+        previewUrl: latestBuild.previewUrl,
+        errorReport: latestBuild.errorReport,
+      });
+
+      if (latestBuild.previewUrl) {
+        sendSSEEvent(res, {
+          type: ParserEventType.PREVIEW_URL,
+          url: latestBuild.previewUrl,
+          chatId,
+        });
+      }
+    }
+
+    const onMessage = (incomingChannel: string, payload: string) => {
+      if (incomingChannel !== channel) return;
+
+      try {
+        const parsed = JSON.parse(payload) as {
+          buildId?: string;
+          runId?: string;
+          status?: "queued" | "building" | "success" | "failed";
+          previewUrl?: string | null;
+          errorReport?: unknown;
+        };
+
+        if (!parsed.status) {
+          return;
+        }
+
+        sendSSEEvent(res, {
+          type: ParserEventType.BUILD_STATUS,
+          chatId,
+          status: parsed.status,
+          buildId: parsed.buildId,
+          runId: parsed.runId,
+          previewUrl: parsed.previewUrl,
+          errorReport: parsed.errorReport,
+        });
+
+        if (parsed.previewUrl) {
+          sendSSEEvent(res, {
+            type: ParserEventType.PREVIEW_URL,
+            url: parsed.previewUrl,
+            chatId,
+            runId: parsed.runId,
+          });
+        }
+
+        if (parsed.status === "success" || parsed.status === "failed") {
+          void closeStream();
+        }
+      } catch (err) {
+        logger.warn(
+          { err: ensureError(err), chatId, payload },
+          "Failed to parse build SSE payload",
+        );
+      }
+    };
+
+    redisSub.on("message", onMessage);
+    await redisSub.subscribe(channel);
+
+    heartbeat = setInterval(() => {
+      sendSSEComment(res, "build-events-heartbeat");
+    }, 15_000);
+
+  } catch (error) {
+    logger.error(ensureError(error), "streamBuildEvents error");
+    if (!res.headersSent) {
+      sendStandardError(
+        res,
+        HttpStatus.INTERNAL_SERVER_ERROR,
+        ERROR_MESSAGES.INTERNAL_SERVER_ERROR,
+      );
+    } else if (!res.writableEnded) {
+      sendSSEEvent(res, {
+        type: ParserEventType.ERROR,
+        message: "Build event stream failed",
+        code: "build_event_stream_failed",
+      });
+      sendSSEDone(res);
+    }
+    await closeStream();
+  }
+}
+
 export async function getSandboxFiles(
   req: AuthenticatedRequest,
   res: Response,
@@ -346,5 +550,58 @@ export async function getSandboxFiles(
       HttpStatus.INTERNAL_SERVER_ERROR,
       ERROR_MESSAGES.INTERNAL_SERVER_ERROR,
     );
+  }
+}
+
+export async function streamRunEvents(
+  req: AuthenticatedRequest,
+  res: Response,
+): Promise<void> {
+  try {
+    const userId = getAuthenticatedUserId(req);
+    const chatId = getChatIdOrRespond(req.params.chatId, res, sendStandardError);
+    const runId =
+      typeof req.params.runId === "string" ? req.params.runId : undefined;
+
+    if (!chatId || !runId) {
+      sendStandardError(res, HttpStatus.BAD_REQUEST, "Invalid chat/run ID");
+      return;
+    }
+
+    const hasAccess = await assertChatOwnedOrRespond(
+      chatId,
+      userId,
+      res,
+      sendStandardError,
+    );
+    if (!hasAccess) {
+      return;
+    }
+
+    const run = await getRunById(runId);
+    if (!run || run.chatId !== chatId || run.userId !== userId) {
+      sendStandardError(res, HttpStatus.NOT_FOUND, ERROR_MESSAGES.NOT_FOUND);
+      return;
+    }
+
+    await streamRunEventsFromPersistence({
+      req,
+      res,
+      runId,
+    });
+  } catch (error) {
+    logger.error(ensureError(error), "streamRunEvents error");
+    if (!res.headersSent) {
+      sendStandardError(
+        res,
+        HttpStatus.INTERNAL_SERVER_ERROR,
+        ERROR_MESSAGES.INTERNAL_SERVER_ERROR,
+      );
+      return;
+    }
+
+    if (!res.writableEnded) {
+      sendSSEDone(res);
+    }
   }
 }

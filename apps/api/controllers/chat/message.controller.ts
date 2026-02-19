@@ -1,5 +1,15 @@
 import type { Response } from "express";
-import { MessageRole } from "@edward/auth";
+import {
+  MessageRole,
+  createRunWithUserLimit,
+  count,
+  db,
+  eq,
+  inArray,
+  message as messageTable,
+  run as runTable,
+  updateRun,
+} from "@edward/auth";
 import type { AuthenticatedRequest } from "../../middleware/auth.js";
 import { getAuthenticatedUserId } from "../../middleware/auth.js";
 import { getUserWithApiKey } from "../../services/apiKey.service.js";
@@ -16,45 +26,71 @@ import {
   createWorkflow,
   advanceWorkflow,
 } from "../../services/planning/workflowEngine.js";
-import {
-  acquireUserSlot,
-  releaseUserSlot,
-} from "../../services/concurrency.service.js";
-import { runStreamSession } from "./streamSession.js";
 import { buildConversationMessages, type LlmChatMessage } from "../../lib/llm/context.js";
 import { ChatAction } from "../../services/planning/schemas.js";
 import { modelSupportsVision } from "@edward/shared/schema";
+import { ParserEventType } from "@edward/shared/stream-events";
 import { nanoid } from "nanoid";
-import { ParserEventType } from "../../schemas/chat.schema.js";
 import {
   buildMultimodalContentForLLM,
   parseMultimodalContent,
   toImageAttachments,
 } from "./multimodal.utils.js";
 import { sendStreamError } from "./shared.utils.js";
+import { enqueueAgentRunJob } from "../../services/queue/enqueue.js";
+import { createAgentRunMetadata } from "../../services/runs/runMetadata.js";
+import { streamRunEventsFromPersistence } from "./runEventStream.utils.js";
+import {
+  MAX_ACTIVE_RUNS_PER_USER,
+  MAX_AGENT_QUEUE_DEPTH,
+} from "../../utils/sharedConstants.js";
+
+async function cleanupUnqueuedUserMessage(messageId: string): Promise<void> {
+  await db
+    .delete(messageTable)
+    .where(eq(messageTable.id, messageId))
+    .catch((cleanupError: unknown) =>
+      logger.warn(
+        { cleanupError, messageId },
+        "Failed to cleanup user message after run admission failure",
+      ),
+    );
+}
 
 export async function unifiedSendMessage(
   req: AuthenticatedRequest,
   res: Response,
 ): Promise<void> {
-  let slotAcquired = false;
-  let userId = "";
+  let userMessageId: string | null = null;
+  let runId: string | null = null;
 
   try {
-    userId = getAuthenticatedUserId(req);
+    const userId = getAuthenticatedUserId(req);
     const body = req.body;
 
-    slotAcquired = await acquireUserSlot(userId);
-    if (!slotAcquired) {
+    const [activeRunCountResult] = await db
+      .select({ value: count() })
+      .from(runTable)
+      .where(inArray(runTable.status, ["queued", "running"]));
+    const activeRunDepth = Number(activeRunCountResult?.value ?? 0);
+    logger.debug(
+      { activeRunDepth, metric: "active_run_depth" },
+      "Current active run depth",
+    );
+    if (activeRunDepth >= MAX_AGENT_QUEUE_DEPTH) {
       sendStreamError(
         res,
         HttpStatus.TOO_MANY_REQUESTS,
-        "Too many concurrent requests. Please wait and try again.",
+        "System is currently under high load. Please retry in a moment.",
       );
       return;
     }
 
-    let decryptedApiKey: string;
+    const dynamicUserRunLimit =
+      activeRunDepth >= Math.floor(MAX_AGENT_QUEUE_DEPTH * 0.8)
+        ? 1
+        : MAX_ACTIVE_RUNS_PER_USER;
+
     let preferredModel: string | undefined;
     try {
       const userData = await getUserWithApiKey(userId);
@@ -66,7 +102,9 @@ export async function unifiedSendMessage(
         );
         return;
       }
-      decryptedApiKey = decrypt(userData.apiKey);
+
+      // Validate key decryption before queueing a durable run.
+      decrypt(userData.apiKey);
       preferredModel = userData.preferredModel || undefined;
     } catch (err) {
       const error = ensureError(err);
@@ -95,26 +133,23 @@ export async function unifiedSendMessage(
     }
 
     const { chatId, isNewChat } = chatResult;
-
     const isFollowUp = !isNewChat;
     let intent: (typeof ChatAction)[keyof typeof ChatAction] | undefined =
       isNewChat ? ChatAction.GENERATE : undefined;
 
     const parsedContent = await parseMultimodalContent(body.content);
-
     const selectedModel = body.model || preferredModel;
-    if (parsedContent.hasImages && selectedModel) {
-      if (!modelSupportsVision(selectedModel)) {
-        sendStreamError(
-          res,
-          HttpStatus.BAD_REQUEST,
-          `The selected model (${selectedModel}) does not support images. Please select a vision-capable model.`,
-        );
-        return;
-      }
+
+    if (parsedContent.hasImages && selectedModel && !modelSupportsVision(selectedModel)) {
+      sendStreamError(
+        res,
+        HttpStatus.BAD_REQUEST,
+        `The selected model (${selectedModel}) does not support images. Please select a vision-capable model.`,
+      );
+      return;
     }
 
-    const userMessageId = await saveMessage(
+    userMessageId = await saveMessage(
       chatId,
       userId,
       MessageRole.User,
@@ -144,8 +179,6 @@ export async function unifiedSendMessage(
         userMessageId,
         assistantMessageId,
         isNewChat,
-        runId: assistantMessageId,
-        phase: "session_start",
         intent,
       })}\n\n`,
     );
@@ -173,7 +206,6 @@ export async function unifiedSendMessage(
     }
 
     const preVerifiedDeps = workflow.context.intent?.recommendedPackages || [];
-
     const userMultimodalContent = parsedContent.hasImages
       ? buildMultimodalContentForLLM(
           parsedContent.textContent,
@@ -181,39 +213,83 @@ export async function unifiedSendMessage(
         )
       : parsedContent.textContent;
 
-    await runStreamSession({
-      req,
-      res,
+    const runMetadata = createAgentRunMetadata({
       workflow,
-      userId,
-      chatId,
-      decryptedApiKey,
       userContent: userMultimodalContent,
       userTextContent: parsedContent.textContent,
-      userMessageId,
-      assistantMessageId,
       preVerifiedDeps,
       isFollowUp,
-      intent,
+      intent: intent ?? ChatAction.GENERATE,
       historyMessages,
       projectContext,
       model: selectedModel,
     });
+
+    if (!userMessageId) {
+      throw new Error("User message was not persisted");
+    }
+
+    const run = await createRunWithUserLimit(
+      {
+        chatId,
+        userId,
+        userMessageId,
+        assistantMessageId,
+        model: selectedModel,
+        intent: intent ?? ChatAction.GENERATE,
+        metadata: runMetadata as unknown as Record<string, unknown>,
+      },
+      dynamicUserRunLimit,
+    );
+
+    if (!run) {
+      await cleanupUnqueuedUserMessage(userMessageId);
+      sendStreamError(
+        res,
+        HttpStatus.TOO_MANY_REQUESTS,
+        `Too many active runs for your account. Limit=${dynamicUserRunLimit}. Please wait for an ongoing run to finish.`,
+      );
+      return;
+    }
+    runId = run.id;
+
+    try {
+      await enqueueAgentRunJob({ runId: run.id });
+    } catch (enqueueError) {
+      await updateRun(run.id, {
+        status: "failed",
+        state: "FAILED",
+        errorMessage: ensureError(enqueueError).message,
+        completedAt: new Date(),
+      }).catch(() => {});
+
+      sendStreamError(
+        res,
+        HttpStatus.INTERNAL_SERVER_ERROR,
+        "Failed to enqueue agent run",
+      );
+      return;
+    }
+
+    logger.info(
+      { runId: run.id, chatId, userId, activeRunDepth, dynamicUserRunLimit },
+      "Queued durable agent run",
+    );
+
+    await streamRunEventsFromPersistence({
+      req,
+      res,
+      runId: run.id,
+    });
   } catch (error) {
+    if (userMessageId && !runId) {
+      await cleanupUnqueuedUserMessage(userMessageId);
+    }
     logger.error(ensureError(error), "unifiedSendMessage error");
     sendStreamError(
       res,
       HttpStatus.INTERNAL_SERVER_ERROR,
       ERROR_MESSAGES.INTERNAL_SERVER_ERROR,
     );
-  } finally {
-    if (slotAcquired && userId) {
-      await releaseUserSlot(userId).catch((err: unknown) =>
-        logger.error(
-          ensureError(err),
-          `Failed to release user slot for ${userId}`,
-        ),
-      );
-    }
   }
 }

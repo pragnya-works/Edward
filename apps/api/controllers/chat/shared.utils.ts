@@ -1,8 +1,8 @@
 import type { Response } from "express";
 import { db, chat, eq } from "@edward/auth";
-import { ParserEventType } from "../../schemas/chat.schema.js";
 import { HttpStatus, ERROR_MESSAGES } from "../../utils/constants.js";
 import { sendError as sendStandardError } from "../../utils/response.js";
+import { sendSSEError } from "./sse.utils.js";
 
 export type ErrorResponder = (
   res: Response,
@@ -17,9 +17,7 @@ export function sendStreamError(
 ): void {
   if (res.headersSent) {
     if (!res.writableEnded && res.writable) {
-      res.write(
-        `data: ${JSON.stringify({ type: ParserEventType.ERROR, message: error })}\n\n`,
-      );
+      sendSSEError(res, error, { code: "stream_error" });
     }
     if (!res.writableEnded) {
       res.end();

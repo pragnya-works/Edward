@@ -3,6 +3,7 @@ import { ParserEventType } from "../../../schemas/chat.schema.js";
 import type { WorkflowState } from "../../../services/planning/schemas.js";
 
 const ensureSandboxMock = vi.fn();
+const executeInstallPhaseMock = vi.fn();
 
 vi.mock("../../../services/planning/workflowEngine.js", async () => {
   const actual = await vi.importActual(
@@ -12,7 +13,7 @@ vi.mock("../../../services/planning/workflowEngine.js", async () => {
   return {
     ...actual,
     ensureSandbox: ensureSandboxMock,
-    advanceWorkflow: vi.fn(),
+    executeInstallPhase: executeInstallPhaseMock,
   };
 });
 
@@ -20,10 +21,6 @@ vi.mock("../../../services/sandbox/writes.sandbox.js", () => ({
   prepareSandboxFile: vi.fn(),
   flushSandbox: vi.fn(),
   sanitizeSandboxFile: vi.fn(),
-}));
-
-vi.mock("../../../services/sandbox/command.sandbox.js", () => ({
-  executeSandboxCommand: vi.fn(),
 }));
 
 vi.mock("../../../services/sandbox/lifecycle/packages.js", () => ({
@@ -35,14 +32,24 @@ vi.mock("../../../services/planning/resolvers/dependency.resolver.js", () => ({
   suggestAlternatives: vi.fn(() => []),
 }));
 
-vi.mock("../../../services/websearch/tavily.search.js", () => ({
-  searchTavilyBasic: vi.fn(),
+vi.mock("../../../services/tools/toolGateway.service.js", () => ({
+  executeCommandTool: vi.fn(),
+  executeWebSearchTool: vi.fn(),
 }));
 
 describe("event handlers sandbox gating", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    ensureSandboxMock.mockResolvedValue("sb-1");
+    ensureSandboxMock.mockImplementation(async (workflow: WorkflowState) => {
+      workflow.sandboxId = "sb-1";
+      return "sb-1";
+    });
+    executeInstallPhaseMock.mockResolvedValue({
+      step: "INSTALL_PACKAGES",
+      success: true,
+      durationMs: 1,
+      retryCount: 0,
+    });
   });
 
   function createCtx() {
@@ -74,7 +81,16 @@ describe("event handlers sandbox gating", () => {
     };
   }
 
-  it("does not provision sandbox for install without sandbox tag", async () => {
+  it("provisions sandbox for install even before sandbox tag", async () => {
+    const { resolveDependencies } = await import(
+      "../../../services/planning/resolvers/dependency.resolver.js"
+    );
+    vi.mocked(resolveDependencies).mockResolvedValueOnce({
+      resolved: [{ name: "react", version: "18.2.0", valid: true }],
+      failed: [],
+      warnings: [],
+    });
+
     const { handleParserEvent } = await import(
       "../../../controllers/chat/event.handlers.js"
     );
@@ -86,7 +102,8 @@ describe("event handlers sandbox gating", () => {
       framework: "react",
     });
 
-    expect(ensureSandboxMock).not.toHaveBeenCalled();
+    expect(ensureSandboxMock).toHaveBeenCalledTimes(1);
+    expect(executeInstallPhaseMock).toHaveBeenCalledTimes(1);
   });
 
   it("provisions sandbox only when sandbox tag is detected", async () => {
@@ -106,10 +123,10 @@ describe("event handlers sandbox gating", () => {
   });
 
   it("executes web search event and stores tool results", async () => {
-    const { searchTavilyBasic } = await import(
-      "../../../services/websearch/tavily.search.js"
+    const { executeWebSearchTool } = await import(
+      "../../../services/tools/toolGateway.service.js"
     );
-    vi.mocked(searchTavilyBasic).mockResolvedValueOnce({
+    vi.mocked(executeWebSearchTool).mockResolvedValueOnce({
       query: "latest next.js version",
       answer: "Use the latest stable release.",
       results: [

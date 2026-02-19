@@ -1,16 +1,16 @@
 import type { Response } from "express";
-import { ParserEventType } from "../../schemas/chat.schema.js";
+import {
+  MetaPhase,
+  ParserEventType,
+  type MetaEvent,
+} from "@edward/shared/stream-events";
 import type { WorkflowState } from "../../services/planning/schemas.js";
-import { safeSSEWrite } from "./sse.utils.js";
+import {
+  MAX_AGENT_CONTINUATION_PROMPT_CHARS,
+} from "../../utils/sharedConstants.js";
+import { sendSSEEvent } from "./sse.utils.js";
 import { formatToolResults, type AgentToolResult } from "./command.utils.js";
 import type { EventHandlerContext } from "./event.handlers.js";
-
-export enum AgentLoopStopReason {
-  DONE = "done",
-  NO_TOOL_RESULTS = "no_tool_results",
-  MAX_TURNS_REACHED = "max_turns_reached",
-  TOOL_BUDGET_EXCEEDED = "tool_budget_exceeded",
-}
 
 interface StreamMetaBase {
   chatId: string;
@@ -20,21 +20,22 @@ interface StreamMetaBase {
   runId: string;
 }
 
-export type EmitMeta = (payload: Record<string, unknown>) => boolean;
+export type EmitMeta = (
+  payload: Omit<MetaEvent, "type" | "version" | keyof StreamMetaBase>,
+) => boolean;
 
 export function createMetaEmitter(
   res: Response,
   base: StreamMetaBase,
 ): EmitMeta {
-  return (payload: Record<string, unknown>) =>
-    safeSSEWrite(
-      res,
-      `data: ${JSON.stringify({
-        type: ParserEventType.META,
-        ...base,
-        ...payload,
-      })}\n\n`,
-    );
+  return (
+    payload: Omit<MetaEvent, "type" | "version" | keyof StreamMetaBase>,
+  ) =>
+    sendSSEEvent(res, {
+      type: ParserEventType.META,
+      ...base,
+      ...payload,
+    });
 }
 
 export function emitTurnCompleteMeta(
@@ -44,7 +45,7 @@ export function emitTurnCompleteMeta(
 ): void {
   emitMeta({
     turn,
-    phase: "turn_complete",
+    phase: MetaPhase.TURN_COMPLETE,
     toolCount,
   });
 }
@@ -52,8 +53,6 @@ export function emitTurnCompleteMeta(
 export interface EventHandlerContextParams {
   workflow: WorkflowState;
   res: Response;
-  decryptedApiKey: string;
-  userId: string;
   chatId: string;
   isFollowUp: boolean;
   sandboxTagDetected: boolean;
@@ -62,6 +61,8 @@ export interface EventHandlerContextParams {
   generatedFiles: Map<string, string>;
   declaredPackages: string[];
   toolResultsThisTurn: AgentToolResult[];
+  runId?: string;
+  turn: number;
 }
 
 export function buildEventHandlerContext(
@@ -70,8 +71,6 @@ export function buildEventHandlerContext(
   return {
     workflow: params.workflow,
     res: params.res,
-    decryptedApiKey: params.decryptedApiKey,
-    userId: params.userId,
     chatId: params.chatId,
     isFollowUp: params.isFollowUp,
     sandboxTagDetected: params.sandboxTagDetected,
@@ -80,20 +79,38 @@ export function buildEventHandlerContext(
     generatedFiles: params.generatedFiles,
     declaredPackages: params.declaredPackages,
     toolResultsThisTurn: params.toolResultsThisTurn,
+    runId: params.runId,
+    turn: params.turn,
   };
+}
+
+function truncateWithMarker(input: string, maxChars: number): string {
+  if (input.length <= maxChars) {
+    return input;
+  }
+  return `${input.slice(0, maxChars)}\n...[truncated]`;
 }
 
 export function buildAgentContinuationPrompt(
   fullUserContent: string,
   turnRawResponse: string,
   toolResults: AgentToolResult[],
-): string {
-  const formattedResults = formatToolResults(toolResults);
+): { prompt: string; truncated: boolean } {
+  const userContent = truncateWithMarker(fullUserContent, 7_000);
+  const previousResponse = truncateWithMarker(turnRawResponse, 7_000);
+  const formattedResults = truncateWithMarker(
+    formatToolResults(toolResults),
+    10_000,
+  );
 
-  const prevSummary =
-    turnRawResponse.length > 4000
-      ? turnRawResponse.slice(0, 4000) + "\n...[truncated]"
-      : turnRawResponse;
+  const prompt = `ORIGINAL REQUEST:\n${userContent}\n\nYOUR PREVIOUS RESPONSE:\n${previousResponse}\n\nTOOL RESULTS:\n${formattedResults}\n\nContinue with the task. If you wrote fixes, verify by running the build. If you need more information, use <edward_command> or <edward_web_search>. Do not stop until you have completed the request and emitted <edward_done />.`;
 
-  return `ORIGINAL REQUEST:\n${fullUserContent}\n\nYOUR PREVIOUS RESPONSE:\n${prevSummary}\n\nTOOL RESULTS:\n${formattedResults}\n\nContinue with the task. If you wrote fixes, verify by running the build. If you need more information, use <edward_command> or <edward_web_search>. Do not stop until you have completed the request and emitted <edward_done />.`;
+  if (prompt.length <= MAX_AGENT_CONTINUATION_PROMPT_CHARS) {
+    return { prompt, truncated: false };
+  }
+
+  return {
+    prompt: truncateWithMarker(prompt, MAX_AGENT_CONTINUATION_PROMPT_CHARS),
+    truncated: true,
+  };
 }

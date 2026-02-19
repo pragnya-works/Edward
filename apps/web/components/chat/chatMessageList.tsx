@@ -88,7 +88,21 @@ export const ChatMessageList = memo(function ChatMessageList({
     (m) => m.role === ChatRole.USER || m.role === ChatRole.ASSISTANT,
   );
 
-  const isEmpty = visibleMessages.length === 0 && !stream.isStreaming;
+  const hasStreamActivity =
+    stream.isStreaming ||
+    stream.isThinking ||
+    stream.streamingText.length > 0 ||
+    stream.thinkingText.length > 0 ||
+    stream.activeFiles.length > 0 ||
+    stream.completedFiles.length > 0 ||
+    stream.isSandboxing ||
+    stream.installingDeps.length > 0 ||
+    stream.webSearches.length > 0 ||
+    stream.urlScrapes.length > 0 ||
+    Boolean(stream.command) ||
+    Boolean(stream.error);
+
+  const isEmpty = visibleMessages.length === 0 && !hasStreamActivity;
 
   if (isEmpty) {
     return WELCOME_SCREEN;
@@ -128,7 +142,7 @@ export const ChatMessageList = memo(function ChatMessageList({
             ))}
           </AnimatePresence>
 
-          {stream.isStreaming && (
+          {hasStreamActivity && (
             <StreamingMessage stream={stream} />
           )}
 

@@ -5,7 +5,6 @@ import { ParserEventType } from "../../../schemas/chat.schema.js";
 const streamResponseMock = vi.fn();
 const saveMessageMock = vi.fn();
 const handleParserEventMock = vi.fn();
-const handleFlushEventsMock = vi.fn();
 
 vi.mock("../../../lib/llm/response.js", () => ({
   streamResponse: streamResponseMock,
@@ -71,7 +70,6 @@ vi.mock("../../../services/planning/validators/postgenValidator.js", () => ({
 
 vi.mock("../../../controllers/chat/event.handlers.js", () => ({
   handleParserEvent: handleParserEventMock,
-  handleFlushEvents: handleFlushEventsMock,
 }));
 
 describe("runStreamSession", () => {
@@ -106,13 +104,6 @@ describe("runStreamSession", () => {
         sandboxTagDetected: ctx.sandboxTagDetected,
       };
     });
-
-    handleFlushEventsMock.mockImplementation(async (ctx) => ({
-      handled: true,
-      currentFilePath: ctx.currentFilePath,
-      isFirstFileChunk: ctx.isFirstFileChunk,
-      sandboxTagDetected: ctx.sandboxTagDetected,
-    }));
 
     saveMessageMock.mockResolvedValue("assistant-msg-id");
   });
