@@ -196,7 +196,7 @@ export const StreamingMessage = memo(function StreamingMessage({
             </m.div>
           ))}
 
-        {stream.installingDeps.length > 0 && !sandboxOpen && (
+        {stream.installingDeps.length > 0 && (
           <m.div
             initial={{ opacity: 0, y: 4 }}
             animate={{ opacity: 1, y: 0 }}

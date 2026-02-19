@@ -23,9 +23,16 @@ export function useChatPageOrchestration({
   setActiveChatId,
   resumeRunStream,
 }: UseChatPageOrchestrationParams) {
-  const attemptedResumeForChatRef = useRef<string | null>(null);
-  const MAX_ACTIVE_RUN_LOOKUP_ATTEMPTS = 3;
-  const ACTIVE_RUN_LOOKUP_RETRY_MS = 800;
+  const resumeLookupInFlightRef = useRef<string | null>(null);
+  const MAX_ACTIVE_RUN_LOOKUP_ATTEMPTS = 6;
+  const ACTIVE_RUN_LOOKUP_BASE_RETRY_MS = 350;
+  const ACTIVE_RUN_LOOKUP_MAX_RETRY_MS = 2000;
+
+  const getRetryDelayMs = (attempt: number): number =>
+    Math.min(
+      ACTIVE_RUN_LOOKUP_MAX_RETRY_MS,
+      ACTIVE_RUN_LOOKUP_BASE_RETRY_MS * 2 ** attempt,
+    );
 
   useEffect(() => {
     if (isSandboxing && !sandboxOpen) {
@@ -37,7 +44,7 @@ export function useChatPageOrchestration({
 
   useEffect(() => {
     setActiveChatId(chatId);
-    attemptedResumeForChatRef.current = null;
+    resumeLookupInFlightRef.current = null;
     return () => setActiveChatId(null);
   }, [chatId, setActiveChatId]);
 
@@ -46,11 +53,11 @@ export function useChatPageOrchestration({
       return;
     }
 
-    if (attemptedResumeForChatRef.current === chatId) {
+    if (resumeLookupInFlightRef.current === chatId) {
       return;
     }
 
-    attemptedResumeForChatRef.current = chatId;
+    resumeLookupInFlightRef.current = chatId;
     let cancelled = false;
 
     void (async () => {
@@ -61,8 +68,19 @@ export function useChatPageOrchestration({
 
           if (!cancelled && activeRun) {
             resumeRunStream(chatId, activeRun.id);
+            return;
           }
-          return;
+
+          if (attempt === MAX_ACTIVE_RUN_LOOKUP_ATTEMPTS - 1 || cancelled) {
+            return;
+          }
+
+          await new Promise((resolve) =>
+            setTimeout(
+              resolve,
+              getRetryDelayMs(attempt),
+            ),
+          );
         } catch {
           if (attempt === MAX_ACTIVE_RUN_LOOKUP_ATTEMPTS - 1 || cancelled) {
             return;
@@ -70,12 +88,16 @@ export function useChatPageOrchestration({
           await new Promise((resolve) =>
             setTimeout(
               resolve,
-              ACTIVE_RUN_LOOKUP_RETRY_MS * (attempt + 1),
+              getRetryDelayMs(attempt),
             ),
           );
         }
       }
-    })();
+    })().finally(() => {
+      if (resumeLookupInFlightRef.current === chatId) {
+        resumeLookupInFlightRef.current = null;
+      }
+    });
 
     return () => {
       cancelled = true;

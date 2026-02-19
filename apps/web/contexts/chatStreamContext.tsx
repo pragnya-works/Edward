@@ -285,6 +285,7 @@ export function ChatStreamProvider({ children }: { children: ReactNode }) {
       model,
       streamKey,
       mutationId,
+      controller,
       optimisticUserMessageId,
     }: {
       content: MessageContent;
@@ -292,16 +293,21 @@ export function ChatStreamProvider({ children }: { children: ReactNode }) {
       model?: string;
       streamKey: string;
       mutationId: string;
+      controller: AbortController;
       optimisticUserMessageId?: string;
     }) => {
-      const controller = new AbortController();
-      abortControllersRef.current.set(streamKey, {
-        controller,
-        mutationId,
-      });
+      const existingEntry = abortControllersRef.current.get(streamKey);
+      if (
+        !existingEntry ||
+        existingEntry.mutationId !== mutationId ||
+        existingEntry.controller !== controller
+      ) {
+        abortControllersRef.current.set(streamKey, {
+          controller,
+          mutationId,
+        });
+      }
       mutationChatKeyRef.current.set(mutationId, streamKey);
-
-      dispatch({ type: StreamActionType.START_STREAMING, chatId: streamKey });
 
       const thinkingRef = { current: null as number | null };
 
@@ -317,27 +323,30 @@ export function ChatStreamProvider({ children }: { children: ReactNode }) {
         onMetaRef,
         thinkingStartRef: thinkingRef,
         onChatIdResolved: (realChatId: string) => {
-          if (realChatId !== streamKey) {
-            dispatch({
-              type: StreamActionType.RENAME_STREAM,
-              oldChatId: streamKey,
-              newChatId: realChatId,
-            });
-
-            const controllerEntry = abortControllersRef.current.get(streamKey);
-            if (controllerEntry?.mutationId === mutationId) {
-              abortControllersRef.current.delete(streamKey);
-              abortControllersRef.current.set(realChatId, controllerEntry);
-            }
-
-            if (isLatestMutationForChat(streamKey, mutationId)) {
-              latestMutationByChatRef.current.delete(streamKey);
-              latestMutationByChatRef.current.set(realChatId, mutationId);
-            }
-
-            mutationChatKeyRef.current.set(mutationId, realChatId);
-            resolvedChatId = realChatId;
+          if (realChatId === resolvedChatId) {
+            return;
           }
+
+          dispatch({
+            type: StreamActionType.RENAME_STREAM,
+            oldChatId: resolvedChatId,
+            newChatId: realChatId,
+          });
+
+          const controllerEntry =
+            abortControllersRef.current.get(resolvedChatId);
+          if (controllerEntry?.mutationId === mutationId) {
+            abortControllersRef.current.delete(resolvedChatId);
+            abortControllersRef.current.set(realChatId, controllerEntry);
+          }
+
+          if (isLatestMutationForChat(resolvedChatId, mutationId)) {
+            latestMutationByChatRef.current.delete(resolvedChatId);
+            latestMutationByChatRef.current.set(realChatId, mutationId);
+          }
+
+          mutationChatKeyRef.current.set(mutationId, realChatId);
+          resolvedChatId = realChatId;
         },
       });
 
@@ -498,7 +507,19 @@ export function ChatStreamProvider({ children }: { children: ReactNode }) {
         opts?.chatId ??
         `${PENDING_CHAT_ID_PREFIX}${crypto.randomUUID().slice(0, 8)}`;
       const mutationId = crypto.randomUUID();
+      const controller = new AbortController();
+      const existingEntry = abortControllersRef.current.get(streamKey);
+      if (existingEntry) {
+        existingEntry.controller.abort();
+        abortControllersRef.current.delete(streamKey);
+      }
+
       latestMutationByChatRef.current.set(streamKey, mutationId);
+      abortControllersRef.current.set(streamKey, {
+        controller,
+        mutationId,
+      });
+      dispatch({ type: StreamActionType.START_STREAMING, chatId: streamKey });
 
       let optimisticUserMessageId: string | undefined;
       if (opts?.chatId) {
@@ -529,6 +550,7 @@ export function ChatStreamProvider({ children }: { children: ReactNode }) {
         model: opts?.model,
         streamKey,
         mutationId,
+        controller,
         optimisticUserMessageId,
       });
     },

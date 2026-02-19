@@ -333,17 +333,16 @@ export async function runAgentLoop(
       break;
     }
 
-    if (doneTagDetectedThisTurn) {
-      emitTurnCompleteMeta(emitMeta, agentTurn, toolResultsThisTurn.length);
-      loopStopReason = AgentLoopStopReason.DONE;
-      break;
-    }
-
     if (
       toolResultsThisTurn.length > 0 &&
-      agentTurn < MAX_AGENT_TURNS &&
       !abortController.signal.aborted
     ) {
+      if (agentTurn >= MAX_AGENT_TURNS) {
+        emitTurnCompleteMeta(emitMeta, agentTurn, toolResultsThisTurn.length);
+        loopStopReason = AgentLoopStopReason.MAX_TURNS_REACHED;
+        break;
+      }
+
       const userTextContent =
         typeof userContent === "string"
           ? userContent
@@ -387,11 +386,18 @@ export async function runAgentLoop(
           runId,
           turn: agentTurn,
           toolCount: toolResultsThisTurn.length,
+          doneTagDetectedThisTurn,
         },
         "Agent loop: continuing with tool results",
       );
       emitTurnCompleteMeta(emitMeta, agentTurn, toolResultsThisTurn.length);
       continue agentLoop;
+    }
+
+    if (doneTagDetectedThisTurn) {
+      emitTurnCompleteMeta(emitMeta, agentTurn, toolResultsThisTurn.length);
+      loopStopReason = AgentLoopStopReason.DONE;
+      break;
     }
 
     emitTurnCompleteMeta(emitMeta, agentTurn, toolResultsThisTurn.length);

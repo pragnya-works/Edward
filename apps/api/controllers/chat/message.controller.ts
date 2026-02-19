@@ -191,7 +191,9 @@ export async function unifiedSendMessage(
     let historyMessages: LlmChatMessage[] = [];
     let projectContext = "";
     if (isFollowUp) {
-      const ctx = await buildConversationMessages(chatId);
+      const ctx = await buildConversationMessages(chatId, {
+        excludeMessageIds: userMessageId ? [userMessageId] : [],
+      });
       historyMessages = ctx.history;
       projectContext = ctx.projectContext;
     }
@@ -252,6 +254,20 @@ export async function unifiedSendMessage(
       return;
     }
     runId = run.id;
+
+    // Emit run-bound meta as soon as run is created so clients can
+    // reconnect/resume even if the transport drops before persisted events arrive.
+    res.write(
+      `data: ${JSON.stringify({
+        type: ParserEventType.META,
+        chatId,
+        userMessageId,
+        assistantMessageId,
+        isNewChat,
+        runId: run.id,
+        intent,
+      })}\n\n`,
+    );
 
     try {
       await enqueueAgentRunJob({ runId: run.id });

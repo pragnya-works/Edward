@@ -364,13 +364,14 @@ export async function processStreamResponse({
   if (
     !sessionCompleted &&
     replayAttempt < MAX_REPLAY_ATTEMPTS &&
-    metaEvent?.runId &&
-    lastEventId
+    metaEvent?.runId
   ) {
     try {
-      const replayResponse = await openRunEventsStream(activeChatId, metaEvent.runId, {
-        lastEventId,
-      });
+      const replayResponse = await openRunEventsStream(
+        activeChatId,
+        metaEvent.runId,
+        lastEventId ? { lastEventId } : undefined,
+      );
       const replayResult = await processStreamResponse({
         response: replayResponse,
         chatId: activeChatId,

@@ -76,8 +76,15 @@ describe("runStreamSession", () => {
   beforeEach(() => {
     vi.clearAllMocks();
 
+    let streamCallCount = 0;
     streamResponseMock.mockImplementation(async function* () {
-      yield 'Checking workspace...<edward_command command="pwd" args="[]"><edward_done />';
+      streamCallCount += 1;
+      if (streamCallCount === 1) {
+        yield 'Checking workspace...<edward_command command="pwd" args="[]"><edward_done />';
+        return;
+      }
+
+      yield "Verified command output and completed the fix.<edward_done />";
     });
 
     handleParserEventMock.mockImplementation(async (ctx, event) => {
@@ -108,7 +115,7 @@ describe("runStreamSession", () => {
     saveMessageMock.mockResolvedValue("assistant-msg-id");
   });
 
-  it("stops loop on DONE even when tools executed in same turn", async () => {
+  it("continues after tool turn even when DONE appears in the same turn", async () => {
     const { runStreamSession } = await import(
       "../../../controllers/chat/streamSession.js"
     );
@@ -159,7 +166,7 @@ describe("runStreamSession", () => {
       model: "gpt-4o-mini",
     });
 
-    expect(streamResponseMock).toHaveBeenCalledTimes(1);
+    expect(streamResponseMock).toHaveBeenCalledTimes(2);
 
     const loopMetaEvents = writes
       .filter((line) => line.startsWith("data: {"))
@@ -178,14 +185,19 @@ describe("runStreamSession", () => {
         typeof event.loopStopReason === "string",
     );
 
-    expect(turnStartEvents).toHaveLength(1);
+    expect(turnStartEvents).toHaveLength(2);
     expect(turnStartEvents[0].turn).toBe(1);
     expect(turnStartEvents[0].runId).toBe("msg-assistant-1");
+    expect(turnStartEvents[1].turn).toBe(2);
+    expect(turnStartEvents[1].runId).toBe("msg-assistant-1");
 
-    expect(turnCompleteEvents).toHaveLength(1);
+    expect(turnCompleteEvents).toHaveLength(2);
     expect(turnCompleteEvents[0].turn).toBe(1);
     expect(turnCompleteEvents[0].toolCount).toBe(1);
     expect(turnCompleteEvents[0].runId).toBe("msg-assistant-1");
+    expect(turnCompleteEvents[1].turn).toBe(2);
+    expect(turnCompleteEvents[1].toolCount).toBe(0);
+    expect(turnCompleteEvents[1].runId).toBe("msg-assistant-1");
 
     expect(sessionCompleteEvents).toHaveLength(1);
     expect(sessionCompleteEvents[0].loopStopReason).toBe("done");

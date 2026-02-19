@@ -1,7 +1,7 @@
 import { useEffect, useRef, useCallback, useState } from "react";
 import { ParserEventType } from "@edward/shared/stream-events";
 import { useChatStream } from "@/contexts/chatStreamContext";
-import { BuildStatus, useSandbox } from "@/contexts/sandboxContext";
+import { BuildStatus, SandboxMode, useSandbox } from "@/contexts/sandboxContext";
 import { INITIAL_STREAM_STATE, type StreamedFile } from "@/lib/chatTypes";
 import {
   BuildRecordStatus,
@@ -37,6 +37,7 @@ export function useSandboxSync(chatIdFromUrl: string | undefined) {
     startStreaming,
     stopStreaming,
     openSandbox,
+    setMode,
     setPreviewUrl,
     setBuildStatus,
     setBuildError,
@@ -57,6 +58,7 @@ export function useSandboxSync(chatIdFromUrl: string | undefined) {
   const buildEventsChatIdRef = useRef<string | null>(null);
   const pushConnectedRef = useRef(false);
   const pushTerminalRef = useRef(false);
+  const buildInFlightRef = useRef(false);
   const [sseErrorCount, setSseErrorCount] = useState(0);
 
   const loadAllSandboxFiles = useCallback(
@@ -90,6 +92,9 @@ export function useSandboxSync(chatIdFromUrl: string | undefined) {
         setBuildStatus(BuildStatus.QUEUED);
         setBuildError(null);
         setFullErrorReport(null);
+        pushTerminalRef.current = false;
+        buildInFlightRef.current = true;
+        lastPolledChatIdRef.current = null;
         return;
       }
 
@@ -97,12 +102,15 @@ export function useSandboxSync(chatIdFromUrl: string | undefined) {
         setBuildStatus(BuildStatus.SUCCESS);
         if (build.previewUrl) {
           setPreviewUrl(build.previewUrl);
-          openSandbox();
+          if (buildInFlightRef.current) {
+            setMode(SandboxMode.PREVIEW);
+            openSandbox();
+          }
         }
         setBuildError(null);
         setFullErrorReport(null);
         pushTerminalRef.current = true;
-        lastPolledChatIdRef.current = null;
+        buildInFlightRef.current = false;
         return;
       }
 
@@ -118,27 +126,35 @@ export function useSandboxSync(chatIdFromUrl: string | undefined) {
         setBuildError(String(laymanReason));
         setFullErrorReport(report);
         pushTerminalRef.current = true;
-        lastPolledChatIdRef.current = null;
+        buildInFlightRef.current = false;
         return;
       }
 
       if (build.status === BuildRecordStatus.QUEUED) {
         setBuildStatus(BuildStatus.QUEUED);
         setBuildError(null);
+        pushTerminalRef.current = false;
+        buildInFlightRef.current = true;
+        lastPolledChatIdRef.current = null;
         return;
       }
 
       if (build.status === BuildRecordStatus.BUILDING) {
         setBuildStatus(BuildStatus.BUILDING);
         setBuildError(null);
+        pushTerminalRef.current = false;
+        buildInFlightRef.current = true;
+        lastPolledChatIdRef.current = null;
         return;
       }
 
       setBuildStatus(BuildStatus.FAILED);
       setBuildError(`Unexpected build status: ${build.status}`);
-      lastPolledChatIdRef.current = null;
+      pushTerminalRef.current = true;
+      buildInFlightRef.current = false;
     },
     [
+      setMode,
       setPreviewUrl,
       setBuildStatus,
       setBuildError,
@@ -206,10 +222,14 @@ export function useSandboxSync(chatIdFromUrl: string | undefined) {
 
           if (parsed.type === ParserEventType.PREVIEW_URL && parsed.url) {
             setPreviewUrl(parsed.url);
-            openSandbox();
-            setBuildStatus(BuildStatus.SUCCESS);
-            setBuildError(null);
-            pushTerminalRef.current = true;
+            if (buildInFlightRef.current) {
+              openSandbox();
+              setMode(SandboxMode.PREVIEW);
+              setBuildStatus(BuildStatus.SUCCESS);
+              setBuildError(null);
+              pushTerminalRef.current = true;
+              buildInFlightRef.current = false;
+            }
           }
         } catch {
           // Ignore malformed SSE frames.
@@ -228,6 +248,7 @@ export function useSandboxSync(chatIdFromUrl: string | undefined) {
       closeBuildEvents,
       setBuildError,
       setBuildStatus,
+      setMode,
       setPreviewUrl,
       openSandbox,
     ],
@@ -249,7 +270,8 @@ export function useSandboxSync(chatIdFromUrl: string | undefined) {
       if (pollAttemptsRef.current >= BUILD_POLL_MAX_ATTEMPTS) {
         setBuildStatus(BuildStatus.FAILED);
         setBuildError("Build timed out after multiple attempts.");
-        lastPolledChatIdRef.current = null;
+        pushTerminalRef.current = true;
+        buildInFlightRef.current = false;
         return;
       }
 
@@ -263,7 +285,8 @@ export function useSandboxSync(chatIdFromUrl: string | undefined) {
           setBuildStatus(BuildStatus.IDLE);
           setBuildError(null);
           setFullErrorReport(null);
-          lastPolledChatIdRef.current = null;
+          pushTerminalRef.current = true;
+          buildInFlightRef.current = false;
           return;
         }
 
@@ -288,7 +311,8 @@ export function useSandboxSync(chatIdFromUrl: string | undefined) {
             ? error.message
             : "Failed to fetch build status",
         );
-        lastPolledChatIdRef.current = null;
+        pushTerminalRef.current = true;
+        buildInFlightRef.current = false;
       } finally {
         isPollingInFlightRef.current = false;
       }
@@ -304,6 +328,8 @@ export function useSandboxSync(chatIdFromUrl: string | undefined) {
     if (isNowStreaming && !wasStreamingRef.current) {
       const firstActiveFile = activeFiles[0];
       if (firstActiveFile) {
+        pushTerminalRef.current = false;
+        lastPolledChatIdRef.current = null;
         startStreaming(firstActiveFile.path);
         openSandbox();
       }
@@ -427,6 +453,7 @@ export function useSandboxSync(chatIdFromUrl: string | undefined) {
         buildStatus === BuildStatus.QUEUED ||
         buildStatus === BuildStatus.BUILDING) &&
       lastPolledChatIdRef.current !== targetChatId &&
+      !pushTerminalRef.current &&
       !pushConnectedRef.current
     ) {
       lastPolledChatIdRef.current = targetChatId;
