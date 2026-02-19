@@ -29,6 +29,7 @@ import {
 import { buildConversationMessages, type LlmChatMessage } from "../../lib/llm/context.js";
 import { ChatAction } from "../../services/planning/schemas.js";
 import { modelSupportsVision } from "@edward/shared/schema";
+import { ParserEventType } from "@edward/shared/stream-events";
 import { nanoid } from "nanoid";
 import {
   buildMultimodalContentForLLM,
@@ -165,6 +166,23 @@ export async function unifiedSendMessage(
       });
     }
 
+    const assistantMessageId = nanoid(32);
+
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+
+    res.write(
+      `data: ${JSON.stringify({
+        type: ParserEventType.META,
+        chatId,
+        userMessageId,
+        assistantMessageId,
+        isNewChat,
+        intent,
+      })}\n\n`,
+    );
+
     const workflow = await createWorkflow(userId, chatId, {
       userRequest: parsedContent.textContent || "[Image message]",
       mode: intent,
@@ -195,7 +213,6 @@ export async function unifiedSendMessage(
         )
       : parsedContent.textContent;
 
-    const assistantMessageId = nanoid(32);
     const runMetadata = createAgentRunMetadata({
       workflow,
       userContent: userMultimodalContent,
