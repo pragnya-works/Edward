@@ -81,7 +81,7 @@ export interface RunAgentLoopResult {
 }
 
 function getToolResultsPayloadChars(results: AgentToolResult[]): number {
-  return Buffer.byteLength(JSON.stringify(results), "utf8");
+  return JSON.stringify(results).length;
 }
 
 export async function runAgentLoop(
@@ -205,7 +205,7 @@ export async function runAgentLoop(
           return;
         }
 
-        if (totalToolCallsInRun > MAX_AGENT_TOOL_CALLS_PER_RUN) {
+        if (totalToolCallsInRun >= MAX_AGENT_TOOL_CALLS_PER_RUN) {
           toolBudgetExceededThisTurn = true;
           return;
         }

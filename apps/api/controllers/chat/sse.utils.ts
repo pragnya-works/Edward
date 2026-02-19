@@ -95,13 +95,13 @@ function flushQueue(state: SSEWriterState): void {
     }
 
     const ok = state.res.write(next);
+    state.queue.shift();
+    state.queueBytes = Math.max(0, state.queueBytes - Buffer.byteLength(next));
+
     if (!ok) {
       state.backpressured = true;
       return;
     }
-
-    state.queue.shift();
-    state.queueBytes = Math.max(0, state.queueBytes - Buffer.byteLength(next));
   }
 
   state.backpressured = false;

@@ -55,6 +55,5 @@ CREATE INDEX "idx_run_chat_id" ON "run" USING btree ("chat_id");--> statement-br
 CREATE INDEX "idx_run_user_id" ON "run" USING btree ("user_id");--> statement-breakpoint
 CREATE INDEX "idx_run_status" ON "run" USING btree ("status");--> statement-breakpoint
 CREATE UNIQUE INDEX "run_event_run_id_seq_unique" ON "run_event" USING btree ("run_id","seq");--> statement-breakpoint
-CREATE INDEX "idx_run_event_run_id_seq" ON "run_event" USING btree ("run_id","seq");--> statement-breakpoint
 CREATE UNIQUE INDEX "run_tool_call_run_id_idempotency_key_unique" ON "run_tool_call" USING btree ("run_id","idempotency_key");--> statement-breakpoint
 CREATE INDEX "idx_run_tool_call_run_id" ON "run_tool_call" USING btree ("run_id");

@@ -14,6 +14,23 @@ import {
   TOOL_GATEWAY_TIMEOUT_MS,
 } from "../../utils/sharedConstants.js";
 
+const TOOL_TIMEOUT_ERROR_NAME = "ToolTimeoutError";
+
+interface ToolTimeoutError extends Error {
+  timeoutMs: number;
+}
+
+function createToolTimeoutError(timeoutMs: number): ToolTimeoutError {
+  const error = new Error(`Tool timed out after ${timeoutMs}ms`) as ToolTimeoutError;
+  error.name = TOOL_TIMEOUT_ERROR_NAME;
+  error.timeoutMs = timeoutMs;
+  return error;
+}
+
+function isToolTimeoutError(error: Error): error is ToolTimeoutError {
+  return error.name === TOOL_TIMEOUT_ERROR_NAME;
+}
+
 function buildIdempotencyKey(
   runId: string | undefined,
   turn: number,
@@ -33,7 +50,7 @@ function buildIdempotencyKey(
 async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const timer = setTimeout(() => {
-      reject(new Error(`Tool timed out after ${timeoutMs}ms`));
+      reject(createToolTimeoutError(timeoutMs));
     }, timeoutMs);
 
     promise
@@ -120,6 +137,7 @@ export async function executeToolWithGateway<TOutput>(
       return output;
     } catch (error) {
       lastError = ensureError(error);
+      const isTimeout = isToolTimeoutError(lastError);
       logger.warn(
         {
           runId: params.runId,
@@ -127,11 +145,12 @@ export async function executeToolWithGateway<TOutput>(
           attempt,
           retryAttempts,
           error: lastError.message,
+          timeout: isTimeout,
           metric: "tool_error",
         },
         "Tool gateway attempt failed",
       );
-      if (attempt >= retryAttempts) {
+      if (isTimeout || attempt >= retryAttempts) {
         break;
       }
     }

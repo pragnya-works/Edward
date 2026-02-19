@@ -477,6 +477,7 @@ export async function streamBuildEvents(
     }, 15_000);
 
   } catch (error) {
+    await closeStream();
     logger.error(ensureError(error), "streamBuildEvents error");
     if (!res.headersSent) {
       sendStandardError(

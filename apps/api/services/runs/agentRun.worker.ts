@@ -419,6 +419,13 @@ export async function processAgentRunJob(
     const err = ensureError(error);
     latestErrorMessage = err.message;
 
+    await capturedRes.flushPending().catch((flushError) => {
+      logger.error(
+        { error: ensureError(flushError), runId },
+        "Failed to drain pending run events before terminal persistence",
+      );
+    });
+
     const completionMetaEvent: StreamEvent = {
       type: ParserEventType.META,
       version: STREAM_EVENT_VERSION,

@@ -15,7 +15,7 @@ const BUILD_POLL_INTERVAL_MS = 8_000;
 const BUILD_POLL_MAX_ATTEMPTS = 18;
 
 interface BuildStatusPayload {
-  status: BuildRecordStatus;
+  status?: BuildRecordStatus | null;
   previewUrl?: string | null;
   errorReport?: BuildErrorReport | null;
 }
@@ -85,6 +85,13 @@ export function useSandboxSync(chatIdFromUrl: string | undefined) {
 
   const applyBuildStatus = useCallback(
     (build: BuildStatusPayload) => {
+      if (!build.status) {
+        setBuildStatus(BuildStatus.QUEUED);
+        setBuildError(null);
+        setFullErrorReport(null);
+        return;
+      }
+
       if (build.status === BuildRecordStatus.SUCCESS) {
         setBuildStatus(BuildStatus.SUCCESS);
         if (build.previewUrl) {
@@ -210,9 +217,7 @@ export function useSandboxSync(chatIdFromUrl: string | undefined) {
 
       source.onerror = () => {
         pushConnectedRef.current = false;
-        if (!pushTerminalRef.current) {
-          closeBuildEvents();
-        }
+        closeBuildEvents();
       };
     },
     [
@@ -266,6 +271,7 @@ export function useSandboxSync(chatIdFromUrl: string | undefined) {
         });
 
         if (
+          !build.status ||
           build.status === BuildRecordStatus.QUEUED ||
           build.status === BuildRecordStatus.BUILDING
         ) {

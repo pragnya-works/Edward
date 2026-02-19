@@ -9,21 +9,31 @@ function uniquePackages(packages: string[]): string[] {
     return [...new Set(packages.map((pkg) => pkg.trim()).filter(Boolean))];
 }
 
-function hasDependency(packageJson: PackageJson | null, dep: string): boolean {
+function hasRuntimeDependency(
+    packageJson: PackageJson | null,
+    dep: string,
+): boolean {
     if (!packageJson) return false;
 
-    return Boolean(
-        packageJson.dependencies?.[dep] || packageJson.devDependencies?.[dep],
-    );
+    return Boolean(packageJson.dependencies?.[dep]);
+}
+
+function hasAnyDependency(packageJson: PackageJson | null, dep: string): boolean {
+    if (!packageJson) return false;
+
+    return Boolean(packageJson.dependencies?.[dep] || packageJson.devDependencies?.[dep]);
 }
 
 function filterMissingDependencies(
     packages: string[],
     packageJson: PackageJson | null,
     alreadyScheduled = new Set<string>(),
+    mode: 'runtime' | 'any' = 'any',
 ): string[] {
+    const dependencyExists = mode === 'runtime' ? hasRuntimeDependency : hasAnyDependency;
+
     return packages.filter(
-        (dep) => !alreadyScheduled.has(dep) && !hasDependency(packageJson, dep),
+        (dep) => !alreadyScheduled.has(dep) && !dependencyExists(packageJson, dep),
     );
 }
 
@@ -83,12 +93,15 @@ export async function mergeAndInstallDependencies(
         const runtimeDepsToInstall = filterMissingDependencies(
             allRuntimeDeps,
             packageJsonBeforeInstall,
+            new Set<string>(),
+            'runtime',
         );
         const runtimeInstallSet = new Set(runtimeDepsToInstall);
         const devDepsToInstall = filterMissingDependencies(
             allDevDeps,
             packageJsonBeforeInstall,
             runtimeInstallSet,
+            'any',
         );
 
         logger.debug(

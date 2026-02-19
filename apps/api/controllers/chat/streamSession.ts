@@ -350,13 +350,6 @@ export async function runStreamSession(
       "Agent loop ended",
     );
 
-    emitMeta({
-      turn: agentTurn,
-      phase: MetaPhase.SESSION_COMPLETE,
-      loopStopReason,
-      terminationReason,
-    });
-
     const completionTime = Date.now() - messageStartTime;
     const inputTokens = tokenUsage.inputTokens;
     const outputTokens = countOutputTokens(fullRawResponse, model);
@@ -526,6 +519,13 @@ Return ONLY a JSON object: {"title": "...", "description": "..."}
         "[Chat] No sandbox ID available, skipping build",
       );
     }
+
+    emitMeta({
+      turn: agentTurn,
+      phase: MetaPhase.SESSION_COMPLETE,
+      loopStopReason,
+      terminationReason,
+    });
 
     sendSSEDone(res);
   } catch (streamError) {
