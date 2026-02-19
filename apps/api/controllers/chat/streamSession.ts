@@ -98,6 +98,27 @@ export interface StreamSessionParams {
   }) => Promise<void>;
 }
 
+const LOOP_STOP_REASON_TO_TERMINATION: Record<
+  AgentLoopStopReason,
+  StreamTerminationReason
+> = {
+  [AgentLoopStopReason.DONE]: StreamTerminationReason.COMPLETED,
+  [AgentLoopStopReason.NO_TOOL_RESULTS]: StreamTerminationReason.COMPLETED,
+  [AgentLoopStopReason.MAX_TURNS_REACHED]: StreamTerminationReason.COMPLETED,
+  [AgentLoopStopReason.CONTEXT_LIMIT_EXCEEDED]:
+    StreamTerminationReason.CONTEXT_LIMIT_EXCEEDED,
+  [AgentLoopStopReason.TOOL_BUDGET_EXCEEDED]:
+    StreamTerminationReason.TOOL_BUDGET_EXCEEDED,
+  [AgentLoopStopReason.RUN_TOOL_BUDGET_EXCEEDED]:
+    StreamTerminationReason.RUN_TOOL_BUDGET_EXCEEDED,
+  [AgentLoopStopReason.TOOL_PAYLOAD_BUDGET_EXCEEDED]:
+    StreamTerminationReason.TOOL_PAYLOAD_BUDGET_EXCEEDED,
+  [AgentLoopStopReason.CONTINUATION_BUDGET_EXCEEDED]:
+    StreamTerminationReason.CONTINUATION_BUDGET_EXCEEDED,
+  [AgentLoopStopReason.RESPONSE_SIZE_EXCEEDED]:
+    StreamTerminationReason.RESPONSE_SIZE_EXCEEDED,
+};
+
 export async function runStreamSession(
   params: StreamSessionParams,
 ): Promise<void> {
@@ -199,17 +220,17 @@ export async function runStreamSession(
         results: preparedUrlScrape.results.map((result) =>
           result.status === "success"
             ? {
-                status: "success" as const,
-                url: result.url,
-                finalUrl: result.finalUrl,
-                title: result.title,
-                snippet: result.snippet,
-              }
+              status: "success" as const,
+              url: result.url,
+              finalUrl: result.finalUrl,
+              title: result.title,
+              snippet: result.snippet,
+            }
             : {
-                status: "error" as const,
-                url: result.url,
-                error: result.error,
-              },
+              status: "error" as const,
+              url: result.url,
+              error: result.error,
+            },
         ),
       });
     }
@@ -332,18 +353,7 @@ export async function runStreamSession(
     fullRawResponse = loopResult.fullRawResponse;
     const agentTurn = loopResult.agentTurn;
     const loopStopReason = loopResult.loopStopReason;
-    const terminationReason =
-      loopStopReason === AgentLoopStopReason.CONTEXT_LIMIT_EXCEEDED
-        ? StreamTerminationReason.CONTEXT_LIMIT_EXCEEDED
-        : loopStopReason === AgentLoopStopReason.TOOL_BUDGET_EXCEEDED
-          ? StreamTerminationReason.TOOL_BUDGET_EXCEEDED
-          : loopStopReason === AgentLoopStopReason.TOOL_PAYLOAD_BUDGET_EXCEEDED
-            ? StreamTerminationReason.TOOL_PAYLOAD_BUDGET_EXCEEDED
-            : loopStopReason === AgentLoopStopReason.CONTINUATION_BUDGET_EXCEEDED
-              ? StreamTerminationReason.CONTINUATION_BUDGET_EXCEEDED
-              : loopStopReason === AgentLoopStopReason.RESPONSE_SIZE_EXCEEDED
-                ? StreamTerminationReason.RESPONSE_SIZE_EXCEEDED
-                : StreamTerminationReason.COMPLETED;
+    const terminationReason = LOOP_STOP_REASON_TO_TERMINATION[loopStopReason];
 
     logger.info(
       { chatId, runId, agentTurn, loopStopReason },
@@ -487,7 +497,7 @@ Return ONLY a JSON object: {"title": "...", "description": "..."}
             details:
               queueErr instanceof Error ? queueErr.message : String(queueErr),
           } as Record<string, unknown>,
-        } as Parameters<typeof updateBuild>[1]).catch(() => {});
+        } as Parameters<typeof updateBuild>[1]).catch(() => { });
 
         sendSSEEvent(res, {
           type: ParserEventType.BUILD_STATUS,

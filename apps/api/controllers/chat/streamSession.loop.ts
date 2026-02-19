@@ -158,12 +158,21 @@ export async function runAgentLoop(
     let turnRawResponse = "";
     let doneTagDetectedThisTurn = false;
     let toolBudgetExceededThisTurn = false;
+    let toolRunBudgetExceededThisTurn = false;
     let toolPayloadExceededThisTurn = false;
     let responseSizeExceededThisTurn = false;
     let currentFilePath: string | undefined;
     let isFirstFileChunk = true;
 
     const processEvents = async (events: ReturnType<typeof parser.process>) => {
+      if (
+        toolBudgetExceededThisTurn ||
+        toolRunBudgetExceededThisTurn ||
+        toolPayloadExceededThisTurn ||
+        responseSizeExceededThisTurn
+      ) {
+        return;
+      }
       for (const event of events) {
         if (event.type === ParserEventType.DONE) {
           doneTagDetectedThisTurn = true;
@@ -206,7 +215,7 @@ export async function runAgentLoop(
         }
 
         if (totalToolCallsInRun >= MAX_AGENT_TOOL_CALLS_PER_RUN) {
-          toolBudgetExceededThisTurn = true;
+          toolRunBudgetExceededThisTurn = true;
           return;
         }
 
@@ -245,7 +254,7 @@ export async function runAgentLoop(
 
       await processEvents(parser.process(chunk));
 
-      if (toolBudgetExceededThisTurn || toolPayloadExceededThisTurn) {
+      if (toolBudgetExceededThisTurn || toolRunBudgetExceededThisTurn || toolPayloadExceededThisTurn) {
         break;
       }
     }
@@ -280,7 +289,24 @@ export async function runAgentLoop(
           code: "tool_budget_exceeded",
           details: {
             limit: MAX_AGENT_TOOL_CALLS_PER_TURN,
-            runLimit: MAX_AGENT_TOOL_CALLS_PER_RUN,
+            turnCount: toolResultsThisTurn.length,
+            turn: agentTurn,
+          },
+        },
+      );
+      emitTurnCompleteMeta(emitMeta, agentTurn, toolResultsThisTurn.length);
+      break;
+    }
+
+    if (toolRunBudgetExceededThisTurn) {
+      loopStopReason = AgentLoopStopReason.RUN_TOOL_BUDGET_EXCEEDED;
+      sendSSEError(
+        res,
+        `Run reached maximum tool calls (${MAX_AGENT_TOOL_CALLS_PER_RUN})`,
+        {
+          code: "run_tool_budget_exceeded",
+          details: {
+            limit: MAX_AGENT_TOOL_CALLS_PER_RUN,
             runCount: totalToolCallsInRun,
             turn: agentTurn,
           },
