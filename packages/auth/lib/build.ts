@@ -8,6 +8,14 @@ export async function createBuild(data: {
   messageId: string;
   status?: "queued" | "building" | "success" | "failed";
 }) {
+  const existing = await db.query.build.findFirst({
+    where: eq(build.messageId, data.messageId),
+    orderBy: [desc(build.createdAt)],
+  });
+  if (existing) {
+    return existing;
+  }
+
   const id = nanoid();
 
   let attempts = 0;

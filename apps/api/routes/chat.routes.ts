@@ -8,13 +8,16 @@ import {
   deleteChat,
   getRecentChats,
   getBuildStatus,
+  getActiveRun,
+  streamBuildEvents,
+  streamRunEvents,
   getSandboxFiles,
 } from "../controllers/chat/query.controller.js";
 import { validateRequest } from "../middleware/validateRequest.js";
 import {
   GetChatHistoryRequestSchema,
   UnifiedSendMessageRequestSchema,
-  RecentChatsQuerySchema,
+  StreamRunEventsRequestSchema,
 } from "../schemas/chat.schema.js";
 import {
   chatRateLimiter,
@@ -43,7 +46,6 @@ chatRouter.post(
 );
 chatRouter.get(
   "/recent",
-  validateRequest(RecentChatsQuerySchema),
   getRecentChats,
 );
 chatRouter.get(
@@ -55,6 +57,21 @@ chatRouter.get(
   "/:chatId/build-status",
   validateRequest(GetChatHistoryRequestSchema),
   getBuildStatus,
+);
+chatRouter.get(
+  "/:chatId/active-run",
+  validateRequest(GetChatHistoryRequestSchema),
+  getActiveRun,
+);
+chatRouter.get(
+  "/:chatId/build-events",
+  validateRequest(GetChatHistoryRequestSchema),
+  streamBuildEvents,
+);
+chatRouter.get(
+  "/:chatId/runs/:runId/stream",
+  validateRequest(StreamRunEventsRequestSchema),
+  streamRunEvents,
 );
 chatRouter.get(
   "/:chatId/sandbox-files",

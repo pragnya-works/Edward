@@ -11,6 +11,10 @@
     "./schema": {
       "types": "./dist/schema.d.ts",
       "default": "./dist/schema.js"
+    },
+    "./stream-events": {
+      "types": "./dist/stream-events.d.ts",
+      "default": "./dist/stream-events.js"
     }
   },
   "scripts": {

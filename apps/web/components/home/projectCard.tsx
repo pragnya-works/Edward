@@ -1,18 +1,21 @@
 import { memo, useMemo } from "react";
 import { m } from "motion/react";
-import { FolderOpen, ArrowRight } from "lucide-react";
+import { FolderOpen, ArrowRight, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { TechnicalBlueprint } from "./cardVisual";
 import type { Project } from "@/hooks/useRecentChats";
+import { Button } from "@edward/ui/components/button";
 
 export const ProjectCard = memo(function ProjectCard({
   project,
   index,
   isVisible,
+  onDelete,
 }: {
   project: Project;
   index: number;
   isVisible: boolean;
+  onDelete?: (chatId: string) => void;
 }) {
   const formattedDate = useMemo(() => {
     const date = new Date(project.updatedAt);
@@ -58,7 +61,24 @@ export const ProjectCard = memo(function ProjectCard({
             <div className="flex h-8 w-8 sm:h-9 sm:w-9 lg:h-10 lg:w-10 items-center justify-center rounded-lg bg-foreground/[0.05] text-foreground group-hover:scale-110 transition-transform duration-300">
               <FolderOpen className="h-4 w-4 sm:h-5 sm:w-5" />
             </div>
-            <ArrowRight className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-muted-foreground opacity-0 -translate-x-2 transition-all duration-300 group-hover:opacity-100 group-hover:translate-x-0" />
+            <div className="flex items-center gap-1.5">
+              {onDelete && (
+                <Button
+                  type="button"
+                  size="icon"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onDelete(project.id);
+                  }}
+                  className="opacity-0 group-hover:opacity-100 transition-all duration-200 p-1 rounded-md hover:bg-destructive/10 hover:text-destructive text-muted-foreground"
+                  aria-label="Delete project"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              )}
+              <ArrowRight className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-muted-foreground opacity-0 -translate-x-2 transition-all duration-300 group-hover:opacity-100 group-hover:translate-x-0" />
+            </div>
           </div>
 
           <h3 className="font-semibold text-sm sm:text-base text-foreground mb-0.5 sm:mb-1 line-clamp-1 transition-colors duration-300">

@@ -67,6 +67,12 @@ export function createStreamParser() {
   function handleTextState(events: ParserEvent[]): void {
     const candidates: TagCandidate[] = [
       {
+        idx: buffer.indexOf(TAGS.DONE),
+        tag: TAGS.DONE,
+        state: StreamState.TEXT,
+        event: ParserEventType.DONE,
+      },
+      {
         idx: buffer.indexOf(TAGS.THINKING_START),
         tag: TAGS.THINKING_START,
         state: StreamState.THINKING,
@@ -117,6 +123,8 @@ export function createStreamParser() {
       buffer = buffer.slice(TAGS.THINKING_START.length);
       state = StreamState.THINKING;
       events.push({ type: ParserEventType.THINKING_START });
+    } else if (buffer.startsWith(TAGS.DONE)) {
+      processDoneTag(events);
     } else if (buffer.startsWith(TAGS.SANDBOX_START)) {
       processSandboxOpenTag(events);
     } else if (buffer.startsWith(TAGS.INSTALL_START)) {
@@ -359,6 +367,15 @@ export function createStreamParser() {
     events.push({ type: ParserEventType.FILE_START, path: normalizedPath });
     buffer = buffer.slice(closeIdx + 1);
     state = StreamState.FILE;
+  }
+
+  function processDoneTag(events: ParserEvent[]): void {
+    const closeIdx = buffer.indexOf(">");
+    if (closeIdx === -1) return;
+
+    events.push({ type: ParserEventType.DONE });
+    buffer = buffer.slice(closeIdx + 1);
+    state = StreamState.TEXT;
   }
 
   function flushSafeContent(

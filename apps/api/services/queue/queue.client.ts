@@ -10,6 +10,15 @@ export function getQueue(): Queue<JobPayload> {
   return jobQueue;
 }
 
-export function createQueueJobId(prefix: string, sandboxId: string): string {
-  return `${prefix}-${sandboxId}-${Date.now()}`;
+export function createQueueJobId(
+  prefix: string,
+  sandboxId: string,
+  identifier?: string,
+): string {
+  if (!identifier) {
+    return `${prefix}-${sandboxId}-${Date.now()}`;
+  }
+
+  const normalizedIdentifier = identifier.replace(/[^a-zA-Z0-9:_-]/g, "_");
+  return `${prefix}-${sandboxId}-${normalizedIdentifier}`;
 }

@@ -94,6 +94,14 @@ describe('createStreamParser', () => {
       ]);
     });
 
+    it('should parse edward_done tag', () => {
+      const parser = createStreamParser();
+      const events = parser.process('Task complete <edward_done />');
+
+      expect(events).toContainEqual({ type: ParserEventType.TEXT, content: 'Task complete ' });
+      expect(events).toContainEqual({ type: ParserEventType.DONE });
+    });
+
     it('should handle FILE tags', () => {
       const parser = createStreamParser();
       parser.process('<edward_sandbox>');

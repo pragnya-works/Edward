@@ -4,7 +4,7 @@ import {
   type ParserEvent,
 } from "../../schemas/chat.schema.js";
 import {
-  advanceWorkflow,
+  executeInstallPhase,
   ensureSandbox,
 } from "../../services/planning/workflowEngine.js";
 import { addSandboxPackages } from "../../services/sandbox/lifecycle/packages.js";
@@ -13,28 +13,27 @@ import {
   flushSandbox,
   sanitizeSandboxFile,
 } from "../../services/sandbox/writes.sandbox.js";
-import { executeSandboxCommand } from "../../services/sandbox/command.sandbox.js";
 import { normalizeFramework } from "../../services/sandbox/templates/template.registry.js";
 import type { WorkflowState } from "../../services/planning/schemas.js";
 import {
   resolveDependencies,
   suggestAlternatives,
 } from "../../services/planning/resolvers/dependency.resolver.js";
-import { searchTavilyBasic } from "../../services/websearch/tavily.search.js";
 import { ensureError } from "../../utils/error.js";
 import { logger } from "../../utils/logger.js";
-import { safeSSEWrite, sendSSEError } from "./sse.utils.js";
+import { sendSSEError, sendSSEEvent } from "./sse.utils.js";
 import { handleFileContent } from "./file.handlers.js";
-import type {
-  AgentToolResult,
-  WebSearchResultItem,
-} from "./command.utils.js";
+import {
+  executeCommandTool,
+  executeWebSearchTool,
+  type WebSearchToolResultItem as GatewayWebSearchResultItem,
+} from "../../services/tools/toolGateway.service.js";
+import type { AgentToolResult } from "./command.utils.js";
+import type { WebSearchResultItem } from "@edward/shared/stream-events";
 
 export interface EventHandlerContext {
   workflow: WorkflowState;
   res: Response;
-  decryptedApiKey: string;
-  userId: string;
   chatId: string;
   isFollowUp: boolean;
   sandboxTagDetected: boolean;
@@ -43,6 +42,8 @@ export interface EventHandlerContext {
   generatedFiles: Map<string, string>;
   declaredPackages: string[];
   toolResultsThisTurn: AgentToolResult[];
+  runId?: string;
+  turn?: number;
 }
 
 export interface EventHandlerResult {
@@ -65,7 +66,7 @@ async function handleFileStart(
   if (!ctx.workflow.sandboxId || !ctx.sandboxTagDetected) {
     throw new Error("FILE_START received without an active sandbox session");
   }
-  await prepareSandboxFile(ctx.workflow.sandboxId!, filePath);
+  await prepareSandboxFile(ctx.workflow.sandboxId, filePath);
   return { currentFilePath: filePath, isFirstFileChunk: true };
 }
 
@@ -73,8 +74,9 @@ async function handleFileContentEvent(
   ctx: EventHandlerContext,
   content: string,
 ): Promise<boolean> {
-  if (!ctx.workflow.sandboxId || !ctx.currentFilePath)
+  if (!ctx.workflow.sandboxId || !ctx.currentFilePath) {
     return ctx.isFirstFileChunk;
+  }
 
   await handleFileContent(
     ctx.workflow.sandboxId,
@@ -114,7 +116,7 @@ async function handleInstallContent(
       ctx.workflow.context.framework = normalized;
     }
   }
-  if (ctx.sandboxTagDetected && !ctx.workflow.sandboxId) {
+  if (!ctx.workflow.sandboxId) {
     await ensureSandbox(
       ctx.workflow,
       ctx.workflow.context.framework,
@@ -125,7 +127,7 @@ async function handleInstallContent(
   if (!ctx.workflow.sandboxId) {
     logger.warn(
       { chatId: ctx.chatId },
-      "INSTALL_CONTENT received without sandbox tag; skipping install",
+      "INSTALL_CONTENT received without an active sandbox; skipping install",
     );
     return;
   }
@@ -152,12 +154,41 @@ async function handleInstallContent(
         ? ` (suggested alternatives: ${Array.from(new Set(suggestions)).join(", ")})`
         : "");
 
-    sendSSEError(ctx.res, message);
+    sendSSEError(ctx.res, message, {
+      code: "invalid_dependencies",
+      details: {
+        failed: resolution.failed.map((dep) => dep.name),
+      },
+    });
   }
 
-  await advanceWorkflow(ctx.workflow, validDeps);
-  if (ctx.workflow.sandboxId && validDeps.length > 0) {
+  if (validDeps.length === 0) {
+    return;
+  }
+
+  ctx.workflow.context.resolvedPackages = resolution.resolved.map((dep) => ({
+    name: dep.name,
+    version: dep.version || "latest",
+    valid: true,
+    peerDependencies: dep.peerDependencies,
+  }));
+  if (ctx.workflow.sandboxId) {
     await addSandboxPackages(ctx.workflow.sandboxId, validDeps);
+  }
+
+  const installResult = await executeInstallPhase(ctx.workflow);
+  if (!installResult.success) {
+    sendSSEError(
+      ctx.res,
+      installResult.error || "Dependency installation failed",
+      {
+        code: "dependency_install_failed",
+        details: {
+          dependencies: validDeps,
+        },
+      },
+    );
+    return;
   }
 }
 
@@ -170,31 +201,38 @@ async function handleCommand(
     sendSSEError(
       ctx.res,
       "Command skipped: no active sandbox session. Emit <edward_sandbox> first.",
+      { code: "command_without_sandbox" },
     );
     return;
   }
 
   try {
-    const result = await executeSandboxCommand(ctx.workflow.sandboxId!, {
+    const result = await executeCommandTool({
+      runId: ctx.runId,
+      turn: ctx.turn ?? 1,
+      sandboxId: ctx.workflow.sandboxId,
       command,
       args,
     });
+    const stdout = result.stdout;
+    const stderr = result.stderr;
+
     ctx.toolResultsThisTurn.push({
       tool: "command",
       command,
       args,
-      stdout: result.stdout ?? "",
-      stderr: result.stderr ?? "",
+      stdout,
+      stderr,
     });
-    safeSSEWrite(
-      ctx.res,
-      `data: ${JSON.stringify({
-        type: ParserEventType.COMMAND,
-        command,
-        args,
-        ...result,
-      })}\n\n`,
-    );
+
+    sendSSEEvent(ctx.res, {
+      type: ParserEventType.COMMAND,
+      command,
+      args,
+      exitCode: result.exitCode,
+      stdout,
+      stderr,
+    });
   } catch (cmdError) {
     const err = ensureError(cmdError);
     ctx.toolResultsThisTurn.push({
@@ -204,7 +242,10 @@ async function handleCommand(
       stdout: "",
       stderr: `Command failed: ${err.message}`,
     });
-    sendSSEError(ctx.res, `Command failed: ${err.message}`);
+    sendSSEError(ctx.res, `Command failed: ${err.message}`, {
+      code: "command_failed",
+      details: { command, args },
+    });
   }
 }
 
@@ -214,32 +255,35 @@ async function handleWebSearch(
   maxResults?: number,
 ): Promise<void> {
   try {
-    const search = await searchTavilyBasic(query, maxResults ?? 5);
-    const normalizedResults: WebSearchResultItem[] = search.results.map(
-      (item) => ({
+    const requestedMax = Math.min(maxResults ?? 5, 8);
+    const search = await executeWebSearchTool({
+      runId: ctx.runId,
+      turn: ctx.turn ?? 1,
+      query,
+      maxResults: requestedMax,
+    });
+    const normalizedResults: WebSearchResultItem[] =
+      search.results.map((item: GatewayWebSearchResultItem) => ({
         title: item.title,
         url: item.url,
         snippet: item.snippet,
-      }),
-    );
+      }));
+    const normalizedAnswer = search.answer;
 
     ctx.toolResultsThisTurn.push({
       tool: "web_search",
       query: search.query,
-      answer: search.answer,
+      answer: normalizedAnswer,
       results: normalizedResults,
     });
 
-    safeSSEWrite(
-      ctx.res,
-      `data: ${JSON.stringify({
-        type: ParserEventType.WEB_SEARCH,
-        query: search.query,
-        maxResults,
-        answer: search.answer,
-        results: normalizedResults,
-      })}\n\n`,
-    );
+    sendSSEEvent(ctx.res, {
+      type: ParserEventType.WEB_SEARCH,
+      query: search.query,
+      maxResults: requestedMax,
+      answer: normalizedAnswer,
+      results: normalizedResults,
+    });
   } catch (webSearchError) {
     const err = ensureError(webSearchError);
     ctx.toolResultsThisTurn.push({
@@ -248,7 +292,10 @@ async function handleWebSearch(
       results: [],
       error: err.message,
     });
-    sendSSEError(ctx.res, `Web search failed: ${err.message}`);
+    sendSSEError(ctx.res, `Web search failed: ${err.message}`, {
+      code: "web_search_failed",
+      details: { query },
+    });
   }
 }
 
@@ -291,7 +338,9 @@ export async function handleParserEvent(
         break;
 
       case ParserEventType.INSTALL_CONTENT:
+        sendSSEEvent(ctx.res, event);
         await handleInstallContent(ctx, event.dependencies, event.framework);
+        handled = true;
         break;
 
       case ParserEventType.COMMAND:
@@ -309,78 +358,10 @@ export async function handleParserEvent(
       ensureError(sandboxError),
       "Sandbox operation failed during streaming",
     );
-    sendSSEError(ctx.res, "Sandbox execution failed");
+    sendSSEError(ctx.res, "Sandbox execution failed", {
+      code: "sandbox_execution_failed",
+    });
   }
 
   return { handled, currentFilePath, isFirstFileChunk, sandboxTagDetected };
-}
-
-export async function handleFlushEvents(
-  ctx: EventHandlerContext,
-  events: ParserEvent[],
-): Promise<EventHandlerResult> {
-  let sandboxTagDetected = ctx.sandboxTagDetected;
-  let { currentFilePath, isFirstFileChunk } = ctx;
-
-  for (const event of events) {
-    try {
-      switch (event.type) {
-        case ParserEventType.SANDBOX_START:
-          sandboxTagDetected = true;
-          ctx.sandboxTagDetected = true;
-          await handleSandboxStart(ctx);
-          break;
-
-        case ParserEventType.FILE_START:
-          if (!ctx.workflow.sandboxId || !sandboxTagDetected) {
-            logger.error("[Chat] FILE_START in flush without active sandbox");
-            break;
-          }
-          currentFilePath = event.path;
-          isFirstFileChunk = true;
-          await prepareSandboxFile(ctx.workflow.sandboxId, currentFilePath);
-          break;
-
-        case ParserEventType.FILE_CONTENT:
-          if (ctx.workflow.sandboxId && currentFilePath) {
-            await handleFileContent(
-              ctx.workflow.sandboxId,
-              currentFilePath,
-              event.content,
-              isFirstFileChunk,
-            );
-            ctx.generatedFiles.set(
-              currentFilePath,
-              (ctx.generatedFiles.get(currentFilePath) || "") + event.content,
-            );
-            if (isFirstFileChunk) isFirstFileChunk = false;
-          }
-          break;
-
-        case ParserEventType.FILE_END:
-          if (ctx.workflow.sandboxId && currentFilePath) {
-            await sanitizeSandboxFile(ctx.workflow.sandboxId, currentFilePath);
-          }
-          currentFilePath = undefined;
-          break;
-
-        case ParserEventType.SANDBOX_END:
-          if (ctx.workflow.sandboxId) {
-            await flushSandbox(ctx.workflow.sandboxId).catch((err: unknown) =>
-              logger.error(
-                ensureError(err),
-                `Flush failed during SANDBOX_END: ${ctx.workflow.sandboxId}`,
-              ),
-            );
-          }
-          break;
-      }
-    } catch (sandboxError) {
-      logger.error(ensureError(sandboxError), "Final sandbox operation failed");
-      continue;
-    }
-    safeSSEWrite(ctx.res, `data: ${JSON.stringify(event)}\n\n`);
-  }
-
-  return { handled: false, currentFilePath, isFirstFileChunk, sandboxTagDetected };
 }

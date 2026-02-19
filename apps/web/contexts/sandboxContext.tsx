@@ -161,8 +161,6 @@ function sandboxReducer(state: SandboxState, action: SandboxAction): SandboxStat
       return {
         ...state,
         previewUrl,
-        mode: previewUrl ? SandboxMode.PREVIEW : state.mode,
-        buildStatus: previewUrl ? BuildStatus.SUCCESS : state.buildStatus,
       };
     }
     case SandboxActionType.UPDATE_FILE: {

@@ -2,9 +2,9 @@
 
 import { useMemo } from "react";
 import { useSession } from "@/lib/auth-client";
-import { useInfiniteQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
-import { fetchApi } from "@/lib/api";
+import { fetchApi, deleteChat } from "@/lib/api";
 import { queryKeys } from "@/lib/queryKeys";
 const PAGE_SIZE = 6;
 
@@ -28,6 +28,7 @@ interface RecentChatsResponse {
 export function useRecentChats() {
   const { data: session } = useSession();
   const userId = session?.user?.id;
+  const queryClient = useQueryClient();
 
   const queryFn = async ({ pageParam = 0 }: { pageParam?: number }) => {
     return fetchApi<RecentChatsResponse>(
@@ -74,6 +75,42 @@ export function useRecentChats() {
     [data?.pages],
   );
 
+  const deleteMutation = useMutation({
+    mutationFn: (chatId: string) => deleteChat(chatId),
+    onMutate: async (chatId: string) => {
+      const queryKey = queryKeys.recentChats.byUserId(userId);
+      await queryClient.cancelQueries({ queryKey });
+      const previous = queryClient.getQueryData(queryKey);
+      queryClient.setQueryData(queryKey, (old: typeof data) => {
+        if (!old) return old;
+        return {
+          ...old,
+          pages: old.pages.map((page) => ({
+            ...page,
+            data: page.data.filter((p) => p.id !== chatId),
+            metadata: page.metadata
+              ? { ...page.metadata, total: page.metadata.total - 1 }
+              : page.metadata,
+          })),
+        };
+      });
+      return { previous };
+    },
+    onError: (_err, _chatId, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(
+          queryKeys.recentChats.byUserId(userId),
+          context.previous,
+        );
+      }
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.recentChats.byUserId(userId),
+      });
+    },
+  });
+
   return {
     projects,
     total,
@@ -83,5 +120,7 @@ export function useRecentChats() {
     loadMore: fetchNextPage,
     isLoadingMore: isFetchingNextPage,
     refetch,
+    deleteProject: deleteMutation.mutate,
+    isDeletingProject: deleteMutation.isPending,
   };
 }

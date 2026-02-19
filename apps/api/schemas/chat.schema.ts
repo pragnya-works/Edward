@@ -1,6 +1,12 @@
 import { z } from "zod";
 import { MessageRole } from "@edward/auth";
 import { Model } from "@edward/shared/schema";
+import {
+  AgentLoopStopReason,
+  MetaPhase,
+  ParserEventType,
+  StreamTerminationReason,
+} from "@edward/shared/stream-events";
 import { ChatActionSchema } from "../services/planning/schemas.js";
 import {
   NPM_PACKAGE_REGEX,
@@ -14,6 +20,8 @@ import {
 
 const ModelValues = Object.values(Model) as [string, ...string[]];
 
+export { ParserEventType, AgentLoopStopReason, MetaPhase, StreamTerminationReason };
+
 export enum StreamState {
   TEXT = "TEXT",
   THINKING = "THINKING",
@@ -22,29 +30,13 @@ export enum StreamState {
   INSTALL = "INSTALL",
 }
 
-export enum ParserEventType {
-  TEXT = "text",
-  THINKING_START = "thinking_start",
-  THINKING_CONTENT = "thinking_content",
-  THINKING_END = "thinking_end",
-  SANDBOX_START = "sandbox_start",
-  SANDBOX_END = "sandbox_end",
-  FILE_START = "file_start",
-  FILE_CONTENT = "file_content",
-  FILE_END = "file_end",
-  INSTALL_START = "install_start",
-  INSTALL_CONTENT = "install_content",
-  INSTALL_END = "install_end",
-  ERROR = "error",
-  META = "meta",
-  COMMAND = "command",
-  WEB_SEARCH = "web_search",
-  URL_SCRAPE = "url_scrape",
-  PREVIEW_URL = "preview_url",
-}
-
 export const ChatIdParamSchema = z.object({
   chatId: z.string().min(1, "Chat ID is required"),
+});
+
+export const RunStreamParamsSchema = z.object({
+  chatId: z.string().min(1, "Chat ID is required"),
+  runId: z.string().min(1, "Run ID is required"),
 });
 
 export const UnifiedSendMessageSchema = z.object({
@@ -70,6 +62,13 @@ export const GetChatHistoryRequestSchema = z.object({
   params: ChatIdParamSchema,
 });
 
+export const StreamRunEventsRequestSchema = z.object({
+  params: RunStreamParamsSchema,
+  query: z.object({
+    lastEventId: z.string().optional(),
+  }),
+});
+
 export const RecentChatsQuerySchema = z.object({
   query: z.object({
     limit: z
@@ -87,6 +86,7 @@ export const RecentChatsQuerySchema = z.object({
 
 export const ParserEventSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal(ParserEventType.TEXT), content: z.string() }),
+  z.object({ type: z.literal(ParserEventType.DONE) }),
   z.object({ type: z.literal(ParserEventType.THINKING_START) }),
   z.object({
     type: z.literal(ParserEventType.THINKING_CONTENT),
@@ -132,18 +132,28 @@ export const ParserEventSchema = z.discriminatedUnion("type", [
       .optional(),
   }),
   z.object({ type: z.literal(ParserEventType.INSTALL_END) }),
-  z.object({ type: z.literal(ParserEventType.ERROR), message: z.string() }),
+  z.object({
+    type: z.literal(ParserEventType.ERROR),
+    message: z.string(),
+    code: z.string().optional(),
+    details: z.record(z.unknown()).optional(),
+  }),
   z.object({
     type: z.literal(ParserEventType.META),
     chatId: z.string(),
     userMessageId: z.string(),
     assistantMessageId: z.string(),
     isNewChat: z.boolean(),
+    runId: z.string().optional(),
+    turn: z.number().int().positive().optional(),
+    phase: z.nativeEnum(MetaPhase).optional(),
+    toolCount: z.number().int().nonnegative().optional(),
+    loopStopReason: z.nativeEnum(AgentLoopStopReason).optional(),
     intent: ChatActionSchema.optional(),
     tokenUsage: z
       .object({
         provider: z.enum(["openai", "gemini"]),
-        model: z.enum(ModelValues),
+        model: z.string(),
         method: z.enum(["openai-tiktoken", "gemini-countTokens", "approx"]),
         contextWindowTokens: z.number().int().nonnegative(),
         reservedOutputTokens: z.number().int().nonnegative(),
@@ -162,6 +172,7 @@ export const ParserEventSchema = z.discriminatedUnion("type", [
         ),
       })
       .optional(),
+    terminationReason: z.nativeEnum(StreamTerminationReason).optional(),
   }),
   z.object({
     type: z.literal(ParserEventType.COMMAND),
@@ -207,8 +218,25 @@ export const ParserEventSchema = z.discriminatedUnion("type", [
     ),
   }),
   z.object({
+    type: z.literal(ParserEventType.METRICS),
+    completionTime: z.number().int().nonnegative(),
+    inputTokens: z.number().int().nonnegative(),
+    outputTokens: z.number().int().nonnegative(),
+  }),
+  z.object({
     type: z.literal(ParserEventType.PREVIEW_URL),
     url: z.string(),
+    chatId: z.string().optional(),
+    runId: z.string().optional(),
+  }),
+  z.object({
+    type: z.literal(ParserEventType.BUILD_STATUS),
+    chatId: z.string(),
+    status: z.enum(["queued", "building", "success", "failed"]),
+    buildId: z.string().optional(),
+    runId: z.string().optional(),
+    previewUrl: z.string().nullable().optional(),
+    errorReport: z.unknown().optional(),
   }),
 ]);
 

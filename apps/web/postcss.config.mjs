@@ -1,1 +1,3 @@
-export { default } from "@edward/ui/postcss.config";
+import config from "@edward/ui/postcss.config";
+
+export default config;

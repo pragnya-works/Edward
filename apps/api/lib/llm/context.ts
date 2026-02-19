@@ -54,14 +54,27 @@ function stripAssistantArtifacts(content: string): string {
   return out.trim();
 }
 
-export async function buildConversationMessages(chatId: string): Promise<{
+interface BuildConversationMessagesOptions {
+  excludeMessageIds?: string[];
+}
+
+export async function buildConversationMessages(
+  chatId: string,
+  options?: BuildConversationMessagesOptions,
+): Promise<{
   history: LlmChatMessage[];
   projectContext: string;
 }> {
+  const excludedMessageIds = new Set(
+    (options?.excludeMessageIds ?? []).filter(
+      (value): value is string => typeof value === "string" && value.length > 0,
+    ),
+  );
+
   const historyRows = await db.query.message.findMany({
     where: eq(message.chatId, chatId),
     orderBy: [desc(message.createdAt)],
-    limit: HISTORY_LIMIT,
+    limit: HISTORY_LIMIT + excludedMessageIds.size,
   });
   historyRows.reverse();
 
@@ -69,10 +82,14 @@ export async function buildConversationMessages(chatId: string): Promise<{
   let historyBytes = 0;
 
   for (const msg of historyRows) {
+    const msgId = (msg as { id?: string }).id;
+    if (msgId && excludedMessageIds.has(msgId)) {
+      continue;
+    }
+
     const role = normalizeConversationRole((msg as { role?: unknown }).role);
     if (!role) continue;
 
-    const msgId = (msg as { id?: string }).id;
     const rawContent = String((msg as { content?: unknown }).content ?? "");
 
     if (isAssistantConversationRole(role)) {
