@@ -1,9 +1,20 @@
 import { MessageRole } from "@edward/auth";
+import {
+  AgentLoopStopReason,
+  MetaPhase,
+  ParserEventType,
+} from "@edward/shared/stream-events";
 import { createStreamParser } from "../../lib/llm/parser.js";
 import { streamResponse } from "../../lib/llm/response.js";
-import { ParserEventType } from "../../schemas/chat.schema.js";
 import {
+  computeTokenUsage,
+  isOverContextLimit,
+} from "../../lib/llm/tokens.js";
+import {
+  MAX_AGENT_CONTINUATION_PROMPT_CHARS,
   MAX_AGENT_TOOL_CALLS_PER_TURN,
+  MAX_AGENT_TOOL_CALLS_PER_RUN,
+  MAX_AGENT_TOOL_RESULT_PAYLOAD_CHARS,
   MAX_AGENT_TURNS,
   MAX_RESPONSE_SIZE,
 } from "../../utils/sharedConstants.js";
@@ -14,16 +25,15 @@ import {
   type MessageContent,
 } from "../../lib/llm/types.js";
 import type { ChatAction, Framework } from "../../services/planning/schemas.js";
-import { handleFlushEvents, handleParserEvent } from "./event.handlers.js";
+import { handleParserEvent } from "./event.handlers.js";
 import type { AgentToolResult } from "./command.utils.js";
 import {
-  AgentLoopStopReason,
   buildAgentContinuationPrompt,
   buildEventHandlerContext,
   emitTurnCompleteMeta,
   type EmitMeta,
 } from "./streamSession.shared.js";
-import { safeSSEWrite } from "./sse.utils.js";
+import { sendSSEError, sendSSEEvent } from "./sse.utils.js";
 
 export interface RunAgentLoopParams {
   decryptedApiKey: string;
@@ -38,13 +48,27 @@ export interface RunAgentLoopParams {
   userContent: MessageContent;
   workflow: RunAgentLoopContext["workflow"];
   res: RunAgentLoopContext["res"];
-  userId: string;
   chatId: string;
   isFollowUp: boolean;
   generatedFiles: Map<string, string>;
   declaredPackages: string[];
   emitMeta: EmitMeta;
   runId: string;
+  resumeCheckpoint?: {
+    turn: number;
+    fullRawResponse: string;
+    agentMessages: LlmChatMessage[];
+    sandboxTagDetected: boolean;
+    totalToolCallsInRun: number;
+  };
+  onCheckpoint?: (checkpoint: {
+    turn: number;
+    fullRawResponse: string;
+    agentMessages: LlmChatMessage[];
+    sandboxTagDetected: boolean;
+    totalToolCallsInRun: number;
+    updatedAt: number;
+  }) => Promise<void>;
 }
 
 type RunAgentLoopContext = Parameters<typeof buildEventHandlerContext>[0];
@@ -54,6 +78,10 @@ export interface RunAgentLoopResult {
   agentTurn: number;
   loopStopReason: AgentLoopStopReason;
   aborted: boolean;
+}
+
+function getToolResultsPayloadChars(results: AgentToolResult[]): number {
+  return Buffer.byteLength(JSON.stringify(results), "utf8");
 }
 
 export async function runAgentLoop(
@@ -72,32 +100,125 @@ export async function runAgentLoop(
     userContent,
     workflow,
     res,
-    userId,
     chatId,
     isFollowUp,
     generatedFiles,
     declaredPackages,
     emitMeta,
     runId,
+    resumeCheckpoint,
+    onCheckpoint,
   } = params;
 
-  let fullRawResponse = "";
-  let agentMessages: LlmChatMessage[] = initialMessages;
-  let agentTurn = 0;
-  let sandboxTagDetected = false;
+  let fullRawResponse = resumeCheckpoint?.fullRawResponse ?? "";
+  let agentMessages: LlmChatMessage[] =
+    resumeCheckpoint?.agentMessages ?? initialMessages;
+  let agentTurn = resumeCheckpoint?.turn ?? 0;
+  let totalToolCallsInRun = resumeCheckpoint?.totalToolCallsInRun ?? 0;
+  let sandboxTagDetected = resumeCheckpoint?.sandboxTagDetected ?? false;
   let loopStopReason: AgentLoopStopReason = AgentLoopStopReason.NO_TOOL_RESULTS;
 
   agentLoop: while (agentTurn < MAX_AGENT_TURNS) {
     agentTurn++;
-    emitMeta({ turn: agentTurn, phase: "turn_start" });
+
+    const turnTokenUsage = await computeTokenUsage({
+      apiKey: decryptedApiKey,
+      systemPrompt,
+      messages: agentMessages,
+      model,
+    });
+
+    emitMeta({
+      turn: agentTurn,
+      phase: MetaPhase.TURN_START,
+      tokenUsage: turnTokenUsage,
+    });
+
+    if (isOverContextLimit(turnTokenUsage)) {
+      loopStopReason = AgentLoopStopReason.CONTEXT_LIMIT_EXCEEDED;
+      sendSSEError(
+        res,
+        `Turn context too large for model window. Input tokens=${turnTokenUsage.inputTokens}, reservedOutputTokens=${turnTokenUsage.reservedOutputTokens}, contextWindowTokens=${turnTokenUsage.contextWindowTokens}.`,
+        {
+          code: "context_limit_exceeded",
+          details: {
+            turn: agentTurn,
+            inputTokens: turnTokenUsage.inputTokens,
+            reservedOutputTokens: turnTokenUsage.reservedOutputTokens,
+            contextWindowTokens: turnTokenUsage.contextWindowTokens,
+          },
+        },
+      );
+      emitTurnCompleteMeta(emitMeta, agentTurn, 0);
+      break;
+    }
 
     const parser = createStreamParser();
     const toolResultsThisTurn: AgentToolResult[] = [];
     let turnRawResponse = "";
     let doneTagDetectedThisTurn = false;
     let toolBudgetExceededThisTurn = false;
+    let toolPayloadExceededThisTurn = false;
+    let responseSizeExceededThisTurn = false;
     let currentFilePath: string | undefined;
     let isFirstFileChunk = true;
+
+    const processEvents = async (events: ReturnType<typeof parser.process>) => {
+      for (const event of events) {
+        if (event.type === ParserEventType.DONE) {
+          doneTagDetectedThisTurn = true;
+          continue;
+        }
+
+        const toolCountBefore = toolResultsThisTurn.length;
+        const ctx = buildEventHandlerContext({
+          workflow,
+          res,
+          chatId,
+          isFollowUp,
+          sandboxTagDetected,
+          currentFilePath,
+          isFirstFileChunk,
+          generatedFiles,
+          declaredPackages,
+          toolResultsThisTurn,
+          runId,
+          turn: agentTurn,
+        });
+
+        const result = await handleParserEvent(ctx, event);
+        currentFilePath = result.currentFilePath;
+        isFirstFileChunk = result.isFirstFileChunk;
+        sandboxTagDetected = result.sandboxTagDetected;
+
+        if (!result.handled) {
+          sendSSEEvent(res, event);
+        }
+
+        const toolCountAfter = toolResultsThisTurn.length;
+        if (toolCountAfter > toolCountBefore) {
+          totalToolCallsInRun += toolCountAfter - toolCountBefore;
+        }
+
+        if (toolResultsThisTurn.length >= MAX_AGENT_TOOL_CALLS_PER_TURN) {
+          toolBudgetExceededThisTurn = true;
+          return;
+        }
+
+        if (totalToolCallsInRun > MAX_AGENT_TOOL_CALLS_PER_RUN) {
+          toolBudgetExceededThisTurn = true;
+          return;
+        }
+
+        if (
+          getToolResultsPayloadChars(toolResultsThisTurn) >
+          MAX_AGENT_TOOL_RESULT_PAYLOAD_CHARS
+        ) {
+          toolPayloadExceededThisTurn = true;
+          return;
+        }
+      }
+    };
 
     const stream = streamResponse(
       decryptedApiKey,
@@ -115,49 +236,16 @@ export async function runAgentLoop(
       if (abortController.signal.aborted) break;
 
       if (fullRawResponse.length + chunk.length > MAX_RESPONSE_SIZE) {
-        throw new Error("Response size exceeded maximum limit");
+        responseSizeExceededThisTurn = true;
+        break;
       }
+
       fullRawResponse += chunk;
       turnRawResponse += chunk;
 
-      const events = parser.process(chunk);
-      for (const event of events) {
-        if (event.type === ParserEventType.DONE) {
-          doneTagDetectedThisTurn = true;
-          continue;
-        }
+      await processEvents(parser.process(chunk));
 
-        const ctx = buildEventHandlerContext({
-          workflow,
-          res,
-          decryptedApiKey,
-          userId,
-          chatId,
-          isFollowUp,
-          sandboxTagDetected,
-          currentFilePath,
-          isFirstFileChunk,
-          generatedFiles,
-          declaredPackages,
-          toolResultsThisTurn,
-        });
-
-        const result = await handleParserEvent(ctx, event);
-        currentFilePath = result.currentFilePath;
-        isFirstFileChunk = result.isFirstFileChunk;
-        sandboxTagDetected = result.sandboxTagDetected;
-
-        if (!result.handled) {
-          safeSSEWrite(res, `data: ${JSON.stringify(event)}\n\n`);
-        }
-
-        if (toolResultsThisTurn.length >= MAX_AGENT_TOOL_CALLS_PER_TURN) {
-          toolBudgetExceededThisTurn = true;
-          break;
-        }
-      }
-
-      if (toolBudgetExceededThisTurn) {
+      if (toolBudgetExceededThisTurn || toolPayloadExceededThisTurn) {
         break;
       }
     }
@@ -171,43 +259,49 @@ export async function runAgentLoop(
       };
     }
 
-    const flushCtx = buildEventHandlerContext({
-      workflow,
-      res,
-      decryptedApiKey,
-      userId,
-      chatId,
-      isFollowUp,
-      sandboxTagDetected,
-      currentFilePath,
-      isFirstFileChunk,
-      generatedFiles,
-      declaredPackages,
-      toolResultsThisTurn,
-    });
+    await processEvents(parser.flush());
 
-    const flushEvents = parser.flush();
-    doneTagDetectedThisTurn =
-      doneTagDetectedThisTurn ||
-      flushEvents.some((event) => event.type === ParserEventType.DONE);
-
-    const flushResult = await handleFlushEvents(
-      flushCtx,
-      flushEvents.filter((event) => event.type !== ParserEventType.DONE),
-    );
-
-    currentFilePath = flushResult.currentFilePath;
-    isFirstFileChunk = flushResult.isFirstFileChunk;
-    sandboxTagDetected = flushResult.sandboxTagDetected;
+    if (responseSizeExceededThisTurn) {
+      loopStopReason = AgentLoopStopReason.RESPONSE_SIZE_EXCEEDED;
+      sendSSEError(res, "Response exceeded maximum size limit", {
+        code: "response_size_exceeded",
+        details: { maxBytes: MAX_RESPONSE_SIZE, turn: agentTurn },
+      });
+      emitTurnCompleteMeta(emitMeta, agentTurn, toolResultsThisTurn.length);
+      break;
+    }
 
     if (toolBudgetExceededThisTurn) {
       loopStopReason = AgentLoopStopReason.TOOL_BUDGET_EXCEEDED;
-      safeSSEWrite(
+      sendSSEError(
         res,
-        `data: ${JSON.stringify({
-          type: ParserEventType.ERROR,
-          message: `Turn exceeded maximum tool calls (${MAX_AGENT_TOOL_CALLS_PER_TURN})`,
-        })}\n\n`,
+        `Turn reached maximum tool calls (${MAX_AGENT_TOOL_CALLS_PER_TURN})`,
+        {
+          code: "tool_budget_exceeded",
+          details: {
+            limit: MAX_AGENT_TOOL_CALLS_PER_TURN,
+            runLimit: MAX_AGENT_TOOL_CALLS_PER_RUN,
+            runCount: totalToolCallsInRun,
+            turn: agentTurn,
+          },
+        },
+      );
+      emitTurnCompleteMeta(emitMeta, agentTurn, toolResultsThisTurn.length);
+      break;
+    }
+
+    if (toolPayloadExceededThisTurn) {
+      loopStopReason = AgentLoopStopReason.TOOL_PAYLOAD_BUDGET_EXCEEDED;
+      sendSSEError(
+        res,
+        `Tool result payload exceeded per-turn limit (${MAX_AGENT_TOOL_RESULT_PAYLOAD_CHARS} chars)`,
+        {
+          code: "tool_payload_budget_exceeded",
+          details: {
+            limitChars: MAX_AGENT_TOOL_RESULT_PAYLOAD_CHARS,
+            turn: agentTurn,
+          },
+        },
       );
       emitTurnCompleteMeta(emitMeta, agentTurn, toolResultsThisTurn.length);
       break;
@@ -228,12 +322,39 @@ export async function runAgentLoop(
         typeof userContent === "string"
           ? userContent
           : getTextFromContent(userContent);
-      const continuation = buildAgentContinuationPrompt(
+      const continuationResult = buildAgentContinuationPrompt(
         userTextContent,
         turnRawResponse,
         toolResultsThisTurn,
       );
-      agentMessages = [{ role: MessageRole.User, content: continuation }];
+      if (continuationResult.truncated) {
+        loopStopReason = AgentLoopStopReason.CONTINUATION_BUDGET_EXCEEDED;
+        sendSSEError(
+          res,
+          `Continuation prompt exceeded limit (${MAX_AGENT_CONTINUATION_PROMPT_CHARS} chars)`,
+          {
+            code: "continuation_budget_exceeded",
+            details: {
+              limitChars: MAX_AGENT_CONTINUATION_PROMPT_CHARS,
+              turn: agentTurn,
+            },
+          },
+        );
+        emitTurnCompleteMeta(emitMeta, agentTurn, toolResultsThisTurn.length);
+        break;
+      }
+
+      agentMessages = [
+        { role: MessageRole.User, content: continuationResult.prompt },
+      ];
+      await onCheckpoint?.({
+        turn: agentTurn,
+        fullRawResponse,
+        agentMessages,
+        sandboxTagDetected,
+        totalToolCallsInRun,
+        updatedAt: Date.now(),
+      });
       logger.info(
         {
           chatId,

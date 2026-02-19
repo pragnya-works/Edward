@@ -4,8 +4,10 @@ import {
   JobType,
   BuildJobPayloadSchema,
   BackupJobPayloadSchema,
+  AgentRunJobPayloadSchema,
   BuildJobPayload,
   BackupJobPayload,
+  AgentRunJobPayload,
 } from './queue.schemas.js';
 
 const queue = getQueue();
@@ -55,5 +57,33 @@ export async function enqueueBackupJob(payload: Omit<BackupJobPayload, 'type'>):
   } catch (error) {
     logger.error(error, '[Queue] Failed to enqueue backup job');
     throw new Error('Failed to enqueue backup job');
+  }
+}
+
+export async function enqueueAgentRunJob(
+  payload: Omit<AgentRunJobPayload, "type">,
+): Promise<string> {
+  const fullPayload: AgentRunJobPayload = { ...payload, type: JobType.AGENT_RUN };
+  const validated = AgentRunJobPayloadSchema.parse(fullPayload);
+  const jobId = `agent-run-${validated.runId}`;
+
+  try {
+    const existingJob = await queue.getJob(jobId);
+    if (existingJob?.id) {
+      return existingJob.id;
+    }
+
+    const job = await queue.add(JobType.AGENT_RUN, validated, {
+      jobId,
+      removeOnComplete: { count: 200 },
+      removeOnFail: { count: 100 },
+      attempts: 2,
+      backoff: { type: "fixed", delay: 1500 },
+    });
+
+    return job.id!;
+  } catch (error) {
+    logger.error({ error, runId: payload.runId }, "[Queue] Failed to enqueue agent run job");
+    throw new Error("Failed to enqueue agent run job");
   }
 }

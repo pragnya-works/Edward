@@ -20,7 +20,7 @@ export default function ChatPageClient({ chatId }: ChatPageClientProps) {
   } = useChatHistory(chatId);
 
   const { streams } = useChatStream();
-  const { setActiveChatId } = useChatStreamActions();
+  const { setActiveChatId, resumeRunStream } = useChatStreamActions();
   const { isOpen: sandboxOpen, openSandbox } = useSandbox();
 
   const stream =
@@ -44,9 +44,11 @@ export default function ChatPageClient({ chatId }: ChatPageClientProps) {
   useChatPageOrchestration({
     chatId,
     isSandboxing: stream.isSandboxing,
+    hasActiveStreamState,
     sandboxOpen,
     openSandbox,
     setActiveChatId,
+    resumeRunStream,
   });
 
   if (isHistoryLoading && !hasActiveStreamState) {

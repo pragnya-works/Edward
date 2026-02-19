@@ -17,6 +17,8 @@ import { createBuild, updateBuild } from "@edward/auth";
 import { enqueueBackupJob } from "./services/queue/enqueue.js";
 import { createRedisClient } from "./lib/redis.js";
 import { createErrorReport } from "./services/diagnostics/errorReport.js";
+import { processAgentRunJob } from "./services/runs/agentRun.worker.js";
+import { WORKER_CONCURRENCY } from "./utils/sharedConstants.js";
 
 const logger = createLogger("WORKER");
 const pubClient = createRedisClient();
@@ -79,6 +81,15 @@ async function processBuildJob(payload: BuildJobPayload): Promise<void> {
   await updateBuild(buildRecord.id, {
     status: "building",
   });
+
+  await pubClient.publish(
+    `edward:build-status:${chatId}`,
+    JSON.stringify({
+      buildId: buildRecord.id,
+      runId: correlationRunId,
+      status: "building",
+    }),
+  );
 
   logger.info(
     {
@@ -230,6 +241,10 @@ async function processBackupJob(payload: BackupJobPayload): Promise<void> {
   }
 }
 
+async function processAgentRun(payload: { runId: string }): Promise<void> {
+  await processAgentRunJob(payload.runId, pubClient);
+}
+
 const worker = new Worker<JobPayload>(
   QUEUE_NAME,
   async (job) => {
@@ -240,6 +255,8 @@ const worker = new Worker<JobPayload>(
         return processBuildJob(payload);
       case JobType.BACKUP:
         return processBackupJob(payload);
+      case JobType.AGENT_RUN:
+        return processAgentRun(payload);
       default:
         logger.error(
           { type: (payload as JobPayload).type },
@@ -250,7 +267,7 @@ const worker = new Worker<JobPayload>(
   },
   {
     connection,
-    concurrency: 3,
+    concurrency: WORKER_CONCURRENCY,
   },
 );
 

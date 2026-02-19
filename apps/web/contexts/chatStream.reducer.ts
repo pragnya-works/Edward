@@ -110,6 +110,10 @@ export function streamReducer(
       return setStream(state, action.chatId, {
         ...getStream(state, action.chatId),
         isStreaming: false,
+        isThinking: false,
+        activeFiles: [],
+        installingDeps: [],
+        isSandboxing: false,
       });
     case StreamActionType.SET_ERROR:
       return setStream(state, action.chatId, {

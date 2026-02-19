@@ -1,6 +1,11 @@
 import type { Response } from "express";
+import {
+  AgentLoopStopReason,
+  MetaPhase,
+  ParserEventType,
+  StreamTerminationReason,
+} from "@edward/shared/stream-events";
 import type { AuthenticatedRequest } from "../../middleware/auth.js";
-import { ParserEventType } from "../../schemas/chat.schema.js";
 import { composePrompt } from "../../lib/llm/compose.js";
 import {
   computeTokenUsage,
@@ -31,6 +36,8 @@ import {
 import { saveWorkflow } from "../../services/planning/workflow/store.js";
 import { validateGeneratedOutput } from "../../services/planning/validators/postgenValidator.js";
 import {
+  MAX_SSE_QUEUE_BYTES,
+  MAX_SSE_QUEUE_EVENTS,
   MAX_STREAM_DURATION_MS,
 } from "../../utils/sharedConstants.js";
 import {
@@ -39,7 +46,12 @@ import {
   type UrlScrapeResult,
 } from "../../services/websearch/urlScraper.service.js";
 
-import { safeSSEWrite, sendSSEDone } from "./sse.utils.js";
+import {
+  configureSSEBackpressure,
+  sendSSEError,
+  sendSSEEvent,
+  sendSSEDone,
+} from "./sse.utils.js";
 import type { LlmChatMessage } from "../../lib/llm/context.js";
 import {
   type MessageContent,
@@ -68,6 +80,22 @@ export interface StreamSessionParams {
   historyMessages?: LlmChatMessage[];
   projectContext?: string;
   model?: string;
+  runId?: string;
+  resumeCheckpoint?: {
+    turn: number;
+    fullRawResponse: string;
+    agentMessages: LlmChatMessage[];
+    sandboxTagDetected: boolean;
+    totalToolCallsInRun: number;
+  };
+  onCheckpoint?: (checkpoint: {
+    turn: number;
+    fullRawResponse: string;
+    agentMessages: LlmChatMessage[];
+    sandboxTagDetected: boolean;
+    totalToolCallsInRun: number;
+    updatedAt: number;
+  }) => Promise<void>;
 }
 
 export async function runStreamSession(
@@ -90,6 +118,9 @@ export async function runStreamSession(
     historyMessages = [],
     projectContext = "",
     model,
+    runId: explicitRunId,
+    resumeCheckpoint,
+    onCheckpoint,
   } = params;
 
   let fullRawResponse = "";
@@ -97,7 +128,7 @@ export async function runStreamSession(
   const generatedFiles = new Map<string, string>();
   const declaredPackages: string[] = [];
   const messageStartTime = Date.now();
-  const runId = assistantMessageId;
+  const runId = explicitRunId ?? assistantMessageId;
   const isNewChat = !isFollowUp;
   const emitMeta: EmitMeta = createMetaEmitter(res, {
     chatId,
@@ -108,15 +139,33 @@ export async function runStreamSession(
   });
 
   const abortController = new AbortController();
+  let abortReason: StreamTerminationReason | null = null;
+
+  const abortStream = (reason: StreamTerminationReason) => {
+    if (!abortController.signal.aborted) {
+      abortReason = reason;
+      abortController.abort();
+    }
+  };
+
+  configureSSEBackpressure(res, {
+    maxQueueBytes: MAX_SSE_QUEUE_BYTES,
+    maxQueueEvents: MAX_SSE_QUEUE_EVENTS,
+    onSlowClient: () => {
+      logger.warn({ chatId, runId }, "SSE queue overflow - aborting slow client stream");
+      abortStream(StreamTerminationReason.SLOW_CLIENT);
+    },
+  });
+
   const streamTimer = setTimeout(() => {
     logger.warn({ chatId, runId }, "Stream timeout reached");
-    abortController.abort();
+    abortStream(StreamTerminationReason.STREAM_TIMEOUT);
   }, MAX_STREAM_DURATION_MS);
 
   req.on("close", () => {
     logger.info({ chatId, runId }, "Connection closed by client");
     if (streamTimer) clearTimeout(streamTimer);
-    abortController.abort();
+    abortStream(StreamTerminationReason.CLIENT_DISCONNECT);
   });
 
   let tokenUsage: TokenUsage | undefined;
@@ -145,27 +194,24 @@ export async function runStreamSession(
       urlScrapeResults = preparedUrlScrape.results;
       urlScrapeContextMessage = preparedUrlScrape.contextMessage;
 
-      safeSSEWrite(
-        res,
-        `data: ${JSON.stringify({
-          type: ParserEventType.URL_SCRAPE,
-          results: preparedUrlScrape.results.map((result) =>
-            result.status === "success"
-              ? {
-                  status: "success",
-                  url: result.url,
-                  finalUrl: result.finalUrl,
-                  title: result.title,
-                  snippet: result.snippet,
-                }
-              : {
-                  status: "error",
-                  url: result.url,
-                  error: result.error,
-                },
-          ),
-        })}\n\n`,
-      );
+      sendSSEEvent(res, {
+        type: ParserEventType.URL_SCRAPE,
+        results: preparedUrlScrape.results.map((result) =>
+          result.status === "success"
+            ? {
+                status: "success" as const,
+                url: result.url,
+                finalUrl: result.finalUrl,
+                title: result.title,
+                snippet: result.snippet,
+              }
+            : {
+                status: "error" as const,
+                url: result.url,
+                error: result.error,
+              },
+        ),
+      });
     }
 
     if (isFollowUp && historyMessages.length > 0) {
@@ -197,20 +243,31 @@ export async function runStreamSession(
     });
 
     emitMeta({
-      phase: "session_start",
+      phase: MetaPhase.SESSION_START,
       intent,
       tokenUsage,
     });
 
     if (isOverContextLimit(tokenUsage)) {
-      safeSSEWrite(
+      sendSSEError(
         res,
-        `data: ${JSON.stringify({
-          type: ParserEventType.ERROR,
-          message: `Message too large for model context window. Input tokens=${tokenUsage.inputTokens}, reservedOutputTokens=${tokenUsage.reservedOutputTokens}, contextWindowTokens=${tokenUsage.contextWindowTokens}.`,
-        })}\n\n`,
+        `Message too large for model context window. Input tokens=${tokenUsage.inputTokens}, reservedOutputTokens=${tokenUsage.reservedOutputTokens}, contextWindowTokens=${tokenUsage.contextWindowTokens}.`,
+        {
+          code: "context_limit_exceeded",
+          details: {
+            inputTokens: tokenUsage.inputTokens,
+            reservedOutputTokens: tokenUsage.reservedOutputTokens,
+            contextWindowTokens: tokenUsage.contextWindowTokens,
+          },
+        },
       );
-      res.end();
+
+      emitMeta({
+        phase: MetaPhase.SESSION_COMPLETE,
+        terminationReason: StreamTerminationReason.CONTEXT_LIMIT_EXCEEDED,
+      });
+
+      sendSSEDone(res);
       return;
     }
 
@@ -239,23 +296,54 @@ export async function runStreamSession(
       userContent,
       workflow,
       res,
-      userId,
       chatId,
       isFollowUp,
       generatedFiles,
       declaredPackages,
       emitMeta,
       runId,
+      resumeCheckpoint,
+      onCheckpoint,
     });
 
     if (loopResult.aborted) {
-      res.end();
+      const terminationReason: StreamTerminationReason =
+        abortReason ?? StreamTerminationReason.ABORTED;
+      const isClientDisconnect =
+        abortReason === StreamTerminationReason.CLIENT_DISCONNECT;
+      emitMeta({
+        turn: loopResult.agentTurn,
+        phase: MetaPhase.SESSION_COMPLETE,
+        loopStopReason: loopResult.loopStopReason,
+        terminationReason,
+      });
+
+      if (!isClientDisconnect) {
+        sendSSEError(res, "Stream aborted before completion", {
+          code: terminationReason,
+        });
+        if (!res.writableEnded) {
+          sendSSEDone(res);
+        }
+      }
       return;
     }
 
     fullRawResponse = loopResult.fullRawResponse;
     const agentTurn = loopResult.agentTurn;
     const loopStopReason = loopResult.loopStopReason;
+    const terminationReason =
+      loopStopReason === AgentLoopStopReason.CONTEXT_LIMIT_EXCEEDED
+        ? StreamTerminationReason.CONTEXT_LIMIT_EXCEEDED
+        : loopStopReason === AgentLoopStopReason.TOOL_BUDGET_EXCEEDED
+          ? StreamTerminationReason.TOOL_BUDGET_EXCEEDED
+          : loopStopReason === AgentLoopStopReason.TOOL_PAYLOAD_BUDGET_EXCEEDED
+            ? StreamTerminationReason.TOOL_PAYLOAD_BUDGET_EXCEEDED
+            : loopStopReason === AgentLoopStopReason.CONTINUATION_BUDGET_EXCEEDED
+              ? StreamTerminationReason.CONTINUATION_BUDGET_EXCEEDED
+              : loopStopReason === AgentLoopStopReason.RESPONSE_SIZE_EXCEEDED
+                ? StreamTerminationReason.RESPONSE_SIZE_EXCEEDED
+                : StreamTerminationReason.COMPLETED;
 
     logger.info(
       { chatId, runId, agentTurn, loopStopReason },
@@ -264,8 +352,9 @@ export async function runStreamSession(
 
     emitMeta({
       turn: agentTurn,
-      phase: "session_complete",
+      phase: MetaPhase.SESSION_COMPLETE,
       loopStopReason,
+      terminationReason,
     });
 
     const completionTime = Date.now() - messageStartTime;
@@ -290,6 +379,13 @@ export async function runStreamSession(
       },
       "Assistant message completed with metrics",
     );
+
+    sendSSEEvent(res, {
+      type: ParserEventType.METRICS,
+      completionTime,
+      inputTokens,
+      outputTokens,
+    });
 
     const urlScrapeTags = formatUrlScrapeAssistantTags(urlScrapeResults);
     const storedAssistantContent = urlScrapeTags
@@ -352,13 +448,9 @@ Return ONLY a JSON object: {"title": "...", "description": "..."}
             "Post-gen validation found build-breaking issues",
           );
           for (const violation of validation.violations) {
-            safeSSEWrite(
-              res,
-              `data: ${JSON.stringify({
-                type: ParserEventType.ERROR,
-                message: `[Validation] ${violation.message}`,
-              })}\n\n`,
-            );
+            sendSSEError(res, `[Validation] ${violation.message}`, {
+              code: "postgen_validation",
+            });
           }
         }
       }
@@ -374,6 +466,14 @@ Return ONLY a JSON object: {"title": "...", "description": "..."}
         chatId,
         messageId: assistantMessageId,
         status: "queued",
+      });
+
+      sendSSEEvent(res, {
+        type: ParserEventType.BUILD_STATUS,
+        chatId,
+        status: "queued",
+        buildId: queuedBuild.id,
+        runId,
       });
 
       try {
@@ -395,6 +495,20 @@ Return ONLY a JSON object: {"title": "...", "description": "..."}
               queueErr instanceof Error ? queueErr.message : String(queueErr),
           } as Record<string, unknown>,
         } as Parameters<typeof updateBuild>[1]).catch(() => {});
+
+        sendSSEEvent(res, {
+          type: ParserEventType.BUILD_STATUS,
+          chatId,
+          status: "failed",
+          buildId: queuedBuild.id,
+          runId,
+          errorReport: {
+            failed: true,
+            headline: "Failed to enqueue build job",
+            details:
+              queueErr instanceof Error ? queueErr.message : String(queueErr),
+          },
+        });
 
         logger.error(
           {
@@ -427,16 +541,17 @@ Return ONLY a JSON object: {"title": "...", "description": "..."}
 
     logger.error({ error, chatId, runId }, "Streaming error");
 
-    safeSSEWrite(
-      res,
-      `data: ${JSON.stringify({
-        type: ParserEventType.ERROR,
-        message: "Stream processing failed",
-      })}\n\n`,
-    );
+    emitMeta({
+      phase: MetaPhase.SESSION_COMPLETE,
+      terminationReason: StreamTerminationReason.STREAM_FAILED,
+    });
+
+    sendSSEError(res, "Stream processing failed", {
+      code: "stream_processing_failed",
+    });
 
     if (!res.writableEnded) {
-      res.end();
+      sendSSEDone(res);
     }
 
     try {

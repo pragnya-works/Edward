@@ -208,7 +208,7 @@ export const StreamingMessage = memo(function StreamingMessage({
                 Installing dependencies...
               </span>
             </div>
-            <InstallBlock dependencies={stream.installingDeps} />
+            <InstallBlock dependencies={stream.installingDeps} isActive />
           </m.div>
         )}
 

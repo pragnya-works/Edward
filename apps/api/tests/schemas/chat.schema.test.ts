@@ -5,6 +5,7 @@ import {
   UnifiedSendMessageSchema,
   UnifiedSendMessageRequestSchema,
   GetChatHistoryRequestSchema,
+  StreamRunEventsRequestSchema,
   ParserEventSchema,
 } from "../../schemas/chat.schema.js";
 
@@ -193,6 +194,34 @@ describe("chat schemas", () => {
     });
   });
 
+  describe("StreamRunEventsRequestSchema", () => {
+    it("should validate valid run stream request", () => {
+      const result = StreamRunEventsRequestSchema.safeParse({
+        params: {
+          chatId: "chat-123",
+          runId: "run-123",
+        },
+        query: {
+          lastEventId: "run-123:42",
+        },
+      });
+
+      expect(result.success).toBe(true);
+    });
+
+    it("should allow run stream request without lastEventId", () => {
+      const result = StreamRunEventsRequestSchema.safeParse({
+        params: {
+          chatId: "chat-123",
+          runId: "run-123",
+        },
+        query: {},
+      });
+
+      expect(result.success).toBe(true);
+    });
+  });
+
   describe("ParserEventSchema", () => {
     it("should validate TEXT event", () => {
       const result = ParserEventSchema.safeParse({
@@ -372,6 +401,29 @@ describe("chat schemas", () => {
             error: "Timeout",
           },
         ],
+      });
+
+      expect(result.success).toBe(true);
+    });
+
+    it("should validate METRICS event", () => {
+      const result = ParserEventSchema.safeParse({
+        type: ParserEventType.METRICS,
+        completionTime: 2400,
+        inputTokens: 1200,
+        outputTokens: 800,
+      });
+
+      expect(result.success).toBe(true);
+    });
+
+    it("should validate BUILD_STATUS event", () => {
+      const result = ParserEventSchema.safeParse({
+        type: ParserEventType.BUILD_STATUS,
+        chatId: "chat-123",
+        status: "building",
+        buildId: "build-1",
+        runId: "run-1",
       });
 
       expect(result.success).toBe(true);

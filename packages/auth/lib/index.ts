@@ -1,5 +1,6 @@
 export * from "./schema.js";
 export * from "./build.js";
+export * from "./run.js";
 export { db } from "./db.js";
 export { auth } from "./auth.js";
 export {

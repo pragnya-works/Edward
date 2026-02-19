@@ -21,7 +21,7 @@ export enum MessageContentPartType {
   IMAGE = "image",
 }
 
-function buildApiUrl(endpoint: string): string {
+export function buildApiUrl(endpoint: string): string {
   return `${API_BASE_URL}${endpoint.startsWith("/") ? "" : "/"}${endpoint}`;
 }
 
@@ -97,6 +97,26 @@ export async function postChatMessageStream(
     body: JSON.stringify(body),
     signal,
   });
+}
+
+export async function openRunEventsStream(
+  chatId: string,
+  runId: string,
+  options?: { lastEventId?: string; signal?: AbortSignal },
+): Promise<Response> {
+  const params = new URLSearchParams();
+  if (options?.lastEventId) {
+    params.set("lastEventId", options.lastEventId);
+  }
+
+  const queryString = params.toString();
+  return fetchApiResponse(
+    `/chat/${chatId}/runs/${runId}/stream${queryString ? `?${queryString}` : ""}`,
+    {
+      method: "GET",
+      signal: options?.signal,
+    },
+  );
 }
 
 type UploadableImageMimeType =
@@ -310,6 +330,29 @@ export async function getBuildStatus(
   return fetchApi<BuildStatusResponse>(`/chat/${chatId}/build-status`);
 }
 
+export interface ActiveRunResponse {
+  message: string;
+  data: {
+    chatId: string;
+    run: {
+      id: string;
+      status: "queued" | "running";
+      state: string;
+      currentTurn: number;
+      createdAt: string;
+      startedAt: string | null;
+      userMessageId: string;
+      assistantMessageId: string;
+    } | null;
+  };
+}
+
+export async function getActiveRun(
+  chatId: string,
+): Promise<ActiveRunResponse> {
+  return fetchApi<ActiveRunResponse>(`/chat/${chatId}/active-run`);
+}
+
 interface SandboxFile {
   path: string;
   content: string;
@@ -330,4 +373,8 @@ export async function getSandboxFiles(
   chatId: string,
 ): Promise<SandboxFilesResponse> {
   return fetchApi<SandboxFilesResponse>(`/chat/${chatId}/sandbox-files`);
+}
+
+export async function deleteChat(chatId: string): Promise<void> {
+  await fetchApi(`/chat/${chatId}`, { method: "DELETE" });
 }

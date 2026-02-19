@@ -12,6 +12,8 @@ import {
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   postChatMessageStream,
+  MessageContentPartType,
+  openRunEventsStream,
   type MessageContent,
   type SendMessageRequest,
 } from "@/lib/api";
@@ -20,6 +22,7 @@ import {
   type StreamState,
   type MetaEvent,
   type ChatMessage,
+  ChatRole,
 } from "@/lib/chatTypes";
 import { buildMessageFromStream } from "@/lib/streamToMessage";
 import {
@@ -32,6 +35,48 @@ import { queryKeys } from "@/lib/queryKeys";
 
 const ABORT_ERROR_NAME = "AbortError";
 const PENDING_CHAT_ID_PREFIX = "pending_";
+const OPTIMISTIC_USER_MESSAGE_PREFIX = "optimistic_user_";
+
+interface AbortControllerEntry {
+  controller: AbortController;
+  mutationId: string;
+}
+
+function extractUserTextFromContent(content: MessageContent): string {
+  if (typeof content === "string") {
+    const trimmed = content.trim();
+    return trimmed.length > 0 ? trimmed : "[Image message]";
+  }
+
+  const text = content
+    .filter((part) => part.type === MessageContentPartType.TEXT)
+    .map((part) => part.text.trim())
+    .filter((value) => value.length > 0)
+    .join("\n")
+    .trim();
+
+  return text.length > 0 ? text : "[Image message]";
+}
+
+function buildOptimisticUserMessage(
+  chatId: string,
+  content: MessageContent,
+  id: string,
+): ChatMessage {
+  const now = new Date().toISOString();
+  return {
+    id,
+    chatId,
+    role: ChatRole.USER,
+    content: extractUserTextFromContent(content),
+    userId: null,
+    createdAt: now,
+    updatedAt: now,
+    completionTime: null,
+    inputTokens: null,
+    outputTokens: null,
+  };
+}
 
 interface ChatStreamStateContextValue {
   streams: StreamMap;
@@ -43,6 +88,7 @@ interface ChatStreamActionsContextValue {
     content: MessageContent,
     opts?: { chatId?: string; model?: string },
   ) => void;
+  resumeRunStream: (chatId: string, runId: string) => void;
   cancelStream: (chatId: string) => void;
   resetStream: (chatId: string) => void;
   setActiveChatId: (id: string | null) => void;
@@ -59,7 +105,9 @@ const INITIAL_STREAMS: StreamMap = {};
 
 export function ChatStreamProvider({ children }: { children: ReactNode }) {
   const [streams, dispatch] = useReducer(streamReducer, INITIAL_STREAMS);
-  const abortControllersRef = useRef<Map<string, AbortController>>(new Map());
+  const abortControllersRef = useRef<Map<string, AbortControllerEntry>>(new Map());
+  const latestMutationByChatRef = useRef<Map<string, string>>(new Map());
+  const mutationChatKeyRef = useRef<Map<string, string>>(new Map());
   const queryClient = useQueryClient();
   const [activeChatId, setActiveChatIdState] = useReducer(
     (_: string | null, id: string | null) => id,
@@ -77,10 +125,16 @@ export function ChatStreamProvider({ children }: { children: ReactNode }) {
     dispatch({ type: StreamActionType.REMOVE_STREAM, chatId });
   }, []);
 
+  const isLatestMutationForChat = useCallback(
+    (chatId: string, mutationId: string): boolean =>
+      latestMutationByChatRef.current.get(chatId) === mutationId,
+    [],
+  );
+
   const cancelStream = useCallback((chatId: string) => {
-    const controller = abortControllersRef.current.get(chatId);
-    if (controller) {
-      controller.abort();
+    const entry = abortControllersRef.current.get(chatId);
+    if (entry) {
+      entry.controller.abort();
       abortControllersRef.current.delete(chatId);
     }
     dispatch({ type: StreamActionType.STOP_STREAMING, chatId });
@@ -94,20 +148,158 @@ export function ChatStreamProvider({ children }: { children: ReactNode }) {
     [],
   );
 
+  const resumeRunStream = useCallback(
+    (chatId: string, runId: string) => {
+      if (!chatId || !runId) {
+        return;
+      }
+
+      if (streamsRef.current[chatId]?.isStreaming) {
+        return;
+      }
+
+      const existing = abortControllersRef.current.get(chatId);
+      if (existing) {
+        return;
+      }
+
+      const mutationId = `resume_${crypto.randomUUID()}`;
+      latestMutationByChatRef.current.set(chatId, mutationId);
+      mutationChatKeyRef.current.set(mutationId, chatId);
+
+      const controller = new AbortController();
+      abortControllersRef.current.set(chatId, {
+        controller,
+        mutationId,
+      });
+
+      dispatch({ type: StreamActionType.START_STREAMING, chatId });
+
+      const thinkingRef = { current: null as number | null };
+
+      void (async () => {
+        try {
+          const response = await openRunEventsStream(chatId, runId, {
+            signal: controller.signal,
+          });
+
+          let resolvedChatId = chatId;
+
+          const streamResult = await processStreamResponse({
+            response,
+            chatId,
+            dispatch,
+            onMetaRef,
+            thinkingStartRef: thinkingRef,
+            onChatIdResolved: (realChatId: string) => {
+              if (realChatId === resolvedChatId) {
+                return;
+              }
+
+              dispatch({
+                type: StreamActionType.RENAME_STREAM,
+                oldChatId: resolvedChatId,
+                newChatId: realChatId,
+              });
+
+              const controllerEntry =
+                abortControllersRef.current.get(resolvedChatId);
+              if (controllerEntry?.mutationId === mutationId) {
+                abortControllersRef.current.delete(resolvedChatId);
+                abortControllersRef.current.set(realChatId, controllerEntry);
+              }
+
+              if (isLatestMutationForChat(resolvedChatId, mutationId)) {
+                latestMutationByChatRef.current.delete(resolvedChatId);
+                latestMutationByChatRef.current.set(realChatId, mutationId);
+              }
+
+              mutationChatKeyRef.current.set(mutationId, realChatId);
+              resolvedChatId = realChatId;
+            },
+          });
+
+          if (isLatestMutationForChat(resolvedChatId, mutationId)) {
+            dispatch({
+              type: StreamActionType.STOP_STREAMING,
+              chatId: resolvedChatId,
+            });
+
+            void queryClient.invalidateQueries({
+              queryKey: queryKeys.chatHistory.byChatId(resolvedChatId),
+            });
+            void queryClient.invalidateQueries({
+              queryKey: queryKeys.recentChats.all,
+            });
+
+            if (streamResult) {
+              dispatch({
+                type: StreamActionType.REMOVE_STREAM,
+                chatId: resolvedChatId,
+              });
+            }
+          }
+        } catch (error) {
+          const err = error as Error;
+          const trackedChatId =
+            mutationChatKeyRef.current.get(mutationId) ?? chatId;
+
+          if (!isLatestMutationForChat(trackedChatId, mutationId)) {
+            return;
+          }
+
+          dispatch({
+            type: StreamActionType.STOP_STREAMING,
+            chatId: trackedChatId,
+          });
+
+          if (err.name !== ABORT_ERROR_NAME) {
+            dispatch({
+              type: StreamActionType.SET_ERROR,
+              chatId: trackedChatId,
+              error: err.message || "Failed to reconnect to active run stream.",
+            });
+          }
+        } finally {
+          const trackedChatId = mutationChatKeyRef.current.get(mutationId) ?? chatId;
+          for (const key of new Set([chatId, trackedChatId])) {
+            const entry = abortControllersRef.current.get(key);
+            if (entry?.mutationId === mutationId) {
+              abortControllersRef.current.delete(key);
+            }
+            if (isLatestMutationForChat(key, mutationId)) {
+              latestMutationByChatRef.current.delete(key);
+            }
+          }
+          mutationChatKeyRef.current.delete(mutationId);
+        }
+      })();
+    },
+    [isLatestMutationForChat, queryClient],
+  );
+
   const mutation = useMutation({
     mutationFn: async ({
       content,
       chatId,
       model,
       streamKey,
+      mutationId,
+      optimisticUserMessageId,
     }: {
       content: MessageContent;
       chatId?: string;
       model?: string;
       streamKey: string;
+      mutationId: string;
+      optimisticUserMessageId?: string;
     }) => {
       const controller = new AbortController();
-      abortControllersRef.current.set(streamKey, controller);
+      abortControllersRef.current.set(streamKey, {
+        controller,
+        mutationId,
+      });
+      mutationChatKeyRef.current.set(mutationId, streamKey);
 
       dispatch({ type: StreamActionType.START_STREAMING, chatId: streamKey });
 
@@ -131,11 +323,19 @@ export function ChatStreamProvider({ children }: { children: ReactNode }) {
               oldChatId: streamKey,
               newChatId: realChatId,
             });
-            const ctrl = abortControllersRef.current.get(streamKey);
-            if (ctrl) {
+
+            const controllerEntry = abortControllersRef.current.get(streamKey);
+            if (controllerEntry?.mutationId === mutationId) {
               abortControllersRef.current.delete(streamKey);
-              abortControllersRef.current.set(realChatId, ctrl);
+              abortControllersRef.current.set(realChatId, controllerEntry);
             }
+
+            if (isLatestMutationForChat(streamKey, mutationId)) {
+              latestMutationByChatRef.current.delete(streamKey);
+              latestMutationByChatRef.current.set(realChatId, mutationId);
+            }
+
+            mutationChatKeyRef.current.set(mutationId, realChatId);
             resolvedChatId = realChatId;
           }
         },
@@ -143,9 +343,36 @@ export function ChatStreamProvider({ children }: { children: ReactNode }) {
 
       const metaEvt = streamResult?.meta;
 
-      dispatch({ type: StreamActionType.STOP_STREAMING, chatId: resolvedChatId });
+      if (isLatestMutationForChat(resolvedChatId, mutationId)) {
+        dispatch({ type: StreamActionType.STOP_STREAMING, chatId: resolvedChatId });
+      }
 
       if (metaEvt?.chatId && streamResult) {
+        if (metaEvt.userMessageId) {
+          queryClient.setQueryData<ChatMessage[]>(
+            queryKeys.chatHistory.byChatId(metaEvt.chatId),
+            (oldMessages = []) => {
+              const withoutOptimistic = optimisticUserMessageId
+                ? oldMessages.filter((msg) => msg.id !== optimisticUserMessageId)
+                : oldMessages;
+              const hasRealUserMessage = withoutOptimistic.some(
+                (msg) => msg.id === metaEvt.userMessageId,
+              );
+              if (hasRealUserMessage) {
+                return withoutOptimistic;
+              }
+              return [
+                ...withoutOptimistic,
+                buildOptimisticUserMessage(
+                  metaEvt.chatId,
+                  content,
+                  metaEvt.userMessageId,
+                ),
+              ];
+            },
+          );
+        }
+
         const augmentedStreamState: StreamState = {
           ...INITIAL_STREAM_STATE,
           streamingText: streamResult.text,
@@ -176,38 +403,79 @@ export function ChatStreamProvider({ children }: { children: ReactNode }) {
           );
         }
 
-        await queryClient.refetchQueries({
-          queryKey: queryKeys.chatHistory.byChatId(metaEvt.chatId),
-        });
-        queryClient.invalidateQueries({ queryKey: queryKeys.recentChats.all });
+        if (isLatestMutationForChat(metaEvt.chatId, mutationId)) {
+          void queryClient.invalidateQueries({
+            queryKey: queryKeys.chatHistory.byChatId(metaEvt.chatId),
+          });
+        }
+        void queryClient.invalidateQueries({ queryKey: queryKeys.recentChats.all });
 
-        await new Promise((resolve) => setTimeout(resolve, 150));
-
+        if (isLatestMutationForChat(resolvedChatId, mutationId)) {
+          dispatch({ type: StreamActionType.REMOVE_STREAM, chatId: resolvedChatId });
+        }
+      } else if (
+        streamResult &&
+        isLatestMutationForChat(resolvedChatId, mutationId)
+      ) {
         dispatch({ type: StreamActionType.REMOVE_STREAM, chatId: resolvedChatId });
       }
 
       return metaEvt;
     },
     onError: (err: Error, variables) => {
-      const chatId = variables.streamKey;
-      if (err.name === ABORT_ERROR_NAME) {
-        dispatch({ type: StreamActionType.STOP_STREAMING, chatId });
+      const trackedChatId =
+        mutationChatKeyRef.current.get(variables.mutationId) ??
+        variables.streamKey;
+      if (!isLatestMutationForChat(trackedChatId, variables.mutationId)) {
         return;
       }
-      dispatch({ type: StreamActionType.STOP_STREAMING, chatId });
+
+      if (variables.optimisticUserMessageId) {
+        queryClient.setQueryData<ChatMessage[]>(
+          queryKeys.chatHistory.byChatId(trackedChatId),
+          (oldMessages = []) =>
+            oldMessages.filter(
+              (msg) => msg.id !== variables.optimisticUserMessageId,
+            ),
+        );
+      }
+
+      if (err.name === ABORT_ERROR_NAME) {
+        dispatch({ type: StreamActionType.STOP_STREAMING, chatId: trackedChatId });
+        return;
+      }
+      dispatch({ type: StreamActionType.STOP_STREAMING, chatId: trackedChatId });
       const apiError = err as Error & { status?: number };
       if (apiError.status === 429) {
         dispatch({
           type: StreamActionType.SET_ERROR,
-          chatId,
-          error: "Too many concurrent chats. Please wait for one to finish.",
+          chatId: trackedChatId,
+          error:
+            apiError.message ||
+            "Too many concurrent requests. Please wait and retry.",
         });
       } else {
-        dispatch({ type: StreamActionType.SET_ERROR, chatId, error: err.message });
+        dispatch({
+          type: StreamActionType.SET_ERROR,
+          chatId: trackedChatId,
+          error: err.message,
+        });
       }
     },
     onSettled: (_data, _error, variables) => {
-      abortControllersRef.current.delete(variables.streamKey);
+      const trackedChatId =
+        mutationChatKeyRef.current.get(variables.mutationId) ??
+        variables.streamKey;
+      for (const key of new Set([variables.streamKey, trackedChatId])) {
+        const entry = abortControllersRef.current.get(key);
+        if (entry?.mutationId === variables.mutationId) {
+          abortControllersRef.current.delete(key);
+        }
+        if (isLatestMutationForChat(key, variables.mutationId)) {
+          latestMutationByChatRef.current.delete(key);
+        }
+      }
+      mutationChatKeyRef.current.delete(variables.mutationId);
     },
   });
 
@@ -229,26 +497,62 @@ export function ChatStreamProvider({ children }: { children: ReactNode }) {
       const streamKey =
         opts?.chatId ??
         `${PENDING_CHAT_ID_PREFIX}${crypto.randomUUID().slice(0, 8)}`;
+      const mutationId = crypto.randomUUID();
+      latestMutationByChatRef.current.set(streamKey, mutationId);
+
+      let optimisticUserMessageId: string | undefined;
+      if (opts?.chatId) {
+        const targetChatId = opts.chatId;
+        const optimisticId = `${OPTIMISTIC_USER_MESSAGE_PREFIX}${mutationId}`;
+        optimisticUserMessageId = optimisticId;
+        queryClient.setQueryData<ChatMessage[]>(
+          queryKeys.chatHistory.byChatId(targetChatId),
+          (oldMessages = []) => {
+            if (oldMessages.some((msg) => msg.id === optimisticId)) {
+              return oldMessages;
+            }
+            return [
+              ...oldMessages,
+              buildOptimisticUserMessage(
+                targetChatId,
+                content,
+                optimisticId,
+              ),
+            ];
+          },
+        );
+      }
+
       mutation.mutate({
         content,
         chatId: opts?.chatId,
         model: opts?.model,
         streamKey,
+        mutationId,
+        optimisticUserMessageId,
       });
     },
-    [mutation],
+    [mutation, queryClient],
   );
 
   const actions = useMemo(
     () => ({
       startStream,
+      resumeRunStream,
       cancelStream,
       resetStream,
       setActiveChatId,
       onMetaRef,
       getStreamForChat,
     }),
-    [startStream, cancelStream, resetStream, setActiveChatId, getStreamForChat],
+    [
+      startStream,
+      resumeRunStream,
+      cancelStream,
+      resetStream,
+      setActiveChatId,
+      getStreamForChat,
+    ],
   );
 
   return (

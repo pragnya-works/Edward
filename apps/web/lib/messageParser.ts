@@ -212,14 +212,43 @@ export function parseMessageContent(content: string): MessageBlock[] {
         const installContent = remaining
           .slice(TAGS.INSTALL_START.length, endIdx)
           .trim();
-        const dependencies = installContent
-          .split("\n")
-          .map((l) => l.trim())
-          .filter(
-            (l) =>
-              l && !l.startsWith("framework:") && !l.startsWith("packages:"),
-          )
-          .map((l) => l.replace(/^\s*[-*]\s*/, "").trim());
+        const dependencies: string[] = [];
+        let inPackagesList = false;
+
+        for (const rawLine of installContent.split("\n")) {
+          const line = rawLine.trim();
+          if (!line) continue;
+
+          if (line.startsWith("framework:")) {
+            inPackagesList = false;
+            continue;
+          }
+
+          if (line.startsWith("packages:")) {
+            const inline = line
+              .slice("packages:".length)
+              .split(",")
+              .map((item) => item.trim())
+              .filter(Boolean);
+            dependencies.push(...inline);
+            inPackagesList = inline.length === 0;
+            continue;
+          }
+
+          const cleaned = line.replace(/^\s*[-*]\s*/, "").trim();
+          if (!cleaned) continue;
+
+          if (inPackagesList) {
+            const listed = cleaned
+              .split(",")
+              .map((item) => item.trim())
+              .filter(Boolean);
+            dependencies.push(...listed);
+            continue;
+          }
+
+          dependencies.push(cleaned);
+        }
 
         blocks.push({ type: MessageBlockType.INSTALL, dependencies });
         remaining = remaining.slice(endIdx + TAGS.INSTALL_END.length);

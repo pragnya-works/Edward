@@ -41,7 +41,7 @@ export const UrlScrapeBlock = memo(function UrlScrapeBlock({
 
       <div className="px-2.5 sm:px-3 py-2 sm:py-2.5 flex flex-col gap-1.5">
         {scrape.results.map((result) => {
-          const href = result.finalUrl || result.url;
+          const href = result.status === "success" ? result.finalUrl : result.url;
           const isSuccess = result.status === "success";
 
           return (

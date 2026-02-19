@@ -7,7 +7,7 @@ import { TechnicalBlueprint } from "./cardVisual";
 import { ProjectCard } from "./projectCard";
 
 export function RecentProjects() {
-  const { projects, hasMore, isLoading, isLoadingMore, loadMore } =
+  const { projects, hasMore, isLoading, isLoadingMore, loadMore, deleteProject } =
     useRecentChats();
 
   const [visibleProjects, setVisibleProjects] = useState<Set<string>>(
@@ -124,6 +124,7 @@ export function RecentProjects() {
               project={project}
               index={index}
               isVisible={visibleProjects.has(project.id)}
+              onDelete={deleteProject}
             />
           ))}
         </div>

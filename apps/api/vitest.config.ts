@@ -32,6 +32,10 @@ export default defineConfig({
         __dirname,
         "../../packages/shared/dist/schema.js",
       ),
+      "@edward/shared/stream-events": path.resolve(
+        __dirname,
+        "../../packages/shared/dist/stream-events.js",
+      ),
       "@edward/shared/constants": path.resolve(
         __dirname,
         "../../packages/shared/dist/constants.js",
