@@ -28,7 +28,7 @@ import {
 } from "@edward/ui/components/animated-theme-toggler";
 import { useRef } from "react";
 import { useSidebar } from "@edward/ui/components/sidebar";
-import { m } from "motion/react";
+import { cn } from "@edward/ui/lib/utils";
 
 export default function UserProfile() {
   const router = useRouter();
@@ -42,7 +42,7 @@ export default function UserProfile() {
   } = useApiKey();
   const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState(false);
   const themeTogglerRef = useRef<AnimatedThemeTogglerHandle>(null);
-  const { open, animate } = useSidebar();
+  const { open } = useSidebar();
 
   if (!session?.user) {
     return null;
@@ -66,9 +66,14 @@ export default function UserProfile() {
           render={
             <Button
               variant="ghost"
-              className="relative flex items-center justify-start gap-2 group/sidebar py-2 w-full h-auto px-0 hover:bg-transparent"
+              className={cn(
+                "relative group/sidebar",
+                open
+                  ? "flex items-center justify-start gap-2 py-2 w-full h-auto px-0"
+                  : "mx-auto h-12 w-12 flex items-center justify-center px-0 !bg-transparent hover:!bg-transparent dark:hover:!bg-transparent active:!bg-transparent",
+              )}
             >
-              <Avatar className="h-8 w-8 shrink-0">
+              <Avatar className={cn("shrink-0", open ? "h-8 w-8" : "h-10 w-10")}>
                 <AvatarImage
                   src={user.image || ""}
                   alt={user.name || "User profile"}
@@ -78,19 +83,16 @@ export default function UserProfile() {
                     user.email?.charAt(0)?.toUpperCase()}
                 </AvatarFallback>
               </Avatar>
-              <m.span
-                animate={{
-                  display: animate
-                    ? open
-                      ? "inline-block"
-                      : "none"
-                    : "inline-block",
-                  opacity: animate ? (open ? 1 : 0) : 1,
-                }}
-                className="text-neutral-700 dark:text-neutral-200 text-sm group-hover/sidebar:translate-x-1 transition duration-150 whitespace-pre inline-block p-0! m-0!"
+              <span
+                className={cn(
+                  "text-neutral-700 dark:text-neutral-200 text-sm whitespace-nowrap overflow-hidden transition-[max-width,opacity,transform] duration-200",
+                  open
+                    ? "max-w-50 opacity-100 translate-x-0 group-hover/sidebar:translate-x-1"
+                    : "max-w-0 opacity-0 -translate-x-1",
+                )}
               >
                 {user.name || "User"}
-              </m.span>
+              </span>
             </Button>
           }
         ></DropdownMenuTrigger>
@@ -125,19 +127,17 @@ export default function UserProfile() {
         </DropdownMenuPositioner>
       </DropdownMenu>
 
-      {isApiKeyModalOpen && (
-        <BYOK
-          isOpen={isApiKeyModalOpen}
-          onClose={() => setIsApiKeyModalOpen(false)}
-          onValidate={() => {}}
-          onSaveApiKey={validateAndSaveApiKey}
-          keyPreview={keyPreview}
-          hasExistingKey={hasApiKey ?? false}
-          preferredModel={preferredModel || undefined}
-          initialProvider={getBestGuessProvider(preferredModel, keyPreview)}
-          error={error}
-        />
-      )}
+      <BYOK
+        isOpen={isApiKeyModalOpen}
+        onClose={() => setIsApiKeyModalOpen(false)}
+        onValidate={() => {}}
+        onSaveApiKey={validateAndSaveApiKey}
+        keyPreview={keyPreview}
+        hasExistingKey={hasApiKey ?? false}
+        preferredModel={preferredModel || undefined}
+        initialProvider={getBestGuessProvider(preferredModel, keyPreview)}
+        error={error}
+      />
     </>
   );
 }

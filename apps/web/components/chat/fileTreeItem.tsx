@@ -9,9 +9,10 @@ import {
   useState,
 } from "react";
 import { AnimatePresence, m } from "motion/react";
-import { ChevronRight, FileCode } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import { cn } from "@edward/ui/lib/utils";
 import { FileTreeNodeType, type FileTreeNode } from "./fileTree";
+import { VscodeFileIcon } from "./vscodeFileIcon";
 
 interface FileTreeContextValue {
   activeFilePath: string | null;
@@ -39,7 +40,12 @@ interface FileTreeViewProps {
 interface FileTreeItemProps {
   node: FileTreeNode;
   depth: number;
+  ancestorGuideDepths: number[];
 }
+
+const INDENT_STEP_PX = 14;
+const BASE_LEFT_PADDING_PX = 12;
+const GUIDE_OFFSET_PX = 6;
 
 export function FileTreeView({
   nodes,
@@ -56,32 +62,22 @@ export function FileTreeView({
     <FileTreeContext.Provider value={contextValue}>
       <div className="py-2">
         {nodes.map((node) => (
-          <FileTreeItem key={node.path} node={node} depth={0} />
+          <FileTreeItem
+            key={node.path}
+            node={node}
+            depth={0}
+            ancestorGuideDepths={[]}
+          />
         ))}
       </div>
     </FileTreeContext.Provider>
   );
 }
 
-function getFileIconClass(name: string): string {
-  const ext = name.split(".").pop()?.toLowerCase() || "";
-  const colors: Record<string, string> = {
-    tsx: "text-blue-500",
-    ts: "text-blue-500",
-    jsx: "text-sky-500",
-    js: "text-yellow-500",
-    css: "text-pink-500",
-    html: "text-orange-500",
-    json: "text-yellow-600/80",
-    md: "text-gray-400/80",
-  };
-
-  return colors[ext] || "text-gray-500/80";
-}
-
 const FileTreeItem = memo(function FileTreeItem({
   node,
   depth,
+  ancestorGuideDepths,
 }: FileTreeItemProps) {
   const { activeFilePath, streamingFilePath, onSelect } = useFileTreeContext();
   const [isOpen, setIsOpen] = useState(depth < 2);
@@ -98,36 +94,59 @@ const FileTreeItem = memo(function FileTreeItem({
     onSelect(node.path);
   }, [isFolder, onSelect, node.path]);
 
+  const indentLeft = depth * INDENT_STEP_PX + BASE_LEFT_PADDING_PX;
+
   return (
-    <div className="select-none">
+    <div className="select-none relative">
       <m.button
         type="button"
         onClick={handleClick}
         className={cn(
-          "w-full flex items-center gap-2 px-2 py-1 text-left rounded-sm",
+          "w-full min-w-0 flex items-center gap-2 px-2 py-1 text-left rounded-none font-sans outline-none transition-colors relative",
           isActive
-            ? "bg-workspace-active text-foreground"
-            : "text-workspace-foreground hover:bg-workspace-hover",
-          isStreaming && "bg-emerald-500/5",
+            ? "bg-workspace-accent/15 text-workspace-foreground before:absolute before:left-0 before:top-0 before:bottom-0 before:w-0.5 before:bg-workspace-accent"
+            : "text-workspace-foreground/80 hover:bg-workspace-hover hover:text-workspace-foreground",
+          isStreaming && !isActive && "bg-workspace-accent/10",
         )}
-        style={{ paddingLeft: `${depth * 8 + 12}px` }}
+        style={{ paddingLeft: `${indentLeft}px` }}
       >
-        {isFolder ? (
-          <m.div
-            animate={{ rotate: isOpen ? 90 : 0 }}
-            transition={{ duration: 0.15 }}
-          >
-            <ChevronRight className="h-3 w-3 text-slate-400" />
-          </m.div>
-        ) : (
-          <FileCode className={cn("h-3.5 w-3.5 shrink-0", getFileIconClass(node.name))} />
+        {ancestorGuideDepths.length > 0 && (
+          <div className="pointer-events-none absolute inset-y-0 left-0">
+            {ancestorGuideDepths.map((guideDepth) => (
+              <span
+                key={`${node.path}-guide-${guideDepth}`}
+                className="absolute inset-y-0 w-px bg-workspace-border/55"
+                style={{
+                  left: `${guideDepth * INDENT_STEP_PX + BASE_LEFT_PADDING_PX + GUIDE_OFFSET_PX}px`,
+                }}
+              />
+            ))}
+          </div>
         )}
 
-        <span className="text-[11px] font-medium truncate flex-1">{node.name}</span>
+        {isFolder ? (
+          <div className="flex items-center gap-1">
+            <m.div
+              animate={{ rotate: isOpen ? 90 : 0 }}
+              transition={{ duration: 0.15 }}
+              className={cn(
+                "text-workspace-foreground/70",
+                isActive && "text-workspace-foreground",
+              )}
+            >
+              <ChevronRight className="h-[14px] w-[14px]" />
+            </m.div>
+            <VscodeFileIcon path={node.path} isFolder isOpen={isOpen} />
+          </div>
+        ) : (
+          <VscodeFileIcon path={node.path} />
+        )}
+
+        <span className="text-[11px] font-medium truncate flex-1 min-w-0">{node.name}</span>
 
         {isStreaming && (
           <m.div
-            className="h-1.5 w-1.5 rounded-full bg-emerald-500"
+            className="h-1.5 w-1.5 rounded-full bg-workspace-accent"
             animate={{ scale: [1, 1.3, 1], opacity: [1, 0.6, 1] }}
             transition={{ duration: 1, repeat: Infinity }}
           />
@@ -142,10 +161,21 @@ const FileTreeItem = memo(function FileTreeItem({
               animate={{ height: "auto", opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
               transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}
-              className="overflow-hidden"
+              className="overflow-hidden relative"
             >
+              <span
+                className="pointer-events-none absolute top-0 bottom-0 w-px bg-workspace-border/60"
+                style={{
+                  left: `${depth * INDENT_STEP_PX + BASE_LEFT_PADDING_PX + GUIDE_OFFSET_PX}px`,
+                }}
+              />
               {node.children.map((child) => (
-                <FileTreeItem key={child.path} node={child} depth={depth + 1} />
+                <FileTreeItem
+                  key={child.path}
+                  node={child}
+                  depth={depth + 1}
+                  ancestorGuideDepths={[...ancestorGuideDepths, depth]}
+                />
               ))}
             </m.div>
           )}

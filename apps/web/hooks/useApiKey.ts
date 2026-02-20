@@ -133,11 +133,11 @@ export function useApiKey() {
         },
       );
     },
-    onError: function (_err, _newSettings, context) {
+    onError: function (err, _newSettings, context) {
       if (context?.previousData) {
         queryClient.setQueryData(apiKeyQueryKey, context.previousData);
       }
-      setError("Failed to save API key. Please try again.");
+      setError(err?.message || "Failed to save API key. Please try again.");
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: apiKeyQueryKey });

@@ -1,6 +1,6 @@
 "use client";
 
-import { useReducer, type KeyboardEvent } from "react";
+import { useEffect, useReducer, type KeyboardEvent } from "react";
 import { Check, Lock } from "lucide-react";
 import { Button } from "@edward/ui/components/button";
 import {
@@ -65,7 +65,8 @@ type BYOKAction =
   | { type: "set-local-error"; payload: string }
   | { type: "set-submitting"; payload: boolean }
   | { type: "toggle-password-visibility" }
-  | { type: "set-show-success"; payload: boolean };
+  | { type: "set-show-success"; payload: boolean }
+  | { type: "reset"; payload: BYOKState };
 
 const PROVIDERS_CONFIG = [
   {
@@ -85,6 +86,15 @@ const PROVIDERS_CONFIG = [
 function validateApiKey(key: string, provider: Provider): boolean {
   if (!key.trim()) return false;
   return API_KEY_REGEX[provider].test(key);
+}
+
+function getProviderFromKeyPreview(keyPreview?: string | null): Provider | null {
+  if (!keyPreview) return null;
+  const normalized = keyPreview.trim();
+  if (normalized === "Existing Key") return null;
+  if (normalized.startsWith("sk-")) return Provider.OPENAI;
+  if (normalized.startsWith("AI")) return Provider.GEMINI;
+  return null;
 }
 
 function createInitialState(
@@ -119,6 +129,8 @@ function byokReducer(state: BYOKState, action: BYOKAction): BYOKState {
       return { ...state, showPassword: !state.showPassword };
     case "set-show-success":
       return { ...state, showSuccess: action.payload };
+    case "reset":
+      return action.payload;
     default:
       return state;
   }
@@ -152,18 +164,36 @@ export function BYOK({
     showSuccess,
   } = state;
 
+  useEffect(() => {
+    if (!isOpen) return;
+    dispatch({
+      type: "reset",
+      payload: createInitialState(initialApiKey, initialProvider, preferredModel),
+    });
+  }, [isOpen, initialApiKey, initialProvider, preferredModel]);
+
   const trimmedApiKey = apiKey.trim();
+  const existingKeyProvider = getProviderFromKeyPreview(keyPreview);
   const isExistingKeyCompatible =
-    !!keyPreview &&
-    (keyPreview === "Existing Key" ||
-      (selectedProvider === Provider.OPENAI &&
-        (keyPreview.startsWith("sk-") || keyPreview.includes("..."))) ||
-      (selectedProvider === Provider.GEMINI &&
-        (keyPreview.startsWith("AI") || keyPreview.includes("..."))));
+    keyPreview === "Existing Key" ||
+    !existingKeyProvider ||
+    existingKeyProvider === selectedProvider;
+
+  const selectedModelForProvider =
+    selectedModel &&
+    getModelSpecByProvider(selectedProvider, selectedModel) !== null
+      ? selectedModel
+      : undefined;
+  const preferredModelForProvider =
+    preferredModel &&
+    getModelSpecByProvider(selectedProvider, preferredModel) !== null
+      ? preferredModel
+      : undefined;
 
   const isApiKeyValid =
     !trimmedApiKey || validateApiKey(trimmedApiKey, selectedProvider);
-  const isModelChanged = selectedModel !== preferredModel;
+  const isModelChanged =
+    !!selectedModelForProvider && selectedModelForProvider !== preferredModel;
 
   const providerMismatchError =
     hasExistingKey && !trimmedApiKey && !isExistingKeyCompatible
@@ -180,9 +210,15 @@ export function BYOK({
     isApiKeyValid &&
     !providerMismatchError &&
     (trimmedApiKey ? true : hasExistingKey && isModelChanged);
+  const modelToPersist =
+    selectedModelForProvider ||
+    preferredModelForProvider ||
+    getDefaultModel(selectedProvider);
+  const isModelOnlyUpdate = !trimmedApiKey && hasExistingKey && isModelChanged;
 
   function handleModelChange(modelId: string) {
     dispatch({ type: "set-model", payload: modelId });
+    dispatch({ type: "set-local-error", payload: "" });
     onModelChange?.(modelId);
   }
 
@@ -198,7 +234,7 @@ export function BYOK({
         onValidate,
         onClose,
         selectedProvider,
-        selectedModel,
+        modelToPersist,
       );
       if (success) {
         dispatch({ type: "set-show-success", payload: true });
@@ -223,13 +259,6 @@ export function BYOK({
   function handleTabChange(value: string) {
     const newProvider = value as Provider;
     dispatch({ type: "set-provider", payload: newProvider });
-
-    const compatibleModel =
-      selectedModel &&
-      getModelSpecByProvider(newProvider, selectedModel) !== null
-        ? selectedModel
-        : getDefaultModel(newProvider);
-    dispatch({ type: "set-model", payload: compatibleModel });
     dispatch({ type: "set-local-error", payload: "" });
   }
 
@@ -238,20 +267,25 @@ export function BYOK({
   }
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-[440px] w-[95vw] p-0 overflow-hidden border-border/40 gap-0 max-h-[calc(100dvh-2rem)] flex flex-col shadow-2xl">
-        <div className="p-6 pb-4 border-b border-border/5 bg-background/50 backdrop-blur-sm shrink-0">
+    <Dialog
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+    >
+      <DialogContent className="max-w-[440px] w-[95vw] p-0 overflow-hidden border-border/40 dark:border-white/[0.1] gap-0 max-h-[calc(100dvh-2rem)] flex flex-col shadow-2xl dark:shadow-black/60 dark:bg-[oklch(0.185_0_0)]">
+        <div className="p-6 pb-4 border-b border-border/20 dark:border-white/[0.08] bg-background/50 dark:bg-white/[0.025] backdrop-blur-sm shrink-0">
           <DialogHeader className="gap-1">
             <DialogTitle className="text-xl font-bold tracking-tight text-foreground/90">
               {hasExistingKey ? "Manage Your API Key" : "Add Your API Key"}
             </DialogTitle>
             <DialogDescription className="space-y-2">
-              <span className="block italic text-muted-foreground/60 dark:text-muted-foreground/50">
+              <span className="block italic text-muted-foreground/60 dark:text-muted-foreground/70">
                 {hasExistingKey
                   ? "Update your API key to continue using the service."
                   : "Select a provider and enter your API key to get started."}
               </span>
-              <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground/50 dark:text-muted-foreground/30">
+              <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground/50 dark:text-muted-foreground/50">
                 <Lock className="h-3 w-3" aria-hidden="true" />
                 Encrypted storage • Principle-level security
               </span>
@@ -259,15 +293,22 @@ export function BYOK({
           </DialogHeader>
 
           {hasExistingKey && keyPreview && (
-            <div className="mt-4 rounded-xl border border-border/40 bg-muted/30 p-3.5 shadow-inner">
+            <div className="mt-4 rounded-xl border border-border/40 dark:border-white/[0.1] bg-muted/30 dark:bg-white/[0.05] p-3.5 shadow-inner">
               <div className="flex items-center justify-between">
                 <div className="space-y-1">
-                  <p className="text-[10px] font-bold text-muted-foreground/50 dark:text-muted-foreground/40 uppercase tracking-widest">
+                  <p className="text-[10px] font-bold text-muted-foreground/50 dark:text-muted-foreground/70 uppercase tracking-widest">
                     Active key
                   </p>
-                  <p className="font-mono text-sm tracking-tight text-foreground/70">
-                    {keyPreview}
-                  </p>
+                  <div className="flex items-center gap-2">
+                    <p className="font-mono text-sm tracking-tight text-foreground/70 dark:text-foreground/90">
+                      {keyPreview}
+                    </p>
+                    {existingKeyProvider && (
+                      <span className="rounded-full border border-border/60 dark:border-white/[0.15] bg-background/70 dark:bg-white/[0.08] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground dark:text-foreground/60">
+                        {existingKeyProvider === Provider.OPENAI ? "OpenAI" : "Gemini"}
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <div className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-500/10 border border-emerald-500/20 shadow-sm shadow-emerald-500/5">
                   <Check className="h-4 w-4 text-emerald-500" />
@@ -280,12 +321,12 @@ export function BYOK({
         <div className="flex-1 overflow-y-auto overscroll-contain scrollbar-hide">
           <div className="px-6 py-6">
             <Tabs value={selectedProvider} onValueChange={handleTabChange}>
-              <TabsList className="grid w-full grid-cols-2 rounded-xl h-11 p-1 bg-muted/60 dark:bg-muted/50 transition-all border border-border/40 dark:border-border/30">
+              <TabsList className="grid w-full grid-cols-2 rounded-xl h-11 p-1 bg-muted/60 dark:bg-white/[0.06] transition-all border border-border/40 dark:border-white/[0.1]">
                 {PROVIDERS_CONFIG.map(({ id, label, icon: Icon }) => (
                   <TabsTrigger
                     key={id}
                     value={id}
-                    className="gap-2 rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm data-[state=active]:text-foreground text-muted-foreground/70 transition-all"
+                    className="gap-2 rounded-lg data-[state=active]:bg-background dark:data-[state=active]:bg-white/[0.1] data-[state=active]:shadow-sm data-[state=active]:text-foreground dark:text-muted-foreground/80 transition-all"
                     aria-selected={selectedProvider === id}
                   >
                     <Icon className="h-4 w-4" aria-hidden="true" />
@@ -301,7 +342,7 @@ export function BYOK({
                   className="mt-6 space-y-6 outline-none focus-visible:ring-0"
                 >
                   <div className="space-y-2.5">
-                    <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/60 dark:text-muted-foreground/40 px-1">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/60 dark:text-muted-foreground/70 px-1">
                       Identity & Access
                     </p>
                     <ApiKeyInput
@@ -319,12 +360,17 @@ export function BYOK({
                   </div>
 
                   <div className="space-y-2.5">
-                    <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/60 dark:text-muted-foreground/40 px-1">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/60 dark:text-muted-foreground/70 px-1">
                       Engine Preference
                     </p>
                     <ModelSelector
                       provider={id}
-                      selectedModelId={selectedModel}
+                      selectedModelId={
+                        selectedModel &&
+                        getModelSpecByProvider(id, selectedModel) !== null
+                          ? selectedModel
+                          : undefined
+                      }
                       onSelect={handleModelChange}
                     />
                   </div>
@@ -348,11 +394,11 @@ export function BYOK({
             </div>
           )}
 
-          <DialogFooter className="px-6 py-4 bg-muted/40 dark:bg-muted/20 border-t border-border/50 dark:border-border/30 sm:justify-start gap-2.5 backdrop-blur-sm">
+          <DialogFooter className="px-6 py-4 bg-muted/40 dark:bg-white/[0.04] border-t border-border/50 dark:border-white/[0.08] sm:justify-start gap-2.5 backdrop-blur-sm">
             <Button
               type="button"
               variant="outline"
-              className="flex-1 rounded-xl h-12 font-semibold bg-background border-border/50 hover:bg-muted/50 transition-colors text-muted-foreground hover:text-foreground"
+              className="flex-1 rounded-xl h-12 font-semibold bg-background dark:bg-white/[0.06] border-border/50 dark:border-white/[0.12] hover:bg-muted/50 dark:hover:bg-white/[0.1] transition-colors text-muted-foreground dark:text-foreground/70 hover:text-foreground"
               onClick={onClose}
               disabled={isSubmitting}
             >
@@ -370,7 +416,9 @@ export function BYOK({
                   <span className="tracking-tight">Initializing…</span>
                 </div>
               ) : (
-                <span className="tracking-tight">Save API Key</span>
+                <span className="tracking-tight">
+                  {isModelOnlyUpdate ? "Save Preferences" : "Save API Key"}
+                </span>
               )}
             </Button>
           </DialogFooter>

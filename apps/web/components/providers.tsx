@@ -3,7 +3,7 @@
 import { useState, type ReactNode } from "react";
 import { ThemeProvider as NextThemesProvider } from "next-themes";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { LazyMotion, domAnimation } from "motion/react";
+import { LazyMotion, MotionConfig, domAnimation } from "motion/react";
 import { ChatStreamProvider } from "@/contexts/chatStreamContext";
 import { SandboxProvider } from "@/contexts/sandboxContext";
 
@@ -29,11 +29,13 @@ export function Providers({ children }: { children: ReactNode }) {
       enableColorScheme
     >
       <LazyMotion features={domAnimation}>
-        <QueryClientProvider client={queryClient}>
-          <ChatStreamProvider>
-            <SandboxProvider>{children}</SandboxProvider>
-          </ChatStreamProvider>
-        </QueryClientProvider>
+        <MotionConfig reducedMotion="user">
+          <QueryClientProvider client={queryClient}>
+            <ChatStreamProvider>
+              <SandboxProvider>{children}</SandboxProvider>
+            </ChatStreamProvider>
+          </QueryClientProvider>
+        </MotionConfig>
       </LazyMotion>
     </NextThemesProvider>
   );

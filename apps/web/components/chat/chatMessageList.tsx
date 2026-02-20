@@ -109,7 +109,7 @@ export const ChatMessageList = memo(function ChatMessageList({
   }
 
   return (
-    <div className="flex-1 relative min-h-0 flex flex-col h-full">
+    <div className="flex-1 relative min-h-0 flex flex-col h-full p-4">
       <div
         className="absolute inset-x-0 top-0 h-12 sm:h-16 z-20 pointer-events-none"
         style={{

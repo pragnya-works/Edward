@@ -1,13 +1,13 @@
 import { Metadata } from "next";
 import { Suspense } from "react";
 import {
-  type ChangelogIssue,
   LinearFetchError,
   getLinearIssues,
   groupAndSortIssues,
 } from "@/lib/linear";
 import { ChangelogHeader } from "@/components/changelog/header";
-import { IssueCard, IssueCardSkeleton } from "@/components/changelog/issueCard";
+import { IssueCardSkeleton } from "@/components/changelog/issueCard";
+import { ChangelogViewer } from "@/components/changelog/changelogViewer";
 import { AlertCircle, FolderGit } from "lucide-react";
 
 export const revalidate = 3600;
@@ -59,29 +59,7 @@ function EmptyState() {
   );
 }
 
-interface CategorySectionProps {
-  label: string;
-  issues: ChangelogIssue[];
-  startIndex: number;
-}
 
-function CategorySection({ label, issues, startIndex }: CategorySectionProps) {
-  return (
-    <section className="mb-10 last:mb-0">
-      <div className="flex items-center gap-3 mb-4 pb-2 border-b border-border/30">
-        <h2 className="text-sm font-semibold text-foreground/90 uppercase tracking-wider">
-          {label}
-        </h2>
-        <span className="text-xs text-muted-foreground/60 tabular-nums">{issues.length}</span>
-      </div>
-      <div className="space-y-0">
-        {issues.map((issue, idx) => (
-          <IssueCard key={issue.id} issue={issue} index={startIndex + idx} />
-        ))}
-      </div>
-    </section>
-  );
-}
 
 async function ChangelogContent() {
   const { issues, error } = await getLinearIssues();
@@ -90,27 +68,12 @@ async function ChangelogContent() {
   if (issues.length === 0) return <EmptyState />;
 
   const { categorizedIssues, sortedLabels } = groupAndSortIssues(issues);
-  let globalIndex = 0;
 
   return (
-    <div className="space-y-0">
-      {sortedLabels.map((label) => {
-        const categoryIssues = categorizedIssues[label];
-        if (!categoryIssues?.length) return null;
-
-        const section = (
-          <CategorySection
-            key={label}
-            label={label}
-            issues={categoryIssues}
-            startIndex={globalIndex}
-          />
-        );
-
-        globalIndex += categoryIssues.length;
-        return section;
-      })}
-    </div>
+    <ChangelogViewer
+      categorizedIssues={categorizedIssues}
+      sortedLabels={sortedLabels}
+    />
   );
 }
 

@@ -142,6 +142,16 @@ describe("apiKey schemas", () => {
 
       expect(result.success).toBe(false);
     });
+
+    it("should reject create request without apiKey", () => {
+      const result = CreateApiKeyRequestSchema.safeParse({
+        body: {
+          model: "gpt-5.2-pro-2025-12-11",
+        },
+      });
+
+      expect(result.success).toBe(false);
+    });
   });
 
   describe("UpdateApiKeyRequestSchema", () => {
@@ -163,6 +173,16 @@ describe("apiKey schemas", () => {
       });
 
       expect(result.success).toBe(false);
+    });
+
+    it("should accept model-only update requests", () => {
+      const result = UpdateApiKeyRequestSchema.safeParse({
+        body: {
+          model: "gemini-2.5-flash",
+        },
+      });
+
+      expect(result.success).toBe(true);
     });
   });
 });

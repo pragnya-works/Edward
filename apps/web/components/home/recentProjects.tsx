@@ -55,7 +55,7 @@ export function RecentProjects() {
 
   if (projects.length === 0) {
     return (
-      <section className="w-full py-12">
+      <section id="recent-projects" className="w-full py-12 scroll-mt-20">
         <div className="w-full px-4 md:px-6 lg:px-10">
           <div className="mb-8">
             <h2 className="text-2xl font-semibold tracking-tight">
@@ -109,7 +109,7 @@ export function RecentProjects() {
   }
 
   return (
-    <section className="w-full py-12">
+    <section id="recent-projects" className="w-full py-12 scroll-mt-20">
       <div className="w-full px-4 md:px-6 lg:px-10">
         <div className="mb-8 flex items-center justify-between">
           <h2 className="text-2xl font-semibold tracking-tight">

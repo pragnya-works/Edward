@@ -12,19 +12,19 @@ interface StatusBadgeProps {
 const statusConfig: Record<string, { icon: React.ReactNode; className: string }> = {
   completed: {
     icon: <CheckCircle2 className="w-3 h-3" />,
-    className: "text-emerald-600 dark:text-emerald-400 bg-emerald-50/50 dark:bg-emerald-950/20 border-emerald-200/50 dark:border-emerald-800/30",
+    className: "text-emerald-700 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-950/20 border-emerald-300/70 dark:border-emerald-800/30",
   },
   started: {
     icon: <Loader2 className="w-3 h-3 animate-spin" />,
-    className: "text-amber-600 dark:text-amber-400 bg-amber-50/50 dark:bg-amber-950/20 border-amber-200/50 dark:border-amber-800/30",
+    className: "text-amber-700 dark:text-amber-400 bg-amber-100 dark:bg-amber-950/20 border-amber-300/70 dark:border-amber-800/30",
   },
   canceled: {
     icon: <XCircle className="w-3 h-3" />,
-    className: "text-rose-600 dark:text-rose-400 bg-rose-50/50 dark:bg-rose-950/20 border-rose-200/50 dark:border-rose-800/30",
+    className: "text-rose-700 dark:text-rose-400 bg-rose-100 dark:bg-rose-950/20 border-rose-300/70 dark:border-rose-800/30",
   },
   default: {
     icon: <Circle className="w-3 h-3" />,
-    className: "text-slate-600 dark:text-slate-400 bg-slate-50/50 dark:bg-slate-950/20 border-slate-200/50 dark:border-slate-800/30",
+    className: "text-slate-700 dark:text-slate-400 bg-slate-100 dark:bg-slate-950/20 border-slate-300/70 dark:border-slate-800/30",
   },
 };
 
