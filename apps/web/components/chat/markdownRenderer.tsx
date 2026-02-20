@@ -1,16 +1,23 @@
 "use client";
 
-import { memo, useMemo } from "react";
+import { memo } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
 import type { Components } from "react-markdown";
+import type { Options } from "react-markdown";
 import { CopyButton } from "./copyButton";
 
 interface MarkdownRendererProps {
   content: string;
   className?: string;
 }
+
+const MAX_MARKDOWN_RENDER_CHARS = 50_000;
+const MARKDOWN_SYNTAX_PATTERN = /(^|\n)\s{0,3}(#{1,6}\s|[-*+]\s|\d+\.\s|>\s)|\*\*|__|~~|`|\[[^\]]*\]\([^)]*\)|\|/;
+const CODE_FENCE_PATTERN = /```/;
+const REMARK_PLUGINS: NonNullable<Options["remarkPlugins"]> = [remarkGfm];
+const EMPTY_REHYPE_PLUGINS: [] = [];
 
 const TYPEOF_STRING = "string";
 const TYPEOF_OBJECT = "object";
@@ -197,19 +204,33 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
   content,
   className = "",
 }: MarkdownRendererProps) {
-  const plugins = useMemo(() => [remarkGfm], []);
-  const rehypePlugins = useMemo(() => [rehypeHighlight], []);
+  const safeContent = content.length > MAX_MARKDOWN_RENDER_CHARS
+    ? content.slice(0, MAX_MARKDOWN_RENDER_CHARS)
+    : content;
+
+  const hasMarkdownSyntax = MARKDOWN_SYNTAX_PATTERN.test(safeContent);
+  const hasCodeFences = CODE_FENCE_PATTERN.test(safeContent);
+
+  if (!hasMarkdownSyntax) {
+    return (
+      <div className={`prose-edward leading-inherit text-foreground ${className}`}>
+        <p className="m-0 whitespace-pre-wrap break-words">{safeContent}</p>
+      </div>
+    );
+  }
+
+  const rehypePlugins = hasCodeFences ? [rehypeHighlight] : EMPTY_REHYPE_PLUGINS;
 
   return (
     <div
       className={`prose-edward leading-inherit text-foreground ${className}`}
     >
       <ReactMarkdown
-        remarkPlugins={plugins}
+        remarkPlugins={REMARK_PLUGINS}
         rehypePlugins={rehypePlugins}
         components={components}
       >
-        {content}
+        {safeContent}
       </ReactMarkdown>
     </div>
   );

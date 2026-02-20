@@ -42,18 +42,20 @@
   --glass-bg: oklch(1 0 0 / 0.7);
   --glass-border: oklch(1 0 0 / 0.2);
 
-  /* VS Code Workspace Light Tokens */
-  --workspace-bg: #ffffff;
-  --workspace-sidebar: #f3f3f3;
-  --workspace-header: #2c2c2c;
-  --workspace-header-fg: #ffffff;
-  --workspace-border: #e7e7e7;
-  --workspace-foreground: #333333;
+  /* Workspace tokens derived from global theme tokens */
+  --workspace-bg: var(--sidebar);
+  --workspace-sidebar: var(--muted);
+  --workspace-header: var(--muted);
+  --workspace-header-fg: var(--sidebar-foreground);
+  --workspace-border: var(--sidebar-border);
+  --workspace-foreground: var(--sidebar-foreground);
   --workspace-accent: #007acc;
-  --workspace-hover: #e8e8e8;
-  --workspace-active: #e4e6f1;
-  --workspace-gutter-fg: #237893; /* Light mode gutter numbers */
-  --workspace-gutter-line: #eeeeee;
+  --workspace-hover: var(--accent);
+  --workspace-active: var(--secondary);
+  --workspace-gutter-fg: var(--muted-foreground);
+  --workspace-gutter-line: var(--border);
+  --workspace-status-bg: #007acc;
+  --workspace-status-fg: oklch(0.985 0 0);
 }
 
 .dark {
@@ -71,8 +73,8 @@
   --muted-foreground: oklch(0.708 0 0);
   --accent: oklch(0.269 0 0);
   --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.396 0.141 25.723);
-  --destructive-foreground: oklch(0.637 0.237 25.331);
+  --destructive: oklch(0.637 0.237 25.331);
+  --destructive-foreground: oklch(0.396 0.141 25.723);
   --border: oklch(0.269 0 0);
   --input: oklch(0.269 0 0);
   --ring: oklch(0.556 0 0);
@@ -91,18 +93,20 @@
   --glass-border: oklch(1 0 0 / 0.1);
   --glow-primary: oklch(1 0 0 / 0.05);
 
-  /* VS Code Workspace Dark Tokens */
-  --workspace-bg: #1e1e1e;
-  --workspace-sidebar: #252526;
-  --workspace-header: #323233;
-  --workspace-header-fg: #cccccc;
-  --workspace-border: #3c3c3c;
-  --workspace-foreground: #cccccc;
-  --workspace-accent: #007acc;
-  --workspace-hover: #2a2d2e;
-  --workspace-active: #37373d;
-  --workspace-gutter-fg: #858585;
-  --workspace-gutter-line: #3c3c3c;
+  /* Workspace tokens — dark overrides */
+  --workspace-bg: var(--sidebar);
+  --workspace-sidebar: var(--muted);
+  --workspace-header: var(--sidebar);
+  --workspace-header-fg: var(--sidebar-foreground);
+  --workspace-border: var(--sidebar-border);
+  --workspace-foreground: var(--sidebar-foreground);
+  --workspace-accent: #4FC1FF;
+  --workspace-hover: var(--accent);
+  --workspace-active: var(--secondary);
+  --workspace-gutter-fg: var(--muted-foreground);
+  --workspace-gutter-line: var(--border);
+  --workspace-status-bg: #0e639c;
+  --workspace-status-fg: oklch(0.985 0 0);
 }
 
 
@@ -153,6 +157,8 @@
   --color-workspace-accent: var(--workspace-accent);
   --color-workspace-hover: var(--workspace-hover);
   --color-workspace-active: var(--workspace-active);
+  --color-workspace-status-bg: var(--workspace-status-bg);
+  --color-workspace-status-fg: var(--workspace-status-fg);
   --animate-shiny-text: shiny-text 8s infinite;
   --animate-accordion-collapse: accordion-collapse 0.2s ease-out;
   --animate-accordion-expand: accordion-expand 0.2s ease-out;
@@ -316,6 +322,19 @@
     backdrop-filter: blur(16px);
     border: 1px solid var(--glass-border);
     box-shadow: 0 8px 32px 0 oklch(0 0 0 / 0.1);
+  }
+
+  @keyframes pulse-glow {
+    0%, 100% {
+      box-shadow: 0 0 0 0 color-mix(in oklch, var(--primary) 5%, transparent);
+    }
+    50% {
+      box-shadow: 0 0 6px 1px color-mix(in oklch, var(--primary) 8%, transparent);
+    }
+  }
+
+  .animate-pulse-glow {
+    animation: pulse-glow 4s ease-in-out infinite;
   }
 
   .glow-border {

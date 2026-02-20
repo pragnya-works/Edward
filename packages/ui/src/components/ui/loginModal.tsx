@@ -8,6 +8,8 @@ import { Button } from "@edward/ui/components/button";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
+  DialogTitle,
 } from "@edward/ui/components/dialog";
 import { cn } from "@edward/ui/lib/utils";
 
@@ -33,11 +35,20 @@ export function LoginModal({ isOpen, onClose, onSignIn }: LoginModalProps) {
   }, [onSignIn, onClose]);
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+    >
       <DialogContent 
         className="sm:max-w-[400px] border-none bg-transparent p-0 gap-0 overflow-visible shadow-none"
         showCloseButton={false}
       >
+        <DialogTitle className="sr-only">Sign in to Edward</DialogTitle>
+        <DialogDescription className="sr-only">
+          Continue with GitHub to authenticate and start using Edward.
+        </DialogDescription>
         <LazyMotion features={domAnimation}>
           <AnimatePresence>
             {isOpen && (

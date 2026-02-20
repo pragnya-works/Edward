@@ -111,6 +111,8 @@ export default function Promptbar({
     () => attachedFiles.some((file) => isUploading(file)),
     [attachedFiles],
   );
+  const isSubmitDisabled =
+    (!inputValue.trim() && uploadedImages.length === 0) || hasPendingUploads;
   const detectedSourceUrls = useMemo(
     () => extractUrlsFromPrompt(inputValue),
     [inputValue],
@@ -221,7 +223,15 @@ export default function Promptbar({
               placeholder={hideSuggestions ? "Ask Edward anything..." : ""}
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
-              className="min-h-16 sm:min-h-20 md:min-h-24 resize-none border-0 bg-transparent p-3 sm:p-4 md:p-6 text-sm sm:text-[15px] text-foreground placeholder:text-muted-foreground/70 focus-visible:ring-0 focus-visible:ring-offset-0 relative z-10 font-medium leading-relaxed tracking-tight"
+              onKeyDown={(e) => {
+                if (e.key !== "Enter" || e.shiftKey || e.nativeEvent.isComposing) {
+                  return;
+                }
+                e.preventDefault();
+                if (isSubmitDisabled || isStreaming) return;
+                handleProtectedAction();
+              }}
+              className="min-h-[4.5rem] sm:min-h-[5.5rem] md:min-h-[6.5rem] max-h-40 sm:max-h-52 md:max-h-64 overflow-y-auto resize-none border-0 bg-transparent p-3 sm:p-4 md:p-6 text-sm sm:text-[15px] text-foreground placeholder:text-muted-foreground/70 focus-visible:ring-0 focus-visible:ring-offset-0 relative z-10 font-medium leading-relaxed tracking-tight"
             />
           </div>
 
@@ -238,20 +248,15 @@ export default function Promptbar({
             onProtectedAction={handleProtectedAction}
             isStreaming={isStreaming}
             onCancel={onCancel}
-            disabled={
-              (!inputValue.trim() && uploadedImages.length === 0) ||
-              hasPendingUploads
-            }
+            disabled={isSubmitDisabled}
           />
         </div>
-        {showLoginModal && (
-          <LoginModal
-            isOpen={showLoginModal}
-            onClose={() => setShowLoginModal(false)}
-            onSignIn={onSignIn}
-          />
-        )}
-        {showBYOK && isAuthenticated && (
+        <LoginModal
+          isOpen={showLoginModal}
+          onClose={() => setShowLoginModal(false)}
+          onSignIn={onSignIn}
+        />
+        {isAuthenticated && (
           <BYOK
             isOpen={showBYOK}
             onClose={() => setShowBYOK(false)}

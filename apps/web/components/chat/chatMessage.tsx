@@ -192,9 +192,10 @@ export const ChatMessage = memo(function ChatMessage({
                 <ImageAttachmentGrid attachments={message.attachments} />
               )}
               {displayContent && (
-                <p className="text-[14px] sm:text-[15px] leading-[1.7] sm:leading-[1.8] tracking-tight whitespace-pre-wrap break-words font-medium">
-                  {displayContent}
-                </p>
+                <MarkdownRenderer
+                  content={displayContent}
+                  className="text-[14px] sm:text-[15px] leading-[1.7] sm:leading-[1.8] tracking-tight font-medium [&_p]:mb-0"
+                />
               )}
             </div>
           ) : (
@@ -346,6 +347,11 @@ export const ChatMessage = memo(function ChatMessage({
             isUser ? "flex-row-reverse" : "flex-row",
           )}
         >
+          {isUser && (
+            <span className="text-[9px] sm:text-[10px] font-bold text-foreground/40 uppercase tracking-widest select-none leading-none shrink-0">
+              You
+            </span>
+          )}
           {!isUser && (
             <span className="text-[9px] sm:text-[10px] font-bold text-foreground/40 uppercase tracking-widest select-none leading-none shrink-0">
               Edward

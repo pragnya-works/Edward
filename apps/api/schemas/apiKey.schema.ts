@@ -2,14 +2,14 @@ import { z } from "zod";
 import { Model } from "@edward/shared/schema";
 
 const ModelValues = Object.values(Model) as [string, ...string[]];
+const ApiKeyFieldSchema = z
+  .string()
+  .min(20, "API key must be at least 20 characters")
+  .max(500, "API key cannot exceed 500 characters");
 
 export const ApiKeySchema = z
   .object({
-    apiKey: z
-      .string()
-      .min(20, "API key must be at least 20 characters")
-      .max(500, "API key cannot exceed 500 characters")
-      .optional(),
+    apiKey: ApiKeyFieldSchema.optional(),
     model: z.enum(ModelValues).optional(),
   })
   .refine((data) => data.apiKey || data.model, {
@@ -21,13 +21,16 @@ export const ApiKeyDataSchema = z.object({
   hasApiKey: z.boolean(),
   userId: z.string(),
   keyPreview: z.string().optional(),
-  preferredModel: z.enum(ModelValues),
+  preferredModel: z.enum(ModelValues).nullable().optional(),
   createdAt: z.date().optional(),
   updatedAt: z.date().optional(),
 });
 
 export const CreateApiKeyRequestSchema = z.object({
-  body: ApiKeySchema,
+  body: z.object({
+    apiKey: ApiKeyFieldSchema,
+    model: z.enum(ModelValues).optional(),
+  }),
 });
 
 export const UpdateApiKeyRequestSchema = z.object({
@@ -45,6 +48,7 @@ export type CreateApiKeyResponse = {
   data: {
     userId: string;
     keyPreview: string;
+    preferredModel?: string | null;
   };
   timestamp: string;
 };
@@ -54,6 +58,7 @@ export type UpdateApiKeyResponse = {
   data: {
     userId: string;
     keyPreview: string;
+    preferredModel?: string | null;
   };
   timestamp: string;
 };
