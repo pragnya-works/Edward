@@ -3,6 +3,7 @@
 import AuthenticatedPromptbar from "@/components/authenticatedPromptbar"
 import { FlipWords } from "@edward/ui/components/ui/flipWords";
 import { useSession } from "@/lib/auth-client";
+import { cn } from "@edward/ui/lib/utils";
 
 export function Hero() {
   const { data: session } = useSession();
@@ -10,7 +11,12 @@ export function Hero() {
   const isAuth = !!session?.user;
 
   return (
-    <div className="relative z-10 flex min-h-[80vh] flex-col items-center justify-center px-4 pb-20">
+    <div className={cn(
+      "relative z-10 flex flex-col items-center justify-center px-4",
+      isAuth
+        ? "min-h-[60vh] pb-10 md:min-h-[80vh] md:pb-20"
+        : "min-h-[80vh] pb-20",
+    )}>
 
       <div className="flex w-full max-w-3xl flex-col items-center">
         <h1 className="mb-5 text-center font-bold leading-[1.1] tracking-tight text-foreground text-3xl md:text-5xl lg:text-6xl select-none">

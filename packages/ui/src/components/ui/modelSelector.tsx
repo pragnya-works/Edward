@@ -72,7 +72,7 @@ export function ModelSelector({
                     className={cn(
                       "flex-shrink-0 h-9 w-9 rounded-lg flex items-center justify-center border transition-all duration-300",
                       isSelected
-                        ? "bg-primary text-primary-foreground border-primary shadow-md shadow-primary/10"
+                        ? "bg-muted/50 border-primary/30 shadow-sm shadow-primary/5 dark:bg-primary dark:border-primary dark:shadow-md dark:shadow-primary/10"
                         : "bg-muted/20 dark:bg-muted/10 border-border group-hover:border-primary/20 text-muted-foreground group-hover:text-primary",
                     )}
                   >

@@ -3,6 +3,12 @@ import { cn } from "@edward/ui/lib/utils";
 import { useState, createContext, useContext, useEffect, useMemo } from "react";
 import { AnimatePresence, LazyMotion, domAnimation, m } from "motion/react";
 import { IconMenu2, IconX } from "@tabler/icons-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipPositioner,
+  TooltipTrigger,
+} from "./tooltip";
 
 interface Links {
   label: string;
@@ -80,7 +86,11 @@ export const Sidebar = ({
   );
 };
 
-export const SidebarBody = (props: React.ComponentProps<typeof m.div>) => {
+type SidebarMotionProps = Omit<React.ComponentProps<typeof m.div>, "children"> & {
+  children?: React.ReactNode;
+};
+
+export const SidebarBody = (props: SidebarMotionProps) => {
   return (
     <>
       <DesktopSidebar {...props} />
@@ -93,18 +103,24 @@ export const DesktopSidebar = ({
   className,
   children,
   ...props
-}: React.ComponentProps<typeof m.div>) => {
+}: SidebarMotionProps) => {
   const { open, animate } = useSidebar();
   return (
     <LazyMotion features={domAnimation}>
       <m.div
         className={cn(
-          "h-full px-4 py-4 hidden  md:flex md:flex-col bg-neutral-100 dark:bg-neutral-800 w-75 shrink-0 relative",
+          "hidden h-full shrink-0 relative md:flex md:flex-col bg-gradient-to-b from-neutral-100 to-neutral-100/95 dark:from-neutral-800 dark:to-neutral-900",
+          open ? "px-4 py-4" : "px-2.5 py-3 items-center",
           className
         )}
         animate={{
-          width: animate ? (open ? "300px" : "60px") : "300px",
+          width: animate ? (open ? "300px" : "74px") : "300px",
         }}
+        transition={
+          animate
+            ? { type: "spring", stiffness: 320, damping: 34, mass: 0.7 }
+            : { duration: 0 }
+        }
         {...props}
       >
         {children}
@@ -177,13 +193,15 @@ export const SidebarLink = ({
   link: Links;
   className?: string;
 } & React.ComponentProps<"a">) => {
-  const { open, animate } = useSidebar();
-  return (
+  const { open } = useSidebar();
+  const linkNode = (
     <a
       href={link.href}
       className={cn(
-        "flex items-center gap-2 group/sidebar py-2 px-1 rounded-md transition-colors hover:bg-neutral-200 dark:hover:bg-neutral-700/50",
-        !open && "justify-center",
+        "group/sidebar flex items-center rounded-md transition-[background-color,width,padding] duration-200 hover:bg-neutral-200 dark:hover:bg-neutral-700/50",
+        open
+          ? "w-full justify-start gap-2 px-2 py-2"
+          : "mx-auto h-12 w-12 justify-center gap-0 rounded-xl border border-neutral-200/85 dark:border-neutral-700/80 bg-white/85 dark:bg-neutral-900/75 px-0 py-0 shadow-sm hover:bg-white dark:hover:bg-neutral-900",
         className
       )}
       {...props}
@@ -192,20 +210,30 @@ export const SidebarLink = ({
         {link.icon}
       </div>
 
-      <LazyMotion features={domAnimation}>
-        <m.span
-          animate={{
-            display: animate ? (open ? "inline-block" : "none") : "inline-block",
-            opacity: animate ? (open ? 1 : 0) : 1,
-            x: open ? 0 : -10,
-          }}
-          transition={{ duration: 0.2 }}
-          className="text-neutral-700 dark:text-neutral-200 group-hover/sidebar:translate-x-1 transition-transform duration-150 whitespace-pre inline-block p-0! m-0! text-sm font-medium"
-        >
-          {link.label}
-        </m.span>
-      </LazyMotion>
+      <span
+        className={cn(
+          "text-neutral-700 dark:text-neutral-200 whitespace-nowrap text-sm font-medium overflow-hidden transition-[max-width,opacity,transform] duration-200",
+          open
+            ? "max-w-40 opacity-100 translate-x-0 group-hover/sidebar:translate-x-1"
+            : "max-w-0 opacity-0 -translate-x-1 pointer-events-none",
+        )}
+      >
+        {link.label}
+      </span>
     </a>
+  );
+
+  if (open) {
+    return linkNode;
+  }
+
+  return (
+    <Tooltip>
+      <TooltipTrigger render={linkNode} />
+      <TooltipPositioner side="right" align="center" sideOffset={8}>
+        <TooltipContent>{link.label}</TooltipContent>
+      </TooltipPositioner>
+    </Tooltip>
   );
 };
 

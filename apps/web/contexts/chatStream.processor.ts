@@ -1,4 +1,5 @@
 import { MetaPhase, ParserEventType } from "@edward/shared/stream-events";
+import type { Dispatch } from "react";
 import {
   type MetaEvent,
   type StreamState,
@@ -10,12 +11,16 @@ import { StreamActionType, type StreamAction } from "./chatStream.reducer";
 
 const MAX_REPLAY_ATTEMPTS = 1;
 
+export interface RefCell<T> {
+  current: T;
+}
+
 interface ProcessStreamResponseParams {
   response: Response;
   chatId: string;
-  dispatch: React.Dispatch<StreamAction>;
-  onMetaRef: React.MutableRefObject<((meta: MetaEvent) => void) | null>;
-  thinkingStartRef: React.MutableRefObject<number | null>;
+  dispatch: Dispatch<StreamAction>;
+  onMetaRef: RefCell<((meta: MetaEvent) => void) | null>;
+  thinkingStartRef: RefCell<number | null>;
   onChatIdResolved?: (realChatId: string) => void;
   replayAttempt?: number;
   replayCursor?: string;

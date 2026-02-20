@@ -42,6 +42,7 @@ interface SandboxState {
   isStreaming: boolean;
   streamingFilePath: string | null;
   localEdits: Map<string, string>;
+  isSearchOpen: boolean;
 }
 
 interface SandboxContextValue {
@@ -56,9 +57,13 @@ interface SandboxContextValue {
   isStreaming: boolean;
   streamingFilePath: string | null;
   localEdits: Map<string, string>;
+  isSearchOpen: boolean;
   openSandbox: () => void;
   closeSandbox: () => void;
   toggleSandbox: () => void;
+  openSearch: () => void;
+  closeSearch: () => void;
+  toggleSearch: () => void;
   setMode: (mode: SandboxMode) => void;
   setActiveFile: (path: string | null) => void;
   setPreviewUrl: (url: string | null) => void;
@@ -90,6 +95,7 @@ const INITIAL_SANDBOX_STATE: SandboxState = {
   isStreaming: false,
   streamingFilePath: null,
   localEdits: new Map(),
+  isSearchOpen: false,
 };
 
 enum SandboxActionType {
@@ -110,6 +116,9 @@ enum SandboxActionType {
   SET_BUILD_STATUS = "SET_BUILD_STATUS",
   SET_BUILD_ERROR = "SET_BUILD_ERROR",
   SET_FULL_ERROR_REPORT = "SET_FULL_ERROR_REPORT",
+  OPEN_SEARCH = "OPEN_SEARCH",
+  CLOSE_SEARCH = "CLOSE_SEARCH",
+  TOGGLE_SEARCH = "TOGGLE_SEARCH",
 }
 
 type SandboxAction =
@@ -125,18 +134,21 @@ type SandboxAction =
   | { type: SandboxActionType.STOP_STREAMING }
   | { type: SandboxActionType.CLEAR_FILES }
   | {
-      type: SandboxActionType.SET_LOCAL_EDIT;
-      path: string;
-      content: string;
-    }
+    type: SandboxActionType.SET_LOCAL_EDIT;
+    path: string;
+    content: string;
+  }
   | { type: SandboxActionType.CLEAR_LOCAL_EDIT; path: string }
   | { type: SandboxActionType.CLEAR_ALL_LOCAL_EDITS }
   | { type: SandboxActionType.SET_BUILD_STATUS; status: BuildStatus }
   | { type: SandboxActionType.SET_BUILD_ERROR; error: string | null }
   | {
-      type: SandboxActionType.SET_FULL_ERROR_REPORT;
-      report: BuildErrorReport | null;
-    };
+    type: SandboxActionType.SET_FULL_ERROR_REPORT;
+    report: BuildErrorReport | null;
+  }
+  | { type: SandboxActionType.OPEN_SEARCH }
+  | { type: SandboxActionType.CLOSE_SEARCH }
+  | { type: SandboxActionType.TOGGLE_SEARCH };
 
 function sanitizePreviewUrl(url: string | null): string | null {
   if (!url) return null;
@@ -216,9 +228,32 @@ function sandboxReducer(state: SandboxState, action: SandboxAction): SandboxStat
       return { ...state, buildError: action.error };
     case SandboxActionType.SET_FULL_ERROR_REPORT:
       return { ...state, fullErrorReport: action.report };
+    case SandboxActionType.OPEN_SEARCH:
+      return { ...state, isSearchOpen: true };
+    case SandboxActionType.CLOSE_SEARCH:
+      return { ...state, isSearchOpen: false };
+    case SandboxActionType.TOGGLE_SEARCH:
+      return { ...state, isSearchOpen: !state.isSearchOpen };
     default:
       return state;
   }
+}
+
+function isEditableEventTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) {
+    return false;
+  }
+
+  if (target.isContentEditable) {
+    return true;
+  }
+
+  const tagName = target.tagName.toLowerCase();
+  return (
+    tagName === "input" ||
+    tagName === "textarea" ||
+    tagName === "select"
+  );
 }
 
 export function SandboxProvider({ children }: { children: ReactNode }) {
@@ -234,6 +269,19 @@ export function SandboxProvider({ children }: { children: ReactNode }) {
   );
   const toggleSandbox = useCallback(
     () => dispatch({ type: SandboxActionType.TOGGLE }),
+    [],
+  );
+
+  const openSearch = useCallback(
+    () => dispatch({ type: SandboxActionType.OPEN_SEARCH }),
+    [],
+  );
+  const closeSearch = useCallback(
+    () => dispatch({ type: SandboxActionType.CLOSE_SEARCH }),
+    [],
+  );
+  const toggleSearch = useCallback(
+    () => dispatch({ type: SandboxActionType.TOGGLE_SEARCH }),
     [],
   );
 
@@ -307,18 +355,25 @@ export function SandboxProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
+      if (isEditableEventTarget(event.target)) {
+        return;
+      }
+      if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== "p") {
+        return;
+      }
+      if (event.shiftKey) {
+        return;
+      }
       if (
-        (event.metaKey || event.ctrlKey) &&
-        event.shiftKey &&
-        event.key === "p"
+        state.isOpen
       ) {
         event.preventDefault();
-        toggleSandbox();
+        toggleSearch();
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [toggleSandbox]);
+  }, [state.isOpen, toggleSearch]);
 
   const value = useMemo<SandboxContextValue>(
     () => ({
@@ -333,9 +388,13 @@ export function SandboxProvider({ children }: { children: ReactNode }) {
       isStreaming: state.isStreaming,
       streamingFilePath: state.streamingFilePath,
       localEdits: state.localEdits,
+      isSearchOpen: state.isSearchOpen,
       openSandbox,
       closeSandbox,
       toggleSandbox,
+      openSearch,
+      closeSearch,
+      toggleSearch,
       setMode,
       setActiveFile,
       setPreviewUrl,
@@ -357,6 +416,9 @@ export function SandboxProvider({ children }: { children: ReactNode }) {
       openSandbox,
       closeSandbox,
       toggleSandbox,
+      openSearch,
+      closeSearch,
+      toggleSearch,
       setMode,
       setActiveFile,
       setPreviewUrl,

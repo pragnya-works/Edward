@@ -263,6 +263,36 @@ describe("apiKey controller", () => {
 
       expect(res.status).toHaveBeenCalledWith(HttpStatus.CONFLICT);
     });
+
+    it("should reject incompatible model for provided API key", async () => {
+      const mockUserData = {
+        id: mockUserId,
+        apiKey: null,
+        preferredModel: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      vi.mocked(apiKeyService.getUserWithApiKey).mockResolvedValue(
+        mockUserData,
+      );
+
+      const req = createMockRequest({
+        apiKey: "AIza12345678901234567890123456789012345",
+        model: "gpt-5.2-pro-2025-12-11",
+      });
+      const res = createMockResponse();
+      const next = createMockNext();
+
+      await createApiKey(req, res, next);
+
+      expect(res.status).toHaveBeenCalledWith(HttpStatus.BAD_REQUEST);
+      const jsonCall = (res.json as ReturnType<typeof vi.fn>).mock
+        .calls[0]?.[0];
+      expect(jsonCall?.error).toBe(
+        "Selected model is incompatible with the provided API key",
+      );
+    });
   });
 
   describe("updateApiKey", () => {
@@ -315,6 +345,73 @@ describe("apiKey controller", () => {
       await updateApiKey(req, res, next);
 
       expect(res.status).toHaveBeenCalledWith(HttpStatus.NOT_FOUND);
+    });
+
+    it("should update model without requiring a new API key", async () => {
+      const mockUserData = {
+        id: mockUserId,
+        apiKey: "existing-encrypted-key",
+        preferredModel: "gpt-5.2-pro-2025-12-11",
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      vi.mocked(apiKeyService.getUserWithApiKey).mockResolvedValue(
+        mockUserData,
+      );
+      vi.mocked(encryption.decrypt).mockReturnValue("sk-proj-original-key");
+
+      const req = createMockRequest({
+        model: "gpt-5.2-codex",
+      });
+      const res = createMockResponse();
+      const next = createMockNext();
+
+      await updateApiKey(req, res, next);
+
+      expect(encryption.encrypt).not.toHaveBeenCalled();
+      expect(res.status).toHaveBeenCalledWith(HttpStatus.OK);
+      const jsonCall = (res.json as ReturnType<typeof vi.fn>).mock
+        .calls[0]?.[0];
+      expect(jsonCall).toMatchObject({
+        message: "API key updated successfully",
+        data: {
+          userId: mockUserId,
+          keyPreview: "sk-proj...-key",
+        },
+      });
+    });
+
+    it("should reject incompatible model for existing key provider", async () => {
+      const mockUserData = {
+        id: mockUserId,
+        apiKey: "existing-encrypted-key",
+        preferredModel: "gemini-2.5-flash",
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      vi.mocked(apiKeyService.getUserWithApiKey).mockResolvedValue(
+        mockUserData,
+      );
+      vi.mocked(encryption.decrypt).mockReturnValue(
+        "AIza12345678901234567890123456789012345",
+      );
+
+      const req = createMockRequest({
+        model: "gpt-5.2-pro-2025-12-11",
+      });
+      const res = createMockResponse();
+      const next = createMockNext();
+
+      await updateApiKey(req, res, next);
+
+      expect(res.status).toHaveBeenCalledWith(HttpStatus.BAD_REQUEST);
+      const jsonCall = (res.json as ReturnType<typeof vi.fn>).mock
+        .calls[0]?.[0];
+      expect(jsonCall?.error).toBe(
+        "Selected model is incompatible with the provided API key",
+      );
     });
   });
 
