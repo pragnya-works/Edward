@@ -69,6 +69,10 @@ export interface RunAgentLoopParams {
     totalToolCallsInRun: number;
     updatedAt: number;
   }) => Promise<void>;
+  installTaskQueue?: {
+    enqueue(task: () => Promise<void>): void;
+    waitForIdle(): Promise<void>;
+  };
 }
 
 type RunAgentLoopContext = Parameters<typeof buildEventHandlerContext>[0];
@@ -108,7 +112,21 @@ export async function runAgentLoop(
     runId,
     resumeCheckpoint,
     onCheckpoint,
+    installTaskQueue: providedInstallTaskQueue,
   } = params;
+
+  let installQueueTail = Promise.resolve();
+  const installTaskQueue =
+    providedInstallTaskQueue ??
+    {
+      enqueue(task: () => Promise<void>) {
+        const queuedTask = installQueueTail.then(task, task);
+        installQueueTail = queuedTask.catch(() => undefined);
+      },
+      async waitForIdle() {
+        await installQueueTail;
+      },
+    };
 
   let fullRawResponse = resumeCheckpoint?.fullRawResponse ?? "";
   let agentMessages: LlmChatMessage[] =
@@ -193,6 +211,8 @@ export async function runAgentLoop(
           toolResultsThisTurn,
           runId,
           turn: agentTurn,
+          installTaskQueue,
+          abortSignal: abortController.signal,
         });
 
         const result = await handleParserEvent(ctx, event);
@@ -269,6 +289,7 @@ export async function runAgentLoop(
     }
 
     await processEvents(parser.flush());
+    await installTaskQueue.waitForIdle();
 
     if (responseSizeExceededThisTurn) {
       loopStopReason = AgentLoopStopReason.RESPONSE_SIZE_EXCEEDED;

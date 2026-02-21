@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronRight, RefreshCw, Search } from "lucide-react";
 import { Button } from "@edward/ui/components/button";
 import { Separator } from "@edward/ui/components/separator";
@@ -25,24 +25,41 @@ export function SandboxFileSidebar({ chatId }: SandboxFileSidebarProps) {
   } = useSandbox();
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isWorkspaceExpanded, setIsWorkspaceExpanded] = useState(true);
+  const latestChatIdRef = useRef(chatId);
+  const refreshRequestSeqRef = useRef(0);
+
+  useEffect(() => {
+    latestChatIdRef.current = chatId;
+  }, [chatId]);
 
   const fileTree = useMemo(() => buildFileTree(files), [files]);
 
   const handleRefreshFiles = useCallback(async () => {
     if (isRefreshing) return;
 
+    const requestSeq = ++refreshRequestSeqRef.current;
     setIsRefreshing(true);
     try {
       const response = await getSandboxFiles(chatId);
       const { files: fetchedFiles } = response.data;
 
-      if (fetchedFiles && fetchedFiles.length > 0) {
-        setFiles(fetchedFiles);
+      if (
+        requestSeq === refreshRequestSeqRef.current &&
+        latestChatIdRef.current === chatId
+      ) {
+        setFiles(fetchedFiles ?? []);
       }
     } catch (error) {
-      console.error("Failed to refresh sandbox files:", error);
+      if (
+        requestSeq === refreshRequestSeqRef.current &&
+        latestChatIdRef.current === chatId
+      ) {
+        console.error("Failed to refresh sandbox files:", error);
+      }
     } finally {
-      setIsRefreshing(false);
+      if (requestSeq === refreshRequestSeqRef.current) {
+        setIsRefreshing(false);
+      }
     }
   }, [chatId, isRefreshing, setFiles]);
 

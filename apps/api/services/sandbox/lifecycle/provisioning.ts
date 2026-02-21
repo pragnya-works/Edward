@@ -14,7 +14,6 @@ import {
   listContainers,
 } from "../docker.sandbox.js";
 import { restoreSandboxInstance } from "../backup.sandbox.js";
-import { mirrorSandboxToS3 } from "../read.sandbox.js";
 import { redis } from "../../../lib/redis.js";
 import {
   getTemplateConfig,
@@ -207,13 +206,6 @@ export async function provisionSandbox(
         }
 
         await saveSandboxState(sandbox);
-
-        // Mirror scaffolded files to S3 so they are available even if container dies
-        if (!shouldRestore) {
-          void mirrorSandboxToS3(sandboxId).catch((err: unknown) =>
-            logger.warn({ err, sandboxId }, "Initial mirror to S3 failed"),
-          );
-        }
 
         await releaseLock(lockKey, lockValue);
         return sandboxId;
