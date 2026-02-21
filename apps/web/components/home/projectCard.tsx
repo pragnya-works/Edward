@@ -99,25 +99,30 @@ export const ProjectCard = memo(function ProjectCard({
         </div>
       </m.div>
 
-      <AlertDialogContent>
+      <AlertDialogContent className="bg-workspace-sidebar border-workspace-border shadow-2xl">
         <AlertDialogHeader>
           <div className="flex items-center gap-3 mb-1">
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-destructive/10 border border-destructive/20">
               <AlertTriangle className="h-4 w-4 text-destructive" />
             </div>
-            <AlertDialogTitle>Delete project?</AlertDialogTitle>
+            <AlertDialogTitle className="text-[13px] font-semibold text-workspace-foreground">
+              Delete project?
+            </AlertDialogTitle>
           </div>
-          <AlertDialogDescription>
-            <span className="font-medium text-foreground/80">
+          <AlertDialogDescription className="text-[12px] leading-relaxed text-workspace-foreground/55">
+            <span className="font-medium text-workspace-foreground/80">
               &ldquo;{project.title || "Untitled Project"}&rdquo;
             </span>{" "}
             and all its messages will be permanently deleted. This action cannot be undone.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter className="mt-2">
-          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogCancel className="h-8 rounded-lg border-workspace-border bg-transparent px-3.5 text-[12px] font-medium text-workspace-foreground/60 hover:bg-workspace-hover hover:text-workspace-foreground hover:border-workspace-border">
+            Cancel
+          </AlertDialogCancel>
           <AlertDialogAction
             onClick={() => onDelete?.(project.id)}
+            className="h-8 rounded-lg bg-destructive/90 px-3.5 text-[12px] font-semibold text-white hover:bg-destructive active:scale-[0.98]"
           >
             Delete project
           </AlertDialogAction>

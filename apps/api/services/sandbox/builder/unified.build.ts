@@ -22,6 +22,7 @@ import { mergeAndInstallDependencies } from "../templates/dependency.merger.js";
 import { invalidatePreviewCache } from "../../storage/cdn.js";
 import { normalizeFramework } from "../templates/template.registry.js";
 import { registerPreviewSubdomain } from "../../previewRouting.service.js";
+import { db, chat, eq } from "@edward/auth";
 
 export interface BuildResult {
   success: boolean;
@@ -289,7 +290,13 @@ export async function buildAndUploadUnified(
 
         if (config.deployment.type === DEPLOYMENT_TYPES.SUBDOMAIN) {
           try {
-            const routing = await registerPreviewSubdomain(userId, chatId);
+            const [chatData] = await db
+              .select({ customSubdomain: chat.customSubdomain })
+              .from(chat)
+              .where(eq(chat.id, chatId))
+              .limit(1);
+            const customSubdomain = chatData?.customSubdomain ?? null;
+            const routing = await registerPreviewSubdomain(userId, chatId, customSubdomain);
             previewUrl = routing?.previewUrl ?? pathPreviewUrl;
             if (!previewUrl) {
               logger.warn(

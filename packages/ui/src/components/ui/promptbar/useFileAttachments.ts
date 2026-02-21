@@ -21,6 +21,7 @@ export function useFileAttachments(
   onImageUpload?: (
     file: File,
   ) => Promise<{ url: string; mimeType: string; sizeBytes?: number }>,
+  onImageUploadError?: (message: string) => void,
 ) {
   const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([]);
   const [isDragging, setIsDragging] = useState(false);
@@ -79,6 +80,7 @@ export function useFileAttachments(
           } else {
             const errorMessage =
               error instanceof Error ? error.message : "Upload failed";
+            onImageUploadError?.(errorMessage);
             setAttachedFiles((prev) =>
               prev.map((f) =>
                 f.id === item.id
@@ -99,7 +101,7 @@ export function useFileAttachments(
 
       attemptUpload();
     }
-  }, [onImageUpload]);
+  }, [onImageUpload, onImageUploadError]);
 
   const handleFiles = useCallback(
     async (files: FileList | null) => {
@@ -112,13 +114,15 @@ export function useFileAttachments(
             IMAGE_UPLOAD_CONFIG.ALLOWED_MIME_TYPES as readonly string[]
           ).includes(file.type)
         ) {
-          console.warn(`File type ${file.type} not supported`);
+          const message = `Unsupported image type for ${file.name}`;
+          console.warn(message);
+          onImageUploadError?.(message);
           return false;
         }
         if (file.size > IMAGE_UPLOAD_CONFIG.MAX_SIZE_BYTES) {
-          console.warn(
-            `File ${file.name} exceeds ${IMAGE_UPLOAD_CONFIG.MAX_SIZE_MB}MB limit`,
-          );
+          const message = `${file.name} exceeds ${IMAGE_UPLOAD_CONFIG.MAX_SIZE_MB}MB limit`;
+          console.warn(message);
+          onImageUploadError?.(message);
           return false;
         }
         return true;
@@ -149,6 +153,7 @@ export function useFileAttachments(
               : item,
           ),
         );
+        onImageUploadError?.("Image upload is not configured.");
         return;
       }
 
@@ -169,6 +174,7 @@ export function useFileAttachments(
       isAuthenticated,
       supportsVision,
       onImageUpload,
+      onImageUploadError,
       processUploadQueue,
     ],
   );

@@ -56,6 +56,7 @@ export interface PromptbarProps {
   onImageUpload?: (
     file: File,
   ) => Promise<{ url: string; mimeType: string; sizeBytes?: number }>;
+  onImageUploadError?: (message: string) => void;
   hasApiKey?: boolean | null;
   isApiKeyLoading?: boolean;
   apiKeyError?: string;

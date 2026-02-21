@@ -50,14 +50,20 @@ describe("previewRouting.service", () => {
       statusText: "OK",
       text: vi.fn().mockResolvedValue(""),
     });
+    const customSubdomain = "bright-wolf-abc12";
 
     vi.stubGlobal("fetch", fetchMock);
 
-    const result = await registerPreviewSubdomain("user/id", "chat.id");
+    const result = await registerPreviewSubdomain(
+      "user/id",
+      "chat.id",
+      customSubdomain,
+    );
 
     expect(result).not.toBeNull();
+    expect(result?.subdomain).toBe(customSubdomain);
     expect(result?.storagePrefix).toBe("user_id/chat.id");
-    expect(result?.previewUrl).toBe(`https://${result?.subdomain}.edwardd.app`);
+    expect(result?.previewUrl).toBe(`https://${customSubdomain}.edwardd.app`);
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];

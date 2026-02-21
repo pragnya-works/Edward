@@ -143,6 +143,7 @@ export const chat = pgTable(
     isFavourite: boolean("is_favourite").default(false),
     originalChatId: text("original_chat_id"),
     rootChatId: text("root_chat_id"),
+    customSubdomain: text("custom_subdomain"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at")
       .notNull()
@@ -160,6 +161,7 @@ export const chat = pgTable(
       foreignColumns: [table.id],
       name: "chat_root_chat_id_fk",
     }).onDelete("set null"),
+    uniqueIndex("chat_custom_subdomain_unique").on(table.customSubdomain),
   ],
 );
 
@@ -230,24 +232,30 @@ export const message = pgTable("message", {
   outputTokens: integer("output_tokens"),
 });
 
-export const build = pgTable("build", {
-  id: text("id").primaryKey(),
-  chatId: text("chat_id")
-    .notNull()
-    .references(() => chat.id, { onDelete: "cascade" }),
-  messageId: text("message_id")
-    .notNull()
-    .references(() => message.id, { onDelete: "cascade" }),
-  status: buildStatusEnum("status").notNull().default("queued"),
-  errorReport: jsonb("error_report"),
-  previewUrl: text("preview_url"),
-  buildDuration: integer("build_duration"),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at")
-    .notNull()
-    .defaultNow()
-    .$onUpdate(() => new Date()),
-});
+export const build = pgTable(
+  "build",
+  {
+    id: text("id").primaryKey(),
+    chatId: text("chat_id")
+      .notNull()
+      .references(() => chat.id, { onDelete: "cascade" }),
+    messageId: text("message_id")
+      .notNull()
+      .references(() => message.id, { onDelete: "cascade" }),
+    status: buildStatusEnum("status").notNull().default("queued"),
+    errorReport: jsonb("error_report"),
+    previewUrl: text("preview_url"),
+    buildDuration: integer("build_duration"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at")
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [
+    index("idx_build_chat_id_created_at").on(table.chatId, table.createdAt),
+  ],
+);
 
 export const run = pgTable(
   "run",

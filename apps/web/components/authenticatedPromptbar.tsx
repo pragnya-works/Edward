@@ -16,6 +16,7 @@ import { useCallback, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import type { MetaEvent } from "@/lib/chatTypes";
 import { INITIAL_STREAM_STATE } from "@/lib/chatTypes";
+import { toast } from "@edward/ui/components/sonner";
 
 interface AuthenticatedPromptbarProps {
   chatId?: string;
@@ -120,6 +121,12 @@ export default function AuthenticatedPromptbar({
         }}
         onProtectedAction={handleProtectedAction}
         onImageUpload={uploadImageToCdn}
+        onImageUploadError={(message) => {
+          toast.error("Image upload failed", {
+            id: `image-upload-failed-${message}`,
+            description: message,
+          });
+        }}
         hasApiKey={hasApiKey}
         isApiKeyLoading={isLoading}
         apiKeyError={error}

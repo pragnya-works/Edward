@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 import { useSession } from "@/lib/auth-client";
 import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "@edward/ui/components/sonner";
 
 import { fetchApi, deleteChat } from "@/lib/api";
 import { queryKeys } from "@/lib/queryKeys";
@@ -103,6 +104,12 @@ export function useRecentChats() {
           context.previous,
         );
       }
+      toast.error("Could not delete project", {
+        description: "Please try again in a moment.",
+      });
+    },
+    onSuccess: () => {
+      toast.success("Project deleted");
     },
     onSettled: () => {
       queryClient.invalidateQueries({

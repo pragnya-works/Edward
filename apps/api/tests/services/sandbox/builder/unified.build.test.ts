@@ -21,13 +21,11 @@ const mockRefs = vi.hoisted(() => {
       subdomain: "bright-wolf-abc12",
       previewUrl: "https://bright-wolf-abc12.edwardd.app",
       storagePrefix: "user-1/chat-1",
-    } as
-      | {
-          subdomain: string;
-          previewUrl: string;
-          storagePrefix: string;
-        }
-      | null,
+    } as {
+      subdomain: string;
+      previewUrl: string;
+      storagePrefix: string;
+    } | null,
     routeThrows: false,
     pathPreviewUrl: "https://cdn.edwardd.app/user-1/chat-1/",
     disconnectMock: vi.fn().mockResolvedValue(undefined),
@@ -132,6 +130,21 @@ vi.mock("../../../../services/previewRouting.service.js", () => ({
   registerPreviewSubdomain: mockRefs.registerPreviewSubdomainMock,
 }));
 
+// Mock @edward/auth so the DB lookup for customSubdomain doesn't need a real DB
+vi.mock("@edward/auth", async () => {
+  const chainMock = {
+    select: vi.fn().mockReturnThis(),
+    from: vi.fn().mockReturnThis(),
+    where: vi.fn().mockReturnThis(),
+    limit: vi.fn().mockResolvedValue([{ customSubdomain: null }]),
+  };
+  return {
+    db: chainMock,
+    chat: {},
+    eq: vi.fn(),
+  };
+});
+
 import { buildAndUploadUnified } from "../../../../services/sandbox/builder/unified.build.js";
 
 function setupCommonMocks() {
@@ -143,7 +156,11 @@ function setupCommonMocks() {
         return { exitCode: 0, stdout: "/usr/bin/pnpm", stderr: "" };
       }
 
-      if (command[0] === "test" && command[1] === "-d" && command[2] === "node_modules") {
+      if (
+        command[0] === "test" &&
+        command[1] === "-d" &&
+        command[2] === "node_modules"
+      ) {
         return { exitCode: 0, stdout: "", stderr: "" };
       }
 
@@ -207,7 +224,11 @@ describe("buildAndUploadUnified preview URL routing", () => {
     expect(result.previewUploaded).toBe(true);
     expect(result.previewUrl).toBe("https://bright-wolf-abc12.edwardd.app");
     expect(result.error).toBeUndefined();
-    expect(mockRefs.registerPreviewSubdomainMock).toHaveBeenCalledWith("user-1", "chat-1");
+    expect(mockRefs.registerPreviewSubdomainMock).toHaveBeenCalledWith(
+      "user-1",
+      "chat-1",
+      null,
+    );
   });
 
   it("falls back to path preview URL when routing config is incomplete", async () => {

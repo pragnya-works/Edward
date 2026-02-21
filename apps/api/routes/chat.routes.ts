@@ -13,6 +13,10 @@ import {
   streamRunEvents,
   getSandboxFiles,
 } from "../controllers/chat/query.controller.js";
+import {
+  checkSubdomainAvailabilityHandler,
+  updateChatSubdomainHandler,
+} from "../controllers/chat/subdomain.controller.js";
 import { validateRequest } from "../middleware/validateRequest.js";
 import {
   GetChatHistoryRequestSchema,
@@ -82,4 +86,18 @@ chatRouter.delete(
   "/:chatId",
   validateRequest(GetChatHistoryRequestSchema),
   deleteChat,
+);
+
+// GET /chat/subdomain/check?subdomain=<value>&chatId=<id>
+// Must be registered before /:chatId to avoid "subdomain" being parsed as chatId
+chatRouter.get(
+  "/subdomain/check",
+  checkSubdomainAvailabilityHandler,
+);
+
+// PATCH /chat/:chatId/subdomain
+chatRouter.patch(
+  "/:chatId/subdomain",
+  validateRequest(GetChatHistoryRequestSchema),
+  updateChatSubdomainHandler,
 );

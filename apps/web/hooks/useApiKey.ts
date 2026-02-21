@@ -10,6 +10,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { fetchApi } from "@/lib/api";
 import { queryKeys } from "@/lib/queryKeys";
+import { toast } from "@edward/ui/components/sonner";
 
 interface ApiKeyResponse {
   message: string;
@@ -137,7 +138,11 @@ export function useApiKey() {
       if (context?.previousData) {
         queryClient.setQueryData(apiKeyQueryKey, context.previousData);
       }
-      setError(err?.message || "Failed to save API key. Please try again.");
+      const message = err?.message || "Failed to save API key. Please try again.";
+      setError(message);
+      toast.error("Save failed", {
+        description: message,
+      });
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: apiKeyQueryKey });
@@ -200,6 +205,15 @@ export function useApiKey() {
       await mutation.mutateAsync(payload);
 
       setError("");
+      const didSaveApiKey = Boolean(payload.apiKey);
+      const didSaveModel = Boolean(payload.model);
+      if (didSaveApiKey && didSaveModel) {
+        toast.success("API key and model saved");
+      } else if (didSaveApiKey) {
+        toast.success("API key saved");
+      } else if (didSaveModel) {
+        toast.success("Model saved");
+      }
       const finalKey = trimmedKey || data?.data?.keyPreview || "";
       onValidate(finalKey);
       onClose();
