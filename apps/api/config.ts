@@ -1,6 +1,6 @@
 import { ConnectionOptions } from "bullmq";
 import { Environment } from "./utils/logger.js";
-import { DeploymentType } from "./services/sandbox/builder/basePathInjector.js";
+import type { DeploymentType } from "./services/sandbox/builder/basePathInjector.js";
 
 function validateEnvVar(name: string, value: string | undefined): string {
   if (!value || value.trim() === "") {
@@ -31,6 +31,45 @@ function parseRedisUrl(url: string): { host: string; port: number } {
   } catch {
     throw new Error(`Invalid REDIS_URL format: ${url}`);
   }
+}
+
+function hasValue(value: string | undefined): boolean {
+  return Boolean(value && value.trim().length > 0);
+}
+
+function hasCompletePreviewRoutingConfig(env: NodeJS.ProcessEnv): boolean {
+  return (
+    hasValue(env.CLOUDFLARE_API_TOKEN) &&
+    hasValue(env.CLOUDFLARE_ACCOUNT_ID) &&
+    hasValue(env.CLOUDFLARE_KV_NAMESPACE_ID) &&
+    hasValue(env.PREVIEW_ROOT_DOMAIN)
+  );
+}
+
+export const DEPLOYMENT_TYPES = {
+  PATH: "path",
+  SUBDOMAIN: "subdomain",
+} as const satisfies Record<string, DeploymentType>;
+
+function isDeploymentType(value: string | undefined): value is DeploymentType {
+  return (
+    value === DEPLOYMENT_TYPES.PATH ||
+    value === DEPLOYMENT_TYPES.SUBDOMAIN
+  );
+}
+
+export function resolveDeploymentType(
+  env: NodeJS.ProcessEnv = process.env,
+): DeploymentType {
+  const raw = env.EDWARD_DEPLOYMENT_TYPE?.trim().toLowerCase();
+
+  if (isDeploymentType(raw)) {
+    return raw;
+  }
+
+  return hasCompletePreviewRoutingConfig(env)
+    ? DEPLOYMENT_TYPES.SUBDOMAIN
+    : DEPLOYMENT_TYPES.PATH;
 }
 
 export const config = {
@@ -108,7 +147,16 @@ export const config = {
   },
 
   deployment: {
-    type: (process.env.EDWARD_DEPLOYMENT_TYPE as DeploymentType) || "path",
+    get type(): DeploymentType {
+      return resolveDeploymentType();
+    },
+  },
+
+  previewRouting: {
+    cloudflareApiToken: process.env.CLOUDFLARE_API_TOKEN,
+    cloudflareAccountId: process.env.CLOUDFLARE_ACCOUNT_ID,
+    cloudflareKvNamespaceId: process.env.CLOUDFLARE_KV_NAMESPACE_ID,
+    rootDomain: process.env.PREVIEW_ROOT_DOMAIN,
   },
 
   docker: {

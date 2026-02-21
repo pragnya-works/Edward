@@ -349,8 +349,12 @@ export interface ActiveRunResponse {
 
 export async function getActiveRun(
   chatId: string,
+  options?: { signal?: AbortSignal },
 ): Promise<ActiveRunResponse> {
-  return fetchApi<ActiveRunResponse>(`/chat/${chatId}/active-run`);
+  return fetchApi<ActiveRunResponse>(`/chat/${chatId}/active-run`, {
+    method: "GET",
+    signal: options?.signal,
+  });
 }
 
 interface SandboxFile {
@@ -377,4 +381,44 @@ export async function getSandboxFiles(
 
 export async function deleteChat(chatId: string): Promise<void> {
   await fetchApi(`/chat/${chatId}`, { method: "DELETE" });
+}
+
+
+export interface SubdomainAvailabilityResponse {
+  message: string;
+  data: {
+    subdomain: string;
+    available: boolean;
+    reason?: string;
+  };
+}
+
+export async function checkSubdomainAvailability(
+  subdomain: string,
+  chatId: string,
+  signal?: AbortSignal,
+): Promise<SubdomainAvailabilityResponse> {
+  const params = new URLSearchParams({ subdomain, chatId });
+  return fetchApi<SubdomainAvailabilityResponse>(
+    `/chat/subdomain/check?${params.toString()}`,
+    { signal },
+  );
+}
+
+export interface UpdateSubdomainResponse {
+  message: string;
+  data: {
+    subdomain: string;
+    previewUrl: string;
+  };
+}
+
+export async function updateChatSubdomain(
+  chatId: string,
+  subdomain: string,
+): Promise<UpdateSubdomainResponse> {
+  return fetchApi<UpdateSubdomainResponse>(`/chat/${chatId}/subdomain`, {
+    method: "PATCH",
+    body: JSON.stringify({ subdomain }),
+  });
 }

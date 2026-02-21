@@ -4,6 +4,56 @@ import { useEffect, useRef } from "react";
 import { useSandboxSync } from "@/hooks/useSandboxSync";
 import { getActiveRun } from "@/lib/api";
 
+const MAX_ACTIVE_RUN_NOT_FOUND_ATTEMPTS = 3;
+const MAX_ACTIVE_RUN_ERROR_ATTEMPTS = 4;
+const ACTIVE_RUN_LOOKUP_BASE_RETRY_MS = 350;
+const ACTIVE_RUN_LOOKUP_MAX_RETRY_MS = 2000;
+
+function getRetryDelayMs(attempt: number): number {
+  return Math.min(
+    ACTIVE_RUN_LOOKUP_MAX_RETRY_MS,
+    ACTIVE_RUN_LOOKUP_BASE_RETRY_MS * 2 ** attempt,
+  );
+}
+
+function waitForRetry(attempt: number, signal: AbortSignal): Promise<void> {
+  return new Promise((resolve) => {
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
+    const onAbort = () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+      signal.removeEventListener("abort", onAbort);
+      resolve();
+    };
+
+    timeoutId = setTimeout(() => {
+      signal.removeEventListener("abort", onAbort);
+      resolve();
+    }, getRetryDelayMs(attempt));
+
+    signal.addEventListener("abort", onAbort, { once: true });
+  });
+}
+
+function isAbortError(error: unknown): boolean {
+  return error instanceof Error && error.name === "AbortError";
+}
+
+function isRetryableActiveRunError(error: unknown): boolean {
+  if (typeof error !== "object" || error === null) {
+    return true;
+  }
+
+  const maybeStatus = (error as { status?: unknown }).status;
+  if (typeof maybeStatus !== "number") {
+    return true;
+  }
+
+  return maybeStatus === 429 || maybeStatus >= 500;
+}
+
 interface UseChatPageOrchestrationParams {
   chatId: string;
   isSandboxing: boolean;
@@ -24,15 +74,6 @@ export function useChatPageOrchestration({
   resumeRunStream,
 }: UseChatPageOrchestrationParams) {
   const resumeLookupInFlightRef = useRef<string | null>(null);
-  const MAX_ACTIVE_RUN_LOOKUP_ATTEMPTS = 6;
-  const ACTIVE_RUN_LOOKUP_BASE_RETRY_MS = 350;
-  const ACTIVE_RUN_LOOKUP_MAX_RETRY_MS = 2000;
-
-  const getRetryDelayMs = (attempt: number): number =>
-    Math.min(
-      ACTIVE_RUN_LOOKUP_MAX_RETRY_MS,
-      ACTIVE_RUN_LOOKUP_BASE_RETRY_MS * 2 ** attempt,
-    );
 
   useEffect(() => {
     if (isSandboxing && !sandboxOpen) {
@@ -58,39 +99,53 @@ export function useChatPageOrchestration({
     }
 
     resumeLookupInFlightRef.current = chatId;
-    let cancelled = false;
+    const abortController = new AbortController();
 
     void (async () => {
-      for (let attempt = 0; attempt < MAX_ACTIVE_RUN_LOOKUP_ATTEMPTS; attempt += 1) {
+      let notFoundAttempts = 0;
+      let errorAttempts = 0;
+
+      while (
+        notFoundAttempts < MAX_ACTIVE_RUN_NOT_FOUND_ATTEMPTS &&
+        errorAttempts < MAX_ACTIVE_RUN_ERROR_ATTEMPTS
+      ) {
+        if (abortController.signal.aborted) {
+          return;
+        }
+
         try {
-          const response = await getActiveRun(chatId);
+          const response = await getActiveRun(chatId, {
+            signal: abortController.signal,
+          });
           const activeRun = response.data.run;
 
-          if (!cancelled && activeRun) {
+          if (activeRun) {
             resumeRunStream(chatId, activeRun.id);
             return;
           }
 
-          if (attempt === MAX_ACTIVE_RUN_LOOKUP_ATTEMPTS - 1 || cancelled) {
+          notFoundAttempts += 1;
+
+          if (notFoundAttempts >= MAX_ACTIVE_RUN_NOT_FOUND_ATTEMPTS) {
             return;
           }
 
-          await new Promise((resolve) =>
-            setTimeout(
-              resolve,
-              getRetryDelayMs(attempt),
-            ),
-          );
-        } catch {
-          if (attempt === MAX_ACTIVE_RUN_LOOKUP_ATTEMPTS - 1 || cancelled) {
+          await waitForRetry(notFoundAttempts - 1, abortController.signal);
+        } catch (error) {
+          if (isAbortError(error) || abortController.signal.aborted) {
             return;
           }
-          await new Promise((resolve) =>
-            setTimeout(
-              resolve,
-              getRetryDelayMs(attempt),
-            ),
-          );
+
+          if (!isRetryableActiveRunError(error)) {
+            return;
+          }
+
+          errorAttempts += 1;
+          if (errorAttempts >= MAX_ACTIVE_RUN_ERROR_ATTEMPTS) {
+            return;
+          }
+
+          await waitForRetry(errorAttempts - 1, abortController.signal);
         }
       }
     })().finally(() => {
@@ -100,7 +155,7 @@ export function useChatPageOrchestration({
     });
 
     return () => {
-      cancelled = true;
+      abortController.abort();
     };
   }, [chatId, hasActiveStreamState, resumeRunStream]);
 }

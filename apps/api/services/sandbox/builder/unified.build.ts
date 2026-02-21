@@ -12,6 +12,7 @@ import { uploadBuildFilesToS3, uploadSpaFallback } from "../upload.sandbox.js";
 import { buildPreviewUrl } from "../../preview.service.js";
 import { cleanupS3FolderExcept } from "../../storage.service.js";
 import { buildS3Key } from "../../storage/key.utils.js";
+import { config, DEPLOYMENT_TYPES } from "../../../config.js";
 import {
   disconnectContainerFromNetwork,
   TIMEOUT_DEPENDENCY_INSTALL_MS,
@@ -20,6 +21,8 @@ import { Framework } from "../../planning/schemas.js";
 import { mergeAndInstallDependencies } from "../templates/dependency.merger.js";
 import { invalidatePreviewCache } from "../../storage/cdn.js";
 import { normalizeFramework } from "../templates/template.registry.js";
+import { registerPreviewSubdomain } from "../../previewRouting.service.js";
+import { db, chat, eq } from "@edward/auth";
 
 export interface BuildResult {
   success: boolean;
@@ -27,6 +30,15 @@ export interface BuildResult {
   error?: string;
   previewUploaded: boolean;
   previewUrl: string | null;
+}
+
+function appendWarning(
+  existingWarning: string | undefined,
+  nextWarning: string,
+): string {
+  return existingWarning
+    ? `${existingWarning}; ${nextWarning}`
+    : nextWarning;
 }
 
 export async function buildAndUploadUnified(
@@ -220,7 +232,9 @@ export async function buildAndUploadUnified(
 
     const buildDirectory = buildResult.outputInfo!.directory;
 
-    const framework = (scaffoldedFramework || "vanilla") as Framework;
+    const DEFAULT_FRAMEWORK: Framework = "vanilla";
+    const framework = (scaffoldedFramework || DEFAULT_FRAMEWORK) as Framework;
+    const shouldUploadSpaFallback = framework !== DEFAULT_FRAMEWORK;
     let previewUploaded = false;
     let previewUrl: string | null = null;
     let uploadWarning: string | undefined;
@@ -244,7 +258,7 @@ export async function buildAndUploadUnified(
       }
 
       const previewPrefix = buildS3Key(userId, chatId, "preview/");
-      if (framework !== "vanilla") {
+      if (shouldUploadSpaFallback) {
         const fallbackKey = buildS3Key(userId, chatId, "preview/404.html");
         uploadResult.uploadedKeys.add(fallbackKey);
       }
@@ -257,7 +271,7 @@ export async function buildAndUploadUnified(
         },
       );
 
-      if (framework !== "vanilla") {
+      if (shouldUploadSpaFallback) {
         await uploadSpaFallback(sandbox, framework).catch((err) =>
           logger.warn({ err, sandboxId }, "SPA fallback upload failed"),
         );
@@ -271,11 +285,56 @@ export async function buildAndUploadUnified(
       );
 
       previewUploaded = uploadResult.successful > 0;
-      previewUrl = buildPreviewUrl(userId, chatId);
-      uploadWarning =
-        uploadResult.successful < uploadResult.totalFiles
-          ? `Warning: ${uploadResult.totalFiles - uploadResult.successful} files failed to upload to S3`
-          : undefined;
+      if (previewUploaded) {
+        const pathPreviewUrl = buildPreviewUrl(userId, chatId);
+
+        if (config.deployment.type === DEPLOYMENT_TYPES.SUBDOMAIN) {
+          try {
+            const [chatData] = await db
+              .select({ customSubdomain: chat.customSubdomain })
+              .from(chat)
+              .where(eq(chat.id, chatId))
+              .limit(1);
+            const customSubdomain = chatData?.customSubdomain ?? null;
+            const routing = await registerPreviewSubdomain(userId, chatId, customSubdomain);
+            previewUrl = routing?.previewUrl ?? pathPreviewUrl;
+            if (!previewUrl) {
+              logger.warn(
+                { sandboxId, userId, chatId },
+                "Preview uploaded but no preview URL could be resolved",
+              );
+            } else if (!routing?.previewUrl) {
+              logger.warn(
+                { sandboxId, userId, chatId },
+                "Preview uploaded but subdomain registration skipped; using path preview URL",
+              );
+              uploadWarning = appendWarning(
+                uploadWarning,
+                "Preview uploaded but subdomain routing is unavailable; using path preview URL",
+              );
+            }
+          } catch (err) {
+            logger.error(
+              { err, sandboxId, userId, chatId },
+              "Preview uploaded but subdomain registration failed",
+            );
+            previewUrl = pathPreviewUrl;
+            uploadWarning = appendWarning(
+              uploadWarning,
+              "Preview uploaded but subdomain routing failed",
+            );
+          }
+        } else {
+          previewUrl = pathPreviewUrl;
+        }
+      }
+
+      if (uploadResult.successful < uploadResult.totalFiles) {
+        uploadWarning = appendWarning(
+          uploadWarning,
+          `Warning: ${uploadResult.totalFiles - uploadResult.successful} files failed to upload to S3`,
+        );
+      }
     } else {
       logger.warn(
         { sandboxId, userIdPresent: Boolean(userId), chatIdPresent: Boolean(chatId) },

@@ -6,7 +6,7 @@ import {
 import { logger } from "../../../utils/logger.js";
 import { sanitizePathComponent } from "../../storage/key.utils.js";
 import { Framework } from "../../planning/schemas.js";
-import { config as appConfig } from "../../../config.js";
+import { config as appConfig, DEPLOYMENT_TYPES } from "../../../config.js";
 
 export type DeploymentType = "path" | "subdomain";
 
@@ -29,7 +29,7 @@ interface PackageJson {
 
 type TailwindVersion = "v4" | "v3" | "none";
 
-const DEFAULT_DEPLOYMENT_TYPE: DeploymentType = "path";
+const DEFAULT_DEPLOYMENT_TYPE: DeploymentType = DEPLOYMENT_TYPES.PATH;
 
 export function detectDeploymentType(config: BasePathConfig): DeploymentType {
   if (config.deploymentType) {
@@ -43,7 +43,7 @@ export function calculateBasePath(
   chatId: string,
   deploymentType: DeploymentType = DEFAULT_DEPLOYMENT_TYPE,
 ): string {
-  if (deploymentType === "subdomain") {
+  if (deploymentType === DEPLOYMENT_TYPES.SUBDOMAIN) {
     return "";
   }
 
