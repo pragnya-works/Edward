@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useReducer, useState } from "react";
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { AlertTriangle, PanelLeftOpen, RefreshCw, Search } from "lucide-react";
 import { BuildStatus, SandboxMode, useSandbox } from "@/contexts/sandboxContext";
@@ -14,6 +14,7 @@ import { SandboxErrorBoundary } from "@/components/chat/sandboxErrorBoundary";
 import { SandboxActivityBar } from "@/components/chat/sandboxActivityBar";
 import { SandboxEditorTabs } from "@/components/chat/sandboxEditorTabs";
 import { SandboxStatusBar } from "@/components/chat/sandboxStatusBar";
+import { SandboxPreviewBar } from "@/components/chat/sandboxPreviewBar";
 import { Button } from "@edward/ui/components/button";
 import { Sheet, SheetContent } from "@edward/ui/components/sheet";
 import { useIsMobileViewport } from "@/hooks/useIsMobileViewport";
@@ -30,8 +31,28 @@ const PreviewFrameState = {
 } as const;
 
 const PREVIEW_EMBED_TIMEOUT_MS = 8000;
+const PREVIEW_BRIDGE_SOURCE = "__edward_preview_bridge__";
+const PREVIEW_BRIDGE_EVENT = "location-update";
+const PREVIEW_BRIDGE_READY_EVENT = "preview-ready";
+const PREVIEW_HOST_SOURCE = "__edward_preview_host__";
+
+const PreviewHostCommand = {
+  BACK: "navigate-back",
+  FORWARD: "navigate-forward",
+  RELOAD: "reload",
+} as const;
 
 type PreviewFrameState = (typeof PreviewFrameState)[keyof typeof PreviewFrameState];
+type PreviewHostCommand =
+  (typeof PreviewHostCommand)[keyof typeof PreviewHostCommand];
+
+interface PreviewBridgeMessagePayload {
+  source: string;
+  type: string;
+  href?: string;
+  canGoBack?: boolean;
+  canGoForward?: boolean;
+}
 
 type PreviewFrameAction =
   | { type: "RESET" }
@@ -59,6 +80,70 @@ function previewFrameReducer(
   }
 }
 
+function normalizePreviewAddress(url: string | null | undefined): string | null {
+  if (!url) {
+    return null;
+  }
+
+  try {
+    return new URL(url).toString();
+  } catch {
+    try {
+      return new URL(`https://${url}`).toString();
+    } catch {
+      return null;
+    }
+  }
+}
+
+function getOriginFromAddress(url: string | null): string | null {
+  if (!url) {
+    return null;
+  }
+
+  try {
+    return new URL(url).origin;
+  } catch {
+    return null;
+  }
+}
+
+function isTrustedPreviewMessageOrigin({
+  messageOrigin,
+  expectedPreviewOrigin,
+  currentPreviewAddress,
+  reportedHref,
+}: {
+  messageOrigin: string;
+  expectedPreviewOrigin: string | null;
+  currentPreviewAddress: string | null;
+  reportedHref: string | null;
+}): boolean {
+  if (!messageOrigin || messageOrigin === "null") {
+    return true;
+  }
+
+  const allowedOrigins = new Set<string>();
+  const currentOrigin = getOriginFromAddress(currentPreviewAddress);
+  const reportedOrigin = getOriginFromAddress(reportedHref);
+
+  if (expectedPreviewOrigin) {
+    allowedOrigins.add(expectedPreviewOrigin);
+  }
+  if (currentOrigin) {
+    allowedOrigins.add(currentOrigin);
+  }
+  if (reportedOrigin) {
+    allowedOrigins.add(reportedOrigin);
+  }
+
+  if (allowedOrigins.size === 0) {
+    return true;
+  }
+
+  return allowedOrigins.has(messageOrigin);
+}
+
 export function SandboxPanel({ projectName }: SandboxPanelProps) {
   const params = useParams<{ id: string }>();
   const chatId = params.id;
@@ -67,6 +152,11 @@ export function SandboxPanel({ projectName }: SandboxPanelProps) {
     previewFrameReducer,
     PreviewFrameState.IDLE,
   );
+  const previewFrameRef = useRef<HTMLIFrameElement | null>(null);
+  const [previewAddress, setPreviewAddress] = useState<string | null>(null);
+  const [canGoBack, setCanGoBack] = useState(false);
+  const [canGoForward, setCanGoForward] = useState(false);
+  const [isPreviewBridgeConnected, setIsPreviewBridgeConnected] = useState(false);
 
   const {
     mode,
@@ -87,6 +177,10 @@ export function SandboxPanel({ projectName }: SandboxPanelProps) {
   );
 
   const isMobile = useIsMobileViewport();
+  const previewOrigin = useMemo(
+    () => getOriginFromAddress(previewUrl),
+    [previewUrl],
+  );
 
   useEffect(() => {
     if (mode !== SandboxMode.PREVIEW || !previewUrl) {
@@ -101,6 +195,154 @@ export function SandboxPanel({ projectName }: SandboxPanelProps) {
 
     return () => clearTimeout(timeoutId);
   }, [mode, previewUrl]);
+
+  useEffect(() => {
+    setPreviewAddress(normalizePreviewAddress(previewUrl));
+    setCanGoBack(false);
+    setCanGoForward(false);
+    setIsPreviewBridgeConnected(false);
+  }, [previewUrl]);
+
+  useEffect(() => {
+    const handlePreviewMessage = (event: MessageEvent) => {
+      const iframeWindow = previewFrameRef.current?.contentWindow;
+      if (!iframeWindow || event.source !== iframeWindow) {
+        return;
+      }
+
+      if (!event.data || typeof event.data !== "object") {
+        return;
+      }
+
+      const data = event.data as Partial<PreviewBridgeMessagePayload>;
+      if (
+        data.source !== PREVIEW_BRIDGE_SOURCE ||
+        (data.type !== PREVIEW_BRIDGE_EVENT &&
+          data.type !== PREVIEW_BRIDGE_READY_EVENT)
+      ) {
+        return;
+      }
+
+      const href =
+        typeof data.href === "string"
+          ? normalizePreviewAddress(data.href)
+          : null;
+
+      if (
+        !isTrustedPreviewMessageOrigin({
+          messageOrigin: event.origin,
+          expectedPreviewOrigin: previewOrigin,
+          currentPreviewAddress: previewAddress,
+          reportedHref: href,
+        })
+      ) {
+        return;
+      }
+
+      setIsPreviewBridgeConnected(true);
+
+      if (href) {
+        setPreviewAddress(href);
+      }
+
+      if (typeof data.canGoBack === "boolean") {
+        setCanGoBack(data.canGoBack);
+      }
+
+      if (typeof data.canGoForward === "boolean") {
+        setCanGoForward(data.canGoForward);
+      }
+    };
+
+    window.addEventListener("message", handlePreviewMessage);
+    return () => window.removeEventListener("message", handlePreviewMessage);
+  }, [previewAddress, previewOrigin]);
+
+  const postPreviewCommand = useCallback((command: PreviewHostCommand): boolean => {
+    const iframeWindow = previewFrameRef.current?.contentWindow;
+    if (!iframeWindow) {
+      return false;
+    }
+
+    try {
+      iframeWindow.postMessage(
+        { source: PREVIEW_HOST_SOURCE, type: command },
+        "*",
+      );
+      return true;
+    } catch {
+      return false;
+    }
+  }, []);
+
+  const openPreviewInNewTab = useCallback(() => {
+    const url = previewAddress ?? normalizePreviewAddress(previewUrl);
+    if (!url) {
+      return;
+    }
+    window.open(url, "_blank", "noopener,noreferrer");
+  }, [previewAddress, previewUrl]);
+
+  const navigatePreviewBack = useCallback(() => {
+    const iframeWindow = previewFrameRef.current?.contentWindow;
+    if (!iframeWindow) {
+      return;
+    }
+
+    if (isPreviewBridgeConnected && postPreviewCommand(PreviewHostCommand.BACK)) {
+      return;
+    }
+
+    try {
+      iframeWindow.history.back();
+    } catch {
+      // Ignore fallback failures; bridge command is the primary path.
+    }
+  }, [isPreviewBridgeConnected, postPreviewCommand]);
+
+  const navigatePreviewForward = useCallback(() => {
+    const iframeWindow = previewFrameRef.current?.contentWindow;
+    if (!iframeWindow) {
+      return;
+    }
+
+    if (
+      isPreviewBridgeConnected &&
+      postPreviewCommand(PreviewHostCommand.FORWARD)
+    ) {
+      return;
+    }
+
+    try {
+      iframeWindow.history.forward();
+    } catch {
+      // Ignore fallback failures; bridge command is the primary path.
+    }
+  }, [isPreviewBridgeConnected, postPreviewCommand]);
+
+  const refreshPreview = useCallback(() => {
+    dispatchPreviewFrame({ type: "START_LOADING" });
+    const iframeWindow = previewFrameRef.current?.contentWindow;
+    if (!iframeWindow) {
+      return;
+    }
+
+    if (isPreviewBridgeConnected && postPreviewCommand(PreviewHostCommand.RELOAD)) {
+      return;
+    }
+
+    try {
+      iframeWindow.location.reload();
+      return;
+    } catch {
+      // Continue with src reset fallback.
+    }
+
+    const url = previewAddress ?? normalizePreviewAddress(previewUrl);
+    if (url && previewFrameRef.current) {
+      previewFrameRef.current.src = url;
+    }
+  }, [isPreviewBridgeConnected, postPreviewCommand, previewAddress, previewUrl]);
 
   const editorSurface = activeFile ? (
     <>
@@ -122,6 +364,17 @@ export function SandboxPanel({ projectName }: SandboxPanelProps) {
     <SandboxErrorBoundary>
       <div className="h-full flex flex-col bg-workspace-bg text-workspace-foreground overflow-hidden relative font-sans">
         <SandboxHeader projectName={projectName} />
+        {mode === SandboxMode.PREVIEW ? (
+          <SandboxPreviewBar
+            url={previewAddress ?? normalizePreviewAddress(previewUrl)}
+            canGoBack={canGoBack}
+            canGoForward={canGoForward}
+            onBack={navigatePreviewBack}
+            onForward={navigatePreviewForward}
+            onOpenInNewTab={openPreviewInNewTab}
+            onRefresh={refreshPreview}
+          />
+        ) : null}
 
         <div className="flex-1 min-h-0 flex overflow-hidden">
           {mode === SandboxMode.CODE ? (
@@ -208,7 +461,7 @@ export function SandboxPanel({ projectName }: SandboxPanelProps) {
                         Preview could not be embedded in this panel.
                       </p>
                       <a
-                        href={previewUrl}
+                        href={previewAddress ?? previewUrl}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-xs px-3 py-1.5 rounded-md border border-workspace-border hover:bg-workspace-hover transition-colors text-workspace-foreground"
@@ -219,6 +472,7 @@ export function SandboxPanel({ projectName }: SandboxPanelProps) {
                   </div>
                 ) : (
                   <iframe
+                    ref={previewFrameRef}
                     src={previewUrl}
                     title={`Sandbox preview for chat ${chatId}`}
                     className="flex-1 w-full"
@@ -235,10 +489,17 @@ export function SandboxPanel({ projectName }: SandboxPanelProps) {
                           return;
                         }
 
+                        const normalizedHref = normalizePreviewAddress(href);
+                        if (normalizedHref) {
+                          setPreviewAddress(normalizedHref);
+                        }
                         dispatchPreviewFrame({ type: "MARK_READY" });
                       } catch {
                         // Cross-origin location access throws when a real external
                         // preview is loaded, which is the expected success path.
+                        setPreviewAddress((previous) =>
+                          previous ?? normalizePreviewAddress(previewUrl),
+                        );
                         dispatchPreviewFrame({ type: "MARK_READY" });
                       }
                     }}

@@ -7,7 +7,9 @@ import tar from "tar-stream";
 import { generateRuntimeConfig } from "./builder/basePathInjector.js";
 import {
   generateSpaFallbackHtml,
+  generatePreviewRuntimeScript,
   injectRuntimeScriptIntoHtml,
+  PREVIEW_RUNTIME_FILENAME,
 } from "./builder/spaFallback.js";
 import { Framework } from "../planning/schemas.js";
 import { isS3Configured } from "../storage/config.js";
@@ -111,12 +113,9 @@ export async function uploadBuildFilesToS3(
             }
             let fileBuffer = Buffer.concat(chunks);
 
-            if (
-              relativePath === "index.html" ||
-              relativePath.endsWith("/index.html")
-            ) {
+            if (isHtmlFile(relativePath)) {
               const originalHtml = fileBuffer.toString("utf-8");
-              const processedHtml = await processIndexHtmlWithRuntime(
+              const processedHtml = await processHtmlWithRuntime(
                 originalHtml,
                 sandbox,
                 framework,
@@ -186,6 +185,23 @@ export async function uploadBuildFilesToS3(
       tarExtractor.on("error", reject);
       tarArchiveStream.pipe(tarExtractor);
     });
+
+    const runtimeUpload = await uploadPreviewRuntimeScript(
+      sandbox,
+      framework,
+      buildDirectory,
+      uploadTimestamp,
+    );
+
+    uploadResults.totalFiles++;
+    if (runtimeUpload.success) {
+      uploadResults.successful++;
+      uploadResults.uploadedKeys.add(runtimeUpload.key);
+    } else {
+      uploadResults.failed++;
+      const errorMsg = runtimeUpload.error || "Unknown error";
+      uploadResults.errors.push(`${PREVIEW_RUNTIME_FILENAME}: ${errorMsg}`);
+    }
   } catch (error) {
     const errorObj = ensureError(error);
     logger.error(
@@ -196,6 +212,41 @@ export async function uploadBuildFilesToS3(
   }
 
   return uploadResults;
+}
+
+async function uploadPreviewRuntimeScript(
+  sandbox: SandboxInstance,
+  framework: Framework,
+  buildDirectory: string,
+  uploadTimestamp: string,
+): Promise<{ success: boolean; key: string; error?: string }> {
+  const runtimeConfig = generateRuntimeConfig({
+    userId: sandbox.userId,
+    chatId: sandbox.chatId,
+    framework,
+  });
+
+  const runtimeScript = generatePreviewRuntimeScript(runtimeConfig);
+  const s3Key = buildS3Key(
+    sandbox.userId,
+    sandbox.chatId,
+    `preview/${PREVIEW_RUNTIME_FILENAME}`,
+  );
+
+  const result = await uploadFile(
+    s3Key,
+    Buffer.from(runtimeScript),
+    {
+      sandboxId: sandbox.id,
+      originalPath: PREVIEW_RUNTIME_FILENAME,
+      uploadTimestamp,
+      buildDirectory,
+    },
+    runtimeScript.length,
+    "no-cache, no-store, must-revalidate",
+  );
+
+  return { success: result.success, key: s3Key, error: result.error?.message };
 }
 
 export async function uploadSpaFallback(
@@ -213,7 +264,10 @@ export async function uploadSpaFallback(
       framework,
     });
 
-    const fallbackHtml = generateSpaFallbackHtml(runtimeConfig);
+    const fallbackHtml = injectRuntimeScriptIntoHtml(
+      generateSpaFallbackHtml(runtimeConfig),
+      runtimeConfig,
+    );
     const s3Key = buildS3Key(
       sandbox.userId,
       sandbox.chatId,
@@ -244,6 +298,18 @@ export async function uploadSpaFallback(
 }
 
 export async function processIndexHtmlWithRuntime(
+  indexHtml: string,
+  sandbox: SandboxInstance,
+  framework: Framework,
+): Promise<string> {
+  return processHtmlWithRuntime(indexHtml, sandbox, framework);
+}
+
+function isHtmlFile(path: string): boolean {
+  return path.toLowerCase().endsWith(".html");
+}
+
+export async function processHtmlWithRuntime(
   indexHtml: string,
   sandbox: SandboxInstance,
   framework: Framework,
