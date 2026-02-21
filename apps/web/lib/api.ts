@@ -349,8 +349,12 @@ export interface ActiveRunResponse {
 
 export async function getActiveRun(
   chatId: string,
+  options?: { signal?: AbortSignal },
 ): Promise<ActiveRunResponse> {
-  return fetchApi<ActiveRunResponse>(`/chat/${chatId}/active-run`);
+  return fetchApi<ActiveRunResponse>(`/chat/${chatId}/active-run`, {
+    method: "GET",
+    signal: options?.signal,
+  });
 }
 
 interface SandboxFile {

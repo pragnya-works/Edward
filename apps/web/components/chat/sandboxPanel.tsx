@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useReducer, useState } from "react";
 import { useParams } from "next/navigation";
 import { AlertTriangle, PanelLeftOpen, RefreshCw, Search } from "lucide-react";
 import { BuildStatus, SandboxMode, useSandbox } from "@/contexts/sandboxContext";
@@ -22,10 +22,51 @@ interface SandboxPanelProps {
   projectName: string | null;
 }
 
+const PreviewFrameState = {
+  IDLE: "idle",
+  LOADING: "loading",
+  READY: "ready",
+  FAILED: "failed",
+} as const;
+
+const PREVIEW_EMBED_TIMEOUT_MS = 8000;
+
+type PreviewFrameState = (typeof PreviewFrameState)[keyof typeof PreviewFrameState];
+
+type PreviewFrameAction =
+  | { type: "RESET" }
+  | { type: "START_LOADING" }
+  | { type: "MARK_READY" }
+  | { type: "MARK_FAILED" };
+
+function previewFrameReducer(
+  state: PreviewFrameState,
+  action: PreviewFrameAction,
+): PreviewFrameState {
+  switch (action.type) {
+    case "RESET":
+      return PreviewFrameState.IDLE;
+    case "START_LOADING":
+      return PreviewFrameState.LOADING;
+    case "MARK_READY":
+      return PreviewFrameState.READY;
+    case "MARK_FAILED":
+      return state === PreviewFrameState.LOADING
+        ? PreviewFrameState.FAILED
+        : state;
+    default:
+      return state;
+  }
+}
+
 export function SandboxPanel({ projectName }: SandboxPanelProps) {
   const params = useParams<{ id: string }>();
   const chatId = params.id;
   const [isMobileExplorerOpen, setIsMobileExplorerOpen] = useState(false);
+  const [previewFrameState, dispatchPreviewFrame] = useReducer(
+    previewFrameReducer,
+    PreviewFrameState.IDLE,
+  );
 
   const {
     mode,
@@ -46,6 +87,20 @@ export function SandboxPanel({ projectName }: SandboxPanelProps) {
   );
 
   const isMobile = useIsMobileViewport();
+
+  useEffect(() => {
+    if (mode !== SandboxMode.PREVIEW || !previewUrl) {
+      dispatchPreviewFrame({ type: "RESET" });
+      return;
+    }
+
+    dispatchPreviewFrame({ type: "START_LOADING" });
+    const timeoutId = setTimeout(() => {
+      dispatchPreviewFrame({ type: "MARK_FAILED" });
+    }, PREVIEW_EMBED_TIMEOUT_MS);
+
+    return () => clearTimeout(timeoutId);
+  }, [mode, previewUrl]);
 
   const editorSurface = activeFile ? (
     <>
@@ -145,12 +200,51 @@ export function SandboxPanel({ projectName }: SandboxPanelProps) {
           ) : (
             <div className="flex-1 min-h-0 flex flex-col bg-workspace-bg">
               {previewUrl ? (
-                <iframe
-                  src={previewUrl}
-                  title={`Sandbox preview for chat ${chatId}`}
-                  className="flex-1 w-full"
-                  sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
-                />
+                previewFrameState === PreviewFrameState.FAILED ? (
+                  <div className="flex-1 flex items-center justify-center text-workspace-foreground/50 bg-workspace-bg">
+                    <div className="flex flex-col items-center gap-3 text-center px-6 max-w-md">
+                      <AlertTriangle className="h-8 w-8 text-amber-500" />
+                      <p className="text-sm text-workspace-foreground">
+                        Preview could not be embedded in this panel.
+                      </p>
+                      <a
+                        href={previewUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs px-3 py-1.5 rounded-md border border-workspace-border hover:bg-workspace-hover transition-colors text-workspace-foreground"
+                      >
+                        Open preview in new tab
+                      </a>
+                    </div>
+                  </div>
+                ) : (
+                  <iframe
+                    src={previewUrl}
+                    title={`Sandbox preview for chat ${chatId}`}
+                    className="flex-1 w-full"
+                    sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+                    onLoad={(event) => {
+                      const iframe = event.currentTarget;
+
+                      try {
+                        // If frame blocking occurs, many browsers leave iframe
+                        // on about:blank (same-origin to parent), which we can detect.
+                        const href = iframe.contentWindow?.location?.href;
+                        if (!href || href === "about:blank") {
+                          dispatchPreviewFrame({ type: "MARK_FAILED" });
+                          return;
+                        }
+
+                        dispatchPreviewFrame({ type: "MARK_READY" });
+                      } catch {
+                        // Cross-origin location access throws when a real external
+                        // preview is loaded, which is the expected success path.
+                        dispatchPreviewFrame({ type: "MARK_READY" });
+                      }
+                    }}
+                    onError={() => dispatchPreviewFrame({ type: "MARK_FAILED" })}
+                  />
+                )
               ) : (
                 <div className="flex-1 flex items-center justify-center text-workspace-foreground/50 bg-workspace-bg">
                   {buildStatus === BuildStatus.FAILED ? (

@@ -287,6 +287,15 @@ export function useSandboxSync(chatIdFromUrl: string | undefined) {
               previewUrl: parsed.previewUrl,
               errorReport: parsed.errorReport,
             });
+
+            if (
+              parsed.status === BuildRecordStatus.SUCCESS ||
+              parsed.status === BuildRecordStatus.FAILED
+            ) {
+              pushTerminalRef.current = true;
+              closeBuildEvents();
+              return;
+            }
           }
 
           if (parsed.type === ParserEventType.PREVIEW_URL && parsed.url) {
@@ -312,6 +321,12 @@ export function useSandboxSync(chatIdFromUrl: string | undefined) {
         ) {
           return;
         }
+
+        if (pushTerminalRef.current) {
+          closeBuildEvents();
+          return;
+        }
+
         pushConnectedRef.current = false;
         lastPolledChatIdRef.current = null;
         closeBuildEvents();

@@ -1,0 +1,11 @@
+name = "edwardd-router"
+main = "scripts/worker.js"
+compatibility_date = "2026-02-20"
+
+[[kv_namespaces]]
+binding = "SUBDOMAIN_MAPPINGS"
+id = "93e12d9fb52c4948998b9ad1e5ccc770"
+
+[[routes]]
+pattern = "*.edwardd.app/*"
+zone_name = "edwardd.app"
