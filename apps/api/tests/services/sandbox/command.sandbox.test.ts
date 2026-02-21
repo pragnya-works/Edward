@@ -88,6 +88,15 @@ describe("executeSandboxCommand", () => {
     ).rejects.toThrow(/Path outside allowed directory/);
   });
 
+  it("should block sibling path prefixes that only start with workdir text", async () => {
+    await expect(
+      executeSandboxCommand(sandboxId, {
+        command: "ls",
+        args: ["../edward2/secrets.txt"],
+      }),
+    ).rejects.toThrow(/Path outside allowed directory/);
+  });
+
   it("should block absolute paths outside workspace", async () => {
     await expect(
       executeSandboxCommand(sandboxId, {

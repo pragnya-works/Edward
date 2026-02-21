@@ -1,4 +1,7 @@
-import { IMAGE_UPLOAD_CONFIG } from "@edward/shared/constants";
+import {
+  GithubDisconnectReason,
+  IMAGE_UPLOAD_CONFIG,
+} from "@edward/shared/constants";
 
 const DEFAULT_API_URL = "http://localhost:8000";
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || DEFAULT_API_URL;
@@ -377,6 +380,107 @@ export async function getSandboxFiles(
   chatId: string,
 ): Promise<SandboxFilesResponse> {
   return fetchApi<SandboxFilesResponse>(`/chat/${chatId}/sandbox-files`);
+}
+
+interface ApiSuccessResponse<TData = unknown> {
+  message: string;
+  data: TData;
+  timestamp: string;
+}
+
+export interface GithubRepoStatusData {
+  connected: boolean;
+  repoFullName: string | null;
+  repoExists: boolean;
+  canPush: boolean;
+  disconnectedReason: GithubDisconnectReason;
+  defaultBranch: string | null;
+}
+
+export type GithubRepoStatusResponse = ApiSuccessResponse<GithubRepoStatusData>;
+
+export async function getGithubRepoStatus(
+  chatId: string,
+): Promise<GithubRepoStatusResponse> {
+  const params = new URLSearchParams({ chatId });
+  return fetchApi<GithubRepoStatusResponse>(`/github/status?${params.toString()}`, {
+    method: "GET",
+  });
+}
+
+export interface ConnectGithubPayload {
+  chatId: string;
+  repoFullName?: string;
+  repoName?: string;
+}
+
+export interface ConnectGithubData {
+  success: boolean;
+  repoFullName: string;
+  created: boolean;
+  isPrivate: boolean;
+  defaultBranch: string;
+  privacyDefaultApplied: boolean;
+  privacyEnforced?: boolean;
+}
+
+export type ConnectGithubResponse = ApiSuccessResponse<ConnectGithubData>;
+
+export async function connectGithubRepo(
+  payload: ConnectGithubPayload,
+): Promise<ConnectGithubResponse> {
+  return fetchApi<ConnectGithubResponse>("/github/connect", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export interface CreateGithubBranchPayload {
+  chatId: string;
+  branchName: string;
+  baseBranch?: string;
+}
+
+export interface CreateGithubBranchData {
+  success: boolean;
+  existed: boolean;
+  branchName: string;
+  baseBranch: string;
+}
+
+export type CreateGithubBranchResponse =
+  ApiSuccessResponse<CreateGithubBranchData>;
+
+export async function createGithubBranch(
+  payload: CreateGithubBranchPayload,
+): Promise<CreateGithubBranchResponse> {
+  return fetchApi<CreateGithubBranchResponse>("/github/branch", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export interface SyncGithubPayload {
+  chatId: string;
+  branch: string;
+  commitMessage: string;
+}
+
+export interface SyncGithubData {
+  sha: string;
+  fileCount: number;
+  noChanges: boolean;
+}
+
+export type SyncGithubResponse = ApiSuccessResponse<SyncGithubData>;
+
+export async function syncGithubRepo(
+  payload: SyncGithubPayload,
+): Promise<SyncGithubResponse> {
+  return fetchApi<SyncGithubResponse>("/github/sync", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
 }
 
 export async function deleteChat(chatId: string): Promise<void> {

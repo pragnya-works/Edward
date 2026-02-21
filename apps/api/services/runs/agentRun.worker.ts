@@ -240,6 +240,17 @@ export async function processAgentRunJob(
     | "NEXT_TURN" = "INIT";
   let lastPersistedTurn = currentTurn;
 
+  logger.info(
+    {
+      runId,
+      chatId: run.chatId,
+      userId: run.userId,
+      traceId: metadata.traceId,
+      metric: "run_start",
+    },
+    "Agent run started",
+  );
+
   const updateRunStateIfNeeded = async (
     nextState:
       | "INIT"
@@ -409,6 +420,7 @@ export async function processAgentRunJob(
         status: mapped.status,
         terminationReason: latestTerminationReason,
         loopStopReason: latestLoopStopReason,
+        traceId: metadata.traceId,
         firstTokenLatencyMs,
         durationMs,
         metric: "run_completion",

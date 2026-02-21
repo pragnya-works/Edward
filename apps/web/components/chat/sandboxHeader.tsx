@@ -1,29 +1,58 @@
 "use client";
 
 import { m } from "motion/react";
-import { RefreshCw, X, Code2, AlertCircle } from "lucide-react";
-import { Tabs, TabsList, TabsTrigger } from "@edward/ui/components/tabs";
+import { RefreshCw, X, Code2, AlertCircle, Monitor } from "lucide-react";
 import { Button } from "@edward/ui/components/button";
-import { Separator } from "@edward/ui/components/separator";
 import { cn } from "@edward/ui/lib/utils";
 import { BuildStatus, SandboxMode, useSandbox } from "@/contexts/sandboxContext";
+import { GithubIntegrationBar } from "@/components/chat/githubIntegrationBar";
 
 interface SandboxHeaderProps {
+  chatId: string;
   projectName: string | null;
 }
 
-export function SandboxHeader({ projectName }: SandboxHeaderProps) {
+export function SandboxHeader({ chatId, projectName }: SandboxHeaderProps) {
   const { mode, files, buildStatus, isStreaming, setMode, closeSandbox } =
     useSandbox();
 
   return (
-    <div className="flex items-center justify-between gap-2 px-2.5 md:px-3 py-2 border-b border-workspace-border bg-workspace-sidebar text-workspace-header-fg shrink-0">
-      <div className="flex items-center gap-2 min-w-0">
-        <div className="h-7 w-7 rounded-md bg-workspace-accent/20 flex items-center justify-center shrink-0">
-          <Code2 className="h-4 w-4 text-workspace-header-fg" />
+    <div className="flex items-center justify-between gap-2.5 px-3 md:px-4 py-2.5 border-b border-workspace-border bg-workspace-sidebar text-workspace-header-fg shrink-0">
+      <div className="flex items-center gap-3 min-w-0">
+        <div className="h-[38px] md:h-10 shrink-0 rounded-[999px] border border-workspace-border bg-workspace-bg px-[3px] py-[3px] flex items-center gap-0.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.55),0_1px_2px_rgba(0,0,0,0.06)] ring-1 ring-black/5 dark:ring-white/10 dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_1px_2px_rgba(0,0,0,0.35)]">
+          <Button
+            type="button"
+            size="icon"
+            variant="ghost"
+            onClick={() => setMode(SandboxMode.CODE)}
+            aria-label="Switch to code view"
+            className={cn(
+              "h-[30px] w-[30px] md:h-[32px] md:w-[32px] rounded-[999px] text-workspace-foreground/85 transition-all",
+              mode === SandboxMode.CODE
+                ? "bg-workspace-active text-workspace-accent shadow-[0_0_0_1.5px_rgba(56,189,248,0.5)]"
+                : "hover:bg-workspace-hover text-workspace-foreground/75",
+            )}
+          >
+            <Code2 className="h-4 w-4" />
+          </Button>
+          <Button
+            type="button"
+            size="icon"
+            variant="ghost"
+            onClick={() => setMode(SandboxMode.PREVIEW)}
+            aria-label="Switch to preview view"
+            className={cn(
+              "h-[30px] w-[30px] md:h-[32px] md:w-[32px] rounded-[999px] text-workspace-foreground/85 transition-all",
+              mode === SandboxMode.PREVIEW
+                ? "bg-workspace-active text-workspace-accent shadow-[0_0_0_1.5px_rgba(56,189,248,0.5)]"
+                : "hover:bg-workspace-hover text-workspace-foreground/75",
+            )}
+          >
+            <Monitor className="h-4 w-4" />
+          </Button>
         </div>
         <div className="flex flex-col min-w-0">
-          <span className="text-[11px] font-bold tracking-tight text-workspace-header-fg/90 truncate">
+          <span className="text-[12px] md:text-[13px] font-bold tracking-tight text-workspace-header-fg/90 truncate">
             {projectName ?? "Workspace"}
           </span>
           <div className="flex items-center gap-1.5 leading-none">
@@ -86,44 +115,17 @@ export function SandboxHeader({ projectName }: SandboxHeaderProps) {
         </div>
       </div>
 
-      <div className="flex items-center gap-1.5 md:gap-2 shrink-0">
-        <Tabs
-          value={mode}
-          onValueChange={(value) =>
-            setMode(
-              value === SandboxMode.PREVIEW
-                ? SandboxMode.PREVIEW
-                : SandboxMode.CODE,
-            )
-          }
-          className="w-auto"
-        >
-          <TabsList className="h-7 p-0.5 bg-workspace-sidebar border border-workspace-border shrink-0">
-            <TabsTrigger
-              value="code"
-              className="h-6 px-2.5 md:px-3 text-[10px] gap-1.5 font-semibold transition-all text-workspace-foreground data-active:bg-workspace-bg data-active:text-workspace-accent"
-            >
-              Code
-            </TabsTrigger>
-            <TabsTrigger
-              value="preview"
-              className="h-6 px-2.5 md:px-3 text-[10px] gap-1.5 font-semibold transition-all text-workspace-foreground data-active:bg-workspace-bg data-active:text-workspace-accent"
-            >
-              Preview
-            </TabsTrigger>
-          </TabsList>
-        </Tabs>
-
-        <Separator orientation="vertical" className="h-5 bg-workspace-border hidden md:block" />
+      <div className="flex items-center gap-2 shrink-0">
+        <GithubIntegrationBar chatId={chatId} projectName={projectName} />
 
         <Button
           variant="ghost"
           size="icon"
           onClick={closeSandbox}
           aria-label="Close workspace"
-          className="h-7 w-7 rounded-md hover:bg-workspace-hover text-workspace-header-fg"
+          className="h-8 w-8 rounded-lg hover:bg-workspace-hover text-workspace-header-fg"
         >
-          <X className="h-3.5 w-3.5" />
+          <X className="h-4 w-4" />
         </Button>
       </div>
     </div>

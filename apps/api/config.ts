@@ -19,6 +19,23 @@ function validatePort(name: string, value: string | undefined): number {
   return port;
 }
 
+function parseTrustProxy(value: string | undefined, fallback: boolean): boolean | number {
+  if (!value) {
+    return fallback ? 1 : false;
+  }
+
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "true") return 1;
+  if (normalized === "false") return false;
+
+  const asNumber = Number.parseInt(normalized, 10);
+  if (!Number.isNaN(asNumber) && asNumber >= 0) {
+    return asNumber;
+  }
+
+  return fallback ? 1 : false;
+}
+
 const DEFAULT_REDIS_PORT = 6379;
 
 function parseRedisUrl(url: string): { host: string; port: number } {
@@ -109,6 +126,9 @@ export const config = {
     },
     isTest(): boolean {
       return this.environment === Environment.Test;
+    },
+    get trustProxy(): boolean | number {
+      return parseTrustProxy(process.env.TRUST_PROXY, this.isProduction());
     },
   },
 

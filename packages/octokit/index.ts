@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import { Octokit } from 'octokit';
 
 export interface GithubFile {
@@ -5,6 +6,19 @@ export interface GithubFile {
   content: string;
   encoding?: 'utf-8' | 'base64';
 }
+
+export interface SyncFilesResult {
+  sha: string;
+  changed: boolean;
+}
+
+interface SyncManifest {
+  version: 1;
+  managedPaths: string[];
+}
+
+const SYNC_MANIFEST_PATH = '.edward-sync-manifest.json';
+const MAX_BLOB_UPLOAD_CONCURRENCY = 12;
 
 export function createGithubClient(token: string): Octokit {
   return new Octokit({ auth: token });
@@ -37,40 +51,6 @@ export async function createRepo(
   return data;
 }
 
-export async function validateRepo(octokit: Octokit, owner: string, repo: string): Promise<boolean> {
-  try {
-    await octokit.rest.repos.get({ owner, repo });
-    return true;
-  } catch (error) {
-    const status = getRequestStatus(error);
-    if (status === 404) return false;
-    throw error;
-  }
-}
-
-export async function checkRepoPermission(
-  octokit: Octokit,
-  owner: string,
-  repo: string,
-  permission: 'push' | 'pull' | 'admin' = 'push'
-): Promise<boolean> {
-  try {
-    const { data } = await octokit.rest.repos.get({ owner, repo });
-    const permissions = data.permissions;
-    if (!permissions) return false;
-    return permissions[permission] === true;
-  } catch (error) {
-    const status = getRequestStatus(error);
-    if (status === 404) {
-      throw new Error('Repository not found or you do not have access');
-    }
-    if (status === 401 || status === 403) {
-      throw new Error('Permission Denied: GitHub token lacks required repository access');
-    }
-    throw error;
-  }
-}
-
 async function getBranch(octokit: Octokit, owner: string, repo: string, branch: string) {
   try {
     const { data } = await octokit.rest.repos.getBranch({
@@ -81,6 +61,93 @@ async function getBranch(octokit: Octokit, owner: string, repo: string, branch: 
     return data;
   } catch {
     return null;
+  }
+}
+
+function normalizeRepoPath(filePath: string): string | null {
+  const normalized = filePath.replace(/\\/g, '/').replace(/^\/+/, '').replace(/^(\.\/)+/, '');
+  if (!normalized) return null;
+  if (normalized === '.' || normalized.includes('../') || normalized.startsWith('..')) {
+    return null;
+  }
+  return normalized;
+}
+
+function toFileBuffer(file: GithubFile): Buffer {
+  return file.encoding === 'base64'
+    ? Buffer.from(file.content, 'base64')
+    : Buffer.from(file.content, 'utf8');
+}
+
+function computeGitBlobSha(content: Buffer): string {
+  const header = Buffer.from(`blob ${content.length}\0`, 'utf8');
+  return crypto.createHash('sha1').update(header).update(content).digest('hex');
+}
+
+function encodeManifest(managedPaths: string[]): string {
+  const payload: SyncManifest = {
+    version: 1,
+    managedPaths: [...managedPaths].sort(),
+  };
+  return `${JSON.stringify(payload, null, 2)}\n`;
+}
+
+function parseManifest(content: string): Set<string> {
+  try {
+    const parsed = JSON.parse(content) as Partial<SyncManifest>;
+    if (!Array.isArray(parsed.managedPaths)) return new Set<string>();
+    const paths = parsed.managedPaths
+      .filter((value): value is string => typeof value === 'string')
+      .map((value) => normalizeRepoPath(value))
+      .filter((value): value is string => Boolean(value) && value !== SYNC_MANIFEST_PATH);
+    return new Set(paths);
+  } catch {
+    return new Set<string>();
+  }
+}
+
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  limit: number,
+  mapper: (item: T) => Promise<R>,
+): Promise<R[]> {
+  if (items.length === 0) return [];
+
+  const effectiveLimit = Math.max(1, Math.min(limit, items.length));
+  const results = new Array<R>(items.length);
+  let nextIndex = 0;
+
+  await Promise.all(
+    Array.from({ length: effectiveLimit }, async () => {
+      while (nextIndex < items.length) {
+        const currentIndex = nextIndex;
+        nextIndex += 1;
+        results[currentIndex] = await mapper(items[currentIndex]!);
+      }
+    }),
+  );
+
+  return results;
+}
+
+async function readManifestFromBlob(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  blobSha: string | undefined,
+): Promise<Set<string>> {
+  if (!blobSha) return new Set<string>();
+
+  try {
+    const { data } = await octokit.rest.git.getBlob({
+      owner,
+      repo,
+      file_sha: blobSha,
+    });
+    const content = Buffer.from(data.content, 'base64').toString('utf8');
+    return parseManifest(content);
+  } catch {
+    return new Set<string>();
   }
 }
 
@@ -111,7 +178,7 @@ export async function syncFiles(
   branch: string,
   files: GithubFile[],
   message: string
-): Promise<string> {
+): Promise<SyncFilesResult> {
   const { data: refData } = await octokit.rest.git.getRef({
     owner,
     repo,
@@ -133,40 +200,53 @@ export async function syncFiles(
     recursive: 'true',
   });
 
-  const localPaths = new Set(files.map((file) => file.path));
-  const localTopLevels = new Set(
-    files
-      .map((file) => file.path.split('/')[0])
-      .filter((segment) => segment && segment.length > 0)
-  );
-  const preservationPatterns = [
-    /^\.github\//,
-    /^\.vscode\//,
-    /^\.git/,
-    /^\.gitignore$/i,
-    /^\.gitattributes$/i,
-    /^README\.md$/i,
-    /^LICENSE/i
-  ];
+  const remoteBlobShaByPath = new Map<string, string>();
+  for (const entry of currentTree.tree) {
+    if (entry.type !== 'blob' || !entry.path || !entry.sha) continue;
+    remoteBlobShaByPath.set(entry.path, entry.sha);
+  }
 
-  const deleteItems = currentTree.tree
-    .filter(item => {
-      if (item.type !== 'blob' || !item.path) return false;
-      if (localPaths.has(item.path)) return false;
-      const topLevel = item.path.split('/')[0];
-      if (!localTopLevels.has(topLevel)) return false;
-      const isPreserved = preservationPatterns.some(pattern => pattern.test(item.path!));
-      return !isPreserved;
-    })
-    .map(item => ({
-      path: item.path!,
+  const dedupedLocalFileByPath = new Map<string, GithubFile>();
+  for (const file of files) {
+    const normalizedPath = normalizeRepoPath(file.path);
+    if (!normalizedPath) {
+      throw new Error(`Invalid repository path: ${file.path}`);
+    }
+    dedupedLocalFileByPath.set(normalizedPath, { ...file, path: normalizedPath });
+  }
+
+  const localPaths = new Set(dedupedLocalFileByPath.keys());
+  if (localPaths.has(SYNC_MANIFEST_PATH)) {
+    throw new Error(`Path '${SYNC_MANIFEST_PATH}' is reserved for Edward sync metadata`);
+  }
+  const manifestPaths = Array.from(localPaths).sort();
+
+  const previousManagedPaths = await readManifestFromBlob(
+    octokit,
+    owner,
+    repo,
+    remoteBlobShaByPath.get(SYNC_MANIFEST_PATH),
+  );
+
+  const deleteItems = Array.from(previousManagedPaths)
+    .filter((path) => !localPaths.has(path) && remoteBlobShaByPath.has(path))
+    .map((path) => ({
+      path,
       mode: '100644' as const,
       type: 'blob' as const,
       sha: null,
     }));
 
-  const treeItems = await Promise.all(
-    files.map(async (file) => {
+  const changedFiles = Array.from(dedupedLocalFileByPath.values()).filter((file) => {
+    const remoteSha = remoteBlobShaByPath.get(file.path);
+    if (!remoteSha) return true;
+    return computeGitBlobSha(toFileBuffer(file)) !== remoteSha;
+  });
+
+  const treeItems = await mapWithConcurrency(
+    changedFiles,
+    MAX_BLOB_UPLOAD_CONCURRENCY,
+    async (file) => {
       const { data: blobData } = await octokit.rest.git.createBlob({
         owner,
         repo,
@@ -180,8 +260,29 @@ export async function syncFiles(
         type: 'blob' as const,
         sha: blobData.sha,
       };
-    })
+    },
   );
+
+  const manifestContent = encodeManifest(manifestPaths);
+  const manifestSha = computeGitBlobSha(Buffer.from(manifestContent, 'utf8'));
+  if (remoteBlobShaByPath.get(SYNC_MANIFEST_PATH) !== manifestSha) {
+    const { data: manifestBlob } = await octokit.rest.git.createBlob({
+      owner,
+      repo,
+      content: manifestContent,
+      encoding: 'utf-8',
+    });
+    treeItems.push({
+      path: SYNC_MANIFEST_PATH,
+      mode: '100644' as const,
+      type: 'blob' as const,
+      sha: manifestBlob.sha,
+    });
+  }
+
+  if (treeItems.length === 0 && deleteItems.length === 0) {
+    return { sha: currentSha, changed: false };
+  }
 
   const { data: treeData } = await octokit.rest.git.createTree({
     owner,
@@ -189,6 +290,10 @@ export async function syncFiles(
     base_tree: baseTreeSha,
     tree: [...treeItems, ...deleteItems],
   });
+
+  if (treeData.sha === baseTreeSha) {
+    return { sha: currentSha, changed: false };
+  }
 
   const { data: newCommitData } = await octokit.rest.git.createCommit({
     owner,
@@ -203,7 +308,16 @@ export async function syncFiles(
     repo,
     ref: `heads/${branch}`,
     sha: newCommitData.sha,
+    force: false,
+  }).catch((error: unknown) => {
+    const status = getRequestStatus(error);
+    if (status === 409 || status === 422) {
+      throw new Error(
+        'Branch changed on GitHub during sync. Please refresh the branch and retry.',
+      );
+    }
+    throw error;
   });
 
-  return newCommitData.sha;
+  return { sha: newCommitData.sha, changed: true };
 }
