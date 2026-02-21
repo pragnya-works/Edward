@@ -525,20 +525,20 @@ export function SandboxPanel({ projectName }: SandboxPanelProps) {
 
   const postPreviewCommand = useCallback((command: PreviewHostCommand): boolean => {
     const iframeWindow = previewFrameRef.current?.contentWindow;
-    if (!iframeWindow) {
+    if (!iframeWindow || !previewOrigin) {
       return false;
     }
 
     try {
       iframeWindow.postMessage(
         { source: PREVIEW_HOST_SOURCE, type: command },
-        "*",
+        previewOrigin,
       );
       return true;
     } catch {
       return false;
     }
-  }, []);
+  }, [previewOrigin]);
 
   const openPreviewInNewTab = useCallback(() => {
     const url = previewAddress ?? normalizePreviewAddress(previewUrl);

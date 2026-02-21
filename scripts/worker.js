@@ -18,6 +18,17 @@ const DEFAULT_FRAME_ANCESTORS = [
     "https://www.edwardd.app",
 ].join(" ");
 
+const RATE_LIMIT_MAX_REQUESTS_PER_MINUTE = 500;
+
+function getCurrentMinuteWindow() {
+    return Math.floor(Date.now() / 60000);
+}
+
+function getRetryAfterSeconds() {
+    const remainder = 60000 - (Date.now() % 60000);
+    return Math.max(1, Math.ceil(remainder / 1000));
+}
+
 function resolveFrameAncestors(env) {
     const configured = typeof env.FRAME_ANCESTORS === "string" ? env.FRAME_ANCESTORS.trim() : "";
     return configured || DEFAULT_FRAME_ANCESTORS;
@@ -33,14 +44,74 @@ function upsertFrameAncestors(csp, frameAncestors) {
 }
 
 async function isRateLimited(subdomain, env) {
-    const key = `rl:${subdomain}:${Math.floor(Date.now() / 60000)}`;
-    try {
-        const count = parseInt((await env.SUBDOMAIN_MAPPINGS.get(key)) || "0", 10);
-        if (count >= 500) return true;
-        await env.SUBDOMAIN_MAPPINGS.put(key, String(count + 1), { expirationTtl: 120 });
+    if (!env.RATE_LIMITER || typeof env.RATE_LIMITER.idFromName !== "function") {
         return false;
+    }
+
+    try {
+        const id = env.RATE_LIMITER.idFromName(subdomain);
+        const stub = env.RATE_LIMITER.get(id);
+        const response = await stub.fetch("https://rate-limiter.internal/check", {
+            method: "POST",
+        });
+
+        if (!response.ok) {
+            return false;
+        }
+
+        const payload = await response.json();
+        return payload?.rateLimited === true;
     } catch {
         return false;
+    }
+}
+
+export class RateLimiter {
+    constructor(state) {
+        this.state = state;
+        this.currentWindow = getCurrentMinuteWindow();
+        this.count = 0;
+        this.initialized = this.state.blockConcurrencyWhile(async () => {
+            const savedState = await this.state.storage.get("rate-state");
+            if (
+                savedState &&
+                typeof savedState === "object" &&
+                typeof savedState.window === "number" &&
+                typeof savedState.count === "number"
+            ) {
+                this.currentWindow = savedState.window;
+                this.count = savedState.count;
+            }
+        });
+    }
+
+    async fetch(request) {
+        if (request.method !== "POST") {
+            return new Response("Method Not Allowed", { status: 405 });
+        }
+
+        await this.initialized;
+
+        const nowWindow = getCurrentMinuteWindow();
+        if (nowWindow !== this.currentWindow) {
+            this.currentWindow = nowWindow;
+            this.count = 0;
+        }
+
+        if (this.count >= RATE_LIMIT_MAX_REQUESTS_PER_MINUTE) {
+            return Response.json({
+                rateLimited: true,
+                retryAfterSeconds: getRetryAfterSeconds(),
+            });
+        }
+
+        this.count += 1;
+        await this.state.storage.put("rate-state", {
+            window: this.currentWindow,
+            count: this.count,
+        });
+
+        return Response.json({ rateLimited: false });
     }
 }
 
@@ -93,7 +164,7 @@ export default {
         if (await isRateLimited(subdomain, env)) {
             return new Response("Too Many Requests", {
                 status: 429,
-                headers: { "Retry-After": "60" },
+                headers: { "Retry-After": String(getRetryAfterSeconds()) },
             });
         }
 
