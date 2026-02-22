@@ -6,45 +6,8 @@ interface RequestWithTelemetry extends Request {
   requestId?: string;
 }
 
-function isProxyTrusted(req: Request): boolean {
-  const trustProxy = req.app?.get?.("trust proxy");
-  if (trustProxy === undefined || trustProxy === null) {
-    return false;
-  }
-  if (typeof trustProxy === "boolean") {
-    return trustProxy;
-  }
-  if (typeof trustProxy === "number") {
-    return trustProxy > 0;
-  }
-  if (typeof trustProxy === "string") {
-    return trustProxy.trim().toLowerCase() !== "false";
-  }
-  if (typeof trustProxy === "function") {
-    return true;
-  }
-  return false;
-}
-
 export function getClientIp(req: Request): string {
-  if (!isProxyTrusted(req)) {
-    return req.ip || "unknown";
-  }
-
-  const forwardedFor =
-    typeof req.header === "function"
-      ? req.header("x-forwarded-for")
-      : typeof req.headers["x-forwarded-for"] === "string"
-        ? req.headers["x-forwarded-for"]
-        : Array.isArray(req.headers["x-forwarded-for"])
-          ? req.headers["x-forwarded-for"][0]
-          : undefined;
-  const forwardedIp = forwardedFor
-    ?.split(",")
-    .map((value) => value.trim())
-    .find(Boolean);
-
-  return forwardedIp || req.ip || "unknown";
+  return req.ip || req.socket?.remoteAddress || "unknown";
 }
 
 export function getOrCreateRequestId(req: Request, res: Response): string {

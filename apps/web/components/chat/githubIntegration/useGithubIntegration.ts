@@ -76,6 +76,7 @@ export function useGithubIntegration({
   const [isCheckingStatus, setIsCheckingStatus] = useState(false);
   const [repoStatus, setRepoStatus] = useState<GithubRepoStatusData | null>(null);
   const initializedChatIdRef = useRef<string | null>(null);
+  const isGithubFlowInFlightRef = useRef(false);
 
   const applyPersistedState = useCallback((state: ApplyPersistedState) => {
     setRepoInput(state.repoInput);
@@ -123,6 +124,7 @@ export function useGithubIntegration({
     setErrorMessage(null);
     setIsModalOpen(false);
     setIsSubmitting(false);
+    isGithubFlowInFlightRef.current = false;
   }, [
     normalizedChatId,
     defaultRepoName,
@@ -253,32 +255,37 @@ export function useGithubIntegration({
   }, [isModalOpen, normalizedChatId, refreshGithubStatus]);
 
   const handleRunGithubFlow = useCallback(async () => {
-    const latestStatus = await refreshGithubStatus({ silent: true });
-    const statusLockedRepo =
-      latestStatus?.connected && latestStatus.repoFullName
-        ? latestStatus.repoFullName
-        : null;
-    const effectiveRepoInput = normalizeRepoInput(
-      statusLockedRepo ?? normalizedRepoInput,
-    );
-
-    if (
-      !normalizedChatId ||
-      !effectiveRepoInput ||
-      !normalizedBranchInput ||
-      !normalizedCommitMessage
-    ) {
-      if (!normalizedChatId) {
-        setErrorMessage("Chat session is not ready yet. Please retry in a moment.");
-      }
+    if (isGithubFlowInFlightRef.current) {
       return;
     }
 
+    isGithubFlowInFlightRef.current = true;
     setIsSubmitting(true);
     setErrorMessage(null);
-    const toastId = getGithubToastId(normalizedChatId);
 
     try {
+      const latestStatus = await refreshGithubStatus({ silent: true });
+      const statusLockedRepo =
+        latestStatus?.connected && latestStatus.repoFullName
+          ? latestStatus.repoFullName
+          : null;
+      const effectiveRepoInput = normalizeRepoInput(
+        statusLockedRepo ?? normalizedRepoInput,
+      );
+
+      if (
+        !normalizedChatId ||
+        !effectiveRepoInput ||
+        !normalizedBranchInput ||
+        !normalizedCommitMessage
+      ) {
+        if (!normalizedChatId) {
+          setErrorMessage("Chat session is not ready yet. Please retry in a moment.");
+        }
+        return;
+      }
+
+      const toastId = getGithubToastId(normalizedChatId);
       let resolvedRepo = statusLockedRepo;
       let effectiveBaseBranch =
         latestStatus?.defaultBranch?.trim() || resolvedBaseBranch;
@@ -341,7 +348,7 @@ export function useGithubIntegration({
       const message = getErrorMessage(error);
       setErrorMessage(message);
       toast.error("GitHub sync failed", {
-        id: toastId,
+        id: getGithubToastId(normalizedChatId),
         description: message,
       });
       const latest = await refreshGithubStatus({ silent: true });
@@ -349,6 +356,7 @@ export function useGithubIntegration({
         showRepoDisconnectedToast();
       }
     } finally {
+      isGithubFlowInFlightRef.current = false;
       setIsSubmitting(false);
     }
   }, [
