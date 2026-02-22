@@ -19,6 +19,41 @@ function validatePort(name: string, value: string | undefined): number {
   return port;
 }
 
+export type TrustProxySetting = boolean | number | string | string[];
+
+function parseTrustProxyList(value: string): string | string[] {
+  const entries = value
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+
+  if (entries.length <= 1) {
+    return entries[0] ?? value;
+  }
+
+  return entries;
+}
+
+export function parseTrustProxy(
+  value: string | undefined,
+  fallback: boolean,
+): TrustProxySetting {
+  if (!value || value.trim() === "") {
+    return fallback ? 1 : false;
+  }
+
+  const trimmed = value.trim();
+  const normalized = trimmed.toLowerCase();
+  if (normalized === "true") return 1;
+  if (normalized === "false") return false;
+
+  if (/^\d+$/.test(trimmed)) {
+    return Number.parseInt(trimmed, 10);
+  }
+
+  return parseTrustProxyList(trimmed);
+}
+
 const DEFAULT_REDIS_PORT = 6379;
 
 function parseRedisUrl(url: string): { host: string; port: number } {
@@ -109,6 +144,9 @@ export const config = {
     },
     isTest(): boolean {
       return this.environment === Environment.Test;
+    },
+    get trustProxy(): TrustProxySetting {
+      return parseTrustProxy(process.env.TRUST_PROXY, this.isProduction());
     },
   },
 

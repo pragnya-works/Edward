@@ -382,6 +382,9 @@ importers:
       '@edward/typescript-config':
         specifier: workspace:*
         version: link:../typescript-config
+      '@types/node':
+        specifier: ^20.19.25
+        version: 20.19.30
       eslint:
         specifier: ^9.16.0
         version: 9.39.2(jiti@2.6.1)

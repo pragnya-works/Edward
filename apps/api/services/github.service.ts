@@ -1,11 +1,10 @@
 import { db, chat, account, eq, and } from "@edward/auth";
+import { GithubDisconnectReason } from "@edward/shared/constants";
 import {
   createGithubClient,
   syncFiles,
   createBranch,
-  validateRepo,
   getAuthenticatedUser,
-  checkRepoPermission,
   createRepo,
   type GithubFile,
 } from "@edward/octokit";
@@ -16,6 +15,12 @@ import { createBackupArchive } from "./sandbox/backup/archive.js";
 import { getSandboxState } from "./sandbox/state.sandbox.js";
 import { logger } from "../utils/logger.js";
 import { ensureError } from "../utils/error.js";
+import { decryptSecret, encryptSecret, isSecretEnvelope } from "../utils/secretEnvelope.js";
+
+const GITHUB_PROVIDER_ID = "github";
+const DEFAULT_GITHUB_BASE_BRANCH = "main";
+const REPO_MISSING_RECONNECT_MESSAGE =
+  "Previously connected GitHub repository no longer exists or access was removed. Please connect again.";
 
 function parseRepoFullName(fullName: string): { owner: string; repo: string } {
   const parts = fullName.split("/");
@@ -25,15 +30,109 @@ function parseRepoFullName(fullName: string): { owner: string; repo: string } {
   return { owner: parts[0], repo: parts[1] };
 }
 
+function getErrorStatus(error: unknown): number | undefined {
+  if (error && typeof error === "object" && "status" in error) {
+    const status = (error as { status?: unknown }).status;
+    if (typeof status === "number") {
+      return status;
+    }
+  }
+
+  return undefined;
+}
+
+interface RepoSnapshot {
+  isPrivate: boolean;
+  canPush: boolean;
+  defaultBranch: string;
+}
+
+async function getRepoSnapshot(
+  octokit: ReturnType<typeof createGithubClient>,
+  owner: string,
+  repo: string,
+): Promise<RepoSnapshot | null> {
+  try {
+    const { data } = await octokit.rest.repos.get({ owner, repo });
+    return {
+      isPrivate: data.private === true,
+      canPush: data.permissions?.push === true,
+      defaultBranch:
+        data.default_branch?.trim() || DEFAULT_GITHUB_BASE_BRANCH,
+    };
+  } catch (error) {
+    if (getErrorStatus(error) === 404) {
+      return null;
+    }
+    throw error;
+  }
+}
+
+function isAlreadyExistsError(error: Error): boolean {
+  const lower = error.message.toLowerCase();
+  return lower.includes("already exists") || lower.includes("reference already exists");
+}
+
+interface ChatRepoBinding {
+  chatId: string;
+  repoFullName: string | null;
+}
+
+async function getChatRepoBinding(
+  chatId: string,
+  userId: string,
+): Promise<ChatRepoBinding> {
+  const [chatData] = await db
+    .select({ chatId: chat.id, repoFullName: chat.githubRepoFullName })
+    .from(chat)
+    .where(and(eq(chat.id, chatId), eq(chat.userId, userId)))
+    .limit(1);
+
+  if (!chatData) {
+    throw new Error(
+      "Chat not found or you do not have permission to access it",
+    );
+  }
+
+  return chatData;
+}
+
+async function clearChatRepoBinding(chatId: string, userId: string): Promise<void> {
+  await db
+    .update(chat)
+    .set({ githubRepoFullName: null })
+    .where(and(eq(chat.id, chatId), eq(chat.userId, userId)));
+}
+
 async function getGithubToken(userId: string): Promise<string | null> {
   try {
     const [acc] = await db
-      .select({ accessToken: account.accessToken })
+      .select({ id: account.id, accessToken: account.accessToken })
       .from(account)
-      .where(and(eq(account.userId, userId), eq(account.providerId, "github")))
+      .where(and(eq(account.userId, userId), eq(account.providerId, GITHUB_PROVIDER_ID)))
       .limit(1);
 
-    return acc?.accessToken || null;
+    if (!acc?.accessToken) {
+      return null;
+    }
+
+    const token = decryptSecret(acc.accessToken);
+
+    if (!isSecretEnvelope(acc.accessToken)) {
+      const encryptedToken = encryptSecret(token);
+      await db
+        .update(account)
+        .set({ accessToken: encryptedToken, updatedAt: new Date() })
+        .where(eq(account.id, acc.id))
+        .catch((migrationError) => {
+          logger.warn(
+            { migrationError, userId },
+            "GitHub token encryption migration failed (non-fatal)",
+          );
+        });
+    }
+
+    return token;
   } catch (err) {
     logger.error(ensureError(err), "getGithubToken database error");
     throw new Error("Failed to retrieve GitHub credentials");
@@ -49,34 +148,23 @@ export async function syncChatToGithub(
   const token = await getGithubToken(userId);
   if (!token) throw new Error("User has no GitHub account connected");
 
-  const [chatData] = await db
-    .select({ repo: chat.githubRepoFullName })
-    .from(chat)
-    .where(and(eq(chat.id, chatId), eq(chat.userId, userId)))
-    .limit(1);
+  const chatData = await getChatRepoBinding(chatId, userId);
 
-  if (!chatData || !chatData.repo)
+  if (!chatData.repoFullName)
     throw new Error("Chat is not connected to a GitHub repository");
 
-  const { owner, repo } = parseRepoFullName(chatData.repo);
+  const { owner, repo } = parseRepoFullName(chatData.repoFullName);
 
   const octokit = createGithubClient(token);
-
-  let hasPushAccess = false;
-  try {
-    hasPushAccess = await checkRepoPermission(octokit, owner, repo, "push");
-  } catch (err) {
-    const error = ensureError(err);
-    if (error.message.toLowerCase().includes("not found")) {
-      throw new Error(
-        `Repository '${chatData.repo}' not found or you do not have access`,
-      );
-    }
-    throw error;
+  const repoSnapshot = await getRepoSnapshot(octokit, owner, repo);
+  if (!repoSnapshot) {
+    await clearChatRepoBinding(chatId, userId);
+    throw new Error(REPO_MISSING_RECONNECT_MESSAGE);
   }
-  if (!hasPushAccess) {
+
+  if (!repoSnapshot.canPush) {
     throw new Error(
-      `Permission Denied: You do not have push access to '${chatData.repo}'`,
+      `Permission Denied: You do not have push access to '${chatData.repoFullName}'`,
     );
   }
 
@@ -137,7 +225,7 @@ export async function syncChatToGithub(
   if (files.length === 0) throw new Error("No source files found to sync");
 
   try {
-    const sha = await syncFiles(
+    const syncResult = await syncFiles(
       octokit,
       owner,
       repo,
@@ -145,7 +233,11 @@ export async function syncChatToGithub(
       files,
       commitMessage,
     );
-    return { sha, fileCount: files.length };
+    return {
+      sha: syncResult.sha,
+      fileCount: files.length,
+      noChanges: !syncResult.changed,
+    };
   } catch (err) {
     const error = ensureError(err);
     logger.error(error, "GitHub sync operation failed");
@@ -154,7 +246,7 @@ export async function syncChatToGithub(
       lowerMessage.includes("not found") ||
       lowerMessage.includes("reference does not exist")
     ) {
-      throw new Error(`Branch '${branch}' not found in '${chatData.repo}'`);
+      throw new Error(`Branch '${branch}' not found in '${chatData.repoFullName}'`);
     }
     throw new Error(`GitHub sync failed: ${error.message}`);
   }
@@ -164,35 +256,58 @@ export async function createChatBranch(
   chatId: string,
   userId: string,
   branchName: string,
-  baseBranch: string = "main",
+  baseBranch?: string,
 ) {
   const token = await getGithubToken(userId);
   if (!token) throw new Error("User has no GitHub account connected");
 
-  const [chatData] = await db
-    .select({ repo: chat.githubRepoFullName })
-    .from(chat)
-    .where(and(eq(chat.id, chatId), eq(chat.userId, userId)))
-    .limit(1);
+  const chatData = await getChatRepoBinding(chatId, userId);
 
-  if (!chatData || !chatData.repo)
+  if (!chatData.repoFullName)
     throw new Error("Chat is not connected to a GitHub repository");
 
-  const { owner, repo } = parseRepoFullName(chatData.repo);
+  const { owner, repo } = parseRepoFullName(chatData.repoFullName);
   const octokit = createGithubClient(token);
-
-  const hasPushAccess = await checkRepoPermission(octokit, owner, repo, "push");
-  if (!hasPushAccess) {
+  const repoSnapshot = await getRepoSnapshot(octokit, owner, repo);
+  if (!repoSnapshot) {
+    await clearChatRepoBinding(chatId, userId);
+    throw new Error(REPO_MISSING_RECONNECT_MESSAGE);
+  }
+  if (!repoSnapshot.canPush) {
     throw new Error(
-      `Permission Denied: You do not have permission to create branches in '${chatData.repo}'`,
+      `Permission Denied: You do not have permission to create branches in '${chatData.repoFullName}'`,
     );
   }
 
+  const normalizedBaseBranch =
+    baseBranch?.trim() ||
+    repoSnapshot.defaultBranch ||
+    DEFAULT_GITHUB_BASE_BRANCH;
+
   try {
-    await createBranch(octokit, owner, repo, baseBranch, branchName);
-    return { success: true };
+    await createBranch(
+      octokit,
+      owner,
+      repo,
+      normalizedBaseBranch,
+      branchName,
+    );
+    return {
+      success: true,
+      existed: false,
+      branchName,
+      baseBranch: normalizedBaseBranch,
+    };
   } catch (err) {
     const error = ensureError(err);
+    if (isAlreadyExistsError(error)) {
+      return {
+        success: true,
+        existed: true,
+        branchName,
+        baseBranch: normalizedBaseBranch,
+      };
+    }
     logger.error(error, "GitHub branch creation failed");
     throw new Error(`Failed to create branch: ${error.message}`);
   }
@@ -204,17 +319,8 @@ export async function connectChatToRepo(
   repoFullName?: string,
   repoName?: string,
 ) {
-  const [chatData] = await db
-    .select({ id: chat.id })
-    .from(chat)
-    .where(and(eq(chat.id, chatId), eq(chat.userId, userId)))
-    .limit(1);
-
-  if (!chatData) {
-    throw new Error(
-      "Chat not found or you do not have permission to access it",
-    );
-  }
+  const chatData = await getChatRepoBinding(chatId, userId);
+  const currentlyConnectedRepo = chatData.repoFullName;
 
   const token = await getGithubToken(userId);
   if (!token) throw new Error("User has no GitHub account connected");
@@ -229,22 +335,51 @@ export async function connectChatToRepo(
 
   if (!finalRepoFullName) throw new Error("Repository name is required");
 
+  if (
+    currentlyConnectedRepo &&
+    currentlyConnectedRepo.toLowerCase() !== finalRepoFullName.toLowerCase()
+  ) {
+    throw new Error(
+      `Chat is already connected to '${currentlyConnectedRepo}'. Disconnect is required before changing repository.`,
+    );
+  }
+
   const { owner, repo } = parseRepoFullName(finalRepoFullName);
+  const normalizedOwner = owner.toLowerCase();
+  const normalizedUser = githubUser.login.toLowerCase();
 
   try {
-    const exists = await validateRepo(octokit, owner, repo);
+    const repoSnapshot = await getRepoSnapshot(octokit, owner, repo);
+    const exists = repoSnapshot !== null;
+    let isPrivate = repoSnapshot?.isPrivate === true;
+    let defaultBranch = repoSnapshot?.defaultBranch || DEFAULT_GITHUB_BASE_BRANCH;
+    let privacyEnforced = false;
 
     if (!exists) {
-      if (owner.toLowerCase() === githubUser.login.toLowerCase()) {
+      if (normalizedOwner === normalizedUser) {
         logger.info(
           { owner, repo },
           "Repository not found. Attempting to create...",
         );
         try {
-          await createRepo(octokit, repo, {
+          const createdRepo = await createRepo(octokit, repo, {
             private: true,
             description: "Created by Edward AI",
           });
+          isPrivate = createdRepo.private === true;
+          defaultBranch =
+            createdRepo.default_branch?.trim() || DEFAULT_GITHUB_BASE_BRANCH;
+          if (!isPrivate) {
+            const { data: updatedRepo } = await octokit.rest.repos.update({
+              owner,
+              repo,
+              private: true,
+            });
+            isPrivate = updatedRepo.private === true;
+            privacyEnforced = isPrivate;
+            defaultBranch =
+              updatedRepo.default_branch?.trim() || defaultBranch;
+          }
         } catch (err) {
           const createError = ensureError(err);
           const lower = createError.message.toLowerCase();
@@ -264,6 +399,13 @@ export async function connectChatToRepo(
           `Repository '${finalRepoFullName}' not found and cannot be created (owner mismatch)`,
         );
       }
+    } else {
+      if (!repoSnapshot.canPush) {
+        throw new Error(
+          `Permission Denied: You do not have push access to '${finalRepoFullName}'`,
+        );
+      }
+      isPrivate = repoSnapshot.isPrivate;
     }
 
     await db
@@ -271,7 +413,15 @@ export async function connectChatToRepo(
       .set({ githubRepoFullName: finalRepoFullName })
       .where(and(eq(chat.id, chatId), eq(chat.userId, userId)));
 
-    return { success: true, repoFullName: finalRepoFullName, created: !exists };
+    return {
+      success: true,
+      repoFullName: finalRepoFullName,
+      created: !exists,
+      isPrivate,
+      defaultBranch,
+      privacyDefaultApplied: !exists,
+      privacyEnforced,
+    };
   } catch (err) {
     const error = ensureError(err);
     if (
@@ -285,4 +435,54 @@ export async function connectChatToRepo(
     logger.error(error, "Failed to connect/create repository");
     throw error;
   }
+}
+
+export async function getChatGithubStatus(chatId: string, userId: string) {
+  const chatData = await getChatRepoBinding(chatId, userId);
+  if (!chatData.repoFullName) {
+    return {
+      connected: false,
+      repoFullName: null,
+      repoExists: false,
+      canPush: false,
+      disconnectedReason: GithubDisconnectReason.NOT_CONNECTED,
+      defaultBranch: null,
+    };
+  }
+
+  const token = await getGithubToken(userId);
+  if (!token) {
+    return {
+      connected: true,
+      repoFullName: chatData.repoFullName,
+      repoExists: true,
+      canPush: false,
+      disconnectedReason: GithubDisconnectReason.AUTH_MISSING,
+      defaultBranch: null,
+    };
+  }
+
+  const octokit = createGithubClient(token);
+  const { owner, repo } = parseRepoFullName(chatData.repoFullName);
+  const repoSnapshot = await getRepoSnapshot(octokit, owner, repo);
+  if (!repoSnapshot) {
+    await clearChatRepoBinding(chatId, userId);
+    return {
+      connected: false,
+      repoFullName: null,
+      repoExists: false,
+      canPush: false,
+      disconnectedReason: GithubDisconnectReason.REPO_MISSING,
+      defaultBranch: null,
+    };
+  }
+
+  return {
+    connected: true,
+    repoFullName: chatData.repoFullName,
+    repoExists: true,
+    canPush: repoSnapshot.canPush,
+    disconnectedReason: GithubDisconnectReason.NONE,
+    defaultBranch: repoSnapshot.defaultBranch,
+  };
 }

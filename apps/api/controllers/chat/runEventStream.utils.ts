@@ -21,6 +21,7 @@ import {
 
 const HEARTBEAT_INTERVAL_MS = 15_000;
 const MAX_REPLAY_BATCH = 500;
+const MAX_LAST_EVENT_SEQ = 50_000_000;
 
 function parseLastEventSeq(raw: unknown): number {
   if (typeof raw !== "string" || raw.length === 0) {
@@ -33,6 +34,9 @@ function parseLastEventSeq(raw: unknown): number {
     : trimmed;
   const parsed = Number.parseInt(seqToken, 10);
   if (Number.isNaN(parsed) || parsed < 0) {
+    return 0;
+  }
+  if (parsed > MAX_LAST_EVENT_SEQ) {
     return 0;
   }
   return parsed;

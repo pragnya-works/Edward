@@ -3,6 +3,11 @@ import type { IncomingHttpHeaders } from "node:http";
 import { auth } from '@edward/auth';
 import { logger } from '../utils/logger.js';
 import { HttpMethod, HttpStatus, ERROR_MESSAGES } from '../utils/constants.js';
+import {
+  getClientIp,
+  getRequestId,
+  logSecurityEvent,
+} from './securityTelemetry.js';
 
 export interface AuthenticatedRequest extends Request {
   userId?: string;
@@ -30,6 +35,15 @@ function toFetchHeaders(headers: IncomingHttpHeaders): Headers {
   return normalized;
 }
 
+function buildAuthTelemetryContext(req: AuthenticatedRequest): Record<string, unknown> {
+  return {
+    method: req.method,
+    path: req.originalUrl,
+    ip: getClientIp(req),
+    requestId: getRequestId(req),
+  };
+}
+
 export async function authMiddleware(
   req: AuthenticatedRequest,
   res: Response,
@@ -46,6 +60,7 @@ export async function authMiddleware(
     });
 
     if (!sessionData?.session || !sessionData?.user) {
+      logSecurityEvent('auth_unauthorized', buildAuthTelemetryContext(req));
       sendUnauthorized(res);
       return;
     }
@@ -55,6 +70,7 @@ export async function authMiddleware(
     next();
   } catch (error) {
     logger.error(error, 'authMiddleware error');
+    logSecurityEvent('auth_middleware_error', buildAuthTelemetryContext(req));
     sendUnauthorized(res);
   }
 }

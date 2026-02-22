@@ -288,7 +288,7 @@ export function ChatWorkspace({
             showCloseButton={false}
             className="w-full max-w-none p-0 gap-0 border-l border-workspace-border bg-workspace-bg"
           >
-            <SandboxPanel projectName={projectName} />
+            <SandboxPanel chatId={chatId} projectName={projectName} />
           </SheetContent>
         </Sheet>
       </div>
@@ -352,7 +352,7 @@ export function ChatWorkspace({
             className="flex-1 min-h-[0] h-full"
           >
             {sandboxOpen || desktopSandboxUi.keepMounted ? (
-              <SandboxPanel projectName={projectName} />
+              <SandboxPanel chatId={chatId} projectName={projectName} />
             ) : null}
           </m.div>
         </Panel>

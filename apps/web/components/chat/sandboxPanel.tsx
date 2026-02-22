@@ -13,7 +13,6 @@ import {
   type SetStateAction,
   type SyntheticEvent,
 } from "react";
-import { useParams } from "next/navigation";
 import { AlertTriangle, PanelLeftOpen, RefreshCw, Search } from "lucide-react";
 import { BuildStatus, SandboxMode, useSandbox } from "@/contexts/sandboxContext";
 import { CodeEditor } from "@/components/chat/codeEditor";
@@ -32,6 +31,7 @@ import { Sheet, SheetContent } from "@edward/ui/components/sheet";
 import { useIsMobileViewport } from "@/hooks/useIsMobileViewport";
 
 interface SandboxPanelProps {
+  chatId: string;
   projectName: string | null;
 }
 
@@ -414,9 +414,7 @@ function PreviewWorkspace({
   );
 }
 
-export function SandboxPanel({ projectName }: SandboxPanelProps) {
-  const params = useParams<{ id: string }>();
-  const chatId = params.id;
+export function SandboxPanel({ chatId, projectName }: SandboxPanelProps) {
   const [isMobileExplorerOpen, setIsMobileExplorerOpen] = useState(false);
   const [previewFrameState, dispatchPreviewFrame] = useReducer(
     previewFrameReducer,
@@ -655,7 +653,7 @@ export function SandboxPanel({ projectName }: SandboxPanelProps) {
   return (
     <SandboxErrorBoundary>
       <div className="h-full flex flex-col bg-workspace-bg text-workspace-foreground overflow-hidden relative font-sans">
-        <SandboxHeader projectName={projectName} />
+        <SandboxHeader chatId={chatId} projectName={projectName} />
         {mode === SandboxMode.PREVIEW ? (
           <SandboxPreviewBar
             url={previewAddress ?? normalizePreviewAddress(previewUrl)}

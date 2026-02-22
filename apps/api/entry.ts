@@ -15,6 +15,7 @@ import { chatRouter } from "./routes/chat.routes.js";
 import { githubRouter } from "./routes/github.routes.js";
 import { authMiddleware } from "./middleware/auth.js";
 import { apiKeyRateLimiter } from "./middleware/rateLimit.js";
+import { securityTelemetryMiddleware } from "./middleware/securityTelemetry.js";
 import { Environment, createLogger } from "./utils/logger.js";
 import {
   HttpStatus,
@@ -34,7 +35,7 @@ const ALLOWED_ORIGINS = config.cors.origins;
 const logger = createLogger("API");
 const app = express();
 
-app.set("trust proxy", 1);
+app.set("trust proxy", config.server.trustProxy);
 
 app.use(
   helmet({
@@ -64,9 +65,21 @@ if (isProd) {
     res: Response,
     next: NextFunction,
   ) {
-    const isSecure = req.header("x-forwarded-proto") === "https";
+    const forwardedProto = req.header("x-forwarded-proto")
+      ?.split(",")
+      .map((value) => value.trim().toLowerCase())[0];
+    const isSecure = req.secure || forwardedProto === "https";
     if (!isSecure) {
-      const httpsUrl = `https://${req.header("host")}${req.url}`;
+      const host = req.hostname;
+      if (!host) {
+        res.status(HttpStatus.BAD_REQUEST).json({
+          error: ERROR_MESSAGES.BAD_REQUEST,
+          timestamp: new Date().toISOString(),
+        });
+        return;
+      }
+
+      const httpsUrl = `https://${host}${req.originalUrl}`;
       return res.redirect(HttpStatus.MOVED_PERMANENTLY, httpsUrl);
     }
     next();
@@ -90,9 +103,17 @@ app.use(
       HttpMethod.DELETE,
       HttpMethod.PATCH,
     ],
-    allowedHeaders: ["Content-Type", "Authorization", "x-file-name"],
+    allowedHeaders: [
+      "Content-Type",
+      "Authorization",
+      "x-file-name",
+      "Last-Event-ID",
+      "X-Request-Id",
+    ],
   }),
 );
+
+app.use(securityTelemetryMiddleware);
 
 app.use(cookieParser());
 app.use(express.json({ limit: "1mb" }));
