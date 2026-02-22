@@ -15,6 +15,8 @@ import { ChatRole } from "@/lib/chatTypes";
 interface ChatMessageListProps {
   messages: ChatMessageType[];
   stream: StreamState;
+  onRetryStreamError?: () => boolean;
+  onRetryAssistantMessage?: (assistantMessageId: string) => boolean;
 }
 
 const SUGGESTED_STARTS = [
@@ -73,6 +75,8 @@ const WELCOME_SCREEN = (
 export const ChatMessageList = memo(function ChatMessageList({
   messages,
   stream,
+  onRetryStreamError,
+  onRetryAssistantMessage,
 }: ChatMessageListProps) {
   const { scrollRef, bottomRef, showScrollButton, scrollToBottom } =
     useScrollToBottom([
@@ -138,12 +142,17 @@ export const ChatMessageList = memo(function ChatMessageList({
         <div className="max-w-4xl mx-auto w-full px-3 sm:px-4 md:px-0 pt-8 sm:pt-12 pb-2 space-y-8 sm:space-y-12">
           <AnimatePresence mode="popLayout" initial={false}>
             {visibleMessages.map((message: ChatMessageType, index: number) => (
-              <ChatMessage key={message.id} message={message} index={index} />
+              <ChatMessage
+                key={message.id}
+                message={message}
+                index={index}
+                onRetryAssistantMessage={onRetryAssistantMessage}
+              />
             ))}
           </AnimatePresence>
 
           {hasStreamActivity && (
-            <StreamingMessage stream={stream} />
+            <StreamingMessage stream={stream} onRetry={onRetryStreamError} />
           )}
 
           <div ref={bottomRef} className="h-4 sm:h-8 w-full shrink-0" />

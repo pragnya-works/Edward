@@ -6,6 +6,7 @@ import { useIsMobile } from "@edward/ui/hooks/useMobile";
 import { LoginModal } from "@edward/ui/components/ui/loginModal";
 import { BYOK } from "@edward/ui/components/ui/byok";
 import { modelSupportsVision } from "@edward/shared/schema";
+import { UI_EVENTS } from "@edward/shared/constants";
 import { cn } from "@edward/ui/lib/utils";
 import {
   SUGGESTIONS,
@@ -22,6 +23,7 @@ import { UrlSourceStrip } from "./promptbar/urlSourceStrip";
 
 const URL_PATTERN = /https?:\/\/[^\s<>"'`]+/gi;
 const URL_SOURCE_PREVIEW_LIMIT = 6;
+const PROMPT_INPUT_SELECTOR = "textarea[data-edward-prompt-input='true']";
 
 function normalizeDetectedUrl(raw: string): string | null {
   try {
@@ -181,6 +183,36 @@ export default function Promptbar({
     }
   }, [isAuthenticated, hasApiKey, isApiKeyLoading]);
 
+  useEffect(() => {
+    const openApiKeyModal = () => {
+      if (!isAuthenticated) {
+        setShowLoginModal(true);
+        return;
+      }
+
+      if (!isApiKeyLoading) {
+        setShowBYOK(true);
+      }
+    };
+
+    const focusPromptInput = () => {
+      const input = document.querySelector(
+        PROMPT_INPUT_SELECTOR,
+      ) as HTMLTextAreaElement | null;
+      if (!input) return;
+
+      input.scrollIntoView({ block: "nearest", behavior: "smooth" });
+      input.focus();
+    };
+
+    window.addEventListener(UI_EVENTS.OPEN_API_KEY_MODAL, openApiKeyModal);
+    window.addEventListener(UI_EVENTS.FOCUS_PROMPT_INPUT, focusPromptInput);
+    return () => {
+      window.removeEventListener(UI_EVENTS.OPEN_API_KEY_MODAL, openApiKeyModal);
+      window.removeEventListener(UI_EVENTS.FOCUS_PROMPT_INPUT, focusPromptInput);
+    };
+  }, [isAuthenticated, isApiKeyLoading]);
+
   return (
     <div className="relative w-full">
       <UrlSourceStrip urls={detectedSourceUrls} />
@@ -226,6 +258,7 @@ export default function Promptbar({
                 </div>
               )}
             <Textarea
+              data-edward-prompt-input="true"
               placeholder={hideSuggestions ? "Ask Edward anything..." : ""}
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}

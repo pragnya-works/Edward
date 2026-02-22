@@ -12,6 +12,7 @@ import {
   streamBuildEvents,
   streamRunEvents,
   getSandboxFiles,
+  cancelRunHandler,
 } from "../controllers/chat/query.controller.js";
 import {
   checkSubdomainAvailabilityHandler,
@@ -22,6 +23,7 @@ import {
   GetChatHistoryRequestSchema,
   UnifiedSendMessageRequestSchema,
   StreamRunEventsRequestSchema,
+  CancelRunRequestSchema,
 } from "../schemas/chat.schema.js";
 import {
   chatRateLimiter,
@@ -77,6 +79,11 @@ chatRouter.get(
   validateRequest(StreamRunEventsRequestSchema),
   streamRunEvents,
 );
+chatRouter.post(
+  "/:chatId/runs/:runId/cancel",
+  validateRequest(CancelRunRequestSchema),
+  cancelRunHandler,
+);
 chatRouter.get(
   "/:chatId/sandbox-files",
   validateRequest(GetChatHistoryRequestSchema),
@@ -87,15 +94,10 @@ chatRouter.delete(
   validateRequest(GetChatHistoryRequestSchema),
   deleteChat,
 );
-
-// GET /chat/subdomain/check?subdomain=<value>&chatId=<id>
-// Must be registered before /:chatId to avoid "subdomain" being parsed as chatId
 chatRouter.get(
   "/subdomain/check",
   checkSubdomainAvailabilityHandler,
 );
-
-// PATCH /chat/:chatId/subdomain
 chatRouter.patch(
   "/:chatId/subdomain",
   validateRequest(GetChatHistoryRequestSchema),

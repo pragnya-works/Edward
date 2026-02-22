@@ -1,5 +1,6 @@
 import type {
   CommandEvent,
+  ErrorEvent,
   MetaEvent,
   MetricsEvent,
   StreamEvent,
@@ -24,10 +25,17 @@ export type SSEEvent = StreamEvent;
 export type {
   MetaEvent,
   CommandEvent,
+  ErrorEvent,
   WebSearchEvent,
   UrlScrapeEvent,
   MetricsEvent,
 };
+
+export interface StreamErrorState {
+  message: string;
+  code?: ErrorEvent["code"];
+  details?: ErrorEvent["details"];
+}
 
 export interface MessageAttachment {
   id: string;
@@ -78,7 +86,7 @@ export interface StreamState {
   command: CommandEvent | null;
   webSearches: WebSearchEvent[];
   urlScrapes: UrlScrapeEvent[];
-  error: string | null;
+  error: StreamErrorState | null;
   meta: MetaEvent | null;
   codeOnly: boolean;
   previewUrl: string | null;

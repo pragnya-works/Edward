@@ -30,7 +30,10 @@ export interface TokenUsage {
   method: TokenCountMethod;
   contextWindowTokens: number;
   reservedOutputTokens: number;
+  /** Tokens for the user's prompt only (excludes system prompt and conversation history). */
   inputTokens: number;
+  /** Total context tokens sent to the model (system + history + user prompt). Used for context limit checks. */
+  totalContextTokens: number;
   remainingInputTokens: number;
   perMessage: TokenUsageMessageBreakdown[];
 }
@@ -102,6 +105,7 @@ function countOpenAIInputTokens(
   systemPrompt: string,
   messages: LlmChatMessage[],
   model: string,
+  userPrompt?: string,
 ): TokenUsage {
   const spec =
     getModelSpecByProvider(Provider.OPENAI, model) ??
@@ -123,7 +127,7 @@ function countOpenAIInputTokens(
   const systemTokens = tokensPerMessage + enc.encode(systemPrompt).length;
   perMessage.push({ index: 0, role: MessageRole.System, tokens: systemTokens });
 
-  let total = systemTokens;
+  let messageTotal = 0;
   messages.forEach((m, idx) => {
     const textContent =
       typeof m.content === "string" ? m.content : getTextFromContent(m.content);
@@ -133,15 +137,21 @@ function countOpenAIInputTokens(
       : 0;
     const msgTokens = tokensPerMessage + textTokens + visionTokens;
     perMessage.push({ index: idx + 1, role: m.role, tokens: msgTokens });
-    total += msgTokens;
+    messageTotal += msgTokens;
   });
 
-  total += priming;
+  messageTotal += priming;
+  const fullTotal = systemTokens + messageTotal;
 
   const remainingInputTokens = Math.max(
     0,
-    contextWindowTokens - reservedOutputTokens - total,
+    contextWindowTokens - reservedOutputTokens - fullTotal,
   );
+
+  const inputTokens =
+    userPrompt !== undefined
+      ? tokensPerMessage + enc.encode(userPrompt).length
+      : messageTotal;
 
   return {
     provider: Provider.OPENAI,
@@ -149,7 +159,8 @@ function countOpenAIInputTokens(
     method: "openai-tiktoken",
     contextWindowTokens,
     reservedOutputTokens,
-    inputTokens: total,
+    inputTokens,
+    totalContextTokens: fullTotal,
     remainingInputTokens,
     perMessage,
   };
@@ -160,6 +171,7 @@ async function countGeminiInputTokens(
   messages: LlmChatMessage[],
   model: string,
   apiKey: string,
+  userPrompt?: string,
 ): Promise<TokenUsage> {
   const spec =
     getModelSpecByProvider(Provider.GEMINI, model) ??
@@ -181,7 +193,7 @@ async function countGeminiInputTokens(
       role: MessageRole.System,
       tokens: systemTokens,
     });
-    let total = systemTokens;
+    let messageTotal = 0;
     messages.forEach((m, idx) => {
       const textContent =
         typeof m.content === "string"
@@ -193,8 +205,11 @@ async function countGeminiInputTokens(
         : 0;
       const t = textTokens + visionTokens;
       perMessage.push({ index: idx + 1, role: m.role, tokens: t });
-      total += t;
+      messageTotal += t;
     });
+    const fullTotal = systemTokens + messageTotal;
+    const inputTokens =
+      userPrompt !== undefined ? approx(userPrompt) : messageTotal;
 
     return {
       provider: Provider.GEMINI,
@@ -202,10 +217,11 @@ async function countGeminiInputTokens(
       method: "approx",
       contextWindowTokens,
       reservedOutputTokens,
-      inputTokens: total,
+      inputTokens,
+      totalContextTokens: fullTotal,
       remainingInputTokens: Math.max(
         0,
-        contextWindowTokens - reservedOutputTokens - total,
+        contextWindowTokens - reservedOutputTokens - fullTotal,
       ),
       perMessage,
     };
@@ -246,12 +262,23 @@ async function countGeminiInputTokens(
         ),
       );
 
-      let total = systemTokens;
+      let messageTotal = 0;
       messageCounts.forEach((c, idx) => {
         const tokens = c?.totalTokens ?? 0;
-        total += tokens;
+        messageTotal += tokens;
         perMessage.push({ index: idx + 1, role: messages[idx]!.role, tokens });
       });
+      const fullTotal = systemTokens + messageTotal;
+
+      let inputTokens = messageTotal;
+      if (userPrompt !== undefined) {
+        const userPromptCount = await countFn.call(geminiCountModel, {
+          contents: [
+            { role: MessageRole.User, parts: [{ text: userPrompt }] },
+          ],
+        });
+        inputTokens = userPromptCount?.totalTokens ?? messageTotal;
+      }
 
       return {
         provider: Provider.GEMINI,
@@ -259,10 +286,11 @@ async function countGeminiInputTokens(
         method: "gemini-countTokens",
         contextWindowTokens,
         reservedOutputTokens,
-        inputTokens: total,
+        inputTokens,
+        totalContextTokens: fullTotal,
         remainingInputTokens: Math.max(
           0,
-          contextWindowTokens - reservedOutputTokens - total,
+          contextWindowTokens - reservedOutputTokens - fullTotal,
         ),
         perMessage,
       };
@@ -279,21 +307,24 @@ export async function computeTokenUsage(params: {
   systemPrompt: string;
   messages: LlmChatMessage[];
   model?: string;
+  /** The raw user prompt text. When provided, inputTokens will reflect only this text's tokens. */
+  userPrompt?: string;
 }): Promise<TokenUsage> {
-  const { apiKey, systemPrompt, messages, model: modelOverride } = params;
+  const { apiKey, systemPrompt, messages, model: modelOverride, userPrompt } = params;
   const provider = inferProvider(apiKey);
   const model = modelOverride || getModelForProvider(provider);
 
   if (provider === Provider.OPENAI) {
-    return countOpenAIInputTokens(systemPrompt, messages, model);
+    return countOpenAIInputTokens(systemPrompt, messages, model, userPrompt);
   }
 
-  return countGeminiInputTokens(systemPrompt, messages, model, apiKey);
+  return countGeminiInputTokens(systemPrompt, messages, model, apiKey, userPrompt);
 }
 
 export function isOverContextLimit(usage: TokenUsage): boolean {
   return (
-    usage.inputTokens + usage.reservedOutputTokens > usage.contextWindowTokens
+    usage.totalContextTokens + usage.reservedOutputTokens >
+    usage.contextWindowTokens
   );
 }
 

@@ -26,6 +26,12 @@ import { UrlScrapeBlock } from "./urlScrapeBlock";
 
 import { MarkdownRenderer } from "./markdownRenderer";
 import Image from "next/image";
+import { parseAssistantErrorMessage } from "@/lib/assistantError";
+import { AssistantErrorCard } from "./assistantErrorCard";
+import {
+  isImageOnlyPlaceholderText,
+  normalizeUserMessageText,
+} from "@/lib/userMessageText";
 
 interface ImageAttachmentGridProps {
   attachments: NonNullable<ChatMessageType["attachments"]>;
@@ -75,6 +81,7 @@ const ImageAttachmentGrid = memo(function ImageAttachmentGrid({
 interface ChatMessageProps {
   message: ChatMessageType;
   index: number;
+  onRetryAssistantMessage?: (assistantMessageId: string) => boolean;
 }
 
 function formatTime(dateStr: string): string {
@@ -97,6 +104,7 @@ const UserAvatar = memo(function UserAvatar() {
 export const ChatMessage = memo(function ChatMessage({
   message,
   index,
+  onRetryAssistantMessage,
 }: ChatMessageProps) {
   const { setFiles, files: globalFiles } = useSandbox();
 
@@ -108,28 +116,53 @@ export const ChatMessage = memo(function ChatMessage({
   const content = message.content || "";
 
   const displayContent = useMemo(() => {
-    if (!isUser || !content.startsWith("[")) return content;
-    try {
-      const parsed = JSON.parse(content) as Array<{
-        type: string;
-        text?: string;
-      }>;
-      if (Array.isArray(parsed)) {
-        return parsed
-          .filter((p) => p.type === MessageContentPartType.TEXT && p.text)
-          .map((p) => p.text)
-          .join("\n");
-      }
-    } catch {
+    if (!isUser) {
       return content;
     }
-    return content;
+
+    let normalized = content;
+    if (content.startsWith("[")) {
+      try {
+        const parsed = JSON.parse(content) as Array<{
+          type: string;
+          text?: string;
+        }>;
+        if (Array.isArray(parsed)) {
+          normalized = parsed
+            .filter((p) => p.type === MessageContentPartType.TEXT && p.text)
+            .map((p) => p.text)
+            .join("\n");
+        }
+      } catch {
+        normalized = content;
+      }
+    }
+
+    return normalizeUserMessageText(normalized);
   }, [content, isUser]);
 
-  const blocks = useMemo(() => {
+  const shouldShowUserText = useMemo(() => {
+    if (!isUser || !displayContent) {
+      return false;
+    }
+
+    const hasAttachments = (message.attachments?.length ?? 0) > 0;
+    if (hasAttachments && isImageOnlyPlaceholderText(displayContent)) {
+      return false;
+    }
+
+    return true;
+  }, [displayContent, isUser, message.attachments]);
+
+  const assistantError = useMemo(() => {
     if (isUser) return null;
-    return parseMessageContent(displayContent ?? "");
+    return parseAssistantErrorMessage(displayContent);
   }, [displayContent, isUser]);
+
+  const blocks = useMemo(() => {
+    if (isUser || assistantError) return null;
+    return parseMessageContent(displayContent ?? "");
+  }, [assistantError, displayContent, isUser]);
 
   const sandboxBlock = useMemo(
     () => blocks?.find((b) => b.type === MessageBlockType.SANDBOX),
@@ -153,6 +186,13 @@ export const ChatMessage = memo(function ChatMessage({
       );
     }
   }, [globalFiles.length, fileBlocks, setFiles]);
+
+  const handleRetry = useCallback((): boolean => {
+    if (!onRetryAssistantMessage || message.role !== ChatRole.ASSISTANT) {
+      return false;
+    }
+    return onRetryAssistantMessage(message.id);
+  }, [message.id, message.role, onRetryAssistantMessage]);
 
   return (
     <m.div
@@ -191,13 +231,18 @@ export const ChatMessage = memo(function ChatMessage({
               {message.attachments && message.attachments.length > 0 && (
                 <ImageAttachmentGrid attachments={message.attachments} />
               )}
-              {displayContent && (
+              {shouldShowUserText && (
                 <MarkdownRenderer
                   content={displayContent}
                   className="text-[14px] sm:text-[15px] leading-[1.7] sm:leading-[1.8] tracking-tight font-medium [&_p]:mb-0"
                 />
               )}
             </div>
+          ) : assistantError ? (
+            <AssistantErrorCard
+              error={assistantError}
+              onRetry={onRetryAssistantMessage ? handleRetry : undefined}
+            />
           ) : (
             <div className="flex flex-col gap-3 sm:gap-4 w-full">
               {blocks?.map((block, i) => {

@@ -7,7 +7,7 @@ import { logger } from "../../utils/logger.js";
 import type { FileCache } from "./types.js";
 import path from "node:path";
 
-const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const CACHE_TTL_MS = 5 * 60 * 1000;
 const MAX_CACHE_ENTRIES = 100;
 
 function isExpired(cache: FileCache): boolean {

@@ -4,10 +4,144 @@ import { useEffect, useRef } from "react";
 import { useSandboxSync } from "@/hooks/useSandboxSync";
 import { getActiveRun } from "@/lib/api";
 
-const MAX_ACTIVE_RUN_NOT_FOUND_ATTEMPTS = 3;
-const MAX_ACTIVE_RUN_ERROR_ATTEMPTS = 4;
+const AGGRESSIVE_ACTIVE_RUN_NOT_FOUND_ATTEMPTS = 6;
+const AGGRESSIVE_ACTIVE_RUN_ERROR_ATTEMPTS = 4;
+const SINGLE_ACTIVE_RUN_LOOKUP_ATTEMPTS = 1;
+const NO_RUN_LOOKUP_COOLDOWN_MS = 10_000;
+const MAX_NO_RUN_COOLDOWN_ENTRIES = 250;
 const ACTIVE_RUN_LOOKUP_BASE_RETRY_MS = 350;
 const ACTIVE_RUN_LOOKUP_MAX_RETRY_MS = 2000;
+const NO_RUN_LOOKUP_COOLDOWN_STORAGE_PREFIX = "edward:no-run-cooldown:";
+const noRunLookupCooldownByKey = new Map<string, number>();
+
+function buildNoRunLookupCooldownKey(
+  chatId: string,
+  latestUserMessageId: string | null,
+): string {
+  return `${chatId}:${latestUserMessageId ?? "_"}`;
+}
+
+function readPersistedNoRunLookupCooldown(
+  lookupKey: string,
+): number | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  try {
+    const rawValue = window.sessionStorage.getItem(
+      `${NO_RUN_LOOKUP_COOLDOWN_STORAGE_PREFIX}${lookupKey}`,
+    );
+    if (!rawValue) {
+      return null;
+    }
+
+    const expiresAt = Number.parseInt(rawValue, 10);
+    if (!Number.isFinite(expiresAt) || expiresAt <= 0) {
+      window.sessionStorage.removeItem(
+        `${NO_RUN_LOOKUP_COOLDOWN_STORAGE_PREFIX}${lookupKey}`,
+      );
+      return null;
+    }
+
+    return expiresAt;
+  } catch {
+    return null;
+  }
+}
+
+function persistNoRunLookupCooldown(lookupKey: string, expiresAt: number): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  try {
+    window.sessionStorage.setItem(
+      `${NO_RUN_LOOKUP_COOLDOWN_STORAGE_PREFIX}${lookupKey}`,
+      String(expiresAt),
+    );
+  } catch {
+    // sessionStorage may be unavailable in private browsing.
+  }
+}
+
+function clearPersistedNoRunLookupCooldown(lookupKey: string): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  try {
+    window.sessionStorage.removeItem(
+      `${NO_RUN_LOOKUP_COOLDOWN_STORAGE_PREFIX}${lookupKey}`,
+    );
+  } catch {
+    // no-op
+  }
+}
+
+function trimNoRunLookupCooldownMap(now: number): void {
+  if (noRunLookupCooldownByKey.size === 0) {
+    return;
+  }
+
+  for (const [lookupKey, expiresAt] of noRunLookupCooldownByKey) {
+    if (expiresAt <= now) {
+      noRunLookupCooldownByKey.delete(lookupKey);
+    }
+  }
+
+  while (noRunLookupCooldownByKey.size > MAX_NO_RUN_COOLDOWN_ENTRIES) {
+    const oldestLookupKey = noRunLookupCooldownByKey.keys().next().value;
+    if (!oldestLookupKey) {
+      break;
+    }
+    noRunLookupCooldownByKey.delete(oldestLookupKey);
+    clearPersistedNoRunLookupCooldown(oldestLookupKey);
+  }
+}
+
+function isNoRunLookupOnCooldown(lookupKey: string): boolean {
+  trimNoRunLookupCooldownMap(Date.now());
+
+  const mapExpiresAt = noRunLookupCooldownByKey.get(lookupKey);
+  if (typeof mapExpiresAt === "number") {
+    if (mapExpiresAt <= Date.now()) {
+      noRunLookupCooldownByKey.delete(lookupKey);
+      clearPersistedNoRunLookupCooldown(lookupKey);
+      return false;
+    }
+    return true;
+  }
+
+  const persistedExpiresAt = readPersistedNoRunLookupCooldown(lookupKey);
+  if (typeof persistedExpiresAt !== "number") {
+    return false;
+  }
+
+  noRunLookupCooldownByKey.set(lookupKey, persistedExpiresAt);
+
+  const expiresAt = persistedExpiresAt;
+  if (expiresAt <= Date.now()) {
+    noRunLookupCooldownByKey.delete(lookupKey);
+    clearPersistedNoRunLookupCooldown(lookupKey);
+    return false;
+  }
+
+  return true;
+}
+
+function markNoRunLookupCooldown(lookupKey: string): void {
+  const now = Date.now();
+  trimNoRunLookupCooldownMap(now);
+  const expiresAt = now + NO_RUN_LOOKUP_COOLDOWN_MS;
+  noRunLookupCooldownByKey.set(lookupKey, expiresAt);
+  persistNoRunLookupCooldown(lookupKey, expiresAt);
+}
+
+function clearNoRunLookupCooldown(lookupKey: string): void {
+  noRunLookupCooldownByKey.delete(lookupKey);
+  clearPersistedNoRunLookupCooldown(lookupKey);
+}
 
 function getRetryDelayMs(attempt: number): number {
   return Math.min(
@@ -56,8 +190,11 @@ function isRetryableActiveRunError(error: unknown): boolean {
 
 interface UseChatPageOrchestrationParams {
   chatId: string;
+  latestUserMessageId: string | null;
+  hasResumeAttachError: boolean;
   isSandboxing: boolean;
   hasActiveStreamState: boolean;
+  activeRunLookupMode: "aggressive" | "single" | "defer";
   sandboxOpen: boolean;
   openSandbox: () => void;
   setActiveChatId: (id: string | null) => void;
@@ -66,14 +203,18 @@ interface UseChatPageOrchestrationParams {
 
 export function useChatPageOrchestration({
   chatId,
+  latestUserMessageId,
+  hasResumeAttachError,
   isSandboxing,
   hasActiveStreamState,
+  activeRunLookupMode,
   sandboxOpen,
   openSandbox,
   setActiveChatId,
   resumeRunStream,
 }: UseChatPageOrchestrationParams) {
   const resumeLookupInFlightRef = useRef<string | null>(null);
+  const runResumedForLookupKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (isSandboxing && !sandboxOpen) {
@@ -86,17 +227,44 @@ export function useChatPageOrchestration({
   useEffect(() => {
     setActiveChatId(chatId);
     resumeLookupInFlightRef.current = null;
+    runResumedForLookupKeyRef.current = null;
     return () => setActiveChatId(null);
   }, [chatId, setActiveChatId]);
 
   useEffect(() => {
-    if (!chatId || hasActiveStreamState) {
+    if (!chatId || hasActiveStreamState || activeRunLookupMode === "defer") {
       return;
+    }
+
+    const noRunLookupKey = buildNoRunLookupCooldownKey(
+      chatId,
+      latestUserMessageId,
+    );
+
+    if (hasResumeAttachError) {
+      runResumedForLookupKeyRef.current = null;
     }
 
     if (resumeLookupInFlightRef.current === chatId) {
       return;
     }
+
+    if (runResumedForLookupKeyRef.current === noRunLookupKey) {
+      return;
+    }
+
+    if (isNoRunLookupOnCooldown(noRunLookupKey)) {
+      return;
+    }
+
+    const maxNotFoundAttempts =
+      activeRunLookupMode === "aggressive"
+        ? AGGRESSIVE_ACTIVE_RUN_NOT_FOUND_ATTEMPTS
+        : SINGLE_ACTIVE_RUN_LOOKUP_ATTEMPTS;
+    const maxErrorAttempts =
+      activeRunLookupMode === "aggressive"
+        ? AGGRESSIVE_ACTIVE_RUN_ERROR_ATTEMPTS
+        : SINGLE_ACTIVE_RUN_LOOKUP_ATTEMPTS;
 
     resumeLookupInFlightRef.current = chatId;
     const abortController = new AbortController();
@@ -106,8 +274,8 @@ export function useChatPageOrchestration({
       let errorAttempts = 0;
 
       while (
-        notFoundAttempts < MAX_ACTIVE_RUN_NOT_FOUND_ATTEMPTS &&
-        errorAttempts < MAX_ACTIVE_RUN_ERROR_ATTEMPTS
+        notFoundAttempts < maxNotFoundAttempts &&
+        errorAttempts < maxErrorAttempts
       ) {
         if (abortController.signal.aborted) {
           return;
@@ -120,13 +288,16 @@ export function useChatPageOrchestration({
           const activeRun = response.data.run;
 
           if (activeRun) {
+            clearNoRunLookupCooldown(noRunLookupKey);
+            runResumedForLookupKeyRef.current = noRunLookupKey;
             resumeRunStream(chatId, activeRun.id);
             return;
           }
 
           notFoundAttempts += 1;
 
-          if (notFoundAttempts >= MAX_ACTIVE_RUN_NOT_FOUND_ATTEMPTS) {
+          if (notFoundAttempts >= maxNotFoundAttempts) {
+            markNoRunLookupCooldown(noRunLookupKey);
             return;
           }
 
@@ -137,11 +308,13 @@ export function useChatPageOrchestration({
           }
 
           if (!isRetryableActiveRunError(error)) {
+            markNoRunLookupCooldown(noRunLookupKey);
             return;
           }
 
           errorAttempts += 1;
-          if (errorAttempts >= MAX_ACTIVE_RUN_ERROR_ATTEMPTS) {
+          if (errorAttempts >= maxErrorAttempts) {
+            markNoRunLookupCooldown(noRunLookupKey);
             return;
           }
 
@@ -157,5 +330,12 @@ export function useChatPageOrchestration({
     return () => {
       abortController.abort();
     };
-  }, [chatId, hasActiveStreamState, resumeRunStream]);
+  }, [
+    chatId,
+    latestUserMessageId,
+    hasResumeAttachError,
+    hasActiveStreamState,
+    activeRunLookupMode,
+    resumeRunStream,
+  ]);
 }

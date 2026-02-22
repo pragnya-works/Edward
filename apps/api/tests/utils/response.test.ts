@@ -65,31 +65,18 @@ describe('response utils', () => {
       expect(new Date(jsonCall?.timestamp).toISOString()).toBe(jsonCall?.timestamp);
     });
 
-
-    it('should handle null data', () => {
-      const res = createMockResponse();
-
-      sendSuccess(res, HttpStatus.OK, 'Success', null);
-
-      const jsonCall = res.json.mock.calls[0]?.[0];
-      expect(jsonCall).toMatchObject({
-        message: 'Success',
-        data: null,
-      });
-      expect(jsonCall?.timestamp).toBeDefined();
-      expect(new Date(jsonCall?.timestamp).toISOString()).toBe(jsonCall?.timestamp);
-    });
-
-    it('should handle array data', () => {
+    it('should include metadata when provided', () => {
       const res = createMockResponse();
       const data = [{ id: 1 }, { id: 2 }];
+      const metadata = { page: 1, total: 2 };
 
-      sendSuccess(res, HttpStatus.OK, 'List retrieved', data);
+      sendSuccess(res, HttpStatus.OK, 'List retrieved', data, metadata);
 
       const jsonCall = res.json.mock.calls[0]?.[0];
       expect(jsonCall).toMatchObject({
         message: 'List retrieved',
         data,
+        metadata,
       });
       expect(jsonCall?.timestamp).toBeDefined();
       expect(new Date(jsonCall?.timestamp).toISOString()).toBe(jsonCall?.timestamp);

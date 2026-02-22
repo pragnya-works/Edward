@@ -19,10 +19,10 @@ export function validateRequest(schema: ZodSchema) {
           req.body = parsed.body;
         }
         if ('params' in parsed && parsed.params !== undefined) {
-          req.params = parsed.params as Request['params'];
+          Object.assign(req.params, parsed.params);
         }
         if ('query' in parsed && parsed.query !== undefined) {
-          req.query = parsed.query as Request['query'];
+          Object.assign(req.query, parsed.query);
         }
       }
 

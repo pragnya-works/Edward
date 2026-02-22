@@ -9,6 +9,7 @@ import {
   TooltipPositioner,
   TooltipTrigger,
 } from "./tooltip";
+import Link from "next/link";
 
 interface Links {
   label: string;
@@ -195,7 +196,7 @@ export const SidebarLink = ({
 } & React.ComponentProps<"a">) => {
   const { open } = useSidebar();
   const linkNode = (
-    <a
+    <Link
       href={link.href}
       className={cn(
         "group/sidebar flex items-center rounded-md transition-[background-color,width,padding] duration-200 hover:bg-neutral-200 dark:hover:bg-neutral-700/50",
@@ -220,7 +221,7 @@ export const SidebarLink = ({
       >
         {link.label}
       </span>
-    </a>
+    </Link>
   );
 
   if (open) {

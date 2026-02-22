@@ -156,12 +156,12 @@ export async function runAgentLoop(
       loopStopReason = AgentLoopStopReason.CONTEXT_LIMIT_EXCEEDED;
       sendSSEError(
         res,
-        `Turn context too large for model window. Input tokens=${turnTokenUsage.inputTokens}, reservedOutputTokens=${turnTokenUsage.reservedOutputTokens}, contextWindowTokens=${turnTokenUsage.contextWindowTokens}.`,
+        `Turn context too large for model window. Input tokens=${turnTokenUsage.totalContextTokens}, reservedOutputTokens=${turnTokenUsage.reservedOutputTokens}, contextWindowTokens=${turnTokenUsage.contextWindowTokens}.`,
         {
           code: "context_limit_exceeded",
           details: {
             turn: agentTurn,
-            inputTokens: turnTokenUsage.inputTokens,
+            inputTokens: turnTokenUsage.totalContextTokens,
             reservedOutputTokens: turnTokenUsage.reservedOutputTokens,
             contextWindowTokens: turnTokenUsage.contextWindowTokens,
           },

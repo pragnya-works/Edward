@@ -22,6 +22,7 @@ interface ProcessStreamResponseParams {
   onMetaRef: RefCell<((meta: MetaEvent) => void) | null>;
   thinkingStartRef: RefCell<number | null>;
   onChatIdResolved?: (realChatId: string) => void;
+  onCursorUpdate?: (lastEventId: string, runId: string) => void;
   replayAttempt?: number;
   replayCursor?: string;
 }
@@ -37,6 +38,7 @@ interface ProcessedStreamResult {
   webSearches: StreamState["webSearches"];
   metrics: StreamState["metrics"];
   previewUrl: string | null;
+  lastEventId: string | undefined;
 }
 
 function schedulePerFrame(fn: () => void): void {
@@ -82,6 +84,7 @@ function mergeStreamResults(
     webSearches: [...initial.webSearches, ...replay.webSearches],
     metrics: replay.metrics ?? initial.metrics,
     previewUrl: replay.previewUrl ?? initial.previewUrl,
+    lastEventId: replay.lastEventId ?? initial.lastEventId,
   };
 }
 
@@ -92,6 +95,7 @@ export async function processStreamResponse({
   onMetaRef,
   thinkingStartRef,
   onChatIdResolved,
+  onCursorUpdate,
   replayAttempt = 0,
   replayCursor,
 }: ProcessStreamResponseParams): Promise<ProcessedStreamResult | null> {
@@ -99,7 +103,10 @@ export async function processStreamResponse({
     dispatch({
       type: StreamActionType.SET_ERROR,
       chatId,
-      error: "No response body",
+      error: {
+        message: "No response body from stream endpoint.",
+        code: "stream_response_empty",
+      },
     });
     dispatch({ type: StreamActionType.STOP_STREAMING, chatId });
     return null;
@@ -143,6 +150,8 @@ export async function processStreamResponse({
 
   const textChunks: string[] = [];
   const thinkingChunks: string[] = [];
+  const TEXT_CURSOR_CHECKPOINT_INTERVAL = 50;
+  let textEventsSinceLastCursorCheckpoint = 0;
 
   const accumulated = {
     completedFiles: [] as StreamedFile[],
@@ -184,6 +193,9 @@ export async function processStreamResponse({
             meta: event,
           });
           onMetaRef.current?.(event);
+          if (lastEventId && event.runId) {
+            onCursorUpdate?.(lastEventId, event.runId);
+          }
           break;
         case ParserEventType.TEXT:
           textChunks.push(event.content);
@@ -192,6 +204,15 @@ export async function processStreamResponse({
             chatId: activeChatId,
             text: event.content,
           });
+          textEventsSinceLastCursorCheckpoint += 1;
+          if (
+            textEventsSinceLastCursorCheckpoint >= TEXT_CURSOR_CHECKPOINT_INTERVAL &&
+            lastEventId &&
+            metaEvent?.runId
+          ) {
+            textEventsSinceLastCursorCheckpoint = 0;
+            onCursorUpdate?.(lastEventId, metaEvent.runId);
+          }
           break;
         case ParserEventType.THINKING_START:
           thinkingStartRef.current = Date.now();
@@ -323,7 +344,11 @@ export async function processStreamResponse({
           enqueueAction({
             type: StreamActionType.SET_ERROR,
             chatId: activeChatId,
-            error: event.message,
+            error: {
+              message: event.message,
+              code: event.code,
+              details: event.details,
+            },
           });
           break;
         case ParserEventType.METRICS:
@@ -364,6 +389,7 @@ export async function processStreamResponse({
     webSearches: accumulated.webSearches,
     metrics: accumulated.metrics,
     previewUrl: accumulated.previewUrl,
+    lastEventId,
   };
 
   if (
@@ -384,6 +410,7 @@ export async function processStreamResponse({
         onMetaRef,
         thinkingStartRef,
         onChatIdResolved,
+        onCursorUpdate,
         replayAttempt: replayAttempt + 1,
         replayCursor: lastEventId,
       });
@@ -395,8 +422,11 @@ export async function processStreamResponse({
       enqueueAction({
         type: StreamActionType.SET_ERROR,
         chatId: activeChatId,
-        error:
-          "Stream disconnected before completion and replay failed. Please retry.",
+        error: {
+          message:
+            "Stream disconnected before completion and replay failed. Please retry.",
+          code: "stream_replay_failed",
+        },
       });
       await flushPendingActions();
     }

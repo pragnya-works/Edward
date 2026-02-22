@@ -11,12 +11,14 @@ import {
   getRunById,
   updateRun,
 } from "@edward/auth";
+import { createRedisClient } from "../../lib/redis.js";
 import type { AuthenticatedRequest } from "../../middleware/auth.js";
 import { getUserWithApiKey } from "../apiKey.service.js";
 import { decrypt } from "../../utils/encryption.js";
 import { logger } from "../../utils/logger.js";
 import { ensureError } from "../../utils/error.js";
 import { runStreamSession } from "../../controllers/chat/streamSession.js";
+import { classifyAssistantError } from "../../lib/llm/errorPresentation.js";
 import {
   parseAgentRunMetadata,
   type AgentRunMetadata,
@@ -28,34 +30,39 @@ interface Publisher {
   publish(channel: string, payload: string): Promise<unknown>;
 }
 
-class RunEventCaptureResponse extends EventEmitter {
-  public writable = true;
-  public writableEnded = false;
-  private sseBuffer = "";
-  private pending = Promise.resolve();
-  private persistFailure: Error | null = null;
+type RunEventCaptureResponse = EventEmitter & {
+  writable: boolean;
+  writableEnded: boolean;
+  setHeader: () => void;
+  write: (chunk: string | Buffer) => boolean;
+  end: () => void;
+  flushPending: () => Promise<void>;
+};
 
-  constructor(
-    private readonly onEvent: (event: StreamEvent) => Promise<void>,
-  ) {
-    super();
-  }
+function createRunEventCaptureResponse(
+  onEvent: (event: StreamEvent) => Promise<void>,
+): RunEventCaptureResponse {
+  const response = new EventEmitter() as RunEventCaptureResponse;
+  let sseBuffer = "";
+  let pending = Promise.resolve();
+  let persistFailure: Error | null = null;
 
-  setHeader(): void {
+  response.writable = true;
+  response.writableEnded = false;
+  response.setHeader = () => {
     // No-op for worker-captured streams.
-  }
-
-  write(chunk: string | Buffer): boolean {
-    if (this.writableEnded || !this.writable) {
+  };
+  response.write = (chunk: string | Buffer): boolean => {
+    if (response.writableEnded || !response.writable) {
       return false;
     }
 
     const text = typeof chunk === "string" ? chunk : chunk.toString("utf8");
-    this.sseBuffer += text;
+    sseBuffer += text;
 
-    const normalized = this.sseBuffer.replaceAll("\r\n", "\n");
+    const normalized = sseBuffer.replaceAll("\r\n", "\n");
     const frames = normalized.split("\n\n");
-    this.sseBuffer = frames.pop() ?? "";
+    sseBuffer = frames.pop() ?? "";
 
     for (const frame of frames) {
       const payload = frame
@@ -68,17 +75,17 @@ class RunEventCaptureResponse extends EventEmitter {
         continue;
       }
 
-      if (this.persistFailure) {
+      if (persistFailure) {
         continue;
       }
 
-      this.pending = this.pending.then(async () => {
+      pending = pending.then(async () => {
         try {
           const parsed = JSON.parse(payload) as StreamEvent;
-          await this.onEvent(parsed);
+          await onEvent(parsed);
         } catch (error) {
           const err = ensureError(error);
-          this.persistFailure = err;
+          persistFailure = err;
           logger.error(
             { error: err, payload },
             "Failed to persist captured run event",
@@ -88,22 +95,22 @@ class RunEventCaptureResponse extends EventEmitter {
     }
 
     return true;
-  }
-
-  end(): void {
-    if (this.writableEnded) return;
-    this.writable = false;
-    this.writableEnded = true;
-    this.emit("finish");
-    this.emit("close");
-  }
-
-  async flushPending(): Promise<void> {
-    await this.pending;
-    if (this.persistFailure) {
-      throw this.persistFailure;
+  };
+  response.end = () => {
+    if (response.writableEnded) return;
+    response.writable = false;
+    response.writableEnded = true;
+    response.emit("finish");
+    response.emit("close");
+  };
+  response.flushPending = async () => {
+    await pending;
+    if (persistFailure) {
+      throw persistFailure;
     }
-  }
+  };
+
+  return response;
 }
 
 function mapTerminationToStatus(
@@ -269,7 +276,7 @@ export async function processAgentRunJob(
     lastPersistedTurn = nextTurn;
   };
 
-  const capturedRes = new RunEventCaptureResponse(async (event) => {
+  const capturedRes = createRunEventCaptureResponse(async (event) => {
     await persistRunEvent(runId, event, publisher);
 
     if (firstTokenLatencyMs === null && event.type === ParserEventType.TEXT) {
@@ -344,10 +351,23 @@ export async function processAgentRunJob(
 
   const fakeReq = new EventEmitter() as unknown as AuthenticatedRequest;
 
+  const workerAbort = new AbortController();
+
+  const runCancelChannel = `edward:run-cancel:${runId}`;
+  const cancelSub = createRedisClient();
+  await cancelSub.subscribe(runCancelChannel);
+  cancelSub.on("message", (channel: string) => {
+    if (channel !== runCancelChannel) return;
+    logger.info({ runId }, "Cancel signal received via Redis — aborting agent run");
+    workerAbort.abort();
+  });
+
   try {
-    await runStreamSession({
+    try {
+      await runStreamSession({
       req: fakeReq,
       res: capturedRes as never,
+      externalSignal: workerAbort.signal,
       workflow: metadata.workflow,
       userId: run.userId,
       chatId: run.chatId,
@@ -429,7 +449,8 @@ export async function processAgentRunJob(
     );
   } catch (error) {
     const err = ensureError(error);
-    latestErrorMessage = err.message;
+    const assistantError = classifyAssistantError(err.message);
+    latestErrorMessage = assistantError.message;
 
     await capturedRes.flushPending().catch((flushError) => {
       logger.error(
@@ -455,8 +476,15 @@ export async function processAgentRunJob(
       {
         type: ParserEventType.ERROR,
         version: STREAM_EVENT_VERSION,
-        message: err.message,
-        code: "agent_run_failed",
+        message: assistantError.message,
+        code: assistantError.code,
+        details: {
+          title: assistantError.title,
+          severity: assistantError.severity,
+          action: assistantError.action,
+          actionLabel: assistantError.actionLabel,
+          actionUrl: assistantError.actionUrl,
+        },
       },
       publisher,
     ).catch(() => {});
@@ -473,5 +501,9 @@ export async function processAgentRunJob(
     }).catch(() => {});
 
     throw error;
+    }
+  } finally {
+    await cancelSub.unsubscribe().catch(() => {});
+    await cancelSub.quit().catch(() => {});
   }
 }

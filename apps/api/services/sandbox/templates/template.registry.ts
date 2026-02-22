@@ -44,6 +44,7 @@ export const TEMPLATE_REGISTRY: Record<string, TemplateConfig> = {
       "tsconfig.node.json",
       "index.css",
       "src/index.css",
+      "index.html",
     ],
   },
   vanilla: {

@@ -23,6 +23,7 @@ vi.mock("../../../lib/llm/tokens.js", () => ({
     contextWindowTokens: 128000,
     reservedOutputTokens: 4096,
     inputTokens: 100,
+    totalContextTokens: 10000,
     remainingInputTokens: 123904,
     perMessage: [],
   })),

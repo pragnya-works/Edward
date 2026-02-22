@@ -30,48 +30,6 @@ describe('encryption', () => {
 
       expect(encrypted1).not.toBe(encrypted2);
     });
-
-    it('should handle unicode characters', () => {
-      const plaintext = '🔐 secret key with émojis and ñoño';
-      const encrypted = encrypt(plaintext);
-      const decrypted = decrypt(encrypted);
-
-      expect(decrypted).toBe(plaintext);
-    });
-
-    it('should handle long strings', () => {
-      const plaintext = 'a'.repeat(10000);
-      const encrypted = encrypt(plaintext);
-      const decrypted = decrypt(encrypted);
-
-      expect(decrypted).toBe(plaintext);
-    });
-  });
-
-  describe('decrypt', () => {
-    it('should decrypt ciphertext back to original plaintext', () => {
-      const plaintext = 'my-secret-api-key';
-      const encrypted = encrypt(plaintext);
-      const decrypted = decrypt(encrypted);
-
-      expect(decrypted).toBe(plaintext);
-    });
-
-    it('should handle special characters', () => {
-      const plaintext = '!@#$%^&*()_+-=[]{}|;\':",./<>?';
-      const encrypted = encrypt(plaintext);
-      const decrypted = decrypt(encrypted);
-
-      expect(decrypted).toBe(plaintext);
-    });
-
-    it('should handle multiline strings', () => {
-      const plaintext = 'line1\nline2\nline3\n\nline5';
-      const encrypted = encrypt(plaintext);
-      const decrypted = decrypt(encrypted);
-
-      expect(decrypted).toBe(plaintext);
-    });
   });
 
   describe('encrypt/decrypt roundtrip', () => {
@@ -84,6 +42,10 @@ describe('encryption', () => {
         'key-with-dashes_and_underscores.123',
         'key with spaces',
         'key\twith\ttabs',
+        'line1\nline2\nline3\n\nline5',
+        '!@#$%^&*()_+-=[]{}|;\':",./<>?',
+        '🔐 secret key with émojis and ñoño',
+        'a'.repeat(10000),
       ];
 
       testCases.forEach((input) => {

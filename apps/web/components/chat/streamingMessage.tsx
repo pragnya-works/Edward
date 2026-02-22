@@ -18,13 +18,17 @@ import { useSandbox } from "@/contexts/sandboxContext";
 import { ProjectButton } from "./projectButton";
 import { MessageBlockType, parseMessageContent } from "@/lib/messageParser";
 import { FileBlock } from "./fileBlock";
+import { AssistantErrorCard } from "./assistantErrorCard";
+import { mapStreamErrorToViewModel } from "@/lib/assistantError";
 
 interface StreamingMessageProps {
   stream: StreamState;
+  onRetry?: () => boolean;
 }
 
 export const StreamingMessage = memo(function StreamingMessage({
   stream,
+  onRetry,
 }: StreamingMessageProps) {
   const { isOpen: sandboxOpen } = useSandbox();
 
@@ -43,7 +47,8 @@ export const StreamingMessage = memo(function StreamingMessage({
       stream.command ||
       stream.webSearches.length > 0 ||
       stream.urlScrapes.length > 0 ||
-      stream.installingDeps.length > 0,
+      stream.installingDeps.length > 0 ||
+      stream.error,
     [stream],
   );
 
@@ -52,6 +57,10 @@ export const StreamingMessage = memo(function StreamingMessage({
   }, [stream.activeFiles, stream.completedFiles]);
 
   const showProjectButton = allFiles.length > 0 || stream.isSandboxing;
+  const streamError = useMemo(
+    () => (stream.error ? mapStreamErrorToViewModel(stream.error) : null),
+    [stream.error],
+  );
 
   return (
     <m.div
@@ -212,25 +221,13 @@ export const StreamingMessage = memo(function StreamingMessage({
           </m.div>
         )}
 
-        {stream.error ? (
+        {streamError ? (
           <m.div
             initial={{ opacity: 0, y: 4, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            className="w-full rounded-lg sm:rounded-xl bg-destructive/5 border border-destructive/15 px-3 sm:px-4 py-2.5 sm:py-3 flex items-start gap-2 sm:gap-3 shadow-sm shadow-destructive/5"
+            className="w-full"
           >
-            <div className="h-4 w-4 sm:h-5 sm:w-5 rounded-full bg-destructive/15 flex items-center justify-center shrink-0 mt-0.5">
-              <span className="text-destructive text-[10px] sm:text-[11px] font-bold">
-                !
-              </span>
-            </div>
-            <div className="flex flex-col gap-0.5 sm:gap-1 min-w-0 flex-1">
-              <span className="text-[9px] sm:text-[10px] font-bold text-destructive dark:text-destructive/80 uppercase tracking-wider">
-                Error Encountered
-              </span>
-              <p className="text-[11px] sm:text-xs text-foreground/90 dark:text-destructive/90 leading-relaxed font-medium break-words">
-                {stream.error}
-              </p>
-            </div>
+            <AssistantErrorCard error={streamError} onRetry={onRetry} />
           </m.div>
         ) : null}
 

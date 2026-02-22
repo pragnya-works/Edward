@@ -2,6 +2,7 @@ import {
   GithubDisconnectReason,
   IMAGE_UPLOAD_CONFIG,
 } from "@edward/shared/constants";
+import { normalizeUserMessageText } from "@/lib/userMessageText";
 
 const DEFAULT_API_URL = "http://localhost:8000";
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || DEFAULT_API_URL;
@@ -122,6 +123,21 @@ export async function openRunEventsStream(
   );
 }
 
+export async function cancelRun(
+  chatId: string,
+  runId: string,
+): Promise<void> {
+  try {
+    await fetchApi<{ cancelled: boolean }>(
+      `/chat/${chatId}/runs/${runId}/cancel`,
+      { method: "POST" },
+    );
+  } catch {
+    // Non-critical — the client-side abort already stops the SSE connection.
+    // The backend will eventually mark the run terminal on its own.
+  }
+}
+
 type UploadableImageMimeType =
   (typeof IMAGE_UPLOAD_CONFIG.ALLOWED_MIME_TYPES)[number];
 
@@ -173,6 +189,7 @@ export async function filesToMessageContent(
   text: string,
   images: UploadedImage[],
 ): Promise<MessageContent> {
+  const normalizedText = normalizeUserMessageText(text);
   const uploadedImages = images
     .slice(0, IMAGE_UPLOAD_CONFIG.MAX_FILES)
     .map((image) => ({
@@ -182,9 +199,9 @@ export async function filesToMessageContent(
     }))
     .filter((image) => Boolean(image.url));
 
-  if (uploadedImages.length === 0) return text;
+  if (uploadedImages.length === 0) return normalizedText;
 
-  if (uploadedImages.length === 1 && !text) {
+  if (uploadedImages.length === 1 && !normalizedText) {
     return [
       {
         type: MessageContentPartType.IMAGE,
@@ -196,8 +213,8 @@ export async function filesToMessageContent(
 
   const parts: MessageContentPart[] = [];
 
-  if (text) {
-    parts.push({ type: MessageContentPartType.TEXT, text });
+  if (normalizedText) {
+    parts.push({ type: MessageContentPartType.TEXT, text: normalizedText });
   }
 
   parts.push(

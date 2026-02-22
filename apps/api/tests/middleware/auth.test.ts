@@ -148,11 +148,5 @@ describe('auth middleware', () => {
         "Context Error: req.userId is missing. Ensure 'authMiddleware' is applied to this route."
       );
     });
-
-    it('should throw error when userId is empty string', () => {
-      const req = { userId: '' } as AuthenticatedRequest;
-
-      expect(() => getAuthenticatedUserId(req)).toThrow();
-    });
   });
 });

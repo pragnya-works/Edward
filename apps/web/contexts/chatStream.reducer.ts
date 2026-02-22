@@ -34,7 +34,11 @@ export type StreamAction =
   | { type: StreamActionType.REMOVE_STREAM; chatId: string }
   | { type: StreamActionType.START_STREAMING; chatId: string }
   | { type: StreamActionType.STOP_STREAMING; chatId: string }
-  | { type: StreamActionType.SET_ERROR; chatId: string; error: string }
+  | {
+      type: StreamActionType.SET_ERROR;
+      chatId: string;
+      error: NonNullable<StreamState["error"]>;
+    }
   | { type: StreamActionType.SET_META; chatId: string; meta: MetaEvent }
   | { type: StreamActionType.APPEND_TEXT; chatId: string; text: string }
   | { type: StreamActionType.START_THINKING; chatId: string }

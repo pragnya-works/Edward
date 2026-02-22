@@ -13,6 +13,7 @@ import {
   inArray,
   message,
   run,
+  updateRun,
 } from "@edward/auth";
 import { createRedisClient } from "../../lib/redis.js";
 import type { AuthenticatedRequest } from "../../middleware/auth.js";
@@ -421,6 +422,11 @@ export async function streamBuildEvents(
           chatId,
         });
       }
+
+      if (latestBuild.status === "success" || latestBuild.status === "failed") {
+        await closeStream();
+        return;
+      }
     }
 
     const onMessage = (incomingChannel: string, payload: string) => {
@@ -550,6 +556,73 @@ export async function getSandboxFiles(
       HttpStatus.INTERNAL_SERVER_ERROR,
       ERROR_MESSAGES.INTERNAL_SERVER_ERROR,
     );
+  }
+}
+
+const RUN_CANCEL_CHANNEL_PREFIX = "edward:run-cancel:";
+
+export async function cancelRunHandler(
+  req: AuthenticatedRequest,
+  res: Response,
+): Promise<void> {
+  try {
+    const userId = getAuthenticatedUserId(req);
+    const chatId = getChatIdOrRespond(req.params.chatId, res, sendStandardError);
+    const runId =
+      typeof req.params.runId === "string" ? req.params.runId : undefined;
+
+    if (!chatId || !runId) {
+      sendStandardError(res, HttpStatus.BAD_REQUEST, "Invalid chat/run ID");
+      return;
+    }
+
+    const hasAccess = await assertChatOwnedOrRespond(
+      chatId,
+      userId,
+      res,
+      sendStandardError,
+    );
+    if (!hasAccess) {
+      return;
+    }
+
+    const runRecord = await getRunById(runId);
+    if (!runRecord || runRecord.chatId !== chatId || runRecord.userId !== userId) {
+      sendStandardError(res, HttpStatus.NOT_FOUND, ERROR_MESSAGES.NOT_FOUND);
+      return;
+    }
+
+    if (runRecord.status === "completed" || runRecord.status === "failed" || runRecord.status === "cancelled") {
+      sendSuccess(res, HttpStatus.OK, "Run already in terminal state", { cancelled: false, reason: "already_terminal" });
+      return;
+    }
+
+    await updateRun(runId, {
+      status: "cancelled",
+      state: "CANCELLED",
+      completedAt: new Date(),
+    });
+    const pubClient = createRedisClient();
+    try {
+      await pubClient.publish(
+        `${RUN_CANCEL_CHANNEL_PREFIX}${runId}`,
+        JSON.stringify({ cancelled: true }),
+      );
+    } finally {
+      await pubClient.quit().catch(() => {});
+    }
+
+    logger.info({ runId, chatId, userId }, "Run cancelled by user");
+    sendSuccess(res, HttpStatus.OK, "Run cancelled", { cancelled: true });
+  } catch (error) {
+    logger.error(ensureError(error), "cancelRunHandler error");
+    if (!res.headersSent) {
+      sendStandardError(
+        res,
+        HttpStatus.INTERNAL_SERVER_ERROR,
+        ERROR_MESSAGES.INTERNAL_SERVER_ERROR,
+      );
+    }
   }
 }
 

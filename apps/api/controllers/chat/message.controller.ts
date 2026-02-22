@@ -105,7 +105,6 @@ export async function unifiedSendMessage(
         return;
       }
 
-      // Validate key decryption before queueing a durable run.
       decrypt(userData.apiKey);
       preferredModel = userData.preferredModel || undefined;
     } catch (err) {
@@ -258,8 +257,6 @@ export async function unifiedSendMessage(
     }
     runId = run.id;
 
-    // Emit run-bound meta as soon as run is created so clients can
-    // reconnect/resume even if the transport drops before persisted events arrive.
     res.write(
       `data: ${JSON.stringify({
         type: ParserEventType.META,

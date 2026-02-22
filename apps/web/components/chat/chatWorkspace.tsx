@@ -24,8 +24,17 @@ import { Sheet, SheetContent } from "@edward/ui/components/sheet";
 import { useSandbox } from "@/contexts/sandboxContext";
 import { cn } from "@edward/ui/lib/utils";
 import { parseMessageContent, MessageBlockType } from "@/lib/messageParser";
-import { ChatRole } from "@/lib/chatTypes";
+import {
+  ChatRole,
+  MessageAttachmentType,
+} from "@/lib/chatTypes";
 import { useIsMobileViewport } from "@/hooks/useIsMobileViewport";
+import {
+  MessageContentPartType,
+  type MessageContent,
+} from "@/lib/api";
+import { useChatStreamActions } from "@/contexts/chatStreamContext";
+import { normalizeUserMessageText } from "@/lib/userMessageText";
 
 const DEFAULT_SANDBOX_SIZE = 45;
 const MIN_SANDBOX_SIZE = 24;
@@ -51,6 +60,75 @@ function extractLatestSandboxProjectName(content: string): string | null {
       return block.project;
     }
   }
+  return null;
+}
+
+function extractRetryText(content: string | null): string {
+  if (!content) {
+    return "";
+  }
+  const normalized = normalizeUserMessageText(content);
+  if (!normalized || normalized.toLowerCase() === "[image message]") {
+    return "";
+  }
+  return normalized;
+}
+
+function buildRetryContentFromUserMessage(
+  userMessage: ChatMessageType,
+): MessageContent | null {
+  const text = extractRetryText(userMessage.content);
+  const imageParts = (userMessage.attachments ?? [])
+    .filter((attachment) => attachment.type === MessageAttachmentType.IMAGE)
+    .map((attachment) => ({
+      type: MessageContentPartType.IMAGE as const,
+      url: attachment.url,
+    }));
+
+  if (imageParts.length === 0) {
+    return text.length > 0 ? text : null;
+  }
+
+  if (text.length === 0) {
+    return imageParts;
+  }
+
+  return [
+    { type: MessageContentPartType.TEXT, text },
+    ...imageParts,
+  ];
+}
+
+function findLatestUserMessage(
+  messages: ChatMessageType[],
+): ChatMessageType | null {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (message?.role === ChatRole.USER) {
+      return message;
+    }
+  }
+  return null;
+}
+
+function findUserMessageForAssistantRetry(
+  messages: ChatMessageType[],
+  assistantMessageId: string,
+): ChatMessageType | null {
+  const assistantIndex = messages.findIndex(
+    (message) => message.id === assistantMessageId,
+  );
+  if (assistantIndex <= 0) {
+    return null;
+  }
+
+  for (let index = assistantIndex - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (message?.role === ChatRole.USER) {
+      return message;
+    }
+  }
+
   return null;
 }
 
@@ -130,6 +208,7 @@ export function ChatWorkspace({
   );
   const prefersReducedMotion = useReducedMotion();
   const { closeSandbox } = useSandbox();
+  const { startStream } = useChatStreamActions();
   const streamingProjectName = useMemo(() => {
     if (!stream.isStreaming || !stream.streamingText) {
       return null;
@@ -256,6 +335,61 @@ export function ChatWorkspace({
     [sandboxOpen],
   );
 
+  const retryFromUserMessage = useCallback(
+    (
+      userMessage: ChatMessageType | null,
+      opts?: {
+        suppressOptimisticUserMessage?: boolean;
+        retryTargetAssistantMessageId?: string;
+      },
+    ): boolean => {
+      if (!userMessage) {
+        return false;
+      }
+
+      const content = buildRetryContentFromUserMessage(userMessage);
+      if (!content) {
+        return false;
+      }
+
+      startStream(content, {
+        chatId,
+        suppressOptimisticUserMessage: opts?.suppressOptimisticUserMessage,
+        retryTargetAssistantMessageId: opts?.retryTargetAssistantMessageId,
+      });
+      return true;
+    },
+    [chatId, startStream],
+  );
+
+  const handleRetryStreamError = useCallback((): boolean => {
+    const userMessageId = stream.meta?.userMessageId;
+    const fromMeta = userMessageId
+      ? messages.find(
+          (message) =>
+            message.id === userMessageId && message.role === ChatRole.USER,
+        ) ?? null
+      : null;
+
+    return retryFromUserMessage(
+      fromMeta ?? findLatestUserMessage(messages),
+      { suppressOptimisticUserMessage: true },
+    );
+  }, [messages, retryFromUserMessage, stream.meta?.userMessageId]);
+
+  const handleRetryAssistantMessage = useCallback(
+    (assistantMessageId: string): boolean =>
+      retryFromUserMessage(
+        findUserMessageForAssistantRetry(messages, assistantMessageId) ??
+          findLatestUserMessage(messages),
+        {
+          suppressOptimisticUserMessage: true,
+          retryTargetAssistantMessageId: assistantMessageId,
+        },
+      ),
+    [messages, retryFromUserMessage],
+  );
+
   const isDesktopSandboxVisible =
     desktopSandboxUi.keepMounted || desktopSandboxUi.isTransitioning;
   const sandboxMinSize =
@@ -268,7 +402,12 @@ export function ChatWorkspace({
       <div className="flex h-[100dvh] w-full overflow-hidden">
         <div className="relative flex flex-col h-full w-full min-w-0">
           <div className="flex-1 min-h-0">
-            <ChatMessageList messages={messages} stream={stream} />
+            <ChatMessageList
+              messages={messages}
+              stream={stream}
+              onRetryStreamError={handleRetryStreamError}
+              onRetryAssistantMessage={handleRetryAssistantMessage}
+            />
           </div>
           <div className="shrink-0 w-full max-w-4xl mx-auto px-4 pb-6 pt-2">
             <AuthenticatedPromptbar chatId={chatId} />
@@ -311,7 +450,12 @@ export function ChatWorkspace({
           className="relative flex flex-col h-full min-w-[350px]"
         >
           <div className="flex-1 min-h-0">
-            <ChatMessageList messages={messages} stream={stream} />
+            <ChatMessageList
+              messages={messages}
+              stream={stream}
+              onRetryStreamError={handleRetryStreamError}
+              onRetryAssistantMessage={handleRetryAssistantMessage}
+            />
           </div>
           <div className="shrink-0 w-full max-w-4xl mx-auto px-4 pb-6 pt-2">
             <AuthenticatedPromptbar chatId={chatId} />

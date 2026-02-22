@@ -39,3 +39,8 @@ export const IMAGE_UPLOAD_CONFIG = {
   ALLOWED_EXTENSIONS: [".jpg", ".jpeg", ".png", ".webp"] as const,
   MAX_FILES: 3,
 } as const;
+
+export const UI_EVENTS = {
+  OPEN_API_KEY_MODAL: "edward:open-api-key-modal",
+  FOCUS_PROMPT_INPUT: "edward:focus-prompt-input",
+} as const;

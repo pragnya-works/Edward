@@ -69,6 +69,10 @@ export const StreamRunEventsRequestSchema = z.object({
   }),
 });
 
+export const CancelRunRequestSchema = z.object({
+  params: RunStreamParamsSchema,
+});
+
 export const RecentChatsQuerySchema = z.object({
   query: z.object({
     limit: z
@@ -158,6 +162,7 @@ export const ParserEventSchema = z.discriminatedUnion("type", [
         contextWindowTokens: z.number().int().nonnegative(),
         reservedOutputTokens: z.number().int().nonnegative(),
         inputTokens: z.number().int().nonnegative(),
+        totalContextTokens: z.number().int().nonnegative(),
         remainingInputTokens: z.number().int().nonnegative(),
         perMessage: z.array(
           z.object({

@@ -6,7 +6,9 @@ import { useSandbox } from "@/contexts/sandboxContext";
 import { ChatWorkspace } from "@/components/chat/chatWorkspace";
 import { ChatErrorState, ChatLoadingState } from "@/components/chat/chatPageStates";
 import { useChatPageOrchestration } from "@/hooks/useChatPageOrchestration";
-import { INITIAL_STREAM_STATE } from "@/lib/chatTypes";
+import { ChatRole, INITIAL_STREAM_STATE } from "@/lib/chatTypes";
+
+const AGGRESSIVE_ACTIVE_RUN_LOOKUP_WINDOW_MS = 90_000;
 
 interface ChatPageClientProps {
   chatId: string;
@@ -41,10 +43,30 @@ export default function ChatPageClient({ chatId }: ChatPageClientProps) {
     stream.isSandboxing ||
     stream.installingDeps.length > 0;
 
+  const latestMessage = messages[messages.length - 1];
+  const latestMessageTime = latestMessage?.createdAt
+    ? Date.parse(latestMessage.createdAt)
+    : Number.NaN;
+  const shouldUseAggressiveLookup =
+    latestMessage?.role === ChatRole.USER &&
+    Number.isFinite(latestMessageTime) &&
+    Date.now() - latestMessageTime <= AGGRESSIVE_ACTIVE_RUN_LOOKUP_WINDOW_MS;
+  const activeRunLookupMode =
+    isHistoryLoading
+      ? "defer"
+      : historyError || shouldUseAggressiveLookup
+        ? "aggressive"
+        : "single";
+  const hasResumeAttachError = stream.error?.code === "resume_attach_failed";
+
   useChatPageOrchestration({
     chatId,
+    latestUserMessageId:
+      latestMessage?.role === ChatRole.USER ? latestMessage.id : null,
+    hasResumeAttachError,
     isSandboxing: stream.isSandboxing,
     hasActiveStreamState,
+    activeRunLookupMode,
     sandboxOpen,
     openSandbox,
     setActiveChatId,

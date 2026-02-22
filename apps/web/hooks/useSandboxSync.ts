@@ -38,6 +38,7 @@ export function useSandboxSync(chatIdFromUrl: string | undefined) {
     stopStreaming,
     clearFiles,
     openSandbox,
+    closeSandbox,
     setMode,
     setPreviewUrl,
     setBuildStatus,
@@ -217,6 +218,7 @@ export function useSandboxSync(chatIdFromUrl: string | undefined) {
 
     clearFiles();
     stopStreaming();
+    closeSandbox();
     setPreviewUrl(null);
     setBuildStatus(BuildStatus.IDLE);
     setBuildError(null);
@@ -227,6 +229,7 @@ export function useSandboxSync(chatIdFromUrl: string | undefined) {
     closeBuildEvents,
     clearFiles,
     stopStreaming,
+    closeSandbox,
     setPreviewUrl,
     setBuildStatus,
     setBuildError,
@@ -518,8 +521,12 @@ export function useSandboxSync(chatIdFromUrl: string | undefined) {
 
   useEffect(() => {
     const targetChatId = stream.meta?.chatId || chatIdFromUrl;
+    const isBuildTerminal =
+      buildStatus === BuildStatus.SUCCESS ||
+      buildStatus === BuildStatus.FAILED;
     const shouldConnect =
       Boolean(targetChatId) &&
+      !isBuildTerminal &&
       (stream.isStreaming ||
         stream.isSandboxing ||
         stream.installingDeps.length > 0 ||
@@ -617,10 +624,11 @@ export function useSandboxSync(chatIdFromUrl: string | undefined) {
   useEffect(
     () => () => {
       closeBuildEvents();
+      closeSandbox();
       if (pollTimeoutRef.current) {
         clearTimeout(pollTimeoutRef.current);
       }
     },
-    [closeBuildEvents],
+    [closeBuildEvents, closeSandbox],
   );
 }

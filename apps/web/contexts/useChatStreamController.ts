@@ -8,10 +8,10 @@ import {
   useReducer,
 } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import {
-  postChatMessageStream,
+import { postChatMessageStream,
   MessageContentPartType,
   openRunEventsStream,
+  cancelRun,
   type MessageContent,
   type SendMessageRequest,
 } from "@/lib/api";
@@ -30,6 +30,7 @@ import {
 } from "./chatStream.reducer";
 import { processStreamResponse, type RefCell } from "./chatStream.processor";
 import { queryKeys } from "@/lib/queryKeys";
+import { normalizeUserMessageText } from "@/lib/userMessageText";
 
 const ABORT_ERROR_NAME = "AbortError";
 const PENDING_CHAT_ID_PREFIX = "pending_";
@@ -42,18 +43,18 @@ interface AbortControllerEntry {
 
 function extractUserTextFromContent(content: MessageContent): string {
   if (typeof content === "string") {
-    const trimmed = content.trim();
-    return trimmed.length > 0 ? trimmed : "[Image message]";
+    const normalized = normalizeUserMessageText(content);
+    return normalized.length > 0 ? normalized : "[Image message]";
   }
 
   const text = content
     .filter((part) => part.type === MessageContentPartType.TEXT)
-    .map((part) => part.text.trim())
+    .map((part) => normalizeUserMessageText(part.text))
     .filter((value) => value.length > 0)
-    .join("\n")
-    .trim();
+    .join("\n");
+  const normalized = normalizeUserMessageText(text);
 
-  return text.length > 0 ? text : "[Image message]";
+  return normalized.length > 0 ? normalized : "[Image message]";
 }
 
 function buildOptimisticUserMessage(
@@ -81,10 +82,17 @@ export interface ChatStreamStateContextValue {
   activeChatId: string | null;
 }
 
+interface StartStreamOptions {
+  chatId?: string;
+  model?: string;
+  suppressOptimisticUserMessage?: boolean;
+  retryTargetAssistantMessageId?: string;
+}
+
 export interface ChatStreamActionsContextValue {
   startStream: (
     content: MessageContent,
-    opts?: { chatId?: string; model?: string },
+    opts?: StartStreamOptions,
   ) => void;
   resumeRunStream: (chatId: string, runId: string) => void;
   cancelStream: (chatId: string) => void;
@@ -114,6 +122,38 @@ export function useChatStreamController(): UseChatStreamControllerResult {
   const onMetaRef = useRef<((meta: MetaEvent) => void) | null>(null);
   const streamsRef = useRef(streams);
   streamsRef.current = streams;
+  const streamCursorRef = useRef<Map<string, string>>(new Map());
+
+  const persistCursor = useCallback((chatId: string, runId: string, lastEventId: string): void => {
+    const key = `${chatId}:${runId}`;
+    streamCursorRef.current.set(key, lastEventId);
+    try {
+      sessionStorage.setItem(`sse_cursor:${key}`, lastEventId);
+    } catch {
+      // sessionStorage may be unavailable in certain private-browsing environments.
+    }
+  }, []);
+
+  const readCursor = useCallback((chatId: string, runId: string): string | undefined => {
+    const key = `${chatId}:${runId}`;
+    const inMemory = streamCursorRef.current.get(key);
+    if (inMemory) return inMemory;
+    try {
+      return sessionStorage.getItem(`sse_cursor:${key}`) ?? undefined;
+    } catch {
+      return undefined;
+    }
+  }, []);
+
+  const clearCursor = useCallback((chatId: string, runId: string): void => {
+    const key = `${chatId}:${runId}`;
+    streamCursorRef.current.delete(key);
+    try {
+      sessionStorage.removeItem(`sse_cursor:${key}`);
+    } catch {
+      // no-op
+    }
+  }, []);
 
   useEffect(
     () => () => {
@@ -142,6 +182,12 @@ export function useChatStreamController(): UseChatStreamControllerResult {
   );
 
   const cancelStream = useCallback((chatId: string) => {
+    const streamState = streamsRef.current[chatId];
+    const runId = streamState?.meta?.runId;
+    const realChatId = streamState?.meta?.chatId ?? chatId;
+    if (runId && realChatId) {
+      void cancelRun(realChatId, runId);
+    }
     const entry = abortControllersRef.current.get(chatId);
     if (entry) {
       entry.controller.abort();
@@ -189,8 +235,10 @@ export function useChatStreamController(): UseChatStreamControllerResult {
 
       void (async () => {
         try {
+          const resumeCursor = readCursor(chatId, runId);
           const response = await openRunEventsStream(chatId, runId, {
             signal: controller.signal,
+            ...(resumeCursor ? { lastEventId: resumeCursor } : {}),
           });
 
           let resolvedChatId = chatId;
@@ -201,6 +249,7 @@ export function useChatStreamController(): UseChatStreamControllerResult {
             dispatch,
             onMetaRef,
             thinkingStartRef: thinkingRef,
+            onCursorUpdate: (id: string, rId: string) => persistCursor(resolvedChatId, rId, id),
             onChatIdResolved: (realChatId: string) => {
               if (realChatId === resolvedChatId) {
                 return;
@@ -243,6 +292,7 @@ export function useChatStreamController(): UseChatStreamControllerResult {
             });
 
             if (streamResult) {
+              clearCursor(resolvedChatId, runId);
               dispatch({
                 type: StreamActionType.REMOVE_STREAM,
                 chatId: resolvedChatId,
@@ -267,7 +317,11 @@ export function useChatStreamController(): UseChatStreamControllerResult {
             dispatch({
               type: StreamActionType.SET_ERROR,
               chatId: trackedChatId,
-              error: err.message || "Failed to reconnect to active run stream.",
+              error: {
+                message:
+                  err.message || "Failed to reconnect to active run stream.",
+                code: "resume_attach_failed",
+              },
             });
           }
         } finally {
@@ -285,7 +339,7 @@ export function useChatStreamController(): UseChatStreamControllerResult {
         }
       })();
     },
-    [isLatestMutationForChat, queryClient],
+    [isLatestMutationForChat, queryClient, readCursor, persistCursor, clearCursor],
   );
 
   const mutation = useMutation({
@@ -297,6 +351,7 @@ export function useChatStreamController(): UseChatStreamControllerResult {
       mutationId,
       controller,
       optimisticUserMessageId,
+      retryInsertIndex,
     }: {
       content: MessageContent;
       chatId?: string;
@@ -305,6 +360,8 @@ export function useChatStreamController(): UseChatStreamControllerResult {
       mutationId: string;
       controller: AbortController;
       optimisticUserMessageId?: string;
+      retryInsertIndex?: number;
+      removedAssistantSnapshot?: { message: ChatMessage; index: number };
     }) => {
       const existingEntry = abortControllersRef.current.get(streamKey);
       if (
@@ -332,6 +389,7 @@ export function useChatStreamController(): UseChatStreamControllerResult {
         dispatch,
         onMetaRef,
         thinkingStartRef: thinkingRef,
+        onCursorUpdate: (id: string, rId: string) => persistCursor(resolvedChatId, rId, id),
         onChatIdResolved: (realChatId: string) => {
           if (realChatId === resolvedChatId) {
             return;
@@ -417,6 +475,11 @@ export function useChatStreamController(): UseChatStreamControllerResult {
                 (msg) => msg.id === optimisticMessage.id,
               );
               if (exists) return oldMessages;
+              if (retryInsertIndex !== undefined) {
+                const next = [...oldMessages];
+                next.splice(retryInsertIndex, 0, optimisticMessage);
+                return next;
+              }
               return [...oldMessages, optimisticMessage];
             },
           );
@@ -430,6 +493,9 @@ export function useChatStreamController(): UseChatStreamControllerResult {
         void queryClient.invalidateQueries({ queryKey: queryKeys.recentChats.all });
 
         if (isLatestMutationForChat(resolvedChatId, mutationId)) {
+          if (metaEvt.runId) {
+            clearCursor(resolvedChatId, metaEvt.runId);
+          }
           dispatch({ type: StreamActionType.REMOVE_STREAM, chatId: resolvedChatId });
         }
       } else if (
@@ -459,6 +525,19 @@ export function useChatStreamController(): UseChatStreamControllerResult {
         );
       }
 
+      if (variables.removedAssistantSnapshot) {
+        const { message: removedMsg, index: removedIndex } =
+          variables.removedAssistantSnapshot;
+        queryClient.setQueryData<ChatMessage[]>(
+          queryKeys.chatHistory.byChatId(trackedChatId),
+          (oldMessages = []) => {
+            const next = [...oldMessages];
+            next.splice(removedIndex, 0, removedMsg);
+            return next;
+          },
+        );
+      }
+
       if (err.name === ABORT_ERROR_NAME) {
         dispatch({ type: StreamActionType.STOP_STREAMING, chatId: trackedChatId });
         return;
@@ -469,15 +548,21 @@ export function useChatStreamController(): UseChatStreamControllerResult {
         dispatch({
           type: StreamActionType.SET_ERROR,
           chatId: trackedChatId,
-          error:
-            apiError.message ||
-            "Too many concurrent requests. Please wait and retry.",
+          error: {
+            message:
+              apiError.message ||
+              "Too many concurrent requests. Please wait and retry.",
+            code: "too_many_requests",
+          },
         });
       } else {
         dispatch({
           type: StreamActionType.SET_ERROR,
           chatId: trackedChatId,
-          error: err.message,
+          error: {
+            message: err.message,
+            code: "request_failed",
+          },
         });
       }
     },
@@ -501,7 +586,7 @@ export function useChatStreamController(): UseChatStreamControllerResult {
   const startStream = useCallback(
     (
       content: MessageContent,
-      opts?: { chatId?: string; model?: string },
+      opts?: StartStreamOptions,
     ) => {
       if (!opts?.chatId) {
         for (const key of Object.keys(streamsRef.current)) {
@@ -532,26 +617,58 @@ export function useChatStreamController(): UseChatStreamControllerResult {
       dispatch({ type: StreamActionType.START_STREAMING, chatId: streamKey });
 
       let optimisticUserMessageId: string | undefined;
+      let retryInsertIndex: number | undefined;
+      let removedAssistantSnapshot:
+        | { message: ChatMessage; index: number }
+        | undefined;
+
       if (opts?.chatId) {
         const targetChatId = opts.chatId;
-        const optimisticId = `${OPTIMISTIC_USER_MESSAGE_PREFIX}${mutationId}`;
-        optimisticUserMessageId = optimisticId;
-        queryClient.setQueryData<ChatMessage[]>(
-          queryKeys.chatHistory.byChatId(targetChatId),
-          (oldMessages = []) => {
-            if (oldMessages.some((msg) => msg.id === optimisticId)) {
-              return oldMessages;
-            }
-            return [
-              ...oldMessages,
-              buildOptimisticUserMessage(
-                targetChatId,
-                content,
-                optimisticId,
-              ),
-            ];
-          },
-        );
+
+        if (opts.retryTargetAssistantMessageId) {
+          const chatHistory =
+            queryClient.getQueryData<ChatMessage[]>(
+              queryKeys.chatHistory.byChatId(targetChatId),
+            ) ?? [];
+          const targetIndex = chatHistory.findIndex(
+            (m) => m.id === opts.retryTargetAssistantMessageId,
+          );
+          if (targetIndex !== -1) {
+            removedAssistantSnapshot = {
+              message: chatHistory[targetIndex]!,
+              index: targetIndex,
+            };
+            retryInsertIndex = targetIndex;
+            queryClient.setQueryData<ChatMessage[]>(
+              queryKeys.chatHistory.byChatId(targetChatId),
+              (old = []) =>
+                old.filter(
+                  (m) => m.id !== opts.retryTargetAssistantMessageId,
+                ),
+            );
+          }
+        }
+
+        if (!opts.suppressOptimisticUserMessage) {
+          const optimisticId = `${OPTIMISTIC_USER_MESSAGE_PREFIX}${mutationId}`;
+          optimisticUserMessageId = optimisticId;
+          queryClient.setQueryData<ChatMessage[]>(
+            queryKeys.chatHistory.byChatId(targetChatId),
+            (oldMessages = []) => {
+              if (oldMessages.some((msg) => msg.id === optimisticId)) {
+                return oldMessages;
+              }
+              return [
+                ...oldMessages,
+                buildOptimisticUserMessage(
+                  targetChatId,
+                  content,
+                  optimisticId,
+                ),
+              ];
+            },
+          );
+        }
       }
 
       mutation.mutate({
@@ -562,6 +679,8 @@ export function useChatStreamController(): UseChatStreamControllerResult {
         mutationId,
         controller,
         optimisticUserMessageId,
+        retryInsertIndex,
+        removedAssistantSnapshot,
       });
     },
     [mutation, queryClient],

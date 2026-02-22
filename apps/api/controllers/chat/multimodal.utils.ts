@@ -6,6 +6,7 @@ import {
   type AllowedImageMimeType,
   type ValidatedImage,
 } from "../../utils/imageValidation.js";
+import { normalizeUserMessageText } from "../../utils/userMessageText.js";
 import type { MessageContentPart } from "../../schemas/chat.schema.js";
 import type { ImageAttachment } from "../../services/chat.service.js";
 
@@ -21,7 +22,7 @@ export async function parseMultimodalContent(
 ): Promise<ParsedMultimodalContent> {
   if (typeof content === "string") {
     return {
-      textContent: content,
+      textContent: normalizeUserMessageText(content),
       images: [],
       hasImages: false,
     };
@@ -29,7 +30,7 @@ export async function parseMultimodalContent(
 
   if (!Array.isArray(content)) {
     return {
-      textContent: String(content),
+      textContent: normalizeUserMessageText(String(content)),
       images: [],
       hasImages: false,
     };
@@ -40,8 +41,11 @@ export async function parseMultimodalContent(
   const images: ValidatedImage[] = [];
 
   for (const part of parts) {
-    if (part.type === "text" && part.text.trim()) {
-      textParts.push(part.text);
+    if (part.type === "text") {
+      const normalizedTextPart = normalizeUserMessageText(part.text || "");
+      if (normalizedTextPart) {
+        textParts.push(normalizedTextPart);
+      }
     } else if (part.type === "image") {
       if ("url" in part && typeof part.url === "string") {
         const result = await validateImageUrl(part.url, part.mimeType);
@@ -70,7 +74,7 @@ export async function parseMultimodalContent(
     }
   }
 
-  const textContent = textParts.join(" ").trim();
+  const textContent = normalizeUserMessageText(textParts.join("\n"));
 
   return {
     textContent,

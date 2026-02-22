@@ -45,6 +45,10 @@ import {
   prepareUrlScrapeContext,
   type UrlScrapeResult,
 } from "../../services/websearch/urlScraper.service.js";
+import {
+  classifyAssistantError,
+  toAssistantErrorTag,
+} from "../../lib/llm/errorPresentation.js";
 
 import {
   configureSSEBackpressure,
@@ -66,6 +70,7 @@ import {
 export interface StreamSessionParams {
   req: AuthenticatedRequest;
   res: Response;
+  externalSignal?: AbortSignal;
   workflow: WorkflowState;
   userId: string;
   chatId: string;
@@ -119,6 +124,27 @@ const LOOP_STOP_REASON_TO_TERMINATION: Record<
     StreamTerminationReason.RESPONSE_SIZE_EXCEEDED,
 };
 
+const LOOP_STOP_REASON_TO_ERROR_HINT: Record<AgentLoopStopReason, string> = {
+  [AgentLoopStopReason.DONE]:
+    "The stream ended before any assistant output was produced.",
+  [AgentLoopStopReason.NO_TOOL_RESULTS]:
+    "The assistant did not produce output for this request.",
+  [AgentLoopStopReason.MAX_TURNS_REACHED]:
+    "The assistant reached the maximum number of reasoning turns.",
+  [AgentLoopStopReason.TOOL_BUDGET_EXCEEDED]:
+    "The assistant hit the per-turn tool budget limit.",
+  [AgentLoopStopReason.RUN_TOOL_BUDGET_EXCEEDED]:
+    "The assistant hit the run-level tool budget limit.",
+  [AgentLoopStopReason.CONTEXT_LIMIT_EXCEEDED]:
+    "The prompt exceeded the model context window.",
+  [AgentLoopStopReason.TOOL_PAYLOAD_BUDGET_EXCEEDED]:
+    "Tool payloads exceeded the per-turn budget.",
+  [AgentLoopStopReason.CONTINUATION_BUDGET_EXCEEDED]:
+    "Continuation context exceeded allowed limits.",
+  [AgentLoopStopReason.RESPONSE_SIZE_EXCEEDED]:
+    "The response exceeded the maximum stream size limit.",
+};
+
 export async function runStreamSession(
   params: StreamSessionParams,
 ): Promise<void> {
@@ -142,6 +168,7 @@ export async function runStreamSession(
     runId: explicitRunId,
     resumeCheckpoint,
     onCheckpoint,
+    externalSignal,
   } = params;
 
   let fullRawResponse = "";
@@ -188,6 +215,21 @@ export async function runStreamSession(
     if (streamTimer) clearTimeout(streamTimer);
     abortStream(StreamTerminationReason.CLIENT_DISCONNECT);
   });
+  if (externalSignal) {
+    if (externalSignal.aborted) {
+      abortStream(StreamTerminationReason.CLIENT_DISCONNECT);
+    } else {
+      externalSignal.addEventListener(
+        "abort",
+        () => {
+          logger.info({ chatId, runId }, "External abort signal received - cancelling stream");
+          if (streamTimer) clearTimeout(streamTimer);
+          abortStream(StreamTerminationReason.CLIENT_DISCONNECT);
+        },
+        { once: true },
+      );
+    }
+  }
 
   let tokenUsage: TokenUsage | undefined;
 
@@ -261,6 +303,7 @@ export async function runStreamSession(
       systemPrompt,
       messages: baseMessages,
       model,
+      userPrompt: userTextContent,
     });
 
     emitMeta({
@@ -272,11 +315,11 @@ export async function runStreamSession(
     if (isOverContextLimit(tokenUsage)) {
       sendSSEError(
         res,
-        `Message too large for model context window. Input tokens=${tokenUsage.inputTokens}, reservedOutputTokens=${tokenUsage.reservedOutputTokens}, contextWindowTokens=${tokenUsage.contextWindowTokens}.`,
+        `Message too large for model context window. Input tokens=${tokenUsage.totalContextTokens}, reservedOutputTokens=${tokenUsage.reservedOutputTokens}, contextWindowTokens=${tokenUsage.contextWindowTokens}.`,
         {
           code: "context_limit_exceeded",
           details: {
-            inputTokens: tokenUsage.inputTokens,
+            inputTokens: tokenUsage.totalContextTokens,
             reservedOutputTokens: tokenUsage.reservedOutputTokens,
             contextWindowTokens: tokenUsage.contextWindowTokens,
           },
@@ -391,9 +434,14 @@ export async function runStreamSession(
     });
 
     const urlScrapeTags = formatUrlScrapeAssistantTags(urlScrapeResults);
-    const storedAssistantContent = urlScrapeTags
-      ? `${urlScrapeTags}\n\n${fullRawResponse}`
-      : fullRawResponse;
+    const hasAssistantContent = fullRawResponse.trim().length > 0;
+    const storedAssistantContent = hasAssistantContent
+      ? urlScrapeTags
+        ? `${urlScrapeTags}\n\n${fullRawResponse}`
+        : fullRawResponse
+      : toAssistantErrorTag(
+          classifyAssistantError(LOOP_STOP_REASON_TO_ERROR_HINT[loopStopReason]),
+        );
 
     await saveMessage(
       chatId,
@@ -471,13 +519,6 @@ Return ONLY a JSON object: {"title": "...", "description": "..."}
         status: "queued",
       });
 
-      sendSSEEvent(res, {
-        type: ParserEventType.BUILD_STATUS,
-        chatId,
-        status: "queued",
-        buildId: queuedBuild.id,
-        runId,
-      });
 
       try {
         await enqueueBuildJob({
@@ -540,6 +581,7 @@ Return ONLY a JSON object: {"title": "...", "description": "..."}
     sendSSEDone(res);
   } catch (streamError) {
     const error = ensureError(streamError);
+    const assistantError = classifyAssistantError(error.message);
     if (workflow.sandboxId) {
       await cleanupSandbox(workflow.sandboxId).catch((err: unknown) =>
         logger.error(
@@ -556,8 +598,15 @@ Return ONLY a JSON object: {"title": "...", "description": "..."}
       terminationReason: StreamTerminationReason.STREAM_FAILED,
     });
 
-    sendSSEError(res, "Stream processing failed", {
-      code: "stream_processing_failed",
+    sendSSEError(res, assistantError.message, {
+      code: assistantError.code,
+      details: {
+        title: assistantError.title,
+        severity: assistantError.severity,
+        action: assistantError.action,
+        actionLabel: assistantError.actionLabel,
+        actionUrl: assistantError.actionUrl,
+      },
     });
 
     if (!res.writableEnded) {
@@ -582,7 +631,7 @@ Return ONLY a JSON object: {"title": "...", "description": "..."}
           chatId,
           userId,
           MessageRole.Assistant,
-          fullRawResponse || `Error: ${error.message}`,
+          fullRawResponse || toAssistantErrorTag(assistantError),
           assistantMessageId,
           errorMetadata,
         );

@@ -1,11 +1,14 @@
 "use client";
 
+import { useMemo } from "react";
 import { LoaderIcon } from "lucide-react";
 import { Button } from "@edward/ui/components/button";
 import { GitHub } from "@edward/ui/components/icons/github";
 import { useSandbox } from "@/contexts/sandboxContext";
+import { useChatStream } from "@/contexts/chatStreamContext";
 import { GithubIntegrationDialog } from "./githubIntegration/githubIntegrationDialog";
 import { useGithubIntegration } from "./githubIntegration/useGithubIntegration";
+import { INITIAL_STREAM_STATE } from "@/lib/chatTypes";
 
 interface GithubIntegrationBarProps {
   chatId: string;
@@ -16,12 +19,33 @@ export function GithubIntegrationBar({
   chatId,
   projectName,
 }: GithubIntegrationBarProps) {
-  const { files, isStreaming } = useSandbox();
+  const { files } = useSandbox();
+  const { streams } = useChatStream();
   const hasGeneratedCode = files.length > 0;
 
   const integration = useGithubIntegration({ chatId, projectName });
+  const stream = useMemo(
+    () =>
+      streams[chatId] ??
+      Object.values(streams).find(
+        (candidate) =>
+          candidate.streamChatId === chatId || candidate.meta?.chatId === chatId,
+      ) ??
+      INITIAL_STREAM_STATE,
+    [chatId, streams],
+  );
+
+  const isLlmResponseInProgress =
+    stream.isStreaming ||
+    stream.isThinking ||
+    stream.isSandboxing ||
+    stream.activeFiles.length > 0 ||
+    stream.installingDeps.length > 0;
+
   const shouldRender =
-    hasGeneratedCode && !isStreaming && Boolean(integration.normalizedChatId);
+    hasGeneratedCode &&
+    !isLlmResponseInProgress &&
+    Boolean(integration.normalizedChatId);
 
   if (!shouldRender) {
     return null;

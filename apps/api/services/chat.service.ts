@@ -2,6 +2,7 @@ import { db, chat, message, attachment, MessageRole, eq } from "@edward/auth";
 import { nanoid } from "nanoid";
 import { logger } from "../utils/logger.js";
 import type { AllowedImageMimeType } from "../utils/imageValidation.js";
+import { normalizeUserMessageText } from "../utils/userMessageText.js";
 
 export interface MessageMetadata {
   completionTime?: number;
@@ -79,6 +80,8 @@ export async function saveMessage(
   try {
     const messageId = id || nanoid(32);
     const now = new Date();
+    const normalizedContent =
+      role === MessageRole.User ? normalizeUserMessageText(content) : content;
 
     const values: {
       id: string;
@@ -96,7 +99,7 @@ export async function saveMessage(
       chatId,
       userId,
       role,
-      content,
+      content: normalizedContent,
       createdAt: now,
       updatedAt: now,
     };
@@ -119,7 +122,7 @@ export async function saveMessage(
       .onConflictDoUpdate({
         target: message.id,
         set: {
-          content,
+          content: normalizedContent,
           updatedAt: now,
           ...(metadata?.completionTime !== undefined && {
             completionTime: metadata.completionTime,
