@@ -2,6 +2,18 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { HttpStatus } from "../../../utils/constants.js";
 
 const mockRefs = vi.hoisted(() => {
+  const chatTable = {
+    id: "chat_id_col",
+    userId: "chat_user_id_col",
+    customSubdomain: "chat_custom_subdomain_col",
+  };
+  const buildTable = {
+    id: "build_id_col",
+    chatId: "build_chat_id_col",
+    createdAt: "build_created_at_col",
+    previewUrl: "build_preview_url_col",
+  };
+
   const chatSelectChain = {
     from: vi.fn().mockReturnThis(),
     where: vi.fn().mockReturnThis(),
@@ -10,17 +22,19 @@ const mockRefs = vi.hoisted(() => {
 
   const txUpdateBuildChain = {
     set: vi.fn().mockReturnThis(),
-    where: vi.fn().mockResolvedValue(undefined),
+    where: vi.fn().mockReturnThis(),
+    returning: vi.fn().mockResolvedValue([{ id: "build-1" }]),
   };
 
   const txUpdateChatChain = {
     set: vi.fn().mockReturnThis(),
-    where: vi.fn().mockResolvedValue(undefined),
+    where: vi.fn().mockReturnThis(),
+    returning: vi.fn().mockResolvedValue([{ id: "chat-1" }]),
   };
 
   const tx = {
     update: vi.fn((table: unknown) =>
-      table === "build_table" ? txUpdateBuildChain : txUpdateChatChain,
+      table === buildTable ? txUpdateBuildChain : txUpdateChatChain,
     ),
     query: {
       build: {
@@ -31,7 +45,7 @@ const mockRefs = vi.hoisted(() => {
 
   return {
     chatData: { userId: "user-1", customSubdomain: "old-subdomain" },
-    latestBuild: { id: "build-1" },
+    latestBuild: { id: "build-1", previewUrl: "https://old-subdomain.edwardd.app" },
     registerResult: {
       subdomain: "new-subdomain",
       previewUrl: "https://new-subdomain.edwardd.app",
@@ -43,6 +57,8 @@ const mockRefs = vi.hoisted(() => {
     tx,
     txUpdateBuildChain,
     txUpdateChatChain,
+    chatTable,
+    buildTable,
     db: {
       select: vi.fn(() => chatSelectChain),
       transaction: vi.fn(async (callback: (value: typeof tx) => Promise<void>) => {
@@ -56,11 +72,16 @@ const mockRefs = vi.hoisted(() => {
     sendSuccess: vi.fn(),
     getAuthenticatedUserId: vi.fn(() => "user-1"),
     checkSubdomainAvailability: vi.fn(async () => mockRefs.availability),
+    isPreviewRoutingConfigured: vi.fn(() => true),
     registerPreviewSubdomain: vi.fn(async () => mockRefs.registerResult),
     deletePreviewSubdomain: vi.fn(async () => undefined),
     generatePreviewSubdomain: vi.fn(() => "generated-subdomain"),
     buildSubdomainPreviewUrl: vi.fn((subdomain: string) => `https://${subdomain}.edwardd.app`),
     buildS3Key: vi.fn((userId: string, chatId: string) => `${userId}/${chatId}/`),
+    eq: vi.fn((left: unknown, right: unknown) => ({ type: "eq", left, right })),
+    and: vi.fn((...conditions: unknown[]) => ({ type: "and", conditions })),
+    isNull: vi.fn((value: unknown) => ({ type: "isNull", value })),
+    desc: vi.fn(() => ({ type: "desc" })),
     ensureError: vi.fn((error: unknown) =>
       error instanceof Error ? error : new Error(String(error)),
     ),
@@ -77,18 +98,12 @@ vi.mock("@edward/auth", async (importOriginal) => {
   return {
     ...actual,
     db: mockRefs.db,
-    chat: {
-      id: "chat_id_col",
-      userId: "chat_user_id_col",
-      customSubdomain: "chat_custom_subdomain_col",
-    },
-    build: {
-      id: "build_id_col",
-      chatId: "build_chat_id_col",
-      createdAt: "build_created_at_col",
-    },
-    eq: vi.fn(() => "eq"),
-    desc: vi.fn(() => "desc"),
+    chat: mockRefs.chatTable,
+    build: mockRefs.buildTable,
+    eq: mockRefs.eq,
+    and: mockRefs.and,
+    isNull: mockRefs.isNull,
+    desc: mockRefs.desc,
   };
 });
 
@@ -111,6 +126,7 @@ vi.mock("../../../utils/logger.js", () => ({
 
 vi.mock("../../../services/previewRouting.service.js", () => ({
   checkSubdomainAvailability: mockRefs.checkSubdomainAvailability,
+  isPreviewRoutingConfigured: mockRefs.isPreviewRoutingConfigured,
   registerPreviewSubdomain: mockRefs.registerPreviewSubdomain,
   deletePreviewSubdomain: mockRefs.deletePreviewSubdomain,
   generatePreviewSubdomain: mockRefs.generatePreviewSubdomain,
@@ -138,7 +154,10 @@ describe("updateChatSubdomainHandler", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockRefs.chatData = { userId: "user-1", customSubdomain: "old-subdomain" };
-    mockRefs.latestBuild = { id: "build-1" };
+    mockRefs.latestBuild = {
+      id: "build-1",
+      previewUrl: "https://old-subdomain.edwardd.app",
+    };
     mockRefs.registerResult = {
       subdomain: "new-subdomain",
       previewUrl: "https://new-subdomain.edwardd.app",
@@ -146,9 +165,12 @@ describe("updateChatSubdomainHandler", () => {
     };
     mockRefs.availability = { available: true, reason: undefined };
     mockRefs.transactionError = null;
+    mockRefs.isPreviewRoutingConfigured.mockReturnValue(true);
     mockRefs.tx.query.build.findFirst.mockResolvedValue(mockRefs.latestBuild);
-    mockRefs.txUpdateBuildChain.where.mockResolvedValue(undefined);
-    mockRefs.txUpdateChatChain.where.mockResolvedValue(undefined);
+    mockRefs.txUpdateBuildChain.where.mockReturnThis();
+    mockRefs.txUpdateBuildChain.returning.mockResolvedValue([{ id: "build-1" }]);
+    mockRefs.txUpdateChatChain.where.mockReturnThis();
+    mockRefs.txUpdateChatChain.returning.mockResolvedValue([{ id: "chat-1" }]);
 
     mockRefs.db.select.mockImplementation(() => ({
       from: vi.fn().mockReturnThis(),
@@ -227,6 +249,32 @@ describe("updateChatSubdomainHandler", () => {
     );
   });
 
+  it("fails fast when routing is not configured and avoids DB writes", async () => {
+    mockRefs.isPreviewRoutingConfigured.mockReturnValue(false);
+
+    const { updateChatSubdomainHandler } = await import(
+      "../../../controllers/chat/subdomain.controller.js"
+    );
+
+    const req = {
+      params: { chatId: "chat-1" },
+      body: { subdomain: "new-subdomain" },
+      userId: "user-1",
+    } as never;
+    const res = {} as never;
+
+    await updateChatSubdomainHandler(req, res);
+
+    expect(mockRefs.checkSubdomainAvailability).not.toHaveBeenCalled();
+    expect(mockRefs.db.transaction).not.toHaveBeenCalled();
+    expect(mockRefs.registerPreviewSubdomain).not.toHaveBeenCalled();
+    expect(mockRefs.sendError).toHaveBeenCalledWith(
+      res,
+      HttpStatus.INTERNAL_SERVER_ERROR,
+      "Subdomain routing is not configured on this server.",
+    );
+  });
+
   it("rolls back DB updates when routing registration fails", async () => {
     mockRefs.registerPreviewSubdomain.mockRejectedValueOnce(
       new Error("kv upsert failed"),
@@ -253,11 +301,122 @@ describe("updateChatSubdomainHandler", () => {
     expect(mockRefs.txUpdateChatChain.set).toHaveBeenCalledWith(
       expect.objectContaining({ customSubdomain: "old-subdomain" }),
     );
+    expect(mockRefs.txUpdateBuildChain.set).toHaveBeenCalledWith(
+      expect.objectContaining({ previewUrl: "https://old-subdomain.edwardd.app" }),
+    );
     expect(mockRefs.deletePreviewSubdomain).not.toHaveBeenCalled();
     expect(mockRefs.sendError).toHaveBeenCalledWith(
       res,
       HttpStatus.INTERNAL_SERVER_ERROR,
       expect.any(String),
+    );
+  });
+
+  it("does not restore legacy path preview URLs during rollback", async () => {
+    mockRefs.latestBuild = {
+      id: "build-1",
+      previewUrl: "https://edwardd.app/preview/user-1/chat-1",
+    };
+    mockRefs.tx.query.build.findFirst.mockResolvedValue(mockRefs.latestBuild);
+    mockRefs.registerPreviewSubdomain.mockRejectedValueOnce(
+      new Error("kv upsert failed"),
+    );
+
+    const { updateChatSubdomainHandler } = await import(
+      "../../../controllers/chat/subdomain.controller.js"
+    );
+
+    const req = {
+      params: { chatId: "chat-1" },
+      body: { subdomain: "new-subdomain" },
+      userId: "user-1",
+    } as never;
+    const res = {} as never;
+
+    await updateChatSubdomainHandler(req, res);
+
+    expect(mockRefs.txUpdateBuildChain.set).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ previewUrl: "https://new-subdomain.edwardd.app" }),
+    );
+    expect(mockRefs.txUpdateBuildChain.set).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        previewUrl: "https://old-subdomain.edwardd.app",
+      }),
+    );
+  });
+
+  it("guards rollback writes so they only apply if this request still owns latest values", async () => {
+    mockRefs.registerPreviewSubdomain.mockRejectedValueOnce(
+      new Error("kv upsert failed"),
+    );
+
+    const { updateChatSubdomainHandler } = await import(
+      "../../../controllers/chat/subdomain.controller.js"
+    );
+
+    const req = {
+      params: { chatId: "chat-1" },
+      body: { subdomain: "new-subdomain" },
+      userId: "user-1",
+    } as never;
+    const res = {} as never;
+
+    await updateChatSubdomainHandler(req, res);
+
+    const hasChatOwnershipGuard = mockRefs.and.mock.calls.some((call) =>
+      (call as unknown[]).some(
+        (condition) =>
+          typeof condition === "object" &&
+          condition !== null &&
+          "type" in (condition as Record<string, unknown>) &&
+          (condition as { type?: string }).type === "eq" &&
+          (condition as { left?: unknown }).left ===
+            mockRefs.chatTable.customSubdomain &&
+          (condition as { right?: unknown }).right === "new-subdomain",
+      ),
+    );
+
+    const hasBuildOwnershipGuard = mockRefs.and.mock.calls.some((call) =>
+      (call as unknown[]).some(
+        (condition) =>
+          typeof condition === "object" &&
+          condition !== null &&
+          "type" in (condition as Record<string, unknown>) &&
+          (condition as { type?: string }).type === "eq" &&
+          (condition as { left?: unknown }).left ===
+            mockRefs.buildTable.previewUrl &&
+          (condition as { right?: unknown }).right ===
+            "https://new-subdomain.edwardd.app",
+      ),
+    );
+
+    expect(hasChatOwnershipGuard).toBe(true);
+    expect(hasBuildOwnershipGuard).toBe(true);
+  });
+
+  it("returns conflict when chat subdomain changed between read and write", async () => {
+    mockRefs.txUpdateChatChain.returning.mockResolvedValueOnce([]);
+
+    const { updateChatSubdomainHandler } = await import(
+      "../../../controllers/chat/subdomain.controller.js"
+    );
+
+    const req = {
+      params: { chatId: "chat-1" },
+      body: { subdomain: "new-subdomain" },
+      userId: "user-1",
+    } as never;
+    const res = {} as never;
+
+    await updateChatSubdomainHandler(req, res);
+
+    expect(mockRefs.registerPreviewSubdomain).not.toHaveBeenCalled();
+    expect(mockRefs.sendError).toHaveBeenCalledWith(
+      res,
+      HttpStatus.CONFLICT,
+      "Subdomain state changed during update. Please retry.",
     );
   });
 });

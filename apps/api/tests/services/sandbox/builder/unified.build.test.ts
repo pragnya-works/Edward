@@ -231,18 +231,19 @@ describe("buildAndUploadUnified preview URL routing", () => {
     );
   });
 
-  it("falls back to path preview URL when routing config is incomplete", async () => {
+  it("does not return a path preview URL when routing config is incomplete", async () => {
     mockRefs.routingResult = null;
 
     const result = await buildAndUploadUnified("sandbox-1");
 
     expect(result.success).toBe(true);
     expect(result.previewUploaded).toBe(true);
-    expect(result.previewUrl).toBe("https://cdn.edwardd.app/user-1/chat-1/");
+    expect(result.previewUrl).toBeNull();
     expect(result.error).toContain("subdomain routing is unavailable");
+    expect(mockRefs.buildPreviewUrlMock).not.toHaveBeenCalled();
   });
 
-  it("falls back to path URL and preserves both warnings on routing failure + partial upload", async () => {
+  it("returns no preview URL and preserves warnings on routing failure + partial upload", async () => {
     mockRefs.routeThrows = true;
     mockRefs.uploadResult = {
       successful: 2,
@@ -259,8 +260,9 @@ describe("buildAndUploadUnified preview URL routing", () => {
 
     expect(result.success).toBe(true);
     expect(result.previewUploaded).toBe(true);
-    expect(result.previewUrl).toBe("https://cdn.edwardd.app/user-1/chat-1/");
+    expect(result.previewUrl).toBeNull();
     expect(result.error).toContain("subdomain routing failed");
     expect(result.error).toContain("files failed to upload to S3");
+    expect(mockRefs.buildPreviewUrlMock).not.toHaveBeenCalled();
   });
 });

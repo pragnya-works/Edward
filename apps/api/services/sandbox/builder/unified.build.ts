@@ -286,8 +286,6 @@ export async function buildAndUploadUnified(
 
       previewUploaded = uploadResult.successful > 0;
       if (previewUploaded) {
-        const pathPreviewUrl = buildPreviewUrl(userId, chatId);
-
         if (config.deployment.type === DEPLOYMENT_TYPES.SUBDOMAIN) {
           try {
             const [chatData] = await db
@@ -297,20 +295,15 @@ export async function buildAndUploadUnified(
               .limit(1);
             const customSubdomain = chatData?.customSubdomain ?? null;
             const routing = await registerPreviewSubdomain(userId, chatId, customSubdomain);
-            previewUrl = routing?.previewUrl ?? pathPreviewUrl;
+            previewUrl = routing?.previewUrl ?? null;
             if (!previewUrl) {
               logger.warn(
                 { sandboxId, userId, chatId },
-                "Preview uploaded but no preview URL could be resolved",
-              );
-            } else if (!routing?.previewUrl) {
-              logger.warn(
-                { sandboxId, userId, chatId },
-                "Preview uploaded but subdomain registration skipped; using path preview URL",
+                "Preview uploaded but subdomain preview URL could not be resolved",
               );
               uploadWarning = appendWarning(
                 uploadWarning,
-                "Preview uploaded but subdomain routing is unavailable; using path preview URL",
+                "Preview uploaded but subdomain routing is unavailable",
               );
             }
           } catch (err) {
@@ -318,13 +311,14 @@ export async function buildAndUploadUnified(
               { err, sandboxId, userId, chatId },
               "Preview uploaded but subdomain registration failed",
             );
-            previewUrl = pathPreviewUrl;
+            previewUrl = null;
             uploadWarning = appendWarning(
               uploadWarning,
               "Preview uploaded but subdomain routing failed",
             );
           }
         } else {
+          const pathPreviewUrl = buildPreviewUrl(userId, chatId);
           previewUrl = pathPreviewUrl;
         }
       }

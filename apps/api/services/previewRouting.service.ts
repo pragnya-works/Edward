@@ -203,6 +203,10 @@ function getPreviewRoutingConfig(): PreviewRoutingConfig | null {
   };
 }
 
+export function isPreviewRoutingConfigured(): boolean {
+  return getPreviewRoutingConfig() !== null;
+}
+
 export function generatePreviewSubdomain(
   userId: string,
   chatId: string,
