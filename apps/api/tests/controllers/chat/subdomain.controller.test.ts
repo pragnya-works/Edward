@@ -157,7 +157,7 @@ describe("updateChatSubdomainHandler", () => {
     }));
   });
 
-  it("registers new routing, commits DB updates, then removes old routing", async () => {
+  it("commits DB updates before routing registration, then removes old routing", async () => {
     const { updateChatSubdomainHandler } = await import(
       "../../../controllers/chat/subdomain.controller.js"
     );
@@ -183,6 +183,9 @@ describe("updateChatSubdomainHandler", () => {
       "user-1/chat-1",
     );
     expect(mockRefs.db.transaction).toHaveBeenCalledTimes(1);
+    expect(
+      mockRefs.db.transaction.mock.invocationCallOrder[0]!,
+    ).toBeLessThan(mockRefs.registerPreviewSubdomain.mock.invocationCallOrder[0]!);
     expect(mockRefs.deletePreviewSubdomain).toHaveBeenCalledWith(
       "old-subdomain",
       "user-1/chat-1",
@@ -198,7 +201,7 @@ describe("updateChatSubdomainHandler", () => {
     );
   });
 
-  it("rolls back newly registered routing when DB transaction fails", async () => {
+  it("does not register routing when DB transaction fails", async () => {
     mockRefs.transactionError = new Error("db write failed");
 
     const { updateChatSubdomainHandler } = await import(
@@ -215,11 +218,8 @@ describe("updateChatSubdomainHandler", () => {
 
     await updateChatSubdomainHandler(req, res);
 
-    expect(mockRefs.deletePreviewSubdomain).toHaveBeenCalledTimes(1);
-    expect(mockRefs.deletePreviewSubdomain).toHaveBeenCalledWith(
-      "new-subdomain",
-      "user-1/chat-1",
-    );
+    expect(mockRefs.registerPreviewSubdomain).not.toHaveBeenCalled();
+    expect(mockRefs.deletePreviewSubdomain).not.toHaveBeenCalled();
     expect(mockRefs.sendError).toHaveBeenCalledWith(
       res,
       HttpStatus.INTERNAL_SERVER_ERROR,
@@ -227,7 +227,7 @@ describe("updateChatSubdomainHandler", () => {
     );
   });
 
-  it("does not delete old routing when new routing registration fails", async () => {
+  it("rolls back DB updates when routing registration fails", async () => {
     mockRefs.registerPreviewSubdomain.mockRejectedValueOnce(
       new Error("kv upsert failed"),
     );
@@ -246,6 +246,13 @@ describe("updateChatSubdomainHandler", () => {
 
     await updateChatSubdomainHandler(req, res);
 
+    expect(mockRefs.db.transaction).toHaveBeenCalledTimes(2);
+    expect(mockRefs.txUpdateChatChain.set).toHaveBeenCalledWith(
+      expect.objectContaining({ customSubdomain: "new-subdomain" }),
+    );
+    expect(mockRefs.txUpdateChatChain.set).toHaveBeenCalledWith(
+      expect.objectContaining({ customSubdomain: "old-subdomain" }),
+    );
     expect(mockRefs.deletePreviewSubdomain).not.toHaveBeenCalled();
     expect(mockRefs.sendError).toHaveBeenCalledWith(
       res,

@@ -114,41 +114,76 @@ export async function updateChatSubdomainHandler(
       return;
     }
 
-    const oldSubdomain = chatData.customSubdomain ?? generatePreviewSubdomain(userId, chatId);
+    const previousCustomSubdomain = chatData.customSubdomain ?? null;
+    const oldSubdomain =
+      previousCustomSubdomain ?? generatePreviewSubdomain(userId, chatId);
     const subdomainChanged = oldSubdomain !== newSubdomain;
+    const newPreviewUrl = buildSubdomainPreviewUrl(newSubdomain);
+    const previousPreviewUrl = buildSubdomainPreviewUrl(oldSubdomain);
 
-    const routing = await registerPreviewSubdomain(userId, chatId, newSubdomain);
-    if (!routing) {
-      sendError(res, HttpStatus.INTERNAL_SERVER_ERROR, "Subdomain routing is not configured on this server.");
-      return;
-    }
+    await db.transaction(async (tx) => {
+      await tx
+        .update(chat)
+        .set({ customSubdomain: newSubdomain, updatedAt: new Date() })
+        .where(eq(chat.id, chatId));
 
-    try {
-      await db.transaction(async (tx) => {
-        await tx
-          .update(chat)
-          .set({ customSubdomain: newSubdomain, updatedAt: new Date() })
-          .where(eq(chat.id, chatId));
-
-        const latestBuild = await tx.query.build.findFirst({
-          where: eq(build.chatId, chatId),
-          orderBy: [desc(build.createdAt)],
-        });
-
-        if (!latestBuild) {
-          return;
-        }
-
-        await tx
-          .update(build)
-          .set({ previewUrl: buildSubdomainPreviewUrl(newSubdomain) ?? routing.previewUrl, updatedAt: new Date() })
-          .where(eq(build.id, latestBuild.id));
+      const latestBuild = await tx.query.build.findFirst({
+        where: eq(build.chatId, chatId),
+        orderBy: [desc(build.createdAt)],
       });
-    } catch (error) {
-      if (subdomainChanged) {
-        await deletePreviewSubdomain(newSubdomain, routing.storagePrefix);
+
+      if (!latestBuild) {
+        return;
       }
-      throw error;
+
+      await tx
+        .update(build)
+        .set({ previewUrl: newPreviewUrl, updatedAt: new Date() })
+        .where(eq(build.id, latestBuild.id));
+    });
+
+    let routing: Awaited<ReturnType<typeof registerPreviewSubdomain>> = null;
+    try {
+      routing = await registerPreviewSubdomain(userId, chatId, newSubdomain);
+      if (!routing) {
+        throw new Error("Subdomain routing is not configured on this server.");
+      }
+    } catch (registrationError) {
+      try {
+        await db.transaction(async (tx) => {
+          await tx
+            .update(chat)
+            .set({ customSubdomain: previousCustomSubdomain, updatedAt: new Date() })
+            .where(eq(chat.id, chatId));
+
+          const latestBuild = await tx.query.build.findFirst({
+            where: eq(build.chatId, chatId),
+            orderBy: [desc(build.createdAt)],
+          });
+
+          if (!latestBuild) {
+            return;
+          }
+
+          await tx
+            .update(build)
+            .set({ previewUrl: previousPreviewUrl, updatedAt: new Date() })
+            .where(eq(build.id, latestBuild.id));
+        });
+      } catch (rollbackError) {
+        logger.error(
+          {
+            chatId,
+            userId,
+            newSubdomain,
+            previousCustomSubdomain,
+            rollbackError: ensureError(rollbackError),
+          },
+          "Failed to rollback subdomain DB updates after routing registration failure",
+        );
+      }
+
+      throw registrationError;
     }
 
     if (subdomainChanged) {

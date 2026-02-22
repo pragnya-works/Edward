@@ -2,6 +2,7 @@ import { ListObjectsV2Command } from "@aws-sdk/client-s3";
 import tar from "tar-stream";
 import zlib from "zlib";
 import { Readable } from "stream";
+import { promisify } from "node:util";
 import { createLogger } from "../../../utils/logger.js";
 import { downloadFile } from "../../storage.service.js";
 import { buildS3Key } from "../../storage/key.utils.js";
@@ -29,6 +30,7 @@ import {
 const logger = createLogger("READ_SANDBOX");
 const SNAPSHOT_CACHE_TTL_MS = 30_000;
 const EXCLUDED_DIR_SET = new Set(SANDBOX_EXCLUDED_DIRS);
+const gunzipAsync = promisify(zlib.gunzip);
 
 interface SourceSnapshotPayload {
   version: number;
@@ -108,7 +110,7 @@ async function readProjectFilesFromSnapshot(
     const gzBuffer = await readBufferStream(stream);
     if (gzBuffer.length === 0) return new Map<string, string>();
 
-    const jsonBuffer = zlib.gunzipSync(gzBuffer);
+    const jsonBuffer = await gunzipAsync(gzBuffer);
     const parsed = JSON.parse(jsonBuffer.toString("utf8")) as
       | SourceSnapshotPayload
       | Record<string, unknown>;
@@ -336,19 +338,29 @@ async function readProjectFilesFromLegacySources(
   if (!BUCKET_NAME) return files;
 
   const s3Prefix = buildS3Key(userId, chatId, "sources/");
-  const listCommand = new ListObjectsV2Command({
-    Bucket: BUCKET_NAME,
-    Prefix: s3Prefix,
-  });
+  const paths: string[] = [];
+  let continuationToken: string | undefined;
 
-  const response = await s3Client.send(listCommand);
-  const objects = response.Contents || [];
-  if (objects.length === 0) return files;
+  do {
+    const listCommand = new ListObjectsV2Command({
+      Bucket: BUCKET_NAME,
+      Prefix: s3Prefix,
+      ContinuationToken: continuationToken,
+    });
 
-  const paths = objects
-    .map((obj) => obj.Key)
-    .filter((key): key is string => !!key)
-    .map((key) => key.slice(s3Prefix.length));
+    const response = await s3Client.send(listCommand);
+    const objects = response.Contents ?? [];
+    for (const object of objects) {
+      if (!object.Key) continue;
+      paths.push(object.Key.slice(s3Prefix.length));
+    }
+
+    continuationToken = response.IsTruncated
+      ? response.NextContinuationToken
+      : undefined;
+  } while (continuationToken);
+
+  if (paths.length === 0) return files;
 
   const allRelPaths = paths.filter((p) => {
     if (!p) return false;

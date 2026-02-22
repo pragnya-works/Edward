@@ -200,12 +200,12 @@ export default {
             "Content-Type",
             response.headers.get("content-type") || "application/octet-stream"
         );
-        headers.set(
-            "Cache-Control",
-            isAsset
+        const cacheControl = isAsset
+            ? (response.ok
                 ? "public, max-age=31536000, immutable"
-                : "public, max-age=60, must-revalidate",
-        );
+                : "no-store")
+            : "public, max-age=60, must-revalidate";
+        headers.set("Cache-Control", cacheControl);
         headers.set("X-Content-Type-Options", "nosniff");
         headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
 

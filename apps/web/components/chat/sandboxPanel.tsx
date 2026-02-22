@@ -193,12 +193,10 @@ function isTrustedPreviewMessageOrigin({
   messageOrigin,
   expectedPreviewOrigin,
   currentPreviewAddress,
-  reportedHref,
 }: {
   messageOrigin: string;
   expectedPreviewOrigin: string | null;
   currentPreviewAddress: string | null;
-  reportedHref: string | null;
 }): boolean {
   if (!messageOrigin || messageOrigin === "null") {
     return true;
@@ -206,16 +204,12 @@ function isTrustedPreviewMessageOrigin({
 
   const allowedOrigins = new Set<string>();
   const currentOrigin = getOriginFromAddress(currentPreviewAddress);
-  const reportedOrigin = getOriginFromAddress(reportedHref);
 
   if (expectedPreviewOrigin) {
     allowedOrigins.add(expectedPreviewOrigin);
   }
   if (currentOrigin) {
     allowedOrigins.add(currentOrigin);
-  }
-  if (reportedOrigin) {
-    allowedOrigins.add(reportedOrigin);
   }
 
   if (allowedOrigins.size === 0) {
@@ -503,7 +497,6 @@ export function SandboxPanel({ chatId, projectName }: SandboxPanelProps) {
           messageOrigin: event.origin,
           expectedPreviewOrigin: previewOrigin,
           currentPreviewAddress: previewAddress,
-          reportedHref: href,
         })
       ) {
         return;
