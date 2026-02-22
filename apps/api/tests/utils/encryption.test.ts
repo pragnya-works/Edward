@@ -92,5 +92,6 @@ describe('encryption', () => {
         expect(decrypted).toBe(input);
       });
     });
+
   });
 });

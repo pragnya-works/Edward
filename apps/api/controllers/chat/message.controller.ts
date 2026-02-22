@@ -12,6 +12,7 @@ import {
 } from "@edward/auth";
 import type { AuthenticatedRequest } from "../../middleware/auth.js";
 import { getAuthenticatedUserId } from "../../middleware/auth.js";
+import { getRequestId } from "../../middleware/securityTelemetry.js";
 import { getUserWithApiKey } from "../../services/apiKey.service.js";
 import { decrypt } from "../../utils/encryption.js";
 import { HttpStatus, ERROR_MESSAGES } from "../../utils/constants.js";
@@ -67,6 +68,7 @@ export async function unifiedSendMessage(
   try {
     const userId = getAuthenticatedUserId(req);
     const body = req.body;
+    const traceId = getRequestId(req);
 
     const [activeRunCountResult] = await db
       .select({ value: count() })
@@ -225,6 +227,7 @@ export async function unifiedSendMessage(
       historyMessages,
       projectContext,
       model: selectedModel,
+      traceId,
     });
 
     if (!userMessageId) {

@@ -14,6 +14,9 @@ const EXT_BY_MIME: Record<AllowedImageMimeType, string> = {
 };
 
 export function buildCdnAssetUrl(key: string): string {
+  if (!ASSETS_BASE_URL) {
+    throw new Error("ASSETS_URL is not configured");
+  }
   return `${ASSETS_BASE_URL}/${key}`;
 }
 

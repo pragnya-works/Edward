@@ -25,6 +25,7 @@ export interface AgentRunMetadata {
   historyMessages: LlmChatMessage[];
   projectContext: string;
   model?: string;
+  traceId?: string;
   resumeCheckpoint?: RunResumeCheckpoint;
 }
 
@@ -93,6 +94,7 @@ export function parseAgentRunMetadata(input: unknown): AgentRunMetadata {
     historyMessages,
     projectContext: input.projectContext,
     model: typeof input.model === "string" ? input.model : undefined,
+    traceId: typeof input.traceId === "string" ? input.traceId : undefined,
     resumeCheckpoint: isRecord(input.resumeCheckpoint) &&
       typeof input.resumeCheckpoint.fullRawResponse === "string" &&
       typeof input.resumeCheckpoint.turn === "number" &&

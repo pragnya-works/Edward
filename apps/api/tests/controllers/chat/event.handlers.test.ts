@@ -1,9 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ParserEventType } from "../../../schemas/chat.schema.js";
 import type { WorkflowState } from "../../../services/planning/schemas.js";
+import type { EventHandlerContext } from "../../../controllers/chat/event.handlers.js";
 
 const ensureSandboxMock = vi.fn();
 const executeInstallPhaseMock = vi.fn();
+const sendSSEEventMock = vi.fn();
+const sendSSEErrorMock = vi.fn();
 
 vi.mock("../../../services/planning/workflowEngine.js", async () => {
   const actual = await vi.importActual(
@@ -37,6 +40,11 @@ vi.mock("../../../services/tools/toolGateway.service.js", () => ({
   executeWebSearchTool: vi.fn(),
 }));
 
+vi.mock("../../../controllers/chat/sse.utils.js", () => ({
+  sendSSEEvent: sendSSEEventMock,
+  sendSSEError: sendSSEErrorMock,
+}));
+
 describe("event handlers sandbox gating", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -52,7 +60,7 @@ describe("event handlers sandbox gating", () => {
     });
   });
 
-  function createCtx() {
+  function createCtx(): EventHandlerContext {
     const workflow = {
       id: "wf-1",
       userId: "u-1",
@@ -67,9 +75,10 @@ describe("event handlers sandbox gating", () => {
 
     return {
       workflow,
-      res: {} as never,
-      decryptedApiKey: "k",
-      userId: "u-1",
+      res: {
+        writable: false,
+        writableEnded: false,
+      } as never,
       chatId: "c-1",
       isFollowUp: false,
       sandboxTagDetected: false,
@@ -79,6 +88,29 @@ describe("event handlers sandbox gating", () => {
       declaredPackages: [],
       toolResultsThisTurn: [],
     };
+  }
+
+  function createInstallQueue() {
+    let tail = Promise.resolve();
+    return {
+      enqueue(task: () => Promise<void>) {
+        const queued = tail.then(task, task);
+        tail = queued.catch(() => undefined);
+      },
+      async waitForIdle() {
+        await tail;
+      },
+    };
+  }
+
+  function deferred<T>() {
+    let resolve!: (value: T | PromiseLike<T>) => void;
+    let reject!: (reason?: unknown) => void;
+    const promise = new Promise<T>((res, rej) => {
+      resolve = res;
+      reject = rej;
+    });
+    return { promise, resolve, reject };
   }
 
   it("provisions sandbox for install even before sandbox tag", async () => {
@@ -155,5 +187,180 @@ describe("event handlers sandbox gating", () => {
       tool: "web_search",
       query: "latest next.js version",
     });
+  });
+
+  it("queues install work without blocking parser event handling", async () => {
+    const { resolveDependencies } = await import(
+      "../../../services/planning/resolvers/dependency.resolver.js"
+    );
+    vi.mocked(resolveDependencies).mockResolvedValueOnce({
+      resolved: [{ name: "react", version: "18.2.0", valid: true }],
+      failed: [],
+      warnings: [],
+    });
+
+    const pendingInstall = deferred<{
+      step: string;
+      success: boolean;
+      durationMs: number;
+      retryCount: number;
+    }>();
+    executeInstallPhaseMock.mockReturnValueOnce(pendingInstall.promise);
+
+    const { handleParserEvent } = await import(
+      "../../../controllers/chat/event.handlers.js"
+    );
+    const ctx = createCtx();
+    const installTaskQueue = createInstallQueue();
+    ctx.installTaskQueue = installTaskQueue;
+
+    const result = await Promise.race([
+      handleParserEvent(ctx, {
+        type: ParserEventType.INSTALL_CONTENT,
+        dependencies: ["react"],
+        framework: "react",
+      }).then(() => "resolved"),
+      new Promise<"timeout">((resolve) =>
+        setTimeout(() => resolve("timeout"), 50),
+      ),
+    ]);
+
+    expect(result).toBe("resolved");
+
+    await Promise.resolve();
+    expect(executeInstallPhaseMock).toHaveBeenCalledTimes(1);
+
+    pendingInstall.resolve({
+      step: "INSTALL_PACKAGES",
+      success: true,
+      durationMs: 1,
+      retryCount: 0,
+    });
+    await installTaskQueue.waitForIdle();
+  });
+
+  it("waits for queued installs before running sandbox commands", async () => {
+    const { resolveDependencies } = await import(
+      "../../../services/planning/resolvers/dependency.resolver.js"
+    );
+    const { executeCommandTool } = await import(
+      "../../../services/tools/toolGateway.service.js"
+    );
+    vi.mocked(resolveDependencies).mockResolvedValueOnce({
+      resolved: [{ name: "react", version: "18.2.0", valid: true }],
+      failed: [],
+      warnings: [],
+    });
+
+    const pendingInstall = deferred<{
+      step: string;
+      success: boolean;
+      durationMs: number;
+      retryCount: number;
+    }>();
+    executeInstallPhaseMock.mockReturnValueOnce(pendingInstall.promise);
+    vi.mocked(executeCommandTool).mockResolvedValueOnce({
+      exitCode: 0,
+      stdout: "ok",
+      stderr: "",
+    });
+
+    const { handleParserEvent } = await import(
+      "../../../controllers/chat/event.handlers.js"
+    );
+    const ctx = createCtx();
+    ctx.sandboxTagDetected = true;
+    const installTaskQueue = createInstallQueue();
+    ctx.installTaskQueue = installTaskQueue;
+
+    await handleParserEvent(ctx, {
+      type: ParserEventType.INSTALL_CONTENT,
+      dependencies: ["react"],
+      framework: "react",
+    });
+
+    const commandPromise = handleParserEvent(ctx, {
+      type: ParserEventType.COMMAND,
+      command: "pwd",
+      args: [],
+    });
+
+    await Promise.resolve();
+    expect(executeCommandTool).not.toHaveBeenCalled();
+
+    pendingInstall.resolve({
+      step: "INSTALL_PACKAGES",
+      success: true,
+      durationMs: 1,
+      retryCount: 0,
+    });
+    await installTaskQueue.waitForIdle();
+    await commandPromise;
+
+    expect(executeCommandTool).toHaveBeenCalledTimes(1);
+  });
+
+  it("emits INSTALL_END only after real install completion", async () => {
+    const { resolveDependencies } = await import(
+      "../../../services/planning/resolvers/dependency.resolver.js"
+    );
+    vi.mocked(resolveDependencies).mockResolvedValueOnce({
+      resolved: [{ name: "react", version: "18.2.0", valid: true }],
+      failed: [],
+      warnings: [],
+    });
+
+    const pendingInstall = deferred<{
+      step: string;
+      success: boolean;
+      durationMs: number;
+      retryCount: number;
+    }>();
+    executeInstallPhaseMock.mockReturnValueOnce(pendingInstall.promise);
+
+    const { handleParserEvent } = await import(
+      "../../../controllers/chat/event.handlers.js"
+    );
+    const ctx = createCtx();
+    const installTaskQueue = createInstallQueue();
+    ctx.installTaskQueue = installTaskQueue;
+
+    await handleParserEvent(ctx, {
+      type: ParserEventType.INSTALL_CONTENT,
+      dependencies: ["react"],
+      framework: "react",
+    });
+
+    await Promise.resolve();
+
+    expect(sendSSEEventMock).toHaveBeenCalledWith(
+      ctx.res,
+      expect.objectContaining({
+        type: ParserEventType.INSTALL_CONTENT,
+        dependencies: ["react"],
+      }),
+    );
+
+    expect(sendSSEEventMock).not.toHaveBeenCalledWith(
+      ctx.res,
+      expect.objectContaining({
+        type: ParserEventType.INSTALL_END,
+      }),
+    );
+
+    pendingInstall.resolve({
+      step: "INSTALL_PACKAGES",
+      success: true,
+      durationMs: 1,
+      retryCount: 0,
+    });
+    await installTaskQueue.waitForIdle();
+
+    expect(sendSSEEventMock).toHaveBeenCalledWith(
+      ctx.res,
+      expect.objectContaining({
+        type: ParserEventType.INSTALL_END,
+      }),
+    );
   });
 });

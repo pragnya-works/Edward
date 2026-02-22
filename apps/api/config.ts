@@ -1,6 +1,6 @@
 import { ConnectionOptions } from "bullmq";
 import { Environment } from "./utils/logger.js";
-import { DeploymentType } from "./services/sandbox/builder/basePathInjector.js";
+import type { DeploymentType } from "./services/sandbox/builder/basePathInjector.js";
 
 function validateEnvVar(name: string, value: string | undefined): string {
   if (!value || value.trim() === "") {
@@ -19,6 +19,41 @@ function validatePort(name: string, value: string | undefined): number {
   return port;
 }
 
+export type TrustProxySetting = boolean | number | string | string[];
+
+function parseTrustProxyList(value: string): string | string[] {
+  const entries = value
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+
+  if (entries.length <= 1) {
+    return entries[0] ?? value;
+  }
+
+  return entries;
+}
+
+export function parseTrustProxy(
+  value: string | undefined,
+  fallback: boolean,
+): TrustProxySetting {
+  if (!value || value.trim() === "") {
+    return fallback ? 1 : false;
+  }
+
+  const trimmed = value.trim();
+  const normalized = trimmed.toLowerCase();
+  if (normalized === "true") return 1;
+  if (normalized === "false") return false;
+
+  if (/^\d+$/.test(trimmed)) {
+    return Number.parseInt(trimmed, 10);
+  }
+
+  return parseTrustProxyList(trimmed);
+}
+
 const DEFAULT_REDIS_PORT = 6379;
 
 function parseRedisUrl(url: string): { host: string; port: number } {
@@ -31,6 +66,45 @@ function parseRedisUrl(url: string): { host: string; port: number } {
   } catch {
     throw new Error(`Invalid REDIS_URL format: ${url}`);
   }
+}
+
+function hasValue(value: string | undefined): boolean {
+  return Boolean(value && value.trim().length > 0);
+}
+
+function hasCompletePreviewRoutingConfig(env: NodeJS.ProcessEnv): boolean {
+  return (
+    hasValue(env.CLOUDFLARE_API_TOKEN) &&
+    hasValue(env.CLOUDFLARE_ACCOUNT_ID) &&
+    hasValue(env.CLOUDFLARE_KV_NAMESPACE_ID) &&
+    hasValue(env.PREVIEW_ROOT_DOMAIN)
+  );
+}
+
+export const DEPLOYMENT_TYPES = {
+  PATH: "path",
+  SUBDOMAIN: "subdomain",
+} as const satisfies Record<string, DeploymentType>;
+
+function isDeploymentType(value: string | undefined): value is DeploymentType {
+  return (
+    value === DEPLOYMENT_TYPES.PATH ||
+    value === DEPLOYMENT_TYPES.SUBDOMAIN
+  );
+}
+
+export function resolveDeploymentType(
+  env: NodeJS.ProcessEnv = process.env,
+): DeploymentType {
+  const raw = env.EDWARD_DEPLOYMENT_TYPE?.trim().toLowerCase();
+
+  if (isDeploymentType(raw)) {
+    return raw;
+  }
+
+  return hasCompletePreviewRoutingConfig(env)
+    ? DEPLOYMENT_TYPES.SUBDOMAIN
+    : DEPLOYMENT_TYPES.PATH;
 }
 
 export const config = {
@@ -71,6 +145,9 @@ export const config = {
     isTest(): boolean {
       return this.environment === Environment.Test;
     },
+    get trustProxy(): TrustProxySetting {
+      return parseTrustProxy(process.env.TRUST_PROXY, this.isProduction());
+    },
   },
 
   cors: {
@@ -108,7 +185,16 @@ export const config = {
   },
 
   deployment: {
-    type: (process.env.EDWARD_DEPLOYMENT_TYPE as DeploymentType) || "path",
+    get type(): DeploymentType {
+      return resolveDeploymentType();
+    },
+  },
+
+  previewRouting: {
+    cloudflareApiToken: process.env.CLOUDFLARE_API_TOKEN,
+    cloudflareAccountId: process.env.CLOUDFLARE_ACCOUNT_ID,
+    cloudflareKvNamespaceId: process.env.CLOUDFLARE_KV_NAMESPACE_ID,
+    rootDomain: process.env.PREVIEW_ROOT_DOMAIN,
   },
 
   docker: {

@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { LazyMotion, MotionConfig, domAnimation } from "motion/react";
 import { ChatStreamProvider } from "@/contexts/chatStreamContext";
 import { SandboxProvider } from "@/contexts/sandboxContext";
+import { Toaster } from "@edward/ui/components/sonner";
 
 function makeQueryClient() {
   return new QueryClient({
@@ -32,7 +33,10 @@ export function Providers({ children }: { children: ReactNode }) {
         <MotionConfig reducedMotion="user">
           <QueryClientProvider client={queryClient}>
             <ChatStreamProvider>
-              <SandboxProvider>{children}</SandboxProvider>
+              <SandboxProvider>
+                {children}
+                <Toaster />
+              </SandboxProvider>
             </ChatStreamProvider>
           </QueryClientProvider>
         </MotionConfig>

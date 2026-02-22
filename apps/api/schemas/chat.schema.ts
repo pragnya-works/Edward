@@ -241,3 +241,29 @@ export const ParserEventSchema = z.discriminatedUnion("type", [
 ]);
 
 export type ParserEvent = z.infer<typeof ParserEventSchema>;
+
+
+export const CheckSubdomainQuerySchema = z.object({
+  subdomain: z
+    .string()
+    .min(1, "Subdomain is required")
+    .max(63, "Subdomain must be 63 characters or fewer")
+    .toLowerCase(),
+  chatId: z.string().min(1, "chatId is required"),
+});
+
+export type CheckSubdomainQuery = z.infer<typeof CheckSubdomainQuerySchema>;
+
+export const UpdateSubdomainBodySchema = z.object({
+  subdomain: z
+    .string()
+    .min(3, "Subdomain must be at least 3 characters")
+    .max(63, "Subdomain must be 63 characters or fewer")
+    .toLowerCase()
+    .regex(
+      /^[a-z0-9][a-z0-9-]*[a-z0-9]$/,
+      "Only lowercase letters, numbers, and hyphens are allowed. Cannot start or end with a hyphen.",
+    ),
+});
+
+export type UpdateSubdomainBody = z.infer<typeof UpdateSubdomainBodySchema>;

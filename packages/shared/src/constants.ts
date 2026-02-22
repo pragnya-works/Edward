@@ -3,6 +3,13 @@ export enum Provider {
   GEMINI = "gemini",
 }
 
+export enum GithubDisconnectReason {
+  NONE = "none",
+  NOT_CONNECTED = "not_connected",
+  REPO_MISSING = "repo_missing",
+  AUTH_MISSING = "auth_missing",
+}
+
 export const API_KEY_REGEX = {
   [Provider.OPENAI]: /^sk-(?:proj-[a-zA-Z0-9_-]{48,}|[a-zA-Z0-9]{48,})$/,
   [Provider.GEMINI]: /^AIza[a-zA-Z0-9_-]{35,}$/,

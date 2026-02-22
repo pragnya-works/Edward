@@ -1,11 +1,13 @@
-import { describe, it, expect, vi, beforeEach, Mocked } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach, Mocked } from "vitest";
 import { db } from "@edward/auth";
 import { syncChatToGithub } from "../../services/github.service.js";
 import * as syncUtils from "../../services/github/sync.utils.js";
 import * as provisioning from "../../services/sandbox/lifecycle/provisioning.js";
 import * as storage from "../../services/storage.service.js";
 import * as archive from "../../services/sandbox/backup/archive.js";
+import * as githubClient from "@edward/octokit";
 import { Readable } from "stream";
+import { encrypt } from "../../utils/encryption.js";
 
 interface MockedDb {
   select: Mocked<() => MockedDb>;
@@ -39,9 +41,19 @@ vi.mock("@edward/auth", async () => {
 });
 
 vi.mock("@edward/octokit", () => ({
-  createGithubClient: vi.fn(),
-  checkRepoPermission: vi.fn().mockResolvedValue(true),
-  syncFiles: vi.fn().mockResolvedValue("mock-sha"),
+  createGithubClient: vi.fn(() => ({
+    rest: {
+      repos: {
+        get: vi.fn().mockResolvedValue({
+          data: {
+            private: true,
+            permissions: { push: true },
+          },
+        }),
+      },
+    },
+  })),
+  syncFiles: vi.fn().mockResolvedValue({ sha: "mock-sha", changed: true }),
 }));
 
 vi.mock("../../services/sandbox/lifecycle/provisioning.js", () => ({
@@ -86,17 +98,24 @@ describe("github sync service", () => {
   const mockBranch = "main";
   const mockMessage = "test commit";
   const mockedDb = db as unknown as MockedDb;
+  const originalEncryptionKey = process.env.ENCRYPTION_KEY;
 
   beforeEach(() => {
     vi.clearAllMocks();
+    process.env.ENCRYPTION_KEY =
+      "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 
     const dbMock = vi.mocked(mockedDb.limit);
     dbMock.mockImplementation((() => {
       const callCount = dbMock.mock.calls.length;
       if (callCount === 1)
-        return Promise.resolve([{ accessToken: "mock-token" }]);
-      return Promise.resolve([{ repo: "owner/repo" }]);
-    }) as () => Promise<{ accessToken: string }[] | { repo: string }[]>);
+        return Promise.resolve([{ accessToken: `enc:v1:${encrypt("mock-token")}` }]);
+      return Promise.resolve([{ repoFullName: "owner/repo" }]);
+    }) as () => Promise<{ accessToken: string }[] | { repoFullName: string }[]>);
+  });
+
+  afterEach(() => {
+    process.env.ENCRYPTION_KEY = originalEncryptionKey;
   });
 
   it("should sync from active sandbox if available", async () => {
@@ -121,6 +140,33 @@ describe("github sync service", () => {
     expect(result.sha).toBe("mock-sha");
     expect(provisioning.getActiveSandbox).toHaveBeenCalledWith(mockChatId);
     expect(syncUtils.extractFilesFromStream).toHaveBeenCalled();
+  });
+
+  it("should report noChanges when remote branch already matches local files", async () => {
+    vi.mocked(provisioning.getActiveSandbox).mockResolvedValue("sandbox-789");
+    vi.mocked(githubClient.syncFiles).mockResolvedValueOnce({
+      sha: "existing-sha",
+      changed: false,
+    });
+
+    vi.mocked(archive.createBackupArchive).mockResolvedValue({
+      uploadStream: new Readable({
+        read() {
+          this.push(null);
+        },
+      }),
+      completion: Promise.resolve(true),
+    });
+
+    const result = await syncChatToGithub(
+      mockChatId,
+      mockUserId,
+      mockBranch,
+      mockMessage,
+    );
+
+    expect(result.sha).toBe("existing-sha");
+    expect(result.noChanges).toBe(true);
   });
 
   it("should fallback to S3 if no active sandbox is found", async () => {

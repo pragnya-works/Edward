@@ -12,6 +12,11 @@ import { sendSSEEvent } from "./sse.utils.js";
 import { formatToolResults, type AgentToolResult } from "./command.utils.js";
 import type { EventHandlerContext } from "./event.handlers.js";
 
+interface InstallTaskQueue {
+  enqueue(task: () => Promise<void>): void;
+  waitForIdle(): Promise<void>;
+}
+
 interface StreamMetaBase {
   chatId: string;
   userMessageId: string;
@@ -63,6 +68,8 @@ export interface EventHandlerContextParams {
   toolResultsThisTurn: AgentToolResult[];
   runId?: string;
   turn: number;
+  installTaskQueue: InstallTaskQueue;
+  abortSignal: AbortSignal;
 }
 
 export function buildEventHandlerContext(
@@ -81,6 +88,8 @@ export function buildEventHandlerContext(
     toolResultsThisTurn: params.toolResultsThisTurn,
     runId: params.runId,
     turn: params.turn,
+    installTaskQueue: params.installTaskQueue,
+    abortSignal: params.abortSignal,
   };
 }
 

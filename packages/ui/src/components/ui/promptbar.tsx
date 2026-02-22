@@ -67,6 +67,7 @@ export default function Promptbar({
   isStreaming = false,
   onCancel,
   onImageUpload,
+  onImageUploadError,
 }: PromptbarProps) {
   const [inputValue, setInputValue] = useState("");
   const [suggestionIndex, setSuggestionIndex] = useState(0);
@@ -94,7 +95,12 @@ export default function Promptbar({
     handleDragOver,
     handleDrop,
     handleAttachmentClick,
-  } = useFileAttachments(isAuthenticated, supportsVision, onImageUpload);
+  } = useFileAttachments(
+    isAuthenticated,
+    supportsVision,
+    onImageUpload,
+    onImageUploadError,
+  );
 
   const uploadedImages = useMemo<UploadedImageRef[]>(() => {
     return attachedFiles

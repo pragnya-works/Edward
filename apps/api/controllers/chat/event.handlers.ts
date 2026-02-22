@@ -44,6 +44,11 @@ export interface EventHandlerContext {
   toolResultsThisTurn: AgentToolResult[];
   runId?: string;
   turn?: number;
+  installTaskQueue?: {
+    enqueue(task: () => Promise<void>): void;
+    waitForIdle(): Promise<void>;
+  };
+  abortSignal?: AbortSignal;
 }
 
 export interface EventHandlerResult {
@@ -103,10 +108,17 @@ async function handleSandboxEnd(ctx: EventHandlerContext): Promise<void> {
 }
 
 async function handleInstallContent(
-  ctx: EventHandlerContext,
+  ctx: Pick<
+    EventHandlerContext,
+    "workflow" | "res" | "chatId" | "isFollowUp" | "declaredPackages" | "abortSignal"
+  >,
   dependencies: string[] | undefined,
   framework: string | undefined,
 ): Promise<void> {
+  if (ctx.abortSignal?.aborted) {
+    return;
+  }
+
   if (dependencies) {
     ctx.declaredPackages.push(...dependencies);
   }
@@ -134,6 +146,7 @@ async function handleInstallContent(
 
   const rawDependencies = dependencies || [];
   if (rawDependencies.length === 0) return;
+  if (ctx.abortSignal?.aborted) return;
 
   const frameworkForResolution = ctx.workflow.context.framework || "vanilla";
   const resolution = await resolveDependencies(
@@ -175,6 +188,7 @@ async function handleInstallContent(
   if (ctx.workflow.sandboxId) {
     await addSandboxPackages(ctx.workflow.sandboxId, validDeps);
   }
+  if (ctx.abortSignal?.aborted) return;
 
   const installResult = await executeInstallPhase(ctx.workflow);
   if (!installResult.success) {
@@ -203,6 +217,11 @@ async function handleCommand(
       "Command skipped: no active sandbox session. Emit <edward_sandbox> first.",
       { code: "command_without_sandbox" },
     );
+    return;
+  }
+
+  await ctx.installTaskQueue?.waitForIdle();
+  if (ctx.abortSignal?.aborted) {
     return;
   }
 
@@ -338,8 +357,64 @@ export async function handleParserEvent(
         break;
 
       case ParserEventType.INSTALL_CONTENT:
-        sendSSEEvent(ctx.res, event);
-        await handleInstallContent(ctx, event.dependencies, event.framework);
+        {
+          const runInstall = async () => {
+            if (ctx.abortSignal?.aborted) {
+              return;
+            }
+
+            sendSSEEvent(ctx.res, {
+              type: ParserEventType.INSTALL_CONTENT,
+              dependencies: event.dependencies,
+              framework: event.framework,
+            });
+
+            try {
+              await handleInstallContent(
+                {
+                  workflow: ctx.workflow,
+                  res: ctx.res,
+                  chatId: ctx.chatId,
+                  isFollowUp: ctx.isFollowUp,
+                  declaredPackages: ctx.declaredPackages,
+                  abortSignal: ctx.abortSignal,
+                },
+                event.dependencies,
+                event.framework,
+              );
+            } catch (installError) {
+              const err = ensureError(installError);
+              logger.error(
+                { err, chatId: ctx.chatId, dependencies: event.dependencies },
+                "Install execution failed",
+              );
+              sendSSEError(
+                ctx.res,
+                `Dependency installation failed: ${err.message}`,
+                {
+                  code: "dependency_install_failed",
+                  details: {
+                    dependencies: event.dependencies,
+                  },
+                },
+              );
+            } finally {
+              sendSSEEvent(ctx.res, {
+                type: ParserEventType.INSTALL_END,
+              });
+            }
+          };
+
+          if (ctx.installTaskQueue) {
+            ctx.installTaskQueue.enqueue(runInstall);
+          } else {
+            await runInstall();
+          }
+        }
+        handled = true;
+        break;
+
+      case ParserEventType.INSTALL_END:
         handled = true;
         break;
 

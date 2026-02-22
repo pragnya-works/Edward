@@ -8,6 +8,7 @@ import path from "path";
 import zlib from "zlib";
 import { isS3Configured } from "../storage/config.js";
 import { createBackupArchive } from "./backup/archive.js";
+import { createSourceSnapshot } from "./backup/snapshot.js";
 import { buildS3Key } from "../storage/key.utils.js";
 import { redis } from "../../lib/redis.js";
 import { HeadObjectCommand } from "@aws-sdk/client-s3";
@@ -90,6 +91,11 @@ export async function backupSandboxInstance(
       sandbox.chatId,
       "source_backup.tar.gz",
     );
+    const snapshotKey = buildS3Key(
+      sandbox.userId,
+      sandbox.chatId,
+      "source_snapshot.json.gz",
+    );
 
     const uploadPromise = uploadFile(s3Key, uploadStream, {
       sandboxId,
@@ -99,6 +105,37 @@ export async function backupSandboxInstance(
     });
 
     await Promise.all([completion, uploadPromise]);
+
+    // Persist a compact source snapshot for fast fallback reads without per-file S3 fan-out.
+    try {
+      const snapshotFiles = await createSourceSnapshot(container);
+      const snapshotPayload = JSON.stringify({
+        version: 1,
+        generatedAt: new Date().toISOString(),
+        fileCount: Object.keys(snapshotFiles).length,
+        files: snapshotFiles,
+      });
+      const snapshotBuffer = zlib.gzipSync(Buffer.from(snapshotPayload, "utf8"));
+
+      await uploadFile(
+        snapshotKey,
+        snapshotBuffer,
+        {
+          sandboxId,
+          originalPath: "source_snapshot.json.gz",
+          uploadTimestamp: new Date().toISOString(),
+          type: "source_snapshot",
+        },
+        snapshotBuffer.length,
+        "no-cache",
+      );
+    } catch (snapshotErr) {
+      logger.warn(
+        { snapshotErr, sandboxId, chatId: sandbox.chatId },
+        "Failed to generate/upload source snapshot (non-fatal)",
+      );
+    }
+
     await markBackupExists(sandbox.chatId);
     logger.info(
       { sandboxId, chatId: sandbox.chatId },
