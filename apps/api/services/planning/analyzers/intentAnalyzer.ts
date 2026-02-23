@@ -1,5 +1,5 @@
 import { IntentAnalysisSchema, IntentAnalysis } from '../schemas.js';
-import { generateResponse } from '../../../lib/llm/response.js';
+import { generateResponse } from '../../../lib/llm/provider.client.js';
 import { logger } from '../../../utils/logger.js';
 
 const ANALYSIS_SYSTEM_PROMPT = `You are a technical architect for a FRONTEND-ONLY development assistant. Analyze the user request and return a JSON object with this exact structure:

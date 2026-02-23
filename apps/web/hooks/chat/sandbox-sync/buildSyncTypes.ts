@@ -2,13 +2,10 @@ import type {
   StreamState,
 } from "@edward/shared/chat/types";
 import {
-  BuildStatus,
-  SandboxMode,
-} from "@/contexts/sandboxContext";
-import type {
   BuildErrorReport,
   BuildRecordStatus,
-} from "@/lib/api/build";
+} from "@edward/shared/api/contracts";
+import { BuildStatus, SandboxMode } from "@/stores/sandbox/types";
 
 export interface BuildStatusPayload {
   status?: BuildRecordStatus | null;

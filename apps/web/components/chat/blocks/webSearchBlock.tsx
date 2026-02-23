@@ -2,7 +2,7 @@
 
 import { m } from "motion/react";
 import { ExternalLink, Globe, Search, AlertTriangle } from "lucide-react";
-import type { WebSearchEvent } from "@edward/shared/chat/types";
+import type { WebSearchEvent } from "@edward/shared/streamEvents";
 
 interface WebSearchBlockProps {
   search: WebSearchEvent;

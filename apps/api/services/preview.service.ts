@@ -1,5 +1,5 @@
 import { sanitizePathComponent } from "./storage/key.utils.js";
-import { config } from "../config.js";
+import { config } from "../app.config.js";
 
 function getCloudfrontUrl(): string | null {
   const cloudfrontUrl = config.aws.cloudfrontDistributionUrl?.replace(/\/$/, "");

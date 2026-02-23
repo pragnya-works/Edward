@@ -1,9 +1,9 @@
-import { MetaPhase, ParserEventType } from "@edward/shared/stream-events";
+import { MetaPhase, ParserEventType } from "@edward/shared/streamEvents";
 import type { Dispatch } from "react";
-import {
-  type MetaEvent,
-  type StreamState,
-  type StreamedFile,
+import type { MetaEvent } from "@edward/shared/streamEvents";
+import type {
+  StreamState,
+  StreamedFile,
 } from "@edward/shared/chat/types";
 import {
   StreamActionType,

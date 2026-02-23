@@ -1,28 +1,8 @@
-import type { WebSearchResultItem } from "@edward/shared/stream-events";
-
-export interface CommandResult {
-  command: string;
-  args: string[];
-  stdout: string;
-  stderr: string;
-}
-
-export interface WebSearchResult {
-  query: string;
-  answer?: string;
-  results: WebSearchResultItem[];
-  error?: string;
-}
-
-export interface CommandToolResult extends CommandResult {
-  tool: "command";
-}
-
-export interface WebSearchToolResult extends WebSearchResult {
-  tool: "web_search";
-}
-
-export type AgentToolResult = CommandToolResult | WebSearchToolResult;
+import type {
+  AgentToolResult,
+  CommandResult,
+  WebSearchToolResult,
+} from "@edward/shared/streamToolResults";
 
 export function formatCommandResults(results: CommandResult[]): string {
   return results

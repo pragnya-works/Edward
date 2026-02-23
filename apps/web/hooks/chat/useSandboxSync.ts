@@ -5,9 +5,9 @@ import {
 } from "@edward/shared/chat/types";
 import { useChatStream } from "@/contexts/chatStreamContext";
 import {
-  SandboxMode,
   useSandbox,
 } from "@/contexts/sandboxContext";
+import { SandboxMode } from "@/stores/sandbox/types";
 import { useBuildStatusSync } from "@/hooks/chat/useBuildStatusSync";
 import { useSandboxStreamFileSync } from "@/hooks/chat/sandbox-sync/useSandboxStreamFileSync";
 

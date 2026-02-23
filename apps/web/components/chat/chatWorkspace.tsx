@@ -195,6 +195,7 @@ export function ChatWorkspace({
       userMessage: ChatMessageType | null,
       opts?: {
         suppressOptimisticUserMessage?: boolean;
+        retryTargetUserMessageId?: string;
         retryTargetAssistantMessageId?: string;
       },
     ): boolean => {
@@ -210,6 +211,7 @@ export function ChatWorkspace({
       startStream(content, {
         chatId,
         suppressOptimisticUserMessage: opts?.suppressOptimisticUserMessage,
+        retryTargetUserMessageId: opts?.retryTargetUserMessageId,
         retryTargetAssistantMessageId: opts?.retryTargetAssistantMessageId,
       });
       return true;
@@ -219,6 +221,7 @@ export function ChatWorkspace({
 
   const handleRetryStreamError = useCallback((): boolean => {
     const userMessageId = stream.meta?.userMessageId;
+    const assistantMessageId = stream.meta?.assistantMessageId;
     const fromMeta = userMessageId
       ? messages.find(
           (message) =>
@@ -228,20 +231,31 @@ export function ChatWorkspace({
 
     return retryFromUserMessage(
       fromMeta ?? findLatestUserMessage(messages),
-      { suppressOptimisticUserMessage: true },
+      {
+        suppressOptimisticUserMessage: true,
+        retryTargetUserMessageId: fromMeta?.id ?? userMessageId,
+        retryTargetAssistantMessageId: assistantMessageId,
+      },
     );
-  }, [messages, retryFromUserMessage, stream.meta?.userMessageId]);
+  }, [
+    messages,
+    retryFromUserMessage,
+    stream.meta?.assistantMessageId,
+    stream.meta?.userMessageId,
+  ]);
 
   const handleRetryAssistantMessage = useCallback(
-    (assistantMessageId: string): boolean =>
-      retryFromUserMessage(
+    (assistantMessageId: string): boolean => {
+      const userMessage =
         findUserMessageForAssistantRetry(messages, assistantMessageId) ??
-          findLatestUserMessage(messages),
-        {
-          suppressOptimisticUserMessage: true,
-          retryTargetAssistantMessageId: assistantMessageId,
-        },
-      ),
+        findLatestUserMessage(messages);
+
+      return retryFromUserMessage(userMessage, {
+        suppressOptimisticUserMessage: true,
+        retryTargetUserMessageId: userMessage?.id,
+        retryTargetAssistantMessageId: assistantMessageId,
+      });
+    },
     [messages, retryFromUserMessage],
   );
 

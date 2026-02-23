@@ -1,12 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { executeSandboxCommand } from "../../../services/sandbox/command.sandbox.js";
-import * as stateSandbox from "../../../services/sandbox/state.sandbox.js";
-import * as dockerSandbox from "../../../services/sandbox/docker.sandbox.js";
+import { executeSandboxCommand } from "../../../services/sandbox/command.service.js";
+import * as stateSandbox from "../../../services/sandbox/state.service.js";
+import * as dockerSandbox from "../../../services/sandbox/docker.service.js";
 
-import type { SandboxInstance } from "../../../services/sandbox/types.sandbox.js";
+import type { SandboxInstance } from "../../../services/sandbox/types.service.js";
 
-vi.mock("../../../services/sandbox/state.sandbox.js");
-vi.mock("../../../services/sandbox/docker.sandbox.js");
+vi.mock("../../../services/sandbox/state.service.js");
+vi.mock("../../../services/sandbox/docker.service.js");
 vi.mock("../../../utils/logger.js", () => {
   const mockedLogger = {
     info: vi.fn(),

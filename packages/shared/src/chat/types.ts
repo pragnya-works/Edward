@@ -1,16 +1,14 @@
 import type {
+  MetaEvent,
   CommandEvent,
   ErrorEvent,
-  MetaEvent,
-  MetricsEvent,
-  StreamEvent,
-  UrlScrapeEvent,
   WebSearchEvent,
-} from "@edward/shared/stream-events";
+  UrlScrapeEvent,
+  MetricsEvent,
+} from "../streamEvents.js";
 
 export enum MessageAttachmentType {
   IMAGE = "image",
-  PDF = "pdf",
   FIGMA = "figma",
 }
 
@@ -21,23 +19,13 @@ export enum ChatRole {
   DATA = "data",
 }
 
-export type SSEEvent = StreamEvent;
-export type {
-  MetaEvent,
-  CommandEvent,
-  ErrorEvent,
-  WebSearchEvent,
-  UrlScrapeEvent,
-  MetricsEvent,
-};
-
 export interface StreamErrorState {
   message: string;
   code?: ErrorEvent["code"];
   details?: ErrorEvent["details"];
 }
 
-export interface MessageAttachment {
+interface MessageAttachment {
   id: string;
   name: string;
   url: string;

@@ -9,6 +9,13 @@ const RESERVED = new Set([
     "dev",
     "smtp",
     "staging",
+    "preview",
+    "static",
+    "assets",
+    "cdn",
+    "media",
+    "files",
+    "storage",
 ]);
 
 const DEFAULT_FRAME_ANCESTORS = [

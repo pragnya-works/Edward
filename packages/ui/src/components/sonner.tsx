@@ -21,21 +21,21 @@ function Toaster({ className, toastOptions, ...props }: ToasterProps) {
         ...toastOptions,
         classNames: {
           toast:
-            "group toast pointer-events-auto rounded-xl border border-workspace-border/70 bg-workspace-sidebar/95 text-workspace-foreground shadow-[0_22px_52px_-28px_rgba(0,0,0,0.55)] backdrop-blur-xl",
+            "group toast pointer-events-auto rounded-xl border border-workspace-border text-workspace-foreground bg-workspace-sidebar shadow-[0_22px_52px_-28px_rgba(0,0,0,0.55)]",
           title:
             "text-[13px] font-semibold tracking-tight text-workspace-foreground",
           description: "text-[12px] leading-relaxed text-workspace-foreground/65",
           actionButton:
-            "rounded-lg bg-workspace-foreground px-2.5 py-1.5 text-[11px] font-semibold text-workspace-bg hover:opacity-90",
+            "rounded-lg bg-workspace-foreground px-2.5 py-1.5 text-[11px] font-semibold text-workspace-bg",
           cancelButton:
-            "rounded-lg border border-workspace-border/80 bg-workspace-bg/70 px-2.5 py-1.5 text-[11px] font-semibold text-workspace-foreground/80 hover:bg-workspace-hover",
+            "rounded-lg border border-workspace-border bg-workspace-bg px-2.5 py-1.5 text-[11px] font-semibold text-workspace-foreground/80 hover:bg-workspace-hover",
           success:
-            "!border-emerald-500/30 !bg-emerald-500/[0.06] [&_[data-icon]]:text-emerald-400",
+            "!border-emerald-500 !bg-workspace-sidebar [&_[data-icon]]:text-emerald-400",
           error:
-            "!border-destructive/40 !bg-destructive/[0.06] [&_[data-icon]]:text-destructive",
-          info: "!border-workspace-accent/35 [&_[data-icon]]:text-workspace-accent",
+            "!border-destructive !bg-workspace-sidebar [&_[data-icon]]:text-destructive",
+          info: "!border-workspace-accent !bg-workspace-sidebar [&_[data-icon]]:text-workspace-accent",
           warning:
-            "!border-amber-500/35 !bg-amber-500/[0.08] [&_[data-icon]]:text-amber-500",
+            "!border-amber-500 !bg-workspace-sidebar [&_[data-icon]]:text-amber-500",
           ...toastOptions?.classNames,
         },
       }}

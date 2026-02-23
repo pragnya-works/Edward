@@ -19,8 +19,6 @@ interface CreateRunInput {
   userId: string;
   userMessageId: string;
   assistantMessageId: string;
-  model?: string;
-  intent?: string;
   metadata?: Record<string, unknown>;
 }
 
@@ -55,8 +53,6 @@ export async function createRunWithUserLimit(
         userId: data.userId,
         userMessageId: data.userMessageId,
         assistantMessageId: data.assistantMessageId,
-        model: data.model,
-        intent: data.intent,
         metadata: data.metadata ?? null,
         status: "queued",
         state: "INIT",

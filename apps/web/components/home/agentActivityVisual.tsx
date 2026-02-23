@@ -2,7 +2,7 @@
 
 import React, { memo, useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { m, AnimatePresence } from "motion/react";
-import { Search, FileCode, Edit3, Terminal, CheckCircle2, User, Bot, Loader2 } from "lucide-react";
+import { Search, FileCode, Edit3, Terminal, CheckCircle2, User, Bot, LoaderIcon } from "lucide-react";
 import { useTabVisibility } from "@edward/ui/hooks/useTabVisibility";
 
 enum ToolCallKind {
@@ -98,7 +98,7 @@ const ToolCallUI = memo(({ call }: { call: ToolCall }) => {
             <HighlightedText text={call.context} />
 
             {call.status === ToolCallStatus.RUNNING ? (
-                <Loader2 className="w-2.5 h-2.5 text-primary/30 animate-spin" />
+                <LoaderIcon className="w-2.5 h-2.5 text-primary/30 animate-spin" />
             ) : (
                 <CheckCircle2 className="w-2.5 h-2.5 text-emerald-500/50" />
             )}

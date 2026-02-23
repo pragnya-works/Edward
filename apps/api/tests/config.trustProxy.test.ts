@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseTrustProxy } from "../config.js";
+import { parseTrustProxy } from "../app.config.js";
 
 describe("parseTrustProxy", () => {
   it("uses fallback when TRUST_PROXY is missing", () => {

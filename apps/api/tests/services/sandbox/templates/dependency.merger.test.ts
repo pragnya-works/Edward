@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { mergeAndInstallDependencies } from "../../../../services/sandbox/templates/dependency.merger.js";
-import * as dockerSandbox from "../../../../services/sandbox/docker.sandbox.js";
-import * as sandboxState from "../../../../services/sandbox/state.sandbox.js";
+import * as dockerSandbox from "../../../../services/sandbox/docker.service.js";
+import * as sandboxState from "../../../../services/sandbox/state.service.js";
 
-vi.mock("../../../../services/sandbox/docker.sandbox.js");
-vi.mock("../../../../services/sandbox/state.sandbox.js");
+vi.mock("../../../../services/sandbox/docker.service.js");
+vi.mock("../../../../services/sandbox/state.service.js");
 vi.mock("../../../../utils/logger.js", () => ({
   logger: {
     error: vi.fn(),

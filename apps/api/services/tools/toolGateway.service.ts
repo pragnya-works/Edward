@@ -5,14 +5,14 @@ import {
 } from "@edward/auth";
 import { ensureError } from "../../utils/error.js";
 import { logger } from "../../utils/logger.js";
-import { executeSandboxCommand } from "../sandbox/command.sandbox.js";
+import { executeSandboxCommand } from "../sandbox/command.service.js";
 import { searchTavilyBasic } from "../websearch/tavily.search.js";
 import {
   MAX_TOOL_STDIO_CHARS,
   MAX_WEB_SEARCH_SNIPPET_CHARS,
   TOOL_GATEWAY_RETRY_ATTEMPTS,
   TOOL_GATEWAY_TIMEOUT_MS,
-} from "../../utils/sharedConstants.js";
+} from "../../utils/constants.js";
 
 const TOOL_TIMEOUT_ERROR_NAME = "ToolTimeoutError";
 

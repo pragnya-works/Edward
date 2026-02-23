@@ -3,7 +3,7 @@
 import { memo, useRef, useEffect, useState } from "react";
 import { m, AnimatePresence } from "motion/react";
 import { cn } from "@edward/ui/lib/utils";
-import { BuildStatus } from "@/contexts/sandboxContext";
+import { BuildStatus } from "@/stores/sandbox/types";
 import { Loader } from "lucide-react";
 import dynamic from "next/dynamic";
 import {

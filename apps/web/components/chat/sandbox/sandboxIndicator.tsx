@@ -2,7 +2,7 @@
 
 import { memo } from "react";
 import { m } from "motion/react";
-import { Sparkles, Loader2 } from "lucide-react";
+import { Sparkles, LoaderIcon } from "lucide-react";
 
 export const SandboxIndicator = memo(function SandboxIndicator() {
   return (
@@ -80,7 +80,7 @@ export const SandboxIndicator = memo(function SandboxIndicator() {
           animate={{ rotate: 360 }}
           transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
         >
-          <Loader2 className="h-4 w-4 text-primary/70" />
+          <LoaderIcon className="h-4 w-4 text-primary/70" />
         </m.div>
       </m.div>
     </m.div>

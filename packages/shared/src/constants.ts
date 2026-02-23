@@ -40,6 +40,26 @@ export const IMAGE_UPLOAD_CONFIG = {
   MAX_FILES: 3,
 } as const;
 
+export const SUBDOMAIN_RESERVED = new Set([
+  "www",
+  "api",
+  "admin",
+  "app",
+  "mail",
+  "dashboard",
+  "ftp",
+  "dev",
+  "smtp",
+  "staging",
+  "preview",
+  "static",
+  "assets",
+  "cdn",
+  "media",
+  "files",
+  "storage",
+]);
+
 export const UI_EVENTS = {
   OPEN_API_KEY_MODAL: "edward:open-api-key-modal",
   FOCUS_PROMPT_INPUT: "edward:focus-prompt-input",

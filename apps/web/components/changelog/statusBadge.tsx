@@ -1,6 +1,6 @@
 import { Badge } from "@edward/ui/components/badge";
 import { cn } from "@edward/ui/lib/utils";
-import { CheckCircle2, Circle, Loader2, XCircle } from "lucide-react";
+import { CheckCircle2, Circle, LoaderIcon, XCircle } from "lucide-react";
 import { memo } from "react";
 
 interface StatusBadgeProps {
@@ -15,7 +15,7 @@ const statusConfig: Record<string, { icon: React.ReactNode; className: string }>
     className: "text-emerald-700 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-950/20 border-emerald-300/70 dark:border-emerald-800/30",
   },
   started: {
-    icon: <Loader2 className="w-3 h-3 animate-spin" />,
+    icon: <LoaderIcon className="w-3 h-3 animate-spin" />,
     className: "text-amber-700 dark:text-amber-400 bg-amber-100 dark:bg-amber-950/20 border-amber-300/70 dark:border-amber-800/30",
   },
   canceled: {

@@ -2,7 +2,7 @@ import { type GithubFile } from '@edward/octokit';
 import path from 'path';
 import tar from 'tar-stream';
 import zlib from 'zlib';
-import { CONTAINER_WORKDIR } from '../sandbox/docker.sandbox.js';
+import { CONTAINER_WORKDIR } from '../sandbox/docker.service.js';
 
 const WORKDIR_PARTS = CONTAINER_WORKDIR.split('/').filter(Boolean);
 const WORKDIR_BASENAME = WORKDIR_PARTS[WORKDIR_PARTS.length - 1] ?? '';

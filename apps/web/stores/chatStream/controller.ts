@@ -7,9 +7,9 @@ import {
   useRef,
 } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import type { MetaEvent } from "@edward/shared/streamEvents";
 import {
   INITIAL_STREAM_STATE,
-  type MetaEvent,
   type StreamState,
 } from "@edward/shared/chat/types";
 import type { MessageContent } from "@/lib/api/messageContent";
@@ -32,8 +32,8 @@ import {
 } from "@/stores/chatStream/resumeRunStream";
 import {
   useStartStream,
-  type StartStreamOptions,
 } from "@/stores/chatStream/useStartStream";
+import type { StartStreamOptions } from "@/stores/chatStream/startStreamShared";
 import {
   StreamActionType,
 } from "@edward/shared/chat/streamActions";

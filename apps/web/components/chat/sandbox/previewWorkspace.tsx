@@ -1,6 +1,6 @@
 import type { RefObject, SyntheticEvent } from "react";
 import { AlertTriangle, RefreshCw } from "lucide-react";
-import { BuildStatus } from "@/contexts/sandboxContext";
+import { BuildStatus } from "@/stores/sandbox/types";
 import { PreviewFrameState, type PreviewFrameState as PreviewFrameStateType } from "@/components/chat/sandbox/previewState";
 
 interface PreviewWorkspaceProps {

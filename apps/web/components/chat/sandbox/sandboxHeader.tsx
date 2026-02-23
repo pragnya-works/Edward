@@ -4,7 +4,8 @@ import { m } from "motion/react";
 import { RefreshCw, X, Code2, AlertCircle, Monitor } from "lucide-react";
 import { Button } from "@edward/ui/components/button";
 import { cn } from "@edward/ui/lib/utils";
-import { BuildStatus, SandboxMode, useSandbox } from "@/contexts/sandboxContext";
+import { useSandbox } from "@/contexts/sandboxContext";
+import { BuildStatus, SandboxMode } from "@/stores/sandbox/types";
 import { GithubIntegrationBar } from "@/components/chat/sandbox/githubIntegrationBar";
 
 interface SandboxHeaderProps {

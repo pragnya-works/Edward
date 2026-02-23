@@ -1,4 +1,4 @@
-import type { BuildErrorReport } from "@/lib/api/build";
+import type { BuildErrorReport } from "@edward/shared/api/contracts";
 
 export interface SandboxFile {
   path: string;

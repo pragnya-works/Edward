@@ -1,8 +1,9 @@
 import {
+  ASSISTANT_STREAM_TAGS as TAGS,
   decodeHtmlAttribute,
   extractThinkingContentUntilExit,
   parseInstallDependencies,
-} from "@/lib/parsing/messageTokenizer";
+} from "@edward/shared/llm/streamTagParser";
 
 export enum MessageBlockType {
   THINKING = "thinking",
@@ -29,23 +30,6 @@ enum MessageParseTokenType {
   RESPONSE = "response",
   RESPONSE_END = "response_end",
 }
-
-const TAGS = {
-  THINKING_START: "<Thinking>",
-  THINKING_END: "</Thinking>",
-  FILE_START: "<file",
-  FILE_END: "</file>",
-  INSTALL_START: "<edward_install>",
-  INSTALL_END: "</edward_install>",
-  COMMAND_START: "<edward_command",
-  WEB_SEARCH_START: "<edward_web_search",
-  URL_SCRAPE_START: "<edward_url_scrape",
-  SANDBOX_START: "<edward_sandbox",
-  SANDBOX_END: "</edward_sandbox>",
-  DONE_START: "<edward_done",
-  RESPONSE_START: "<Response>",
-  RESPONSE_END: "</Response>",
-} as const;
 
 export type MessageBlock =
   | { type: MessageBlockType.THINKING; content: string }
@@ -109,8 +93,6 @@ export function parseMessageContent(content: string): MessageBlock[] {
     ].filter((i) => i.idx !== -1);
 
     if (candidates.length === 0) {
-      // If we are in strictly tagged mode, only push if inResponse
-      // Otherwise (legacy), push everything
       if (!hasResponseTags || inResponse) {
         blocks.push({ type: MessageBlockType.TEXT, content: remaining });
       }
@@ -171,7 +153,6 @@ export function parseMessageContent(content: string): MessageBlock[] {
           });
           remaining = remaining.slice(endTagIdx + TAGS.FILE_END.length);
         } else {
-          // Partial file content while streaming
           const fileContent = remaining.slice(closeTagIdx + 1).trim();
           blocks.push({
             type: MessageBlockType.FILE,

@@ -7,13 +7,21 @@ import {
   getChatHistory,
   deleteChat,
   getRecentChats,
+} from "../controllers/chat/query/history.controller.js";
+import {
   getBuildStatus,
-  getActiveRun,
   streamBuildEvents,
+} from "../controllers/chat/query/build.controller.js";
+import {
+  getActiveRun,
   streamRunEvents,
-  getSandboxFiles,
   cancelRunHandler,
-} from "../controllers/chat/query.controller.js";
+} from "../controllers/chat/query/run.controller.js";
+import { getSandboxFiles } from "../controllers/chat/query/sandbox.controller.js";
+import {
+  getShareStatus,
+  updateShareSettings,
+} from "../controllers/chat/query/share.controller.js";
 import {
   checkSubdomainAvailabilityHandler,
   updateChatSubdomainHandler,
@@ -24,6 +32,8 @@ import {
   UnifiedSendMessageRequestSchema,
   StreamRunEventsRequestSchema,
   CancelRunRequestSchema,
+  ShareStatusRequestSchema,
+  UpdateShareSettingsRequestSchema,
 } from "../schemas/chat.schema.js";
 import {
   chatRateLimiter,
@@ -88,6 +98,16 @@ chatRouter.get(
   "/:chatId/sandbox-files",
   validateRequest(GetChatHistoryRequestSchema),
   getSandboxFiles,
+);
+chatRouter.get(
+  "/:chatId/share",
+  validateRequest(ShareStatusRequestSchema),
+  getShareStatus,
+);
+chatRouter.patch(
+  "/:chatId/share",
+  validateRequest(UpdateShareSettingsRequestSchema),
+  updateShareSettings,
 );
 chatRouter.delete(
   "/:chatId",

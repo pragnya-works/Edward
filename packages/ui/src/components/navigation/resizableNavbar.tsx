@@ -179,7 +179,7 @@ export const NavbarLogo = ({ className, children }: NavbarLogoProps) => {
       {children || (
         <>
           <EdwardLogo
-            size={22}
+            size={30}
             priority
             quality={78}
             sizes="22px"

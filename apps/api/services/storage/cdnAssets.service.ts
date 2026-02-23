@@ -1,8 +1,8 @@
 import { nanoid } from "nanoid";
-import { config } from "../../config.js";
+import { config } from "../../app.config.js";
 import { uploadWithRetry } from "./upload.js";
 import { sanitizePathComponent } from "./key.utils.js";
-import type { AllowedImageMimeType } from "../../utils/imageValidation.js";
+import type { AllowedImageMimeType } from "../../utils/imageValidation/types.js";
 
 const CDN_BUCKET = config.aws.s3CdnBucket;
 const ASSETS_BASE_URL = config.aws.assetsUrl?.replace(/\/$/, "");

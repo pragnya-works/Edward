@@ -1,5 +1,5 @@
 import { lookup } from 'mime-types';
-import { MAX_KEY_LENGTH } from './config.js';
+import { MAX_KEY_LENGTH } from './storage.config.js';
 import { createS3UploadError } from './upload.js';
 
 export function sanitizePathComponent(component: string): string {

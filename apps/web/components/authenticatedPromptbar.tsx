@@ -14,7 +14,7 @@ import {
 import { uploadImageToCdn } from "@/lib/api/images";
 import { useCallback, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import type { MetaEvent } from "@edward/shared/chat/types";
+import type { MetaEvent } from "@edward/shared/streamEvents";
 import { INITIAL_STREAM_STATE } from "@edward/shared/chat/types";
 import { toast } from "@edward/ui/components/sonner";
 

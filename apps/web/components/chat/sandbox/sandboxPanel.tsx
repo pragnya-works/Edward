@@ -9,7 +9,8 @@ import {
   useState,
   type SyntheticEvent,
 } from "react";
-import { SandboxMode, useSandbox } from "@/contexts/sandboxContext";
+import { useSandbox } from "@/contexts/sandboxContext";
+import { SandboxMode } from "@/stores/sandbox/types";
 import { CodeEditor } from "@/components/chat/editor/codeEditor";
 import { FileSearchModal } from "@/components/chat/editor/fileSearchModal";
 import { SandboxEditorTabs } from "@/components/chat/sandbox/sandboxEditorTabs";

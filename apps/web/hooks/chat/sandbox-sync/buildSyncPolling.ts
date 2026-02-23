@@ -2,13 +2,13 @@ import type {
   RefObject,
 } from "react";
 import {
-  BuildStatus,
-} from "@/contexts/sandboxContext";
-import {
   BuildRecordStatus,
-  getBuildStatus,
   type BuildErrorReport,
+} from "@edward/shared/api/contracts";
+import {
+  getBuildStatus,
 } from "@/lib/api/build";
+import { BuildStatus } from "@/stores/sandbox/types";
 import {
   BUILD_POLL_INTERVAL_MS,
   BUILD_POLL_MAX_ATTEMPTS,

@@ -3,7 +3,7 @@
 import { memo } from "react";
 import { m } from "motion/react";
 import { Terminal, Check, X } from "lucide-react";
-import type { CommandEvent } from "@edward/shared/chat/types";
+import type { CommandEvent } from "@edward/shared/streamEvents";
 
 interface CommandBlockProps {
   command: CommandEvent;

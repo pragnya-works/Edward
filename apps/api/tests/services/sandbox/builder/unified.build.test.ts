@@ -52,14 +52,14 @@ const mockRefs = vi.hoisted(() => {
   };
 });
 
-vi.mock("../../../../services/sandbox/docker.sandbox.js", () => ({
+vi.mock("../../../../services/sandbox/docker.service.js", () => ({
   connectToNetwork: mockRefs.connectMock,
   getContainer: mockRefs.getContainerMock,
   execCommand: mockRefs.execCommandMock,
   CONTAINER_WORKDIR: "/home/node/edward",
 }));
 
-vi.mock("../../../../services/sandbox/state.sandbox.js", () => ({
+vi.mock("../../../../services/sandbox/state.service.js", () => ({
   getSandboxState: mockRefs.getSandboxStateMock,
   saveSandboxState: mockRefs.saveSandboxStateMock,
 }));
@@ -78,7 +78,7 @@ vi.mock("../../../../services/builder.service.js", () => ({
   runUnifiedBuild: mockRefs.runUnifiedBuildMock,
 }));
 
-vi.mock("../../../../services/sandbox/upload.sandbox.js", () => ({
+vi.mock("../../../../services/sandbox/upload.service.js", () => ({
   uploadBuildFilesToS3: mockRefs.uploadBuildFilesToS3Mock,
   uploadSpaFallback: mockRefs.uploadSpaFallbackMock,
 }));
@@ -95,7 +95,7 @@ vi.mock("../../../../services/storage/key.utils.js", () => ({
   buildS3Key: mockRefs.buildS3KeyMock,
 }));
 
-vi.mock("../../../../config.js", () => ({
+vi.mock("../../../../app.config.js", () => ({
   DEPLOYMENT_TYPES: {
     PATH: "path",
     SUBDOMAIN: "subdomain",
@@ -109,7 +109,7 @@ vi.mock("../../../../config.js", () => ({
   },
 }));
 
-vi.mock("../../../../services/sandbox/utils.sandbox.js", () => ({
+vi.mock("../../../../services/sandbox/utils.service.js", () => ({
   disconnectContainerFromNetwork: mockRefs.disconnectMock,
   TIMEOUT_DEPENDENCY_INSTALL_MS: 60_000,
 }));
@@ -126,7 +126,7 @@ vi.mock("../../../../services/sandbox/templates/template.registry.js", () => ({
   normalizeFramework: (framework: string) => framework,
 }));
 
-vi.mock("../../../../services/previewRouting.service.js", () => ({
+vi.mock("../../../../services/previewRouting/registration.js", () => ({
   registerPreviewSubdomain: mockRefs.registerPreviewSubdomainMock,
 }));
 

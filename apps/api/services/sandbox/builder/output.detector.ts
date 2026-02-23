@@ -2,7 +2,7 @@ import {
   getContainer,
   execCommand,
   CONTAINER_WORKDIR,
-} from "../docker.sandbox.js";
+} from "../docker.service.js";
 import { logger } from "../../../utils/logger.js";
 import type Docker from "dockerode";
 import type { Framework } from "../../planning/schemas.js";

@@ -12,7 +12,7 @@ vi.mock("../../../../services/storage.service.js", () => ({
   downloadFile: mockRefs.downloadFile,
 }));
 
-vi.mock("../../../../services/storage/config.js", () => ({
+vi.mock("../../../../services/storage/storage.config.js", () => ({
   BUCKET_NAME: "test-bucket",
   s3Client: {
     send: mockRefs.s3Send,
