@@ -8,129 +8,32 @@ import {
   useReducer,
   useRef,
 } from "react";
-import { ChatMessageList } from "@/components/chat/chatMessageList";
-import AuthenticatedPromptbar from "@/components/authenticatedPromptbar";
-import type { ChatMessage as ChatMessageType, StreamState } from "@/lib/chatTypes";
-import { SandboxPanel } from "@/components/chat/sandboxPanel";
-import { m, useReducedMotion } from "motion/react";
+import type { ChatMessage as ChatMessageType, StreamState } from "@edward/shared/chat/types";
+import { ChatRole } from "@edward/shared/chat/types";
+import { ChatWorkspaceDesktop } from "@/components/chat/chatWorkspaceDesktop";
+import { ChatWorkspaceMobile } from "@/components/chat/chatWorkspaceMobile";
 import {
-  Group as PanelGroup,
-  Panel,
+  clampSandboxSize,
+  easeSandboxToggle,
+  extractLatestSandboxProjectName,
+} from "@/components/chat/chatWorkspaceUtils";
+import {
+  buildRetryContentFromUserMessage,
+  findLatestUserMessage,
+  findUserMessageForAssistantRetry,
+} from "@/components/chat/messages/retryMessageUtils";
+import {
+  INITIAL_DESKTOP_SANDBOX_UI_STATE,
+  desktopSandboxUiReducer,
+} from "@/components/chat/sandbox/desktopSandboxUiReducer";
+import { useReducedMotion } from "motion/react";
+import {
   type PanelImperativeHandle,
   type PanelSize,
-  Separator as PanelResizeHandle,
 } from "react-resizable-panels";
-import { Sheet, SheetContent } from "@edward/ui/components/sheet";
 import { useSandbox } from "@/contexts/sandboxContext";
-import { cn } from "@edward/ui/lib/utils";
-import { parseMessageContent, MessageBlockType } from "@/lib/messageParser";
-import {
-  ChatRole,
-  MessageAttachmentType,
-} from "@/lib/chatTypes";
-import { useIsMobileViewport } from "@/hooks/useIsMobileViewport";
-import {
-  MessageContentPartType,
-  type MessageContent,
-} from "@/lib/api";
+import { useMobileViewport } from "@edward/ui/hooks/useMobileViewport";
 import { useChatStreamActions } from "@/contexts/chatStreamContext";
-import { normalizeUserMessageText } from "@/lib/userMessageText";
-
-const DEFAULT_SANDBOX_SIZE = 45;
-const MIN_SANDBOX_SIZE = 24;
-const MAX_SANDBOX_SIZE = 75;
-const MIN_CHAT_SIZE = 100 - MAX_SANDBOX_SIZE;
-const SANDBOX_TOGGLE_DURATION_MS = 280;
-
-function clampSandboxSize(size: number) {
-  return Math.min(MAX_SANDBOX_SIZE, Math.max(MIN_SANDBOX_SIZE, size));
-}
-
-function easeSandboxToggle(t: number) {
-  return t < 0.5
-    ? 4 * t * t * t
-    : 1 - Math.pow(-2 * t + 2, 3) / 2;
-}
-
-function extractLatestSandboxProjectName(content: string): string | null {
-  const blocks = parseMessageContent(content);
-  for (let index = blocks.length - 1; index >= 0; index -= 1) {
-    const block = blocks[index];
-    if (block?.type === MessageBlockType.SANDBOX && block.project) {
-      return block.project;
-    }
-  }
-  return null;
-}
-
-function extractRetryText(content: string | null): string {
-  if (!content) {
-    return "";
-  }
-  const normalized = normalizeUserMessageText(content);
-  if (!normalized || normalized.toLowerCase() === "[image message]") {
-    return "";
-  }
-  return normalized;
-}
-
-function buildRetryContentFromUserMessage(
-  userMessage: ChatMessageType,
-): MessageContent | null {
-  const text = extractRetryText(userMessage.content);
-  const imageParts = (userMessage.attachments ?? [])
-    .filter((attachment) => attachment.type === MessageAttachmentType.IMAGE)
-    .map((attachment) => ({
-      type: MessageContentPartType.IMAGE as const,
-      url: attachment.url,
-    }));
-
-  if (imageParts.length === 0) {
-    return text.length > 0 ? text : null;
-  }
-
-  if (text.length === 0) {
-    return imageParts;
-  }
-
-  return [
-    { type: MessageContentPartType.TEXT, text },
-    ...imageParts,
-  ];
-}
-
-function findLatestUserMessage(
-  messages: ChatMessageType[],
-): ChatMessageType | null {
-  for (let index = messages.length - 1; index >= 0; index -= 1) {
-    const message = messages[index];
-    if (message?.role === ChatRole.USER) {
-      return message;
-    }
-  }
-  return null;
-}
-
-function findUserMessageForAssistantRetry(
-  messages: ChatMessageType[],
-  assistantMessageId: string,
-): ChatMessageType | null {
-  const assistantIndex = messages.findIndex(
-    (message) => message.id === assistantMessageId,
-  );
-  if (assistantIndex <= 0) {
-    return null;
-  }
-
-  for (let index = assistantIndex - 1; index >= 0; index -= 1) {
-    const message = messages[index];
-    if (message?.role === ChatRole.USER) {
-      return message;
-    }
-  }
-
-  return null;
-}
 
 interface ChatWorkspaceProps {
   chatId: string;
@@ -139,57 +42,9 @@ interface ChatWorkspaceProps {
   sandboxOpen: boolean;
 }
 
-interface DesktopSandboxUiState {
-  isTransitioning: boolean;
-  keepMounted: boolean;
-}
-
-type DesktopSandboxUiAction =
-  | { type: "SYNC_FOR_MOBILE"; sandboxOpen: boolean }
-  | { type: "START_OPEN_TRANSITION" }
-  | { type: "FINISH_OPEN_TRANSITION" }
-  | { type: "START_CLOSE_TRANSITION" }
-  | { type: "FINISH_CLOSE_TRANSITION" };
-
-const INITIAL_DESKTOP_SANDBOX_UI_STATE: DesktopSandboxUiState = {
-  isTransitioning: false,
-  keepMounted: false,
-};
-
-function desktopSandboxUiReducer(
-  _state: DesktopSandboxUiState,
-  action: DesktopSandboxUiAction,
-): DesktopSandboxUiState {
-  switch (action.type) {
-    case "SYNC_FOR_MOBILE":
-      return {
-        isTransitioning: false,
-        keepMounted: action.sandboxOpen,
-      };
-    case "START_OPEN_TRANSITION":
-      return {
-        isTransitioning: true,
-        keepMounted: true,
-      };
-    case "FINISH_OPEN_TRANSITION":
-      return {
-        isTransitioning: false,
-        keepMounted: true,
-      };
-    case "START_CLOSE_TRANSITION":
-      return {
-        isTransitioning: true,
-        keepMounted: true,
-      };
-    case "FINISH_CLOSE_TRANSITION":
-      return {
-        isTransitioning: false,
-        keepMounted: false,
-      };
-    default:
-      return _state;
-  }
-}
+const DEFAULT_SANDBOX_SIZE = 45;
+const MIN_SANDBOX_SIZE = 24;
+const SANDBOX_TOGGLE_DURATION_MS = 280;
 
 export function ChatWorkspace({
   chatId,
@@ -229,7 +84,7 @@ export function ChatWorkspace({
     return null;
   }, [messages]);
   const projectName = streamingProjectName ?? historyProjectName;
-  const isMobile = useIsMobileViewport();
+  const isMobile = useMobileViewport();
 
   const animateSandboxPanel = useCallback(
     (targetSize: number, onComplete?: () => void) => {
@@ -399,108 +254,34 @@ export function ChatWorkspace({
 
   if (isMobile) {
     return (
-      <div className="flex h-[100dvh] w-full overflow-hidden">
-        <div className="relative flex flex-col h-full w-full min-w-0">
-          <div className="flex-1 min-h-0">
-            <ChatMessageList
-              messages={messages}
-              stream={stream}
-              onRetryStreamError={handleRetryStreamError}
-              onRetryAssistantMessage={handleRetryAssistantMessage}
-            />
-          </div>
-          <div className="shrink-0 w-full max-w-4xl mx-auto px-4 pb-6 pt-2">
-            <AuthenticatedPromptbar chatId={chatId} />
-          </div>
-        </div>
-
-        <Sheet
-          open={sandboxOpen}
-          onOpenChange={(open) => {
-            if (!open) {
-              closeSandbox();
-            }
-          }}
-        >
-          <SheetContent
-            side="right"
-            showCloseButton={false}
-            className="w-full max-w-none p-0 gap-0 border-l border-workspace-border bg-workspace-bg"
-          >
-            <SandboxPanel chatId={chatId} projectName={projectName} />
-          </SheetContent>
-        </Sheet>
-      </div>
+      <ChatWorkspaceMobile
+        chatId={chatId}
+        messages={messages}
+        stream={stream}
+        sandboxOpen={sandboxOpen}
+        projectName={projectName}
+        closeSandbox={closeSandbox}
+        onRetryStreamError={handleRetryStreamError}
+        onRetryAssistantMessage={handleRetryAssistantMessage}
+      />
     );
   }
 
   return (
-    <div className="flex h-[100dvh] w-full overflow-hidden">
-      <PanelGroup
-        orientation="horizontal"
-        className="flex-1 w-full h-full"
-        defaultLayout={{
-          chat: sandboxOpen ? 100 - DEFAULT_SANDBOX_SIZE : 100,
-          sandbox: sandboxOpen ? DEFAULT_SANDBOX_SIZE : 0,
-        }}
-      >
-        <Panel
-          id="chat"
-          minSize={`${MIN_CHAT_SIZE}%`}
-          className="relative flex flex-col h-full min-w-[350px]"
-        >
-          <div className="flex-1 min-h-0">
-            <ChatMessageList
-              messages={messages}
-              stream={stream}
-              onRetryStreamError={handleRetryStreamError}
-              onRetryAssistantMessage={handleRetryAssistantMessage}
-            />
-          </div>
-          <div className="shrink-0 w-full max-w-4xl mx-auto px-4 pb-6 pt-2">
-            <AuthenticatedPromptbar chatId={chatId} />
-          </div>
-        </Panel>
-        <PanelResizeHandle
-          disabled={!isDesktopSandboxVisible}
-          className={cn(
-            "w-[2px] transition-[opacity,background-color] duration-200 bg-border hover:bg-primary/50 cursor-col-resize z-10 mx-[1px]",
-            !isDesktopSandboxVisible && "opacity-0 pointer-events-none",
-          )}
-        />
-        <Panel
-          id="sandbox"
-          panelRef={sandboxPanelRef}
-          defaultSize={sandboxOpen ? `${DEFAULT_SANDBOX_SIZE}%` : "0%"}
-          minSize={sandboxMinSize}
-          maxSize={`${MAX_SANDBOX_SIZE}%`}
-          collapsible
-          collapsedSize="0%"
-          onResize={handleSandboxResize}
-          className={cn(
-            "flex-1 min-h-[100dvh] bg-workspace-bg overflow-hidden flex flex-col relative transition-[border-color] duration-200",
-            isDesktopSandboxVisible
-              ? "border-l border-workspace-border"
-              : "border-l border-transparent",
-          )}
-        >
-          <m.div
-            initial={false}
-            animate={sandboxOpen
-              ? { opacity: 1, x: 0, scale: 1 }
-              : { opacity: 0.6, x: 16, scale: 0.99 }}
-            transition={{
-              duration: prefersReducedMotion ? 0 : 0.24,
-              ease: [0.22, 1, 0.36, 1],
-            }}
-            className="flex-1 min-h-[0] h-full"
-          >
-            {sandboxOpen || desktopSandboxUi.keepMounted ? (
-              <SandboxPanel chatId={chatId} projectName={projectName} />
-            ) : null}
-          </m.div>
-        </Panel>
-      </PanelGroup>
-    </div>
+    <ChatWorkspaceDesktop
+      chatId={chatId}
+      messages={messages}
+      stream={stream}
+      sandboxOpen={sandboxOpen}
+      projectName={projectName}
+      prefersReducedMotion={Boolean(prefersReducedMotion)}
+      isDesktopSandboxVisible={isDesktopSandboxVisible}
+      desktopKeepMounted={desktopSandboxUi.keepMounted}
+      sandboxPanelRef={sandboxPanelRef}
+      sandboxMinSize={sandboxMinSize}
+      onSandboxResize={handleSandboxResize}
+      onRetryStreamError={handleRetryStreamError}
+      onRetryAssistantMessage={handleRetryAssistantMessage}
+    />
   );
 }

@@ -49,6 +49,7 @@ import {
   classifyAssistantError,
   toAssistantErrorTag,
 } from "../../lib/llm/errorPresentation.js";
+import { createRedisClient } from "../../lib/redis.js";
 
 import {
   configureSSEBackpressure,
@@ -519,50 +520,84 @@ Return ONLY a JSON object: {"title": "...", "description": "..."}
         status: "queued",
       });
 
+      const buildStatusPublisher = createRedisClient();
+      const buildStatusChannel = `edward:build-status:${chatId}`;
+      const publishBuildStatus = async (payload: Record<string, unknown>) => {
+        try {
+          await buildStatusPublisher.publish(
+            buildStatusChannel,
+            JSON.stringify(payload),
+          );
+        } catch (publishErr) {
+          logger.warn(
+            {
+              err: ensureError(publishErr),
+              chatId,
+              runId,
+              buildId: queuedBuild.id,
+            },
+            "Failed to publish build status update",
+          );
+        }
+      };
+
+      await publishBuildStatus({
+        buildId: queuedBuild.id,
+        runId,
+        status: "queued",
+      });
 
       try {
-        await enqueueBuildJob({
-          sandboxId: workflow.sandboxId,
-          userId,
-          chatId,
-          messageId: assistantMessageId,
-          buildId: queuedBuild.id,
-          runId,
-        });
-      } catch (queueErr) {
-        await updateBuild(queuedBuild.id, {
-          status: "failed",
-          errorReport: {
-            failed: true,
-            headline: "Failed to enqueue build job",
-            details:
-              queueErr instanceof Error ? queueErr.message : String(queueErr),
-          } as Record<string, unknown>,
-        } as Parameters<typeof updateBuild>[1]).catch(() => { });
-
-        sendSSEEvent(res, {
-          type: ParserEventType.BUILD_STATUS,
-          chatId,
-          status: "failed",
-          buildId: queuedBuild.id,
-          runId,
-          errorReport: {
-            failed: true,
-            headline: "Failed to enqueue build job",
-            details:
-              queueErr instanceof Error ? queueErr.message : String(queueErr),
-          },
-        });
-
-        logger.error(
-          {
-            err: ensureError(queueErr),
-            chatId,
-            runId,
+        try {
+          await enqueueBuildJob({
             sandboxId: workflow.sandboxId,
-          },
-          "Failed to enqueue build job",
-        );
+            userId,
+            chatId,
+            messageId: assistantMessageId,
+            buildId: queuedBuild.id,
+            runId,
+          });
+        } catch (queueErr) {
+          const enqueueErrorReport = {
+            failed: true,
+            headline: "Failed to enqueue build job",
+            details:
+              queueErr instanceof Error ? queueErr.message : String(queueErr),
+          };
+
+          await updateBuild(queuedBuild.id, {
+            status: "failed",
+            errorReport: enqueueErrorReport as Record<string, unknown>,
+          } as Parameters<typeof updateBuild>[1]).catch(() => { });
+
+          await publishBuildStatus({
+            buildId: queuedBuild.id,
+            runId,
+            status: "failed",
+            errorReport: enqueueErrorReport,
+          });
+
+          sendSSEEvent(res, {
+            type: ParserEventType.BUILD_STATUS,
+            chatId,
+            status: "failed",
+            buildId: queuedBuild.id,
+            runId,
+            errorReport: enqueueErrorReport,
+          });
+
+          logger.error(
+            {
+              err: ensureError(queueErr),
+              chatId,
+              runId,
+              sandboxId: workflow.sandboxId,
+            },
+            "Failed to enqueue build job",
+          );
+        }
+      } finally {
+        await buildStatusPublisher.quit().catch(() => { });
       }
     } else {
       logger.warn(

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { m } from "motion/react";
-import { useRecentChats, type Project } from "@/hooks/useRecentChats";
+import { useRecentChats, type Project } from "@/hooks/server-state/useRecentChats";
 import { TechnicalBlueprint } from "./cardVisual";
 import { ProjectCard } from "./projectCard";
 

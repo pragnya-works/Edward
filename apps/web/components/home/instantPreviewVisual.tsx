@@ -7,15 +7,21 @@ import {
   useCallback,
 } from "react";
 import { AnimatePresence, m } from "motion/react";
-import { useVisibilityAwareInterval } from "@/hooks/useVisibilityAwareInterval";
+import { useVisibilityAwareInterval } from "@edward/ui/hooks/useVisibilityAwareInterval";
 import {
   BrowserHeader,
   Sidebar,
-  SkeletonUI,
-  LayoutType,
+} from "./instantPreviewLayouts/browserChrome";
+import {
   LayoutRenderer,
+} from "./instantPreviewLayouts/layoutRenderer";
+import {
   LAYOUT_ORDER,
-} from "./instantPreviewLayouts";
+  LayoutType,
+} from "./instantPreviewLayouts/layoutTypes";
+import {
+  SkeletonUI,
+} from "./instantPreviewLayouts/skeletonUI";
 
 const fadeInVariant = {
   initial: { opacity: 0 },

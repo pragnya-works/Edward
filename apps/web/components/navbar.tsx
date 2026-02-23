@@ -9,7 +9,7 @@ import {
   MobileNavToggle,
   MobileNavMenu,
   NavbarLogo,
-} from "./ui/resizableNavbar";
+} from "@edward/ui/components/navigation/resizableNavbar";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { LoaderIcon } from "lucide-react";

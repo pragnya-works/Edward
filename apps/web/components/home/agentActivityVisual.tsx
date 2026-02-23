@@ -3,7 +3,7 @@
 import React, { memo, useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { m, AnimatePresence } from "motion/react";
 import { Search, FileCode, Edit3, Terminal, CheckCircle2, User, Bot, Loader2 } from "lucide-react";
-import { useTabVisibility } from "@/hooks/useTabVisibility";
+import { useTabVisibility } from "@edward/ui/hooks/useTabVisibility";
 
 enum ToolCallKind {
     SEARCH = "search",
