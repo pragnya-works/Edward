@@ -102,7 +102,6 @@ async function processDueMarker(key: string, now: number): Promise<void> {
       { error: ensureError(error), sandboxId },
       "Scheduled sandbox flush failed",
     );
-    // Re-schedule soon so flush work is retried by the worker loop.
     await redis
       .set(key, String(Date.now() + WRITE_DEBOUNCE_MS), "PX", FLUSH_MARKER_TTL_MS)
       .catch(() => {});

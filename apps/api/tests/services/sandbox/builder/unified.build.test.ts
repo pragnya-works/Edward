@@ -130,7 +130,6 @@ vi.mock("../../../../services/previewRouting/registration.js", () => ({
   registerPreviewSubdomain: mockRefs.registerPreviewSubdomainMock,
 }));
 
-// Mock @edward/auth so the DB lookup for customSubdomain doesn't need a real DB
 vi.mock("@edward/auth", async () => {
   const chainMock = {
     select: vi.fn().mockReturnThis(),

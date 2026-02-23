@@ -80,6 +80,19 @@ function isUniqueConstraintViolation(error: unknown): boolean {
   );
 }
 
+function assertValidResolvedSubdomain(
+  subdomain: string,
+  source: "provided" | "stored",
+): string {
+  const validation = validateSubdomainFormat(subdomain);
+  if (!validation.valid) {
+    throw new Error(
+      `Invalid ${source} subdomain "${subdomain}": ${validation.reason ?? "format check failed"}`,
+    );
+  }
+  return subdomain;
+}
+
 export async function resolveSubdomainForRouting(
   userId: string,
   chatId: string,
@@ -87,7 +100,7 @@ export async function resolveSubdomainForRouting(
 ): Promise<string> {
   const providedSubdomain = customSubdomain?.trim();
   if (providedSubdomain) {
-    return providedSubdomain;
+    return assertValidResolvedSubdomain(providedSubdomain, "provided");
   }
 
   for (let attempt = 0; attempt < SUBDOMAIN_ASSIGNMENT_MAX_ATTEMPTS; attempt += 1) {
@@ -100,7 +113,10 @@ export async function resolveSubdomainForRouting(
         .returning({ customSubdomain: chat.customSubdomain });
 
       if (claimed.length > 0) {
-        return claimed[0]!.customSubdomain ?? candidate;
+        return assertValidResolvedSubdomain(
+          claimed[0]!.customSubdomain ?? candidate,
+          "stored",
+        );
       }
     } catch (error) {
       if (isUniqueConstraintViolation(error)) {
@@ -120,7 +136,7 @@ export async function resolveSubdomainForRouting(
       .limit(1);
 
     if (existing?.customSubdomain) {
-      return existing.customSubdomain;
+      return assertValidResolvedSubdomain(existing.customSubdomain, "stored");
     }
   }
 

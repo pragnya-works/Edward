@@ -106,7 +106,6 @@ export async function backupSandboxInstance(
 
     await Promise.all([completion, uploadPromise]);
 
-    // Persist a compact source snapshot for fast fallback reads without per-file S3 fan-out.
     try {
       const snapshotFiles = await createSourceSnapshot(container);
       const snapshotPayload = JSON.stringify({

@@ -243,25 +243,27 @@ export async function runAgentLoop(
       };
     }
 
-    await processParserEvents({
-      events: parser.flush(),
-      turnState,
-      budgetState,
-      toolResultsThisTurn,
-      context: {
-        workflow,
-        res,
-        chatId,
-        isFollowUp,
-        generatedFiles,
-        declaredPackages,
+    if (!responseSizeExceededThisTurn) {
+      await processParserEvents({
+        events: parser.flush(),
+        turnState,
+        budgetState,
         toolResultsThisTurn,
-        runId,
-        turn: agentTurn,
-        installTaskQueue,
-        abortSignal: abortController.signal,
-      },
-    });
+        context: {
+          workflow,
+          res,
+          chatId,
+          isFollowUp,
+          generatedFiles,
+          declaredPackages,
+          toolResultsThisTurn,
+          runId,
+          turn: agentTurn,
+          installTaskQueue,
+          abortSignal: abortController.signal,
+        },
+      });
+    }
     await installTaskQueue.waitForIdle();
 
     sandboxTagDetected = turnState.sandboxTagDetected;

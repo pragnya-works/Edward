@@ -51,9 +51,11 @@ export async function advanceWorkflow(
   state.history.push(result);
 
   if (!result.success) {
+    const retriesExhausted =
+      result.retryCount >= Math.max(0, maxRetries - 1);
     const isRecoverable =
       state.currentStep !== WorkflowStep.RECOVER &&
-      result.retryCount < maxRetries;
+      !retriesExhausted;
 
     if (isRecoverable) {
       state.currentStep = WorkflowStep.RECOVER;

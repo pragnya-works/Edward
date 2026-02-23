@@ -72,4 +72,15 @@ describe("previewRouting.service", () => {
     expect(init.method).toBe("PUT");
     expect(init.body).toBe("user_id/chat.id");
   });
+
+  it("rejects invalid custom subdomains before KV routing", async () => {
+    const { registerPreviewSubdomain } = await loadService();
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      registerPreviewSubdomain("user-1", "chat-1", "Invalid_Subdomain"),
+    ).rejects.toThrow("Invalid provided subdomain");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
 });

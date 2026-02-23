@@ -4,7 +4,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { MessageRole } from "@edward/auth";
 import type { LlmChatMessage } from "../context.js";
 import { toGeminiRole } from "../messageRole.js";
-import { getTextFromContent, hasImages } from "../types.js";
+import { formatContentForGemini, getTextFromContent, hasImages } from "../types.js";
 import type { MessageContentPart } from "@edward/shared/llm/types";
 import { getContextWindowOverride, getReservedOutputTokens } from "./config.js";
 import type { TokenUsage, TokenUsageMessageBreakdown } from "../tokens.js";
@@ -127,7 +127,7 @@ export async function countGeminiInputTokens(
             contents: [
               {
                 role: toGeminiRole(m.role),
-                parts: [{ text: m.content }],
+                parts: formatContentForGemini(m.content),
               },
             ],
           }),

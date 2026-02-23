@@ -83,11 +83,19 @@ function isPrivateAddress(address: string): boolean {
   return false;
 }
 
+function normalizeHostnameForIpChecks(hostname: string): string {
+  const normalized = hostname.trim().toLowerCase();
+  if (normalized.startsWith("[") && normalized.endsWith("]")) {
+    return normalized.slice(1, -1);
+  }
+  return normalized;
+}
+
 async function resolveSafeUrlTarget(
   url: URL,
   blockedHostnames: ReadonlySet<string>,
 ): Promise<ResolvedUrlTarget> {
-  const hostname = url.hostname.toLowerCase();
+  const hostname = normalizeHostnameForIpChecks(url.hostname);
   if (isBlockedHostname(hostname, blockedHostnames)) {
     throw new Error(`URL host is not allowed: ${hostname}`);
   }

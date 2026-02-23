@@ -334,6 +334,12 @@ export async function connectChatToRepo(
       );
     }
 
+    if (!exists && !isPrivate) {
+      throw new Error(
+        `Repository '${finalRepoFullName}' could not be confirmed private. Please verify visibility and try again.`,
+      );
+    }
+
     await setChatRepoBinding(chatId, userId, finalRepoFullName);
 
     return {

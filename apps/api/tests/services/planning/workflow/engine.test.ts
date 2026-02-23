@@ -153,7 +153,7 @@ describe('WorkflowEngine', () => {
             expect(result.error).toContain('Resolution already in progress');
         });
 
-        it('should handle failures and transition to RECOVER', async () => {
+        it('should fail workflow when a step exhausts retries', async () => {
             const state: WorkflowState = {
                 id: mockWorkflowId,
                 userId: mockUserId,
@@ -181,7 +181,8 @@ describe('WorkflowEngine', () => {
             const result = await advanceWorkflow(state);
 
             expect(result.success).toBe(false);
-            expect(state.currentStep).toBe('RECOVER');
+            expect(state.currentStep).toBe('BUILD');
+            expect(state.status).toBe('failed');
         });
 
         it('should execute INSTALL_PACKAGES phase and transition to GENERATE', async () => {
@@ -236,7 +237,7 @@ describe('WorkflowEngine', () => {
             expect(state.status).toBe('completed');
         });
 
-        it('should restart from ANALYZE after recovery succeeds', async () => {
+        it('should fail ANALYZE when retries are exhausted', async () => {
             const apiKeyService = await import('../../../../services/apiKey.service.js');
 
             const state: WorkflowState = {
@@ -259,15 +260,9 @@ describe('WorkflowEngine', () => {
             const analyzeResult = await advanceWorkflow(state, 'Create a landing page');
 
             expect(analyzeResult.success).toBe(false);
-            expect(state.currentStep).toBe('RECOVER');
-            expect(state.history).toHaveLength(1);
-
-            vi.mocked(apiKeyService.getDecryptedApiKey).mockResolvedValue('mock-api-key');
-
-            const recoverResult = await advanceWorkflow(state);
-
-            expect(recoverResult.success).toBe(true);
             expect(state.currentStep).toBe('ANALYZE');
+            expect(state.status).toBe('failed');
+            expect(state.history).toHaveLength(1);
         });
     });
 
