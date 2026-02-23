@@ -2,20 +2,20 @@
 
 import Promptbar from "@edward/ui/components/ui/promptbar";
 import { useSession, signIn } from "@/lib/auth-client";
-import { useApiKey } from "@/hooks/useApiKey";
+import { useApiKey } from "@/hooks/server-state/useApiKey";
 import {
   useChatStreamActions,
   useChatStream,
 } from "@/contexts/chatStreamContext";
 import {
   filesToMessageContent,
-  uploadImageToCdn,
   type UploadedImage,
-} from "@/lib/api";
+} from "@/lib/api/messageContent";
+import { uploadImageToCdn } from "@/lib/api/images";
 import { useCallback, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import type { MetaEvent } from "@/lib/chatTypes";
-import { INITIAL_STREAM_STATE } from "@/lib/chatTypes";
+import type { MetaEvent } from "@edward/shared/chat/types";
+import { INITIAL_STREAM_STATE } from "@edward/shared/chat/types";
 import { toast } from "@edward/ui/components/sonner";
 
 interface AuthenticatedPromptbarProps {

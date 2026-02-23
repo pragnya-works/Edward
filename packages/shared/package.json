@@ -15,6 +15,26 @@
     "./stream-events": {
       "types": "./dist/stream-events.d.ts",
       "default": "./dist/stream-events.js"
+    },
+    "./chat/types": {
+      "types": "./dist/chat/types.d.ts",
+      "default": "./dist/chat/types.js"
+    },
+    "./chat/streamActions": {
+      "types": "./dist/chat/streamActions.d.ts",
+      "default": "./dist/chat/streamActions.js"
+    },
+    "./github/types": {
+      "types": "./dist/github/types.d.ts",
+      "default": "./dist/github/types.js"
+    },
+    "./github/naming": {
+      "types": "./dist/github/naming.d.ts",
+      "default": "./dist/github/naming.js"
+    },
+    "./api/contracts": {
+      "types": "./dist/api/contracts.d.ts",
+      "default": "./dist/api/contracts.js"
     }
   },
   "scripts": {

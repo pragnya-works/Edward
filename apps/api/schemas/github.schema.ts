@@ -1,15 +1,55 @@
 import { z } from 'zod';
+import {
+  validateGithubBranchName,
+  validateGithubRepositoryInput,
+  validateGithubRepositoryName,
+} from '@edward/shared/github/naming';
 
 const nonEmpty = z.string().trim().min(1, 'Value cannot be empty');
-const repoFullName = nonEmpty.regex(/^[^/\s]+\/[^/\s]+$/, 'repoFullName must be in owner/repo format');
-const repoName = nonEmpty.regex(/^[A-Za-z0-9._-]+$/, 'repoName contains invalid characters');
 
-const branchName = nonEmpty.refine((value) => {
-  if (value.startsWith('/') || value.endsWith('/')) return false;
-  if (value.includes('..') || value.includes('@{')) return false;
-  if (/[~^:?*\s\\[\]]/.test(value)) return false;
-  return true;
-}, 'Invalid branch name');
+function addValidationIssue(
+  ctx: z.RefinementCtx,
+  fallbackMessage: string,
+  validationMessage: string | null,
+): void {
+  ctx.addIssue({
+    code: z.ZodIssueCode.custom,
+    message: validationMessage || fallbackMessage,
+  });
+}
+
+const repoFullName = nonEmpty.superRefine(function validateRepoFullName(
+  value,
+  ctx,
+) {
+  const validation = validateGithubRepositoryInput(value);
+  const parts = value.split('/');
+  if (!validation.valid || parts.length !== 2) {
+    addValidationIssue(
+      ctx,
+      'repoFullName must be in owner/repo format',
+      validation.message,
+    );
+  }
+});
+
+const repoName = nonEmpty.superRefine(function validateRepoName(value, ctx) {
+  const validation = validateGithubRepositoryName(value);
+  if (!validation.valid) {
+    addValidationIssue(
+      ctx,
+      'repoName contains invalid characters',
+      validation.message,
+    );
+  }
+});
+
+const branchName = nonEmpty.superRefine(function validateBranchName(value, ctx) {
+  const validation = validateGithubBranchName(value);
+  if (!validation.valid) {
+    addValidationIssue(ctx, 'Invalid branch name', validation.message);
+  }
+});
 
 export const ConnectRepoSchema = z.object({
   chatId: nonEmpty,

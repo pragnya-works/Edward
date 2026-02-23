@@ -1,18 +1,18 @@
 "use client";
 
-import { useChatHistory } from "@/hooks/useChatHistory";
+import { useChatHistory } from "@/hooks/server-state/useChatHistory";
 import { useChatStream, useChatStreamActions } from "@/contexts/chatStreamContext";
 import { useSandbox } from "@/contexts/sandboxContext";
 import { ChatWorkspace } from "@/components/chat/chatWorkspace";
 import { ChatErrorState, ChatLoadingState } from "@/components/chat/chatPageStates";
-import { useChatPageOrchestration } from "@/hooks/useChatPageOrchestration";
-import { ChatRole, INITIAL_STREAM_STATE } from "@/lib/chatTypes";
-
-const AGGRESSIVE_ACTIVE_RUN_LOOKUP_WINDOW_MS = 90_000;
+import { useChatPageOrchestration } from "@/hooks/chat/useChatPageOrchestration";
+import { ChatRole, INITIAL_STREAM_STATE } from "@edward/shared/chat/types";
 
 interface ChatPageClientProps {
   chatId: string;
 }
+
+const AGGRESSIVE_ACTIVE_RUN_LOOKUP_WINDOW_MS = 90_000;
 
 export default function ChatPageClient({ chatId }: ChatPageClientProps) {
   const {

@@ -6,7 +6,7 @@ import { BentoCard, BentoGrid } from "@edward/ui/components/bento-grid";
 import { DottedMap } from "@edward/ui/components/dotted-map";
 import { LineShadowText } from "@edward/ui/components/line-shadow-text";
 import { m, useReducedMotion } from "motion/react";
-import { useTabVisibility } from "@/hooks/useTabVisibility";
+import { useTabVisibility } from "@edward/ui/hooks/useTabVisibility";
 
 const AIGenerationVisual = dynamic(
     () => import("./aiGenerationVisual").then((mod) => mod.AIGenerationVisual),

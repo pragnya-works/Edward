@@ -4,8 +4,8 @@ import React, { Suspense, useState, useEffect, memo } from "react"
 import dynamic from "next/dynamic"
 import { m } from "motion/react"
 import type { GradientT } from "@shadergradient/react"
-import { useTabVisibility } from "../../hooks/useTabVisibility"
-import { useInView } from "../../hooks/useInView"
+import { useTabVisibility } from "@edward/ui/hooks/useTabVisibility"
+import { useInView } from "@edward/ui/hooks/useInView"
 
 const COLORS = {
   color1: "#73bfc4",

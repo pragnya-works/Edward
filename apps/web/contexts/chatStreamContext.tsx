@@ -1,15 +1,21 @@
 "use client";
 
-import { createContext, useContext, useEffect, useMemo, type ReactNode } from "react";
-import type { StreamState } from "@/lib/chatTypes";
 import {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  type ReactNode,
+} from "react";
+import type { StreamState } from "@edward/shared/chat/types";
+import {
+  useChatStreamController,
   type ChatStreamActionsContextValue,
   type ChatStreamStateContextValue,
-  useChatStreamController,
-} from "./useChatStreamController";
+} from "@/stores/chatStream/controller";
+import { useChatStreamStore } from "@/stores/chatStream/store";
+import { useChatStreamState } from "@/stores/chatStream/hooks";
 
-const ChatStreamStateContext =
-  createContext<ChatStreamStateContextValue | null>(null);
 const ChatStreamActionsContext =
   createContext<ChatStreamActionsContextValue | null>(null);
 
@@ -24,10 +30,12 @@ function isRunInProgress(stream: StreamState): boolean {
 }
 
 export function ChatStreamProvider({ children }: { children: ReactNode }) {
-  const { stateValue, actionsValue } = useChatStreamController();
+  const { actionsValue } = useChatStreamController();
+  const streams = useChatStreamStore((state) => state.streams);
+
   const shouldWarnBeforeUnload = useMemo(
-    () => Object.values(stateValue.streams).some((stream) => isRunInProgress(stream)),
-    [stateValue.streams],
+    () => Object.values(streams).some((stream) => isRunInProgress(stream)),
+    [streams],
   );
 
   useEffect(() => {
@@ -45,20 +53,14 @@ export function ChatStreamProvider({ children }: { children: ReactNode }) {
   }, [shouldWarnBeforeUnload]);
 
   return (
-    <ChatStreamStateContext.Provider value={stateValue}>
-      <ChatStreamActionsContext.Provider value={actionsValue}>
-        {children}
-      </ChatStreamActionsContext.Provider>
-    </ChatStreamStateContext.Provider>
+    <ChatStreamActionsContext.Provider value={actionsValue}>
+      {children}
+    </ChatStreamActionsContext.Provider>
   );
 }
 
-export function useChatStream() {
-  const ctx = useContext(ChatStreamStateContext);
-  if (!ctx) {
-    throw new Error("useChatStream must be used within a ChatStreamProvider");
-  }
-  return ctx;
+export function useChatStream(): ChatStreamStateContextValue {
+  return useChatStreamState();
 }
 
 export function useChatStreamActions() {

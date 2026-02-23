@@ -1,11 +1,21 @@
 import Link from 'next/link';
+import { EdwardLogo } from "@edward/ui/components/brand/edwardLogo";
 
 export function Footer() {
     return (
         <footer className="relative z-10 py-16 px-4">
             <div className="mx-auto max-w-6xl grid grid-cols-1 md:grid-cols-4 gap-12 md:gap-8">
                 <div className="md:col-span-2 space-y-4">
-                    <span className="text-2xl font-bold tracking-tighter">Edward.</span>
+                    <div className="flex items-center gap-3">
+                        <EdwardLogo
+                            size={32}
+                            priority
+                            quality={78}
+                            sizes="32px"
+                            className="rounded-lg"
+                        />
+                        <span className="text-2xl font-bold tracking-tighter">Edward.</span>
+                    </div>
                     <p className="text-muted-foreground max-w-xs text-sm leading-relaxed">
                         The AI-powered web application builder for the next generation of developers.
                         Build, ship, and scale with ease.

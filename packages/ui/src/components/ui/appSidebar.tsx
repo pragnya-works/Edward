@@ -27,6 +27,7 @@ import {
   LOCATION_CHANGE_EVENT,
   quickScrollToRecentProjects,
 } from "@edward/ui/lib/recentProjectsScroll";
+import { EdwardLogo } from "@edward/ui/components/brand/edwardLogo";
 
 export interface SidebarRecentChat {
   id: string;
@@ -292,6 +293,8 @@ const ToggleHandle = () => {
 
 export const Logo = () => {
   const { open } = useSidebar();
+  const logoSize = open ? 24 : 44;
+
   return (
     <Link
       href="/"
@@ -299,10 +302,16 @@ export const Logo = () => {
         "font-normal flex items-center text-sm text-black relative z-20",
         open
           ? "space-x-2 py-1"
-          : "h-12 w-12 justify-center rounded-xl border border-neutral-200/85 dark:border-neutral-700/80 bg-white/90 dark:bg-neutral-900/75 shadow-sm",
+          : "justify-center rounded-xl border-2 border-neutral-200/85 dark:border-neutral-700/80 bg-white/90 dark:bg-neutral-900/75 shadow-sm",
       )}
     >
-      <div className="h-5 w-6 bg-black dark:bg-white rounded-br-lg rounded-tr-sm rounded-tl-lg rounded-bl-sm shrink-0" />
+      <EdwardLogo
+        size={logoSize}
+        priority
+        quality={78}
+        sizes={open ? "24px" : "44px"}
+        className={cn("rounded-md", !open && "h-11 w-11 rounded-xl")}
+      />
       <span
         className={cn(
           "font-medium text-black dark:text-white whitespace-pre overflow-hidden transition-[max-width,opacity,transform] duration-200",
@@ -323,7 +332,13 @@ export const LogoIcon = () => {
       href="/"
       className="font-normal flex space-x-2 items-center text-sm text-black py-1 relative z-20"
     >
-      <div className="h-5 w-6 bg-black dark:bg-white rounded-br-lg rounded-tr-sm rounded-tl-lg rounded-bl-sm shrink-0" />
+      <EdwardLogo
+        size={44}
+        priority
+        quality={78}
+        sizes="44px"
+        className="h-11 w-11 rounded-xl"
+      />
     </Link>
   );
 };
