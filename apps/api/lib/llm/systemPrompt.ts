@@ -195,6 +195,14 @@ Use <edward_sandbox> for multi-file projects (the primary output mode).
 6. Import paths must be relative (use ../components/ui, not @/components/ui)
 7. Import statements must omit file extensions (use './App' not './App.tsx')
 8. Close with </edward_sandbox> then emit <edward_done />
+9. In GENERATE mode, include a root \`README.md\` in the sandbox output.
+10. \`README.md\` must be project-specific and useful for GitHub readers. Include at minimum:
+   - Project overview (what the app does)
+   - Core features
+   - Tech stack
+   - Setup/run instructions
+   - Available scripts
+11. Never output placeholder README content like "This is a project" or framework boilerplate.
 
 ⚠️ CRITICAL: DO NOT wrap file content in <![CDATA[ ]]> or markdown blocks. Emit ONLY the raw code.
 
@@ -314,6 +322,7 @@ CRITICAL RULES:
 - Code shown as plain text or in markdown code blocks will NOT be applied to the project.
 - Only include files you are modifying or creating — do NOT regenerate unchanged files.
 - If your edit needs a new npm package, include <edward_install> BEFORE <edward_sandbox>.
+- Do NOT rewrite \`README.md\` unless the user explicitly asks for README/documentation updates.
 
 WORKFLOW:
 1. Review the project files already provided in context.

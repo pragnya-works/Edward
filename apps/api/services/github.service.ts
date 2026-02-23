@@ -16,6 +16,7 @@ import { getSandboxState } from "./sandbox/state.sandbox.js";
 import { logger } from "../utils/logger.js";
 import { ensureError } from "../utils/error.js";
 import { decryptSecret, encryptSecret, isSecretEnvelope } from "../utils/secretEnvelope.js";
+import { prepareGithubFilesWithReadme } from "./github/readme.utils.js";
 
 const GITHUB_PROVIDER_ID = "github";
 const DEFAULT_GITHUB_BASE_BRANCH = "main";
@@ -224,18 +225,32 @@ export async function syncChatToGithub(
 
   if (files.length === 0) throw new Error("No source files found to sync");
 
+  const readmePrepared = prepareGithubFilesWithReadme(files, { repoName: repo });
+
+  if (readmePrepared.readmeAction !== "kept") {
+    logger.info(
+      {
+        chatId,
+        userId,
+        repo: chatData.repoFullName,
+        readmeAction: readmePrepared.readmeAction,
+      },
+      "README was generated/enriched before GitHub sync",
+    );
+  }
+
   try {
     const syncResult = await syncFiles(
       octokit,
       owner,
       repo,
       branch,
-      files,
+      readmePrepared.files,
       commitMessage,
     );
     return {
       sha: syncResult.sha,
-      fileCount: files.length,
+      fileCount: readmePrepared.files.length,
       noChanges: !syncResult.changed,
     };
   } catch (err) {

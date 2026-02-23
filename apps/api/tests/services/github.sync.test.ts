@@ -140,6 +140,19 @@ describe("github sync service", () => {
     expect(result.sha).toBe("mock-sha");
     expect(provisioning.getActiveSandbox).toHaveBeenCalledWith(mockChatId);
     expect(syncUtils.extractFilesFromStream).toHaveBeenCalled();
+    expect(githubClient.syncFiles).toHaveBeenCalledWith(
+      expect.anything(),
+      "owner",
+      "repo",
+      mockBranch,
+      expect.arrayContaining([
+        expect.objectContaining({
+          path: "README.md",
+          encoding: "utf-8",
+        }),
+      ]),
+      mockMessage,
+    );
   });
 
   it("should report noChanges when remote branch already matches local files", async () => {
