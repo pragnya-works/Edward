@@ -24,7 +24,7 @@ import {
 } from "../../../utils/response.js";
 import { assertChatOwnedOrRespond, getChatIdOrRespond } from "../access/chatAccess.service.js";
 import { sendSSEDone } from "../sse.utils.js";
-import { streamRunEventsFromPersistence } from "../runEventStream.utils.js";
+import { streamRunEventsFromPersistence } from "../../../services/runEventStream.utils/service.js";
 
 const RUN_CANCEL_CHANNEL_PREFIX = "edward:run-cancel:";
 
@@ -76,15 +76,15 @@ export async function getActiveRun(
       chatId,
       run: activeRun
         ? {
-            id: activeRun.id,
-            status: activeRun.status,
-            state: activeRun.state,
-            currentTurn: activeRun.currentTurn,
-            createdAt: activeRun.createdAt,
-            startedAt: activeRun.startedAt,
-            userMessageId: activeRun.userMessageId,
-            assistantMessageId: activeRun.assistantMessageId,
-          }
+          id: activeRun.id,
+          status: activeRun.status,
+          state: activeRun.state,
+          currentTurn: activeRun.currentTurn,
+          createdAt: activeRun.createdAt,
+          startedAt: activeRun.startedAt,
+          userMessageId: activeRun.userMessageId,
+          assistantMessageId: activeRun.assistantMessageId,
+        }
         : null,
     });
   } catch (error) {
@@ -152,7 +152,7 @@ export async function cancelRunHandler(
         JSON.stringify({ cancelled: true }),
       );
     } finally {
-      await pubClient.quit().catch(() => {});
+      await pubClient.quit().catch(() => { });
     }
 
     logger.info({ runId, chatId, userId }, "Run cancelled by user");

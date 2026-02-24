@@ -1,4 +1,5 @@
 import { redis } from "../../../lib/redis.js";
+import { acquireDistributedLock, releaseDistributedLock } from "../../../lib/distributedLock.js";
 import { logger } from "../../../utils/logger.js";
 import { ensureError } from "../../../utils/error.js";
 import { flushSandbox } from "./flush.js";
@@ -18,7 +19,7 @@ function lockKey(sandboxId: string): string {
 }
 
 export async function clearScheduledFlush(sandboxId: string): Promise<void> {
-  await redis.del(dueKey(sandboxId)).catch(() => {});
+  await redis.del(dueKey(sandboxId)).catch(() => { });
 }
 
 export function scheduleSandboxFlush(
@@ -87,8 +88,8 @@ async function processDueMarker(key: string, now: number): Promise<void> {
     return;
   }
 
-  const lock = await redis.set(lockKey(sandboxId), "1", "PX", SCHEDULER_LOCK_TTL_MS, "NX");
-  if (!lock) {
+  const handle = await acquireDistributedLock(lockKey(sandboxId), { ttlMs: SCHEDULER_LOCK_TTL_MS });
+  if (!handle) {
     return;
   }
 
@@ -106,9 +107,9 @@ async function processDueMarker(key: string, now: number): Promise<void> {
     );
     await redis
       .set(key, String(Date.now() + WRITE_DEBOUNCE_MS), "PX", FLUSH_MARKER_TTL_MS)
-      .catch(() => {});
+      .catch(() => { });
   } finally {
-    await redis.del(lockKey(sandboxId)).catch(() => {});
+    await releaseDistributedLock(handle).catch(() => { });
   }
 }
 

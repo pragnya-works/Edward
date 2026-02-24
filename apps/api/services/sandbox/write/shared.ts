@@ -48,21 +48,3 @@ export async function cleanupBufferKeys(
     }
   }
 }
-
-export async function acquireLock(
-  key: string,
-  ttl: number,
-  retry = false,
-): Promise<boolean> {
-  const lock = await redis.set(key, "locked", "PX", ttl, "NX");
-  if (lock) return true;
-  if (!retry) return false;
-
-  for (let i = 0; i < 20; i++) {
-    await new Promise((resolve) => setTimeout(resolve, 250));
-    const retryLock = await redis.set(key, "locked", "PX", ttl, "NX");
-    if (retryLock) return true;
-  }
-
-  return false;
-}

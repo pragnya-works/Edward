@@ -1,5 +1,6 @@
 import path from "path";
 import { redis } from "../../../lib/redis.js";
+import { releaseDistributedLock } from "../../../lib/distributedLock.js";
 import { logger } from "../../../utils/logger.js";
 import { getSandboxState } from "../state.service.js";
 import {
@@ -7,8 +8,8 @@ import {
   ensureContainerRunning,
   CONTAINER_WORKDIR,
 } from "../docker.service.js";
+import { acquireDistributedLock } from "../../../lib/distributedLock.js";
 import {
-  acquireLock,
   BUFFER_FILES_SET_PREFIX,
   BUFFER_KEY_PREFIX,
   FLUSH_LOCK_PREFIX,
@@ -21,9 +22,12 @@ export async function flushSandbox(
   waitForLock = false,
 ): Promise<void> {
   const lockKey = `${FLUSH_LOCK_PREFIX}${sandboxId}`;
-  const acquired = await acquireLock(lockKey, FLUSH_LOCK_TTL, waitForLock);
+  const handle = await acquireDistributedLock(lockKey, {
+    ttlMs: FLUSH_LOCK_TTL,
+    retry: waitForLock,
+  });
 
-  if (!acquired) {
+  if (!handle) {
     if (waitForLock) {
       logger.error({ sandboxId }, "Failed to acquire flush lock after retries");
     }
@@ -112,6 +116,6 @@ export async function flushSandbox(
     logger.error({ error, sandboxId }, "Flush failed");
     throw error;
   } finally {
-    await redis.del(lockKey);
+    await releaseDistributedLock(handle);
   }
 }

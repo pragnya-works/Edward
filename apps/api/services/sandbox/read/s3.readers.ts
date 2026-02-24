@@ -7,7 +7,7 @@ import {
   cacheKeyForSnapshot,
   getSnapshotCacheEntry,
   setSnapshotCacheEntry,
-} from "./cache.store.js";
+} from "./cache.js";
 import { readProjectFilesFromSnapshot } from "./snapshotReader.js";
 import {
   readFileFromBackupArchive,

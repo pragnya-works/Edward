@@ -121,9 +121,6 @@ export const config = {
       }
       return validatePort("REDIS_PORT", process.env.REDIS_PORT);
     },
-    get url(): string {
-      return process.env.REDIS_URL || `redis://${this.host}:${this.port}`;
-    },
     get connectionOptions(): ConnectionOptions {
       return {
         host: this.host,
@@ -153,8 +150,8 @@ export const config = {
   cors: {
     origins: process.env.CORS_ORIGIN
       ? process.env.CORS_ORIGIN.split(",")
-          .map((o) => o.trim())
-          .filter(Boolean)
+        .map((o) => o.trim())
+        .filter(Boolean)
       : [],
   },
 

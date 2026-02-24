@@ -52,7 +52,7 @@ export function useChatSubmissionGuards(): ChatSubmissionGuards {
       return "Two message sends are already in progress.";
     }
 
-    return "Maximum concurrent chats reached (2). Please wait.";
+    return "You have 2 chats running in other tabs. Wait for one to finish before sending a new message.";
   }, [submissionLock.isLocked, submissionLock.isOwnedByCurrentTab]);
 
   return {

@@ -3,9 +3,9 @@ import { redis } from "../../../lib/redis.js";
 import { logger } from "../../../utils/logger.js";
 import { getSandboxState } from "../state.service.js";
 import { CONTAINER_WORKDIR, execCommand, getContainer } from "../docker.service.js";
+import { acquireDistributedLock, releaseDistributedLock } from "../../../lib/distributedLock.js";
 import { scheduleSandboxFlush } from "./scheduler.js";
 import {
-  acquireLock,
   BUFFER_FILES_SET_PREFIX,
   BUFFER_KEY_PREFIX,
   cleanupBufferKeys,
@@ -110,8 +110,11 @@ export async function prepareSandboxFile(
   }
 
   const lockKey = `${FLUSH_LOCK_PREFIX}${sandboxId}`;
-  const acquired = await acquireLock(lockKey, FLUSH_LOCK_TTL, true);
-  if (!acquired) {
+  const handle = await acquireDistributedLock(lockKey, {
+    ttlMs: FLUSH_LOCK_TTL,
+    retry: true,
+  });
+  if (!handle) {
     throw new Error(`Failed to acquire lock to prepare file: ${filePath}`);
   }
 
@@ -125,7 +128,7 @@ export async function prepareSandboxFile(
     await execCommand(container, ["mkdir", "-p", dirPath]);
     await execCommand(container, ["truncate", "-s", "0", fullPath]);
   } finally {
-    await redis.del(lockKey);
+    await releaseDistributedLock(handle);
   }
 }
 

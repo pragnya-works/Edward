@@ -1,28 +1,33 @@
-import { nanoid } from 'nanoid';
-import { redis } from '../../../lib/redis.js';
+import {
+  acquireDistributedLock,
+  releaseDistributedLock,
+  type LockHandle,
+} from "../../../lib/distributedLock.js";
 
-const LOCK_PREFIX = 'edward:lock:';
-const LOCK_TTL_SECONDS = 300;
+const LOCK_PREFIX = "edward:lock:";
+const LOCK_TTL_MS = 300_000;
+
+const activeLocks = new Map<string, LockHandle>();
 
 export async function acquireLock(lockKey: string): Promise<string | null> {
-  const lockId = nanoid();
-  const acquired = await redis.set(`${LOCK_PREFIX}${lockKey}`, lockId, 'EX', LOCK_TTL_SECONDS, 'NX');
-  return acquired ? lockId : null;
+  const handle = await acquireDistributedLock(`${LOCK_PREFIX}${lockKey}`, {
+    ttlMs: LOCK_TTL_MS,
+  });
+  if (!handle) return null;
+  activeLocks.set(handle.key, handle);
+  return handle.id;
 }
 
-export async function releaseLock(lockKey: string, lockId: string): Promise<void> {
-  const luaScript = `
-        if redis.call("GET", KEYS[1]) == ARGV[1] then
-            return redis.call("DEL", KEYS[1])
-        else
-            return 0
-        end
-    `;
-
-  await redis.eval(
-    luaScript,
-    1,
-    `${LOCK_PREFIX}${lockKey}`,
-    lockId
-  );
+export async function releaseLock(
+  lockKey: string,
+  lockId: string,
+): Promise<void> {
+  const fullKey = `${LOCK_PREFIX}${lockKey}`;
+  const handle = activeLocks.get(fullKey);
+  if (handle && handle.id === lockId) {
+    activeLocks.delete(fullKey);
+    await releaseDistributedLock(handle);
+  } else {
+    await releaseDistributedLock({ key: fullKey, id: lockId });
+  }
 }

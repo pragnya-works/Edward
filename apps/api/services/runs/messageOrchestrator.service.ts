@@ -36,7 +36,7 @@ import {
 } from "../multimodal.utils/service.js";
 import { sendStreamError } from "../../controllers/chat/response/streamErrors.js";
 import { createAgentRunMetadata } from "./runMetadata.js";
-import { streamRunEventsFromPersistence } from "../../controllers/chat/runEventStream.utils.js";
+import { streamRunEventsFromPersistence } from "../runEventStream.utils/service.js";
 import {
   createAdmittedRun,
   enqueueAdmittedRun,
@@ -278,9 +278,9 @@ export async function unifiedSendMessage(
     const preVerifiedDeps = workflow.context.intent?.recommendedPackages || [];
     const userMultimodalContent = parsedContent.hasImages
       ? buildMultimodalContentForLLM(
-          parsedContent.textContent,
-          parsedContent.images,
-        )
+        parsedContent.textContent,
+        parsedContent.images,
+      )
       : parsedContent.textContent;
 
     const runMetadata = createAgentRunMetadata({
