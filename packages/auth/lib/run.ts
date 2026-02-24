@@ -68,12 +68,9 @@ export async function createRunWithUserLimit(
   limits: RunAdmissionLimits,
 ): Promise<RunAdmissionResult> {
   return db.transaction(async (tx) => {
-    const [globalLockResult] = await tx.execute<{ acquired: boolean }>(
-      sql`select pg_try_advisory_xact_lock(hashtext('run_admission_global')) as acquired`,
+    await tx.execute(
+      sql`select pg_advisory_xact_lock(hashtext('run_admission_global'))`,
     );
-    if (!globalLockResult?.acquired) {
-      return { run: null, rejectedBy: "global_limit" };
-    }
 
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${data.userId}))`);
 
