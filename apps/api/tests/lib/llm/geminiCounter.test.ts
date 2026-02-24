@@ -53,4 +53,22 @@ describe("countGeminiInputTokens", () => {
       },
     ]);
   });
+
+  it("always reports full context tokens as inputTokens", async () => {
+    countTokensMock
+      .mockResolvedValueOnce({ totalTokens: 2 })
+      .mockResolvedValueOnce({ totalTokens: 3 });
+
+    const usage = await countGeminiInputTokens(
+      "system",
+      [{ role: MessageRole.User, content: "hello" }],
+      "gemini-2.5-flash",
+      "fake-key",
+      "new user prompt",
+    );
+
+    expect(countTokensMock).toHaveBeenCalledTimes(2);
+    expect(usage.totalContextTokens).toBe(5);
+    expect(usage.inputTokens).toBe(usage.totalContextTokens);
+  });
 });

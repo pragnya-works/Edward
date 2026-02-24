@@ -46,7 +46,12 @@ function isBlockedHostname(
 
 function isPrivateIPv4(address: string): boolean {
   const parts = address.split(".").map((part) => Number.parseInt(part, 10));
-  if (parts.length !== 4 || parts.some((value) => Number.isNaN(value))) {
+  if (
+    parts.length !== 4 ||
+    parts.some(
+      (value) => Number.isNaN(value) || value < 0 || value > 255,
+    )
+  ) {
     return false;
   }
 
@@ -62,15 +67,47 @@ function isPrivateIPv4(address: string): boolean {
   return false;
 }
 
+function getMappedIPv4Address(address: string): string | null {
+  const normalized = address.trim().toLowerCase();
+  if (!normalized.startsWith("::ffff:")) {
+    return null;
+  }
+
+  const mapped = normalized.slice("::ffff:".length);
+  if (!mapped) {
+    return null;
+  }
+
+  if (net.isIP(mapped) === 4) {
+    return mapped;
+  }
+
+  const parts = mapped.split(":");
+  if (
+    parts.length !== 2 ||
+    parts.some((part) => !/^[0-9a-f]{1,4}$/i.test(part))
+  ) {
+    return null;
+  }
+
+  const high = Number.parseInt(parts[0] ?? "", 16);
+  const low = Number.parseInt(parts[1] ?? "", 16);
+  if (Number.isNaN(high) || Number.isNaN(low)) {
+    return null;
+  }
+
+  return `${(high >> 8) & 0xff}.${high & 0xff}.${(low >> 8) & 0xff}.${low & 0xff}`;
+}
+
 function isPrivateIPv6(address: string): boolean {
   const normalized = address.toLowerCase();
   if (normalized === "::1" || normalized === "::") return true;
   if (normalized.startsWith("fe80:")) return true;
   if (normalized.startsWith("fc") || normalized.startsWith("fd")) return true;
 
-  if (normalized.startsWith("::ffff:")) {
-    const mapped = normalized.slice("::ffff:".length);
-    return isPrivateIPv4(mapped);
+  const mappedIPv4 = getMappedIPv4Address(normalized);
+  if (mappedIPv4) {
+    return isPrivateIPv4(mappedIPv4);
   }
 
   return false;

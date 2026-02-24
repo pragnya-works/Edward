@@ -3,6 +3,7 @@ import {
   CHAT_SUBMISSION_LOCK_TTL_MS,
   CHAT_SUBMISSION_WEB_LOCK_NAME,
   STORAGE_LOCK_STABILIZATION_MS,
+  clearPersistedLockIfOwned,
   emitChange,
   getActiveSharedLocks,
   getTabId,
@@ -105,10 +106,22 @@ async function acquireWithStorageOrMemory(ownerId: string): Promise<string | nul
   }
 
   await wait(STORAGE_LOCK_STABILIZATION_MS);
-  const confirmed = getActiveSharedLocks(Date.now()).find(
+  const stabilizedLocks = getActiveSharedLocks(Date.now());
+  const confirmed = stabilizedLocks.find(
     (entry) => entry.ownerId === ownerId && entry.token === token,
   );
   if (!confirmed) {
+    return null;
+  }
+
+  const winningTokens = stabilizedLocks
+    .slice()
+    .sort((a, b) => a.token.localeCompare(b.token))
+    .slice(0, CHAT_SUBMISSION_MAX_CONCURRENT)
+    .map((entry) => entry.token);
+  if (!winningTokens.includes(token)) {
+    clearPersistedLockIfOwned(ownerId, token);
+    emitChange();
     return null;
   }
 

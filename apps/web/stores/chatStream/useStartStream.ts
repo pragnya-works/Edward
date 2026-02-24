@@ -91,6 +91,7 @@ export function useStartStream({
   };
   const lockHeartbeatStopByMutationIdRef = useRef(new Map<string, () => void>());
   const lockTokenByMutationIdRef = useRef(new Map<string, string>());
+  const isUnmountedRef = useRef(false);
 
   const mutation = useMutation({
     mutationFn: async (variables: StartStreamMutationVariables) =>
@@ -112,22 +113,34 @@ export function useStartStream({
   });
 
   useEffect(
-    () => () => {
-      for (const stopHeartbeat of lockHeartbeatStopByMutationIdRef.current.values()) {
-        stopHeartbeat();
-      }
-      lockHeartbeatStopByMutationIdRef.current.clear();
+    () => {
+      isUnmountedRef.current = false;
+      const heartbeatStopByMutationId = lockHeartbeatStopByMutationIdRef.current;
+      const lockTokenByMutationId = lockTokenByMutationIdRef.current;
 
-      for (const token of lockTokenByMutationIdRef.current.values()) {
-        releaseChatSubmissionLock(token);
-      }
-      lockTokenByMutationIdRef.current.clear();
+      return () => {
+        isUnmountedRef.current = true;
+
+        for (const stopHeartbeat of heartbeatStopByMutationId.values()) {
+          stopHeartbeat();
+        }
+        heartbeatStopByMutationId.clear();
+
+        for (const token of lockTokenByMutationId.values()) {
+          releaseChatSubmissionLock(token);
+        }
+        lockTokenByMutationId.clear();
+      };
     },
     [],
   );
 
   return useCallback(
     (content: MessageContent, opts?: StartStreamOptions) => {
+      if (isUnmountedRef.current) {
+        return;
+      }
+
       const now = Date.now();
       if (
         getRateLimitCooldown(RATE_LIMIT_SCOPE.CHAT_DAILY, now) ||
@@ -141,6 +154,11 @@ export function useStartStream({
           () => null,
         );
         if (!submissionLockToken) {
+          return;
+        }
+
+        if (isUnmountedRef.current) {
+          releaseChatSubmissionLock(submissionLockToken);
           return;
         }
 
@@ -219,6 +237,7 @@ export function useStartStream({
       lockTokenByMutationIdRef,
       mutation,
       queryClient,
+      isUnmountedRef,
       streamsRef,
     ],
   );

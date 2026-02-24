@@ -41,7 +41,7 @@ export async function countGeminiInputTokens(
   messages: LlmChatMessage[],
   model: string,
   apiKey: string,
-  userPrompt?: string,
+  _userPrompt?: string,
 ): Promise<TokenUsage> {
   const spec =
     getModelSpecByProvider(Provider.GEMINI, model) ??
@@ -80,8 +80,6 @@ export async function countGeminiInputTokens(
     });
 
     const fullTotal = systemTokens + messageTotal;
-    const inputTokens =
-      userPrompt !== undefined ? approx(userPrompt) : messageTotal;
 
     return {
       provider: Provider.GEMINI,
@@ -89,7 +87,7 @@ export async function countGeminiInputTokens(
       method: "approx",
       contextWindowTokens,
       reservedOutputTokens,
-      inputTokens,
+      inputTokens: fullTotal,
       totalContextTokens: fullTotal,
       remainingInputTokens: Math.max(
         0,
@@ -142,21 +140,13 @@ export async function countGeminiInputTokens(
       });
       const fullTotal = systemTokens + messageTotal;
 
-      let inputTokens = messageTotal;
-      if (userPrompt !== undefined) {
-        const userPromptCount = await countFn.call(geminiCountModel, {
-          contents: [{ role: MessageRole.User, parts: [{ text: userPrompt }] }],
-        });
-        inputTokens = userPromptCount?.totalTokens ?? messageTotal;
-      }
-
       return {
         provider: Provider.GEMINI,
         model,
         method: "gemini-countTokens",
         contextWindowTokens,
         reservedOutputTokens,
-        inputTokens,
+        inputTokens: fullTotal,
         totalContextTokens: fullTotal,
         remainingInputTokens: Math.max(
           0,

@@ -89,11 +89,10 @@ export function countOpenAIInputTokens(
     0,
     contextWindowTokens - reservedOutputTokens - fullTotal,
   );
-
   const inputTokens =
     userPrompt !== undefined
       ? tokensPerMessage + enc.encode(userPrompt).length
-      : messageTotal;
+      : 0;
 
   return {
     provider: Provider.OPENAI,
