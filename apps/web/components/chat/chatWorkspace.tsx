@@ -34,6 +34,7 @@ import {
 import { useSandbox } from "@/contexts/sandboxContext";
 import { useMobileViewport } from "@edward/ui/hooks/useMobileViewport";
 import { useChatStreamActions } from "@/contexts/chatStreamContext";
+import { useChatSubmissionGuards } from "@/hooks/chat/useChatSubmissionGuards";
 
 interface ChatWorkspaceProps {
   chatId: string;
@@ -64,6 +65,7 @@ export function ChatWorkspace({
   const prefersReducedMotion = useReducedMotion();
   const { closeSandbox } = useSandbox();
   const { startStream } = useChatStreamActions();
+  const chatSubmissionGuards = useChatSubmissionGuards();
   const streamingProjectName = useMemo(() => {
     if (!stream.isStreaming || !stream.streamingText) {
       return null;
@@ -199,6 +201,13 @@ export function ChatWorkspace({
         retryTargetAssistantMessageId?: string;
       },
     ): boolean => {
+      if (
+        chatSubmissionGuards.isChatRateLimited ||
+        chatSubmissionGuards.isSubmissionLocked
+      ) {
+        return false;
+      }
+
       if (!userMessage) {
         return false;
       }
@@ -216,7 +225,12 @@ export function ChatWorkspace({
       });
       return true;
     },
-    [chatId, startStream],
+    [
+      chatId,
+      startStream,
+      chatSubmissionGuards.isChatRateLimited,
+      chatSubmissionGuards.isSubmissionLocked,
+    ],
   );
 
   const handleRetryStreamError = useCallback((): boolean => {
@@ -265,6 +279,9 @@ export function ChatWorkspace({
     sandboxOpen && desktopSandboxUi.keepMounted && !desktopSandboxUi.isTransitioning
       ? `${MIN_SANDBOX_SIZE}%`
       : "0%";
+  const isRetryDisabled =
+    chatSubmissionGuards.isChatRateLimited ||
+    chatSubmissionGuards.isSubmissionLocked;
 
   if (isMobile) {
     return (
@@ -277,6 +294,7 @@ export function ChatWorkspace({
         closeSandbox={closeSandbox}
         onRetryStreamError={handleRetryStreamError}
         onRetryAssistantMessage={handleRetryAssistantMessage}
+        retryDisabled={isRetryDisabled}
       />
     );
   }
@@ -296,6 +314,7 @@ export function ChatWorkspace({
       onSandboxResize={handleSandboxResize}
       onRetryStreamError={handleRetryStreamError}
       onRetryAssistantMessage={handleRetryAssistantMessage}
+      retryDisabled={isRetryDisabled}
     />
   );
 }

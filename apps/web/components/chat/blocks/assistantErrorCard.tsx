@@ -11,16 +11,23 @@ interface AssistantErrorCardProps {
   error: AssistantErrorViewModel;
   className?: string;
   onRetry?: () => boolean;
+  isRetryDisabled?: boolean;
 }
 
 export function AssistantErrorCard({
   error,
   className,
   onRetry,
+  isRetryDisabled = false,
 }: AssistantErrorCardProps) {
   const isCaution = error.severity === "caution";
+  const shouldDisablePrimaryAction =
+    isRetryDisabled && error.cta.type === "retry_generation";
 
   const handlePrimaryAction = useCallback(() => {
+    if (shouldDisablePrimaryAction) {
+      return;
+    }
     if (onRetry && error.cta.type === "retry_generation") {
       const handled = onRetry();
       if (handled) {
@@ -28,7 +35,7 @@ export function AssistantErrorCard({
       }
     }
     runAssistantErrorCTA(error.cta);
-  }, [error.cta, onRetry]);
+  }, [error.cta, onRetry, shouldDisablePrimaryAction]);
 
   return (
     <div
@@ -68,6 +75,7 @@ export function AssistantErrorCard({
               type="button"
               size="sm"
               onClick={handlePrimaryAction}
+              disabled={shouldDisablePrimaryAction}
               className={cn(
                 "h-7 rounded-md px-2.5 text-[11px] font-medium",
                 isCaution

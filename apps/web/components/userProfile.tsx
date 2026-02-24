@@ -39,6 +39,8 @@ export default function UserProfile() {
     validateAndSaveApiKey,
     preferredModel,
     error,
+    isRateLimited,
+    rateLimitMessage,
   } = useApiKey();
   const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState(false);
   const themeTogglerRef = useRef<AnimatedThemeTogglerHandle>(null);
@@ -137,6 +139,8 @@ export default function UserProfile() {
         preferredModel={preferredModel || undefined}
         initialProvider={getBestGuessProvider(preferredModel, keyPreview)}
         error={error}
+        isRateLimited={isRateLimited}
+        rateLimitMessage={rateLimitMessage}
       />
     </>
   );

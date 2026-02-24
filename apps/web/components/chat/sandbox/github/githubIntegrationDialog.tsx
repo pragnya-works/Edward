@@ -25,6 +25,8 @@ interface GithubIntegrationDialogProps {
   isModalOpen: boolean;
   isRepoLocked: boolean;
   isSubmitting: boolean;
+  isRateLimited: boolean;
+  rateLimitMessage: string | null;
   branchValidationError: string | null;
   branchSuggestions: string[];
   normalizedBranchInput: string;
@@ -50,6 +52,8 @@ export function GithubIntegrationDialog({
   isModalOpen,
   isRepoLocked,
   isSubmitting,
+  isRateLimited,
+  rateLimitMessage,
   branchValidationError,
   branchSuggestions,
   normalizedBranchInput,
@@ -102,7 +106,7 @@ export function GithubIntegrationDialog({
               value={repoInput}
               onChange={(event) => onRepoInputChange(event.target.value)}
               placeholder="owner/repo or repo-name"
-              disabled={isRepoLocked}
+              disabled={isRepoLocked || isRateLimited}
               className="h-10 rounded-xl border-workspace-border bg-workspace-sidebar text-[13px] text-workspace-foreground placeholder:text-workspace-foreground/45 focus-visible:ring-workspace-accent/40"
             />
             {repoValidationError && !isRepoLocked ? (
@@ -147,6 +151,7 @@ export function GithubIntegrationDialog({
                 value={branchInput}
                 onChange={(event) => onBranchInputChange(event.target.value)}
                 placeholder="feature/my-change"
+                disabled={isRateLimited}
                 className="h-10 rounded-xl border-workspace-border bg-workspace-sidebar text-[13px] text-workspace-foreground placeholder:text-workspace-foreground/45 focus-visible:ring-workspace-accent/40"
               />
               <p className="text-[11px] text-workspace-foreground/55">
@@ -187,10 +192,18 @@ export function GithubIntegrationDialog({
                 value={commitMessage}
                 onChange={(event) => onCommitMessageChange(event.target.value)}
                 placeholder="chore: sync project changes"
+                disabled={isRateLimited}
                 className="h-10 rounded-xl border-workspace-border bg-workspace-sidebar text-[13px] text-workspace-foreground placeholder:text-workspace-foreground/45 focus-visible:ring-workspace-accent/40"
               />
             </div>
           </div>
+
+          {rateLimitMessage ? (
+            <p className="flex items-center gap-1.5 rounded-lg border border-amber-500/25 bg-amber-500/8 px-3 py-2 text-[12px] text-amber-500">
+              <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+              {rateLimitMessage}
+            </p>
+          ) : null}
 
           {errorMessage ? (
             <p className="flex items-center gap-1.5 rounded-lg border border-destructive/25 bg-destructive/5 px-3 py-2 text-[12px] text-destructive">
@@ -215,6 +228,7 @@ export function GithubIntegrationDialog({
             disabled={
               isSubmitting ||
               isCheckingStatus ||
+              isRateLimited ||
               (!isRepoLocked && !normalizedRepoInput) ||
               Boolean(repoValidationError) ||
               !normalizedBranchInput ||

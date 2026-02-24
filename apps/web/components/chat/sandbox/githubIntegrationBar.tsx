@@ -53,22 +53,33 @@ export function GithubIntegrationBar({
 
   return (
     <>
-      <Button
-        type="button"
-        size="sm"
-        onClick={integration.openModal}
-        disabled={integration.isSubmitting || integration.isCheckingStatus}
-        className="h-8 rounded-lg px-3 text-[12px] font-semibold tracking-tight"
-      >
-        {integration.isSubmitting || integration.isCheckingStatus ? (
-          <LoaderIcon className="h-3.5 w-3.5 animate-spin" />
-        ) : (
-          <>
-            <GitHub className="h-4 w-4" />
-            {integration.actionLabel}
-          </>
-        )}
-      </Button>
+      <div className="flex flex-col items-start gap-1.5">
+        <Button
+          type="button"
+          size="sm"
+          onClick={integration.openModal}
+          disabled={
+            integration.isSubmitting ||
+            integration.isCheckingStatus ||
+            integration.isGithubRateLimited
+          }
+          className="h-8 rounded-lg px-3 text-[12px] font-semibold tracking-tight"
+        >
+          {integration.isSubmitting || integration.isCheckingStatus ? (
+            <LoaderIcon className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <>
+              <GitHub className="h-4 w-4" />
+              {integration.actionLabel}
+            </>
+          )}
+        </Button>
+        {integration.githubRateLimitMessage ? (
+          <p className="text-[11px] font-medium text-amber-500/90">
+            {integration.githubRateLimitMessage}
+          </p>
+        ) : null}
+      </div>
 
       <GithubIntegrationDialog
         actionLabel={integration.actionLabel}
@@ -77,6 +88,8 @@ export function GithubIntegrationBar({
         isModalOpen={integration.isModalOpen}
         isRepoLocked={integration.isRepoLocked}
         isSubmitting={integration.isSubmitting}
+        isRateLimited={integration.isGithubRateLimited}
+        rateLimitMessage={integration.githubRateLimitMessage}
         normalizedBranchInput={integration.normalizedBranchInput}
         normalizedCommitMessage={integration.normalizedCommitMessage}
         normalizedRepoInput={integration.normalizedRepoInput}

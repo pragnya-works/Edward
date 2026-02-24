@@ -46,6 +46,8 @@ interface BYOKProps {
   keyPreview?: string | null;
   hasExistingKey?: boolean;
   onModelChange?: (modelId: string) => void;
+  isRateLimited?: boolean;
+  rateLimitMessage?: string;
 }
 
 interface BYOKState {
@@ -148,6 +150,8 @@ export function BYOK({
   hasExistingKey = false,
   preferredModel,
   onModelChange,
+  isRateLimited = false,
+  rateLimitMessage = "",
 }: BYOKProps) {
   const [state, dispatch] = useReducer(
     byokReducer,
@@ -163,6 +167,7 @@ export function BYOK({
     showPassword,
     showSuccess,
   } = state;
+  const isApiKeyActionDisabled = isSubmitting || isRateLimited;
 
   useEffect(() => {
     if (!isOpen) return;
@@ -201,12 +206,13 @@ export function BYOK({
       : "";
 
   const error =
+    rateLimitMessage ||
     externalError ||
     providerMismatchError ||
     (!isApiKeyValid ? API_KEY_VALIDATION_ERROR[selectedProvider] : localError);
 
   const canSubmit =
-    !isSubmitting &&
+    !isApiKeyActionDisabled &&
     isApiKeyValid &&
     !providerMismatchError &&
     (trimmedApiKey ? true : hasExistingKey && isModelChanged);
@@ -223,7 +229,7 @@ export function BYOK({
   }
 
   async function handleSubmit() {
-    if (!canSubmit || !onSaveApiKey) return;
+    if (!canSubmit || !onSaveApiKey || isRateLimited) return;
 
     dispatch({ type: "set-submitting", payload: true });
     dispatch({ type: "set-local-error", payload: "" });
@@ -250,6 +256,9 @@ export function BYOK({
   }
 
   function handleKeyDown(e: KeyboardEvent) {
+    if (isRateLimited) {
+      return;
+    }
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSubmit();
@@ -326,6 +335,7 @@ export function BYOK({
                   <TabsTrigger
                     key={id}
                     value={id}
+                    disabled={isApiKeyActionDisabled}
                     className="gap-2 rounded-lg data-[state=active]:bg-background dark:data-[state=active]:bg-white/[0.1] data-[state=active]:shadow-sm data-[state=active]:text-foreground dark:text-muted-foreground/80 transition-all"
                     aria-selected={selectedProvider === id}
                   >
@@ -349,7 +359,7 @@ export function BYOK({
                       provider={id}
                       apiKey={apiKey}
                       showPassword={showPassword}
-                      isSubmitting={isSubmitting}
+                      isDisabled={isApiKeyActionDisabled}
                       error={error}
                       onChange={(nextApiKey) =>
                         dispatch({ type: "set-api-key", payload: nextApiKey })
@@ -363,16 +373,24 @@ export function BYOK({
                     <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/60 dark:text-muted-foreground/70 px-1">
                       Engine Preference
                     </p>
-                    <ModelSelector
-                      provider={id}
-                      selectedModelId={
-                        selectedModel &&
-                        getModelSpecByProvider(id, selectedModel) !== null
-                          ? selectedModel
+                    <div
+                      className={
+                        isApiKeyActionDisabled
+                          ? "pointer-events-none opacity-60"
                           : undefined
                       }
-                      onSelect={handleModelChange}
-                    />
+                    >
+                      <ModelSelector
+                        provider={id}
+                        selectedModelId={
+                          selectedModel &&
+                          getModelSpecByProvider(id, selectedModel) !== null
+                            ? selectedModel
+                            : undefined
+                        }
+                        onSelect={handleModelChange}
+                      />
+                    </div>
                   </div>
                 </TabsContent>
               ))}

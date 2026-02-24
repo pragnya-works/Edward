@@ -7,10 +7,15 @@ import {
   API_KEY_VALIDATION_ERROR,
 } from "@edward/shared/constants";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { fetchApi } from "@/lib/api/httpClient";
 import { queryKeys } from "@/lib/queryKeys";
 import { toast } from "@edward/ui/components/sonner";
+import { useRateLimitScope } from "@/hooks/rateLimit/useRateLimitScope";
+import {
+  formatRateLimitResetTime,
+  RATE_LIMIT_SCOPE,
+} from "@/lib/rateLimit/scopes";
 
 interface ApiKeyResponse {
   message: string;
@@ -49,8 +54,20 @@ export function useApiKey() {
   const queryClient = useQueryClient();
   const [error, setError] = useState("");
   const apiKeyQueryKey = queryKeys.apiKey.byUserId(userId);
+  const apiKeyRateLimit = useRateLimitScope(RATE_LIMIT_SCOPE.API_KEY);
+  const apiKeyRateLimitMessage = useMemo(() => {
+    if (!apiKeyRateLimit.isActive || !apiKeyRateLimit.resetAt) {
+      return "";
+    }
 
-  const { data, isLoading } = useQuery({
+    return `API key actions are temporarily limited. Try again at ${formatRateLimitResetTime(apiKeyRateLimit.resetAt)}.`;
+  }, [apiKeyRateLimit.isActive, apiKeyRateLimit.resetAt]);
+
+  const {
+    data,
+    isLoading,
+    error: queryError,
+  } = useQuery<ApiKeyResponse | null, Error>({
     queryKey: apiKeyQueryKey,
     queryFn: async function () {
       if (!userId) return null;
@@ -84,6 +101,12 @@ export function useApiKey() {
     MutationContext
   >({
     mutationFn: async function ({ apiKey, model, method }) {
+      if (apiKeyRateLimit.isActive) {
+        throw new Error(
+          apiKeyRateLimitMessage || "API key actions are temporarily limited.",
+        );
+      }
+
       const body: Record<string, string> = {};
       if (apiKey) body.apiKey = apiKey;
       if (model) body.model = model;
@@ -160,6 +183,15 @@ export function useApiKey() {
       setError("User not authenticated");
       return false;
     }
+    if (apiKeyRateLimit.isActive) {
+      const rateLimitMessage =
+        apiKeyRateLimitMessage || "API key actions are temporarily limited.";
+      setError(rateLimitMessage);
+      toast.error("Save failed", {
+        description: rateLimitMessage,
+      });
+      return false;
+    }
 
     const trimmedKey = apiKey.trim();
     const hasKey = !!data?.data?.hasApiKey;
@@ -224,13 +256,19 @@ export function useApiKey() {
   };
 
   return {
-    error: error || (mutation.error ? "Failed to save API key" : ""),
+    error:
+      apiKeyRateLimitMessage ||
+      error ||
+      queryError?.message ||
+      (mutation.error ? "Failed to save API key" : ""),
     validateAndSaveApiKey,
     hasApiKey: data?.data?.hasApiKey ?? null,
     keyPreview: data?.data?.keyPreview || null,
     preferredModel: data?.data?.preferredModel || null,
     isLoading,
     isSaving: mutation.isPending,
+    isRateLimited: apiKeyRateLimit.isActive,
+    rateLimitMessage: apiKeyRateLimitMessage,
     userId,
   };
 }

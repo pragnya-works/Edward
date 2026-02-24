@@ -12,7 +12,7 @@ interface ApiKeyInputProps {
   provider: Provider;
   apiKey: string;
   showPassword: boolean;
-  isSubmitting: boolean;
+  isDisabled: boolean;
   error?: string;
   onChange: (value: string) => void;
   onToggleVisibility: () => void;
@@ -23,7 +23,7 @@ export function ApiKeyInput({
   provider,
   apiKey,
   showPassword,
-  isSubmitting,
+  isDisabled,
   error,
   onChange,
   onToggleVisibility,
@@ -45,7 +45,7 @@ export function ApiKeyInput({
             onKeyDown={onKeyDown}
             placeholder={API_KEY_PLACEHOLDER[provider]}
             className="pr-10 rounded-xl h-12"
-            disabled={isSubmitting}
+            disabled={isDisabled}
             spellCheck={false}
             autoComplete="off"
           />

@@ -1,5 +1,9 @@
 import { logger } from '../../utils/logger.js';
-import { getQueue, createQueueJobId } from './queue.client.js';
+import {
+  createQueueJobId,
+  getAgentRunQueue,
+  getBuildQueue,
+} from './queue.client.js';
 import {
   JobType,
   BuildJobPayloadSchema,
@@ -10,7 +14,8 @@ import {
   AgentRunJobPayload,
 } from './queue.schemas.js';
 
-const queue = getQueue();
+const buildQueue = getBuildQueue();
+const agentRunQueue = getAgentRunQueue();
 
 export async function enqueueBuildJob(payload: Omit<BuildJobPayload, 'type'>): Promise<string> {
   const fullPayload: BuildJobPayload = { ...payload, type: JobType.BUILD };
@@ -20,12 +25,12 @@ export async function enqueueBuildJob(payload: Omit<BuildJobPayload, 'type'>): P
   const jobId = createQueueJobId('build', validated.sandboxId, stableBuildKey);
 
   try {
-    const existingJob = await queue.getJob(jobId);
+    const existingJob = await buildQueue.getJob(jobId);
     if (existingJob?.id) {
       return existingJob.id;
     }
 
-    const job = await queue.add(JobType.BUILD, validated, {
+    const job = await buildQueue.add(JobType.BUILD, validated, {
       jobId,
       removeOnComplete: { count: 100 },
       removeOnFail: { count: 50 },
@@ -45,7 +50,7 @@ export async function enqueueBackupJob(payload: Omit<BackupJobPayload, 'type'>):
   const validated = BackupJobPayloadSchema.parse(fullPayload);
 
   try {
-    const job = await queue.add(JobType.BACKUP, validated, {
+    const job = await buildQueue.add(JobType.BACKUP, validated, {
       jobId: createQueueJobId('backup', validated.sandboxId),
       removeOnComplete: { count: 100 },
       removeOnFail: { count: 50 },
@@ -68,12 +73,12 @@ export async function enqueueAgentRunJob(
   const jobId = `agent-run-${validated.runId}`;
 
   try {
-    const existingJob = await queue.getJob(jobId);
+    const existingJob = await agentRunQueue.getJob(jobId);
     if (existingJob?.id) {
       return existingJob.id;
     }
 
-    const job = await queue.add(JobType.AGENT_RUN, validated, {
+    const job = await agentRunQueue.add(JobType.AGENT_RUN, validated, {
       jobId,
       removeOnComplete: { count: 200 },
       removeOnFail: { count: 100 },

@@ -60,6 +60,8 @@ export interface PromptbarProps {
   hasApiKey?: boolean | null;
   isApiKeyLoading?: boolean;
   apiKeyError?: string;
+  isApiKeyRateLimited?: boolean;
+  apiKeyRateLimitMessage?: string;
   onSaveApiKey?: (
     apiKey: string,
     onValidate: (key: string) => void,
@@ -73,4 +75,6 @@ export interface PromptbarProps {
   hideSuggestions?: boolean;
   isStreaming?: boolean;
   onCancel?: () => void;
+  submissionDisabledReason?: string;
+  disableImageUploads?: boolean;
 }

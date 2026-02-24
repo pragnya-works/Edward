@@ -16,6 +16,7 @@ interface ChatWorkspaceMobileProps {
   closeSandbox: () => void;
   onRetryStreamError: () => boolean;
   onRetryAssistantMessage: (assistantMessageId: string) => boolean;
+  retryDisabled: boolean;
 }
 
 export function ChatWorkspaceMobile({
@@ -27,6 +28,7 @@ export function ChatWorkspaceMobile({
   closeSandbox,
   onRetryStreamError,
   onRetryAssistantMessage,
+  retryDisabled,
 }: ChatWorkspaceMobileProps) {
   return (
     <div className="flex h-[100dvh] w-full overflow-hidden">
@@ -37,6 +39,7 @@ export function ChatWorkspaceMobile({
             stream={stream}
             onRetryStreamError={onRetryStreamError}
             onRetryAssistantMessage={onRetryAssistantMessage}
+            retryDisabled={retryDisabled}
           />
         </div>
         <div className="shrink-0 w-full max-w-4xl mx-auto px-4 pb-6 pt-2">

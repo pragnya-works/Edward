@@ -25,6 +25,11 @@ import {
   resolvePersistedGithubIntegrationState,
 } from "./githubIntegrationStorage";
 import { runGithubIntegrationFlow } from "./runGithubIntegrationFlow";
+import { useRateLimitScope } from "@/hooks/rateLimit/useRateLimitScope";
+import {
+  formatRateLimitResetTime,
+  RATE_LIMIT_SCOPE,
+} from "@/lib/rateLimit/scopes";
 
 interface UseGithubIntegrationOptions {
   chatId: string;
@@ -66,6 +71,34 @@ export function useGithubIntegration({
   const [repoStatus, setRepoStatus] = useState<GithubRepoStatusData | null>(null);
   const initializedChatIdRef = useRef<string | null>(null);
   const isGithubFlowInFlightRef = useRef(false);
+  const githubBurstRateLimit = useRateLimitScope(RATE_LIMIT_SCOPE.GITHUB_BURST);
+  const githubDailyRateLimit = useRateLimitScope(RATE_LIMIT_SCOPE.GITHUB_DAILY);
+
+  const activeGithubRateLimit = useMemo(() => {
+    if (githubDailyRateLimit.isActive) {
+      return githubDailyRateLimit;
+    }
+    if (githubBurstRateLimit.isActive) {
+      return githubBurstRateLimit;
+    }
+    return null;
+  }, [githubBurstRateLimit, githubDailyRateLimit]);
+
+  const isGithubRateLimited = activeGithubRateLimit !== null;
+  const githubRateLimitMessage = useMemo(() => {
+    if (!activeGithubRateLimit) {
+      return null;
+    }
+
+    if (activeGithubRateLimit.scope === RATE_LIMIT_SCOPE.GITHUB_DAILY) {
+      if (!activeGithubRateLimit.resetAt) {
+        return "Daily GitHub quota exhausted.";
+      }
+      return `Daily GitHub quota exhausted. You can sync again at ${formatRateLimitResetTime(activeGithubRateLimit.resetAt)}.`;
+    }
+
+    return `GitHub requests are temporarily limited. Try again in ${activeGithubRateLimit.remainingSeconds}s.`;
+  }, [activeGithubRateLimit]);
 
   const applyPersistedState = useCallback(function applyPersistedState(
     state: GithubIntegrationStateSnapshot,
@@ -216,6 +249,9 @@ export function useGithubIntegration({
       if (!normalizedChatId) {
         return null;
       }
+      if (isGithubRateLimited) {
+        return null;
+      }
 
       if (!options?.silent) {
         setIsCheckingStatus(true);
@@ -240,7 +276,7 @@ export function useGithubIntegration({
         }
       }
     },
-    [normalizedChatId, applyRepoStatus],
+    [normalizedChatId, applyRepoStatus, isGithubRateLimited],
   );
 
   useEffect(() => {
@@ -258,6 +294,11 @@ export function useGithubIntegration({
   }, [isModalOpen, normalizedChatId, refreshGithubStatus]);
 
   const handleRunGithubFlow = useCallback(async function handleRunGithubFlow() {
+    if (isGithubRateLimited) {
+      setErrorMessage(githubRateLimitMessage ?? "GitHub rate limit reached.");
+      return;
+    }
+
     if (isGithubFlowInFlightRef.current) {
       return;
     }
@@ -286,6 +327,8 @@ export function useGithubIntegration({
       setIsSubmitting(false);
     }
   }, [
+    githubRateLimitMessage,
+    isGithubRateLimited,
     normalizedChatId,
     normalizedRepoInput,
     normalizedBranchInput,
@@ -296,8 +339,11 @@ export function useGithubIntegration({
   ]);
 
   const openModal = useCallback(function openModal() {
+    if (isGithubRateLimited) {
+      return;
+    }
     setIsModalOpen(true);
-  }, []);
+  }, [isGithubRateLimited]);
 
   return {
     normalizedChatId,
@@ -312,6 +358,8 @@ export function useGithubIntegration({
     setIsModalOpen,
     isSubmitting,
     isCheckingStatus,
+    isGithubRateLimited,
+    githubRateLimitMessage,
     isRepoLocked,
     actionLabel,
     normalizedRepoInput,

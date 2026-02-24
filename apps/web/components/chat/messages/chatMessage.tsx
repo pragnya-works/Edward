@@ -29,6 +29,7 @@ interface ChatMessageProps {
   message: ChatMessageType;
   index: number;
   onRetryAssistantMessage?: (assistantMessageId: string) => boolean;
+  retryDisabled?: boolean;
 }
 
 function formatTime(dateStr: string): string {
@@ -52,6 +53,7 @@ export function ChatMessage({
   message,
   index,
   onRetryAssistantMessage,
+  retryDisabled = false,
 }: ChatMessageProps) {
   const { setFiles, files: globalFiles } = useSandbox();
 
@@ -195,6 +197,7 @@ export function ChatMessage({
             <AssistantErrorCard
               error={assistantError}
               onRetry={onRetryAssistantMessage ? handleRetry : undefined}
+              isRetryDisabled={retryDisabled}
             />
           ) : (
             <MessageBlockRenderer

@@ -150,7 +150,7 @@ export async function unifiedSendMessage(
       return;
     }
 
-    const dynamicUserRunLimit = admissionWindow.dynamicUserRunLimit;
+    const userRunLimit = admissionWindow.userRunLimit;
 
     let preferredModel: string | undefined;
     try {
@@ -300,21 +300,29 @@ export async function unifiedSendMessage(
       throw new Error("User message was not persisted");
     }
 
-    const run = await createAdmittedRun({
+    const admissionResult = await createAdmittedRun({
       chatId,
       userId,
       userMessageId,
       assistantMessageId,
       metadata: runMetadata as unknown as Record<string, unknown>,
-      userRunLimit: dynamicUserRunLimit,
+      userRunLimit,
     });
+
+    const run = admissionResult.run;
 
     if (!run) {
       await cleanupUnqueuedUserMessage(userMessageId);
+      const rejectionMessage =
+        admissionResult.rejectedBy === "global_limit"
+          ? "System is currently under high load. Please retry in a moment."
+          : admissionResult.rejectedBy === "chat_limit"
+            ? "This chat already has an active run. Please wait for it to finish before sending another message."
+            : `Too many active runs for your account. Limit=${userRunLimit}. Please wait for an ongoing run to finish.`;
       sendStreamError(
         res,
         HttpStatus.TOO_MANY_REQUESTS,
-        `Too many active runs for your account. Limit=${dynamicUserRunLimit}. Please wait for an ongoing run to finish.`,
+        rejectionMessage,
       );
       return;
     }
@@ -343,7 +351,7 @@ export async function unifiedSendMessage(
     }
 
     logger.info(
-      { runId: run.id, chatId, userId, activeRunDepth, dynamicUserRunLimit },
+      { runId: run.id, chatId, userId, activeRunDepth, userRunLimit },
       "Queued durable agent run",
     );
 

@@ -13,6 +13,7 @@ import {
 import {
   cleanupMutationTracking,
 } from "@/stores/chatStream/mutationTracking";
+import { releaseChatSubmissionLock } from "@/lib/chat/submissionLock";
 import {
   ABORT_ERROR_NAME,
   type RemovedAssistantSnapshot,
@@ -125,6 +126,10 @@ export function handleStartStreamSettled(
   variables: StartStreamMutationVariables,
   deps: StartStreamMutationDeps,
 ): void {
+  if (variables.submissionLockToken) {
+    releaseChatSubmissionLock(variables.submissionLockToken);
+  }
+
   const trackedChatId =
     deps.mutationChatKeyRef.current.get(variables.mutationId) ??
     variables.streamKey;

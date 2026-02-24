@@ -61,6 +61,8 @@ export default function Promptbar({
   hasApiKey = null,
   isApiKeyLoading = false,
   apiKeyError = "",
+  isApiKeyRateLimited = false,
+  apiKeyRateLimitMessage = "",
   onSaveApiKey,
   preferredModel,
   keyPreview,
@@ -70,6 +72,8 @@ export default function Promptbar({
   onCancel,
   onImageUpload,
   onImageUploadError,
+  submissionDisabledReason,
+  disableImageUploads = false,
 }: PromptbarProps) {
   const [inputValue, setInputValue] = useState("");
   const [suggestionIndex, setSuggestionIndex] = useState(0);
@@ -83,6 +87,8 @@ export default function Promptbar({
     if (!selectedModelId) return true;
     return modelSupportsVision(selectedModelId);
   }, [selectedModelId]);
+  const isSubmissionBlocked = Boolean(submissionDisabledReason) || isStreaming;
+  const areImageUploadsBlocked = disableImageUploads || isSubmissionBlocked;
 
   const {
     attachedFiles,
@@ -100,6 +106,7 @@ export default function Promptbar({
   } = useFileAttachments(
     isAuthenticated,
     supportsVision,
+    areImageUploadsBlocked,
     onImageUpload,
     onImageUploadError,
   );
@@ -150,6 +157,7 @@ export default function Promptbar({
   }, []);
 
   const handleProtectedAction = useCallback(() => {
+    if (submissionDisabledReason) return;
     if (hasPendingUploads) return;
     if (!isAuthenticated) {
       setShowLoginModal(true);
@@ -169,6 +177,7 @@ export default function Promptbar({
     handleClearAllFiles,
     uploadedImages,
     hasPendingUploads,
+    submissionDisabledReason,
   ]);
 
   useEffect(() => {
@@ -262,12 +271,13 @@ export default function Promptbar({
               placeholder={hideSuggestions ? "Ask Edward anything..." : ""}
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
+              disabled={isSubmissionBlocked}
               onKeyDown={(e) => {
                 if (e.key !== "Enter" || e.shiftKey || e.nativeEvent.isComposing) {
                   return;
                 }
                 e.preventDefault();
-                if (isSubmitDisabled || isStreaming) return;
+                if (isSubmitDisabled || isStreaming || submissionDisabledReason) return;
                 handleProtectedAction();
               }}
               className="min-h-[4.5rem] sm:min-h-[5.5rem] md:min-h-[6.5rem] max-h-40 sm:max-h-52 md:max-h-64 overflow-y-auto resize-none border-0 bg-transparent p-3 sm:p-4 md:p-6 text-sm sm:text-[15px] text-foreground placeholder:text-muted-foreground/70 focus-visible:ring-0 focus-visible:ring-offset-0 relative z-10 font-medium leading-relaxed tracking-tight"
@@ -287,8 +297,14 @@ export default function Promptbar({
             onProtectedAction={handleProtectedAction}
             isStreaming={isStreaming}
             onCancel={onCancel}
-            disabled={isSubmitDisabled}
+            disabled={isSubmitDisabled || Boolean(submissionDisabledReason)}
+            disableAttachmentActions={areImageUploadsBlocked}
           />
+          {submissionDisabledReason ? (
+            <p className="px-3 pb-3 sm:px-4 md:px-6 text-[11px] font-medium text-amber-500/90">
+              {submissionDisabledReason}
+            </p>
+          ) : null}
         </div>
         <LoginModal
           isOpen={showLoginModal}
@@ -300,6 +316,7 @@ export default function Promptbar({
             isOpen={showBYOK}
             onClose={() => setShowBYOK(false)}
             onValidate={() => {
+              if (submissionDisabledReason || isStreaming) return;
               if (hasPendingUploads) return;
               onProtectedAction?.(inputValue, uploadedImages);
               setInputValue("");
@@ -311,6 +328,8 @@ export default function Promptbar({
             keyPreview={keyPreview}
             hasExistingKey={hasApiKey === true}
             error={apiKeyError}
+            isRateLimited={isApiKeyRateLimited}
+            rateLimitMessage={apiKeyRateLimitMessage}
           />
         )}
       </Card>

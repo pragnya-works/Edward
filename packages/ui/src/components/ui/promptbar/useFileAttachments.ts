@@ -18,6 +18,7 @@ interface UploadQueueItem {
 export function useFileAttachments(
   isAuthenticated: boolean,
   supportsVision: boolean,
+  isUploadBlocked: boolean,
   onImageUpload?: (
     file: File,
   ) => Promise<{ url: string; mimeType: string; sizeBytes?: number }>,
@@ -105,7 +106,7 @@ export function useFileAttachments(
 
   const handleFiles = useCallback(
     async (files: FileList | null) => {
-      if (!isAuthenticated || !supportsVision) return;
+      if (!isAuthenticated || !supportsVision || isUploadBlocked) return;
       if (!files || files.length === 0) return;
 
       const validFiles = Array.from(files).filter((file) => {
@@ -173,6 +174,7 @@ export function useFileAttachments(
       attachedFiles.length,
       isAuthenticated,
       supportsVision,
+      isUploadBlocked,
       onImageUpload,
       onImageUploadError,
       processUploadQueue,
@@ -206,7 +208,7 @@ export function useFileAttachments(
 
   const handleDragEnter = useCallback(
     (e: React.DragEvent) => {
-      if (!isAuthenticated || !supportsVision) return;
+      if (!isAuthenticated || !supportsVision || isUploadBlocked) return;
       e.preventDefault();
       e.stopPropagation();
       dragCounter.current++;
@@ -214,7 +216,7 @@ export function useFileAttachments(
         setIsDragging(true);
       }
     },
-    [isAuthenticated, supportsVision],
+    [isAuthenticated, supportsVision, isUploadBlocked],
   );
 
   const handleDragLeave = useCallback((e: React.DragEvent) => {
@@ -243,13 +245,14 @@ export function useFileAttachments(
   );
 
   const handleAttachmentClick = useCallback(() => {
-    if (!isAuthenticated || !supportsVision) return;
+    if (!isAuthenticated || !supportsVision || isUploadBlocked) return;
     fileInputRef.current?.click();
-  }, [isAuthenticated, supportsVision]);
+  }, [isAuthenticated, supportsVision, isUploadBlocked]);
 
   const canAttachMore =
     isAuthenticated &&
     supportsVision &&
+    !isUploadBlocked &&
     attachedFiles.length < IMAGE_UPLOAD_CONFIG.MAX_FILES;
 
   return {

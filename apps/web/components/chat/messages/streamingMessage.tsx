@@ -24,11 +24,13 @@ import { mapStreamErrorToViewModel } from "@/lib/errors/assistantError";
 interface StreamingMessageProps {
   stream: StreamState;
   onRetry?: () => boolean;
+  retryDisabled?: boolean;
 }
 
 export const StreamingMessage = memo(function StreamingMessage({
   stream,
   onRetry,
+  retryDisabled = false,
 }: StreamingMessageProps) {
   const { isOpen: sandboxOpen } = useSandbox();
 
@@ -227,7 +229,11 @@ export const StreamingMessage = memo(function StreamingMessage({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             className="w-full"
           >
-            <AssistantErrorCard error={streamError} onRetry={onRetry} />
+            <AssistantErrorCard
+              error={streamError}
+              onRetry={onRetry}
+              isRetryDisabled={retryDisabled}
+            />
           </m.div>
         ) : null}
 

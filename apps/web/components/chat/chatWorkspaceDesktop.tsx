@@ -30,6 +30,7 @@ interface ChatWorkspaceDesktopProps {
   onSandboxResize: (panelSize: PanelSize) => void;
   onRetryStreamError: () => boolean;
   onRetryAssistantMessage: (assistantMessageId: string) => boolean;
+  retryDisabled: boolean;
 }
 
 const DEFAULT_SANDBOX_SIZE = 45;
@@ -50,6 +51,7 @@ export function ChatWorkspaceDesktop({
   onSandboxResize,
   onRetryStreamError,
   onRetryAssistantMessage,
+  retryDisabled,
 }: ChatWorkspaceDesktopProps) {
   return (
     <div className="flex h-[100dvh] w-full overflow-hidden">
@@ -72,6 +74,7 @@ export function ChatWorkspaceDesktop({
               stream={stream}
               onRetryStreamError={onRetryStreamError}
               onRetryAssistantMessage={onRetryAssistantMessage}
+              retryDisabled={retryDisabled}
             />
           </div>
           <div className="shrink-0 w-full max-w-4xl mx-auto px-4 pb-6 pt-2">

@@ -17,6 +17,7 @@ import { useRouter } from "next/navigation";
 import type { MetaEvent } from "@edward/shared/streamEvents";
 import { INITIAL_STREAM_STATE } from "@edward/shared/chat/types";
 import { toast } from "@edward/ui/components/sonner";
+import { useChatSubmissionGuards } from "@/hooks/chat/useChatSubmissionGuards";
 
 interface AuthenticatedPromptbarProps {
   chatId?: string;
@@ -30,6 +31,8 @@ export default function AuthenticatedPromptbar({
     hasApiKey,
     isLoading,
     error,
+    isRateLimited,
+    rateLimitMessage,
     validateAndSaveApiKey,
     preferredModel,
     keyPreview,
@@ -37,6 +40,7 @@ export default function AuthenticatedPromptbar({
   const router = useRouter();
   const { startStream, onMetaRef, cancelStream } = useChatStreamActions();
   const { streams } = useChatStream();
+  const chatSubmissionGuards = useChatSubmissionGuards();
 
   const { stream, activeStreamKey } = useMemo(() => {
     if (chatId) {
@@ -112,6 +116,28 @@ export default function AuthenticatedPromptbar({
     [startStream, chatId, preferredModel, stream.isStreaming, activeStreamKey, cancelStream],
   );
 
+  const submissionDisabledReason = useMemo(() => {
+    if (chatSubmissionGuards.chatRateLimitMessage) {
+      return chatSubmissionGuards.chatRateLimitMessage;
+    }
+    if (stream.isStreaming) {
+      return "Message send in progress. Wait for completion or stop generation.";
+    }
+    if (chatSubmissionGuards.submissionLockMessage) {
+      return chatSubmissionGuards.submissionLockMessage;
+    }
+    return undefined;
+  }, [
+    chatSubmissionGuards.chatRateLimitMessage,
+    chatSubmissionGuards.submissionLockMessage,
+    stream.isStreaming,
+  ]);
+
+  const shouldDisableImageUploads =
+    chatSubmissionGuards.isChatRateLimited ||
+    chatSubmissionGuards.isSubmissionLocked ||
+    stream.isStreaming;
+
   return (
     <div className="w-full">
       <Promptbar
@@ -130,6 +156,8 @@ export default function AuthenticatedPromptbar({
         hasApiKey={hasApiKey}
         isApiKeyLoading={isLoading}
         apiKeyError={error}
+        isApiKeyRateLimited={isRateLimited}
+        apiKeyRateLimitMessage={rateLimitMessage}
         preferredModel={preferredModel || undefined}
         keyPreview={keyPreview}
         selectedModelId={preferredModel || undefined}
@@ -137,6 +165,8 @@ export default function AuthenticatedPromptbar({
         hideSuggestions={!!chatId}
         isStreaming={stream.isStreaming}
         onCancel={() => activeStreamKey && cancelStream(activeStreamKey)}
+        submissionDisabledReason={submissionDisabledReason}
+        disableImageUploads={shouldDisableImageUploads}
       />
     </div>
   );

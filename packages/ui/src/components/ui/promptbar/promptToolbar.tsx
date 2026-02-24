@@ -26,6 +26,7 @@ interface PromptToolbarProps {
   isStreaming?: boolean;
   onCancel?: () => void;
   disabled?: boolean;
+  disableAttachmentActions?: boolean;
 }
 
 export function PromptToolbar({
@@ -42,6 +43,7 @@ export function PromptToolbar({
   isStreaming,
   onCancel,
   disabled,
+  disableAttachmentActions,
 }: PromptToolbarProps) {
   const handleAction = isStreaming ? onCancel : onProtectedAction;
 
@@ -128,7 +130,11 @@ export function PromptToolbar({
                       "opacity-40 cursor-not-allowed grayscale",
                   )}
                   onClick={onAttachmentClick}
-                  disabled={!isAuthenticated || !supportsVision}
+                  disabled={
+                    !isAuthenticated ||
+                    !supportsVision ||
+                    disableAttachmentActions
+                  }
                 >
                   {isAuthenticated && supportsVision ? (
                     <PaperclipIcon className="h-4 w-4 text-foreground/70" />

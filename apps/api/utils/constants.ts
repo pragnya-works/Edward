@@ -67,15 +67,39 @@ export const TOOL_GATEWAY_RETRY_ATTEMPTS = parsePositiveInt(
   "TOOL_GATEWAY_RETRY_ATTEMPTS",
   2,
 );
+const LEGACY_WORKER_CONCURRENCY = parsePositiveInt("WORKER_CONCURRENCY", 3);
 export const MAX_ACTIVE_RUNS_PER_USER = parsePositiveInt(
   "MAX_ACTIVE_RUNS_PER_USER",
   2,
+);
+export const MAX_ACTIVE_RUNS_PER_CHAT = parsePositiveInt(
+  "MAX_ACTIVE_RUNS_PER_CHAT",
+  1,
 );
 export const MAX_AGENT_QUEUE_DEPTH = parsePositiveInt(
   "MAX_AGENT_QUEUE_DEPTH",
   200,
 );
-export const WORKER_CONCURRENCY = parsePositiveInt("WORKER_CONCURRENCY", 3);
+export const BUILD_WORKER_CONCURRENCY = parsePositiveInt(
+  "BUILD_WORKER_CONCURRENCY",
+  LEGACY_WORKER_CONCURRENCY,
+);
+const CONFIGURED_AGENT_RUN_WORKER_CONCURRENCY = parsePositiveInt(
+  "AGENT_RUN_WORKER_CONCURRENCY",
+  LEGACY_WORKER_CONCURRENCY,
+);
+export const AGENT_RUN_WORKER_CONCURRENCY = Math.max(
+  CONFIGURED_AGENT_RUN_WORKER_CONCURRENCY,
+  MAX_ACTIVE_RUNS_PER_USER,
+);
+export const RUN_MAX_QUEUED_AGE_MS = parsePositiveInt(
+  "RUN_MAX_QUEUED_AGE_MS",
+  10 * 60 * 1000,
+);
+export const RUN_MAX_RUNNING_AGE_MS = parsePositiveInt(
+  "RUN_MAX_RUNNING_AGE_MS",
+  45 * 60 * 1000,
+);
 export const MAX_SSE_QUEUE_BYTES = 768 * 1024;
 export const MAX_SSE_QUEUE_EVENTS = 700;
 export const CLEANUP_INTERVAL_MS = 60 * 1000;

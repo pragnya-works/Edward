@@ -1,5 +1,7 @@
 import {
   createRunWithUserLimit,
+  type RunAdmissionResult,
+  type RunAdmissionRejectionReason,
   count,
   db,
   inArray,
@@ -8,6 +10,8 @@ import {
 } from "@edward/auth";
 import { enqueueAgentRunJob } from "../queue/enqueue.js";
 import {
+  AGENT_RUN_WORKER_CONCURRENCY,
+  MAX_ACTIVE_RUNS_PER_CHAT,
   MAX_ACTIVE_RUNS_PER_USER,
   MAX_AGENT_QUEUE_DEPTH,
 } from "../../utils/constants.js";
@@ -16,7 +20,7 @@ import { logger } from "../../utils/logger.js";
 
 export interface RunAdmissionWindow {
   activeRunDepth: number;
-  dynamicUserRunLimit: number;
+  userRunLimit: number;
   overloaded: boolean;
 }
 
@@ -26,14 +30,14 @@ export async function getRunAdmissionWindow(): Promise<RunAdmissionWindow> {
     .from(runTable)
     .where(inArray(runTable.status, ["queued", "running"]));
   const activeRunDepth = Number(activeRunCountResult?.value ?? 0);
-  const dynamicUserRunLimit =
-    activeRunDepth >= Math.floor(MAX_AGENT_QUEUE_DEPTH * 0.8)
-      ? 1
-      : MAX_ACTIVE_RUNS_PER_USER;
+  const userRunLimit = Math.min(
+    MAX_ACTIVE_RUNS_PER_USER,
+    AGENT_RUN_WORKER_CONCURRENCY,
+  );
 
   return {
     activeRunDepth,
-    dynamicUserRunLimit,
+    userRunLimit,
     overloaded: activeRunDepth >= MAX_AGENT_QUEUE_DEPTH,
   };
 }
@@ -45,7 +49,10 @@ export async function createAdmittedRun(params: {
   assistantMessageId: string;
   metadata: Record<string, unknown>;
   userRunLimit: number;
-}) {
+}): Promise<{
+  run: RunAdmissionResult["run"];
+  rejectedBy: RunAdmissionRejectionReason | null;
+}> {
   const {
     chatId,
     userId,
@@ -63,7 +70,11 @@ export async function createAdmittedRun(params: {
       assistantMessageId,
       metadata,
     },
-    userRunLimit,
+    {
+      maxActiveRunsPerUser: userRunLimit,
+      maxActiveRunsPerChat: MAX_ACTIVE_RUNS_PER_CHAT,
+      maxActiveRunsGlobal: MAX_AGENT_QUEUE_DEPTH,
+    },
   );
 }
 

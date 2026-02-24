@@ -8,8 +8,17 @@ import {
   BackupJobPayload,
 } from "./services/queue/queue.schemas.js";
 import { createLogger } from "./utils/logger.js";
-import { VERSION } from "./utils/constants.js";
-import { connection, QUEUE_NAME } from "./lib/queue.binding.js";
+import {
+  AGENT_RUN_WORKER_CONCURRENCY,
+  BUILD_WORKER_CONCURRENCY,
+  CLEANUP_INTERVAL_MS,
+  VERSION,
+} from "./utils/constants.js";
+import {
+  AGENT_RUN_QUEUE_NAME,
+  BUILD_QUEUE_NAME,
+  connection,
+} from "./lib/queue.binding.js";
 import { buildAndUploadUnified } from "./services/sandbox/builder/unified.build.js";
 import { backupSandboxInstance } from "./services/sandbox/backup.service.js";
 import { getSandboxState } from "./services/sandbox/state.service.js";
@@ -18,8 +27,8 @@ import { enqueueBackupJob } from "./services/queue/enqueue.js";
 import { createRedisClient } from "./lib/redis.js";
 import { createErrorReport } from "./services/diagnostics/errorReport.js";
 import { processAgentRunJob } from "./services/runs/agentRun.worker.js";
-import { WORKER_CONCURRENCY } from "./utils/constants.js";
 import { processScheduledFlushes } from "./services/sandbox/write/flush.scheduler.js";
+import { reapStaleRuns } from "./services/runs/staleRunReaper.service.js";
 
 const logger = createLogger("WORKER");
 const pubClient = createRedisClient();
@@ -246,8 +255,8 @@ async function processAgentRun(payload: { runId: string }): Promise<void> {
   await processAgentRunJob(payload.runId, pubClient);
 }
 
-const worker = new Worker<JobPayload>(
-  QUEUE_NAME,
+const buildWorker = new Worker<JobPayload>(
+  BUILD_QUEUE_NAME,
   async (job) => {
     const payload = JobPayloadSchema.parse(job.data);
 
@@ -256,19 +265,38 @@ const worker = new Worker<JobPayload>(
         return processBuildJob(payload);
       case JobType.BACKUP:
         return processBackupJob(payload);
-      case JobType.AGENT_RUN:
-        return processAgentRun(payload);
       default:
         logger.error(
           { type: (payload as JobPayload).type },
-          "[Worker] Unknown job type",
+          "[Worker] Unsupported payload type on build queue",
         );
-        throw new Error(`Unknown job type: ${(payload as JobPayload).type}`);
+        throw new Error(`Unsupported build queue job type: ${(payload as JobPayload).type}`);
     }
   },
   {
     connection,
-    concurrency: WORKER_CONCURRENCY,
+    concurrency: BUILD_WORKER_CONCURRENCY,
+  },
+);
+
+const agentRunWorker = new Worker<JobPayload>(
+  AGENT_RUN_QUEUE_NAME,
+  async (job) => {
+    const payload = JobPayloadSchema.parse(job.data);
+
+    if (payload.type !== JobType.AGENT_RUN) {
+      logger.error(
+        { type: (payload as JobPayload).type },
+        "[Worker] Unsupported payload type on agent-run queue",
+      );
+      throw new Error(`Unsupported agent-run queue job type: ${(payload as JobPayload).type}`);
+    }
+
+    return processAgentRun(payload);
+  },
+  {
+    connection,
+    concurrency: AGENT_RUN_WORKER_CONCURRENCY,
   },
 );
 
@@ -279,24 +307,50 @@ const scheduledFlushInterval = setInterval(() => {
 }, 250);
 scheduledFlushInterval.unref();
 
-worker.on("completed", (job) => {
+const staleRunReaperInterval = setInterval(() => {
+  void reapStaleRuns().catch((error: unknown) =>
+    logger.error({ error }, "[Worker] Stale run reaper failed"),
+  );
+}, CLEANUP_INTERVAL_MS);
+staleRunReaperInterval.unref();
+
+buildWorker.on("completed", (job) => {
   logger.debug({ jobId: job.id, jobName: job.name }, "[Worker] Job completed");
 });
 
-worker.on("failed", (job, error) => {
+buildWorker.on("failed", (job, error) => {
   logger.error(
     { error, jobId: job?.id, jobName: job?.name },
     "[Worker] Job failed",
   );
 });
 
-worker.on("error", (error) => {
+buildWorker.on("error", (error) => {
+  logger.error({ error }, "[Worker] Build worker error");
+});
+
+agentRunWorker.on("completed", (job) => {
+  logger.debug(
+    { jobId: job.id, jobName: job.name },
+    "[Worker] Agent run job completed",
+  );
+});
+
+agentRunWorker.on("failed", (job, error) => {
+  logger.error(
+    { error, jobId: job?.id, jobName: job?.name },
+    "[Worker] Agent run job failed",
+  );
+});
+
+agentRunWorker.on("error", (error) => {
   logger.error({ error }, "[Worker] Worker error");
 });
 
 async function gracefulShutdown() {
   clearInterval(scheduledFlushInterval);
-  await worker.close();
+  clearInterval(staleRunReaperInterval);
+  await Promise.all([buildWorker.close(), agentRunWorker.close()]);
   await pubClient.quit();
   process.exit(0);
 }
@@ -304,4 +358,11 @@ async function gracefulShutdown() {
 process.on("SIGINT", gracefulShutdown);
 process.on("SIGTERM", gracefulShutdown);
 
-logger.info(`[Worker v${VERSION}] Started listening for jobs...`);
+logger.info(
+  {
+    version: VERSION,
+    buildWorkerConcurrency: BUILD_WORKER_CONCURRENCY,
+    agentRunWorkerConcurrency: AGENT_RUN_WORKER_CONCURRENCY,
+  },
+  "[Worker] Started listening for jobs",
+);

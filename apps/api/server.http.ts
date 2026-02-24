@@ -111,6 +111,13 @@ app.use(
       "Last-Event-ID",
       "X-Request-Id",
     ],
+    exposedHeaders: [
+      "RateLimit-Limit",
+      "RateLimit-Remaining",
+      "RateLimit-Reset",
+      "RateLimit-Scope",
+      "X-Request-Id",
+    ],
   }),
 );
 
@@ -139,7 +146,7 @@ if (!isProd) {
   });
 }
 
-app.use("/api-key", apiKeyRateLimiter, authMiddleware, apiKeyRouter);
+app.use("/api-key", authMiddleware, apiKeyRateLimiter, apiKeyRouter);
 app.use("/share", shareRouter);
 app.use("/chat", authMiddleware, chatRouter);
 app.use("/github", authMiddleware, githubRouter);

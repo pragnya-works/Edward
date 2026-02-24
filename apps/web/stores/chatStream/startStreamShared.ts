@@ -29,6 +29,7 @@ export interface StartStreamMutationVariables {
   model?: string;
   retryTargetUserMessageId?: string;
   retryTargetAssistantMessageId?: string;
+  submissionLockToken?: string;
   streamKey: string;
   mutationId: string;
   controller: AbortController;

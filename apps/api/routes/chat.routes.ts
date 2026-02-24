@@ -46,7 +46,6 @@ export const chatRouter: ExpressRouter = Router();
 chatRouter.post(
   "/image-upload",
   chatRateLimiter,
-  dailyChatRateLimiter,
   express.raw({
     type: [...IMAGE_UPLOAD_CONFIG.ALLOWED_MIME_TYPES],
     limit: `${IMAGE_UPLOAD_CONFIG.MAX_SIZE_BYTES / (1024 * 1024)}mb`,

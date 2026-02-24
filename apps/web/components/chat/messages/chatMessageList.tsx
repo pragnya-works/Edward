@@ -18,6 +18,7 @@ interface ChatMessageListProps {
   stream: StreamState;
   onRetryStreamError?: () => boolean;
   onRetryAssistantMessage?: (assistantMessageId: string) => boolean;
+  retryDisabled?: boolean;
 }
 
 const SUGGESTED_STARTS = [
@@ -82,6 +83,7 @@ export const ChatMessageList = memo(function ChatMessageList({
   stream,
   onRetryStreamError,
   onRetryAssistantMessage,
+  retryDisabled = false,
 }: ChatMessageListProps) {
   const { scrollRef, bottomRef, showScrollButton, scrollToBottom } =
     useScrollToBottom([
@@ -152,12 +154,17 @@ export const ChatMessageList = memo(function ChatMessageList({
                 message={message}
                 index={index}
                 onRetryAssistantMessage={onRetryAssistantMessage}
+                retryDisabled={retryDisabled}
               />
             ))}
           </AnimatePresence>
 
           {hasStreamActivity && (
-            <StreamingMessage stream={stream} onRetry={onRetryStreamError} />
+            <StreamingMessage
+              stream={stream}
+              onRetry={onRetryStreamError}
+              retryDisabled={retryDisabled}
+            />
           )}
 
           <div ref={bottomRef} className="h-4 sm:h-8 w-full shrink-0" />
