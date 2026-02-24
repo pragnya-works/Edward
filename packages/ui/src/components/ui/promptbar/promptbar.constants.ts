@@ -46,7 +46,56 @@ export interface UploadedImageRef {
   sizeBytes?: number;
 }
 
-export interface PromptbarProps {
+export interface PromptbarAuthController {
+  isAuthenticated?: boolean;
+  onSignIn?: () => void | Promise<void>;
+}
+
+export interface PromptbarSubmissionController {
+  onProtectedAction?: (
+    text: string,
+    images?: UploadedImageRef[],
+  ) => void | Promise<void>;
+  hideSuggestions?: boolean;
+  isStreaming?: boolean;
+  onCancel?: () => void;
+  submissionDisabledReason?: string;
+}
+
+export interface PromptbarAttachmentController {
+  onImageUpload?: (
+    file: File,
+  ) => Promise<{ url: string; mimeType: string; sizeBytes?: number }>;
+  onImageUploadError?: (message: string) => void;
+  disableImageUploads?: boolean;
+}
+
+export interface PromptbarApiKeyController {
+  hasApiKey?: boolean | null;
+  isApiKeyLoading?: boolean;
+  apiKeyError?: string;
+  isApiKeyRateLimited?: boolean;
+  apiKeyRateLimitMessage?: string;
+  onSaveApiKey?: (
+    apiKey: string,
+    onValidate: (key: string) => void,
+    onClose: () => void,
+    provider: Provider,
+    model?: string,
+  ) => Promise<boolean>;
+  preferredModel?: string;
+  keyPreview?: string | null;
+  selectedModelId?: string;
+}
+
+export interface PromptbarController {
+  auth?: PromptbarAuthController;
+  submission?: PromptbarSubmissionController;
+  attachments?: PromptbarAttachmentController;
+  apiKey?: PromptbarApiKeyController;
+}
+
+export interface PromptbarLegacyProps {
   isAuthenticated?: boolean;
   onSignIn?: () => void | Promise<void>;
   onProtectedAction?: (
@@ -60,6 +109,8 @@ export interface PromptbarProps {
   hasApiKey?: boolean | null;
   isApiKeyLoading?: boolean;
   apiKeyError?: string;
+  isApiKeyRateLimited?: boolean;
+  apiKeyRateLimitMessage?: string;
   onSaveApiKey?: (
     apiKey: string,
     onValidate: (key: string) => void,
@@ -73,4 +124,12 @@ export interface PromptbarProps {
   hideSuggestions?: boolean;
   isStreaming?: boolean;
   onCancel?: () => void;
+  submissionDisabledReason?: string;
+  disableImageUploads?: boolean;
 }
+
+export interface PromptbarControllerProps {
+  controller: PromptbarController;
+}
+
+export type PromptbarProps = PromptbarLegacyProps | PromptbarControllerProps;

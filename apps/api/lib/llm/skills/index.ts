@@ -1,9 +1,9 @@
-import { UI_DESIGN_SKILL } from './uiDesignSkill.js';
+import { UI_DESIGN_SKILL_TEMPLATE as UI_DESIGN_SKILL } from './uiDesignSkill/parser.js';
 import { NEXTJS_PATTERNS_SKILL } from './nextjsPatternsSkill.js';
 import { VITE_PATTERNS_SKILL } from './vitePatternsSkill.js';
 import { VANILLA_PATTERNS_SKILL } from './vanillaPatternsSkill.js';
 import { CODE_QUALITY_SKILL } from './codeQualitySkill.js';
-import { REACT_BEST_PRACTICES_SKILL } from './reactBestPracticesSkill.js';
+import { REACT_BEST_PRACTICES_SKILL_TEMPLATE as REACT_BEST_PRACTICES_SKILL } from './reactBestPracticesSkill/parser.js';
 import { WEB_GUIDELINES_SKILL } from './webGuidelinesSkill.js';
 import { Framework } from '../../../services/planning/schemas.js';
 

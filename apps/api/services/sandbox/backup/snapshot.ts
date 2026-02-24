@@ -1,5 +1,5 @@
 import tar from "tar-stream";
-import { CONTAINER_WORKDIR } from "../docker.sandbox.js";
+import { CONTAINER_WORKDIR } from "../docker.service.js";
 import {
   MAX_FILE_BYTES,
   MAX_FILES,

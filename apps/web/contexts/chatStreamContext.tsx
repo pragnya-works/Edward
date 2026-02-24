@@ -1,35 +1,66 @@
 "use client";
 
-import { createContext, useContext, type ReactNode } from "react";
 import {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  type ReactNode,
+} from "react";
+import type { StreamState } from "@edward/shared/chat/types";
+import {
+  useChatStreamController,
   type ChatStreamActionsContextValue,
   type ChatStreamStateContextValue,
-  useChatStreamController,
-} from "./useChatStreamController";
+} from "@/stores/chatStream/controller";
+import { useChatStreamStore } from "@/stores/chatStream/store";
+import { useChatStreamState } from "@/stores/chatStream/hooks";
 
-const ChatStreamStateContext =
-  createContext<ChatStreamStateContextValue | null>(null);
 const ChatStreamActionsContext =
   createContext<ChatStreamActionsContextValue | null>(null);
 
-export function ChatStreamProvider({ children }: { children: ReactNode }) {
-  const { stateValue, actionsValue } = useChatStreamController();
-
+function isRunInProgress(stream: StreamState): boolean {
   return (
-    <ChatStreamStateContext.Provider value={stateValue}>
-      <ChatStreamActionsContext.Provider value={actionsValue}>
-        {children}
-      </ChatStreamActionsContext.Provider>
-    </ChatStreamStateContext.Provider>
+    stream.isStreaming ||
+    stream.isThinking ||
+    stream.isSandboxing ||
+    stream.activeFiles.length > 0 ||
+    stream.installingDeps.length > 0
   );
 }
 
-export function useChatStream() {
-  const ctx = useContext(ChatStreamStateContext);
-  if (!ctx) {
-    throw new Error("useChatStream must be used within a ChatStreamProvider");
-  }
-  return ctx;
+export function ChatStreamProvider({ children }: { children: ReactNode }) {
+  const { actionsValue } = useChatStreamController();
+  const streams = useChatStreamStore((state) => state.streams);
+
+  const shouldWarnBeforeUnload = useMemo(
+    () => Object.values(streams).some((stream) => isRunInProgress(stream)),
+    [streams],
+  );
+
+  useEffect(() => {
+    if (!shouldWarnBeforeUnload) {
+      return;
+    }
+
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [shouldWarnBeforeUnload]);
+
+  return (
+    <ChatStreamActionsContext.Provider value={actionsValue}>
+      {children}
+    </ChatStreamActionsContext.Provider>
+  );
+}
+
+export function useChatStream(): ChatStreamStateContextValue {
+  return useChatStreamState();
 }
 
 export function useChatStreamActions() {

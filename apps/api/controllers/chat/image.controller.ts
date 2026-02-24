@@ -4,10 +4,8 @@ import { getAuthenticatedUserId } from "../../middleware/auth.js";
 import { uploadUserImageToCdn } from "../../services/storage/cdnAssets.service.js";
 import { HttpStatus, ERROR_MESSAGES } from "../../utils/constants.js";
 import { ensureError } from "../../utils/error.js";
-import {
-  validateImageBuffer,
-  type AllowedImageMimeType,
-} from "../../utils/imageValidation.js";
+import { validateImageBuffer } from "../../utils/imageValidation/binary.js";
+import type { AllowedImageMimeType } from "../../utils/imageValidation/types.js";
 import { logger } from "../../utils/logger.js";
 import { sendError as sendStandardError, sendSuccess } from "../../utils/response.js";
 import { IMAGE_UPLOAD_CONFIG } from "@edward/shared/constants";

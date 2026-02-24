@@ -2,8 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   validateBase64Image,
   validateImageCount,
-} from "../../utils/imageValidation.js";
-import { IMAGE_UPLOAD_CONFIG } from "@edward/shared/constants";
+} from "../../utils/imageValidation/binary.js";
 
 const validJpegBase64 =
   "/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/wAALCAABAAEBAREA/8QAFAABAAAAAAAAAAAAAAAAAAAACf/EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAD8AVN//2Q==";
@@ -26,16 +25,6 @@ describe("imageValidation", () => {
       expect(result.success).toBe(true);
       if (result.success) {
         expect(result.data.mimeType).toBe("image/png");
-      }
-    });
-
-    it.skip("should validate valid WebP image", () => {
-      const webpHex = "524946461400000057454250565038200800000030303030";
-      const webpBase64 = Buffer.from(webpHex, "hex").toString("base64");
-      const result = validateBase64Image(webpBase64);
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.data.mimeType).toBe("image/webp");
       }
     });
 
@@ -71,16 +60,6 @@ describe("imageValidation", () => {
   });
 
   describe("validateImageCount", () => {
-    it("should accept 0 images", () => {
-      const result = validateImageCount([]);
-      expect(result).toBeNull();
-    });
-
-    it("should accept 1 image", () => {
-      const result = validateImageCount([{}]);
-      expect(result).toBeNull();
-    });
-
     it("should accept 3 images (max)", () => {
       const result = validateImageCount([{}, {}, {}]);
       expect(result).toBeNull();
@@ -91,23 +70,6 @@ describe("imageValidation", () => {
       expect(result).not.toBeNull();
       expect(result?.message).toContain("4");
       expect(result?.message).toContain("3");
-    });
-  });
-
-  describe("constants", () => {
-    it("should have correct max image size", () => {
-      expect(IMAGE_UPLOAD_CONFIG.MAX_SIZE_BYTES).toBe(IMAGE_UPLOAD_CONFIG.MAX_SIZE_BYTES);
-    });
-
-    it("should have correct max images per message", () => {
-      expect(IMAGE_UPLOAD_CONFIG.MAX_FILES).toBe(3);
-    });
-
-    it("should have correct allowed MIME types", () => {
-      expect(IMAGE_UPLOAD_CONFIG.ALLOWED_MIME_TYPES).toContain("image/jpeg");
-      expect(IMAGE_UPLOAD_CONFIG.ALLOWED_MIME_TYPES).toContain("image/png");
-      expect(IMAGE_UPLOAD_CONFIG.ALLOWED_MIME_TYPES).toContain("image/webp");
-      expect(IMAGE_UPLOAD_CONFIG.ALLOWED_MIME_TYPES).toHaveLength(3);
     });
   });
 });

@@ -3,7 +3,7 @@ import { m } from "motion/react";
 import { FolderOpen, Trash2, AlertTriangle } from "lucide-react";
 import Link from "next/link";
 import { TechnicalBlueprint } from "./cardVisual";
-import type { Project } from "@/hooks/useRecentChats";
+import type { Project } from "@/hooks/server-state/useRecentChats";
 import {
   AlertDialog,
   AlertDialogTrigger,

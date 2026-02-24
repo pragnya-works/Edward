@@ -6,6 +6,7 @@ import { useIsMobile } from "@edward/ui/hooks/useMobile";
 import { LoginModal } from "@edward/ui/components/ui/loginModal";
 import { BYOK } from "@edward/ui/components/ui/byok";
 import { modelSupportsVision } from "@edward/shared/schema";
+import { UI_EVENTS } from "@edward/shared/constants";
 import { cn } from "@edward/ui/lib/utils";
 import {
   SUGGESTIONS,
@@ -22,6 +23,7 @@ import { UrlSourceStrip } from "./promptbar/urlSourceStrip";
 
 const URL_PATTERN = /https?:\/\/[^\s<>"'`]+/gi;
 const URL_SOURCE_PREVIEW_LIMIT = 6;
+const PROMPT_INPUT_SELECTOR = "textarea[data-edward-prompt-input='true']";
 
 function normalizeDetectedUrl(raw: string): string | null {
   try {
@@ -52,23 +54,78 @@ function extractUrlsFromPrompt(text: string): string[] {
   return urls.slice(0, URL_SOURCE_PREVIEW_LIMIT);
 }
 
-export default function Promptbar({
-  isAuthenticated = false,
-  onSignIn,
-  onProtectedAction,
-  hasApiKey = null,
-  isApiKeyLoading = false,
-  apiKeyError = "",
-  onSaveApiKey,
-  preferredModel,
-  keyPreview,
-  selectedModelId,
-  hideSuggestions = false,
-  isStreaming = false,
-  onCancel,
-  onImageUpload,
-  onImageUploadError,
-}: PromptbarProps) {
+function resolvePromptbarProps(props: PromptbarProps) {
+  if ("controller" in props) {
+    const controller = props.controller;
+    return {
+      isAuthenticated: controller.auth?.isAuthenticated ?? false,
+      onSignIn: controller.auth?.onSignIn,
+      onProtectedAction: controller.submission?.onProtectedAction,
+      hasApiKey: controller.apiKey?.hasApiKey ?? null,
+      isApiKeyLoading: controller.apiKey?.isApiKeyLoading ?? false,
+      apiKeyError: controller.apiKey?.apiKeyError ?? "",
+      isApiKeyRateLimited: controller.apiKey?.isApiKeyRateLimited ?? false,
+      apiKeyRateLimitMessage: controller.apiKey?.apiKeyRateLimitMessage ?? "",
+      onSaveApiKey: controller.apiKey?.onSaveApiKey,
+      preferredModel: controller.apiKey?.preferredModel,
+      keyPreview: controller.apiKey?.keyPreview,
+      selectedModelId: controller.apiKey?.selectedModelId,
+      hideSuggestions: controller.submission?.hideSuggestions ?? false,
+      isStreaming: controller.submission?.isStreaming ?? false,
+      onCancel: controller.submission?.onCancel,
+      onImageUpload: controller.attachments?.onImageUpload,
+      onImageUploadError: controller.attachments?.onImageUploadError,
+      submissionDisabledReason: controller.submission?.submissionDisabledReason,
+      disableImageUploads: controller.attachments?.disableImageUploads ?? false,
+    };
+  }
+
+  return {
+    isAuthenticated: props.isAuthenticated ?? false,
+    onSignIn: props.onSignIn,
+    onProtectedAction: props.onProtectedAction,
+    hasApiKey: props.hasApiKey ?? null,
+    isApiKeyLoading: props.isApiKeyLoading ?? false,
+    apiKeyError: props.apiKeyError ?? "",
+    isApiKeyRateLimited: props.isApiKeyRateLimited ?? false,
+    apiKeyRateLimitMessage: props.apiKeyRateLimitMessage ?? "",
+    onSaveApiKey: props.onSaveApiKey,
+    preferredModel: props.preferredModel,
+    keyPreview: props.keyPreview,
+    selectedModelId: props.selectedModelId,
+    hideSuggestions: props.hideSuggestions ?? false,
+    isStreaming: props.isStreaming ?? false,
+    onCancel: props.onCancel,
+    onImageUpload: props.onImageUpload,
+    onImageUploadError: props.onImageUploadError,
+    submissionDisabledReason: props.submissionDisabledReason,
+    disableImageUploads: props.disableImageUploads ?? false,
+  };
+}
+
+export default function Promptbar(props: PromptbarProps) {
+  const {
+    isAuthenticated,
+    onSignIn,
+    onProtectedAction,
+    hasApiKey,
+    isApiKeyLoading,
+    apiKeyError,
+    isApiKeyRateLimited,
+    apiKeyRateLimitMessage,
+    onSaveApiKey,
+    preferredModel,
+    keyPreview,
+    selectedModelId,
+    hideSuggestions,
+    isStreaming,
+    onCancel,
+    onImageUpload,
+    onImageUploadError,
+    submissionDisabledReason,
+    disableImageUploads,
+  } = resolvePromptbarProps(props);
+
   const [inputValue, setInputValue] = useState("");
   const [suggestionIndex, setSuggestionIndex] = useState(0);
   const [showLoginModal, setShowLoginModal] = useState(false);
@@ -81,6 +138,8 @@ export default function Promptbar({
     if (!selectedModelId) return true;
     return modelSupportsVision(selectedModelId);
   }, [selectedModelId]);
+  const isSubmissionBlocked = Boolean(submissionDisabledReason) || isStreaming;
+  const areImageUploadsBlocked = disableImageUploads || isSubmissionBlocked;
 
   const {
     attachedFiles,
@@ -98,6 +157,7 @@ export default function Promptbar({
   } = useFileAttachments(
     isAuthenticated,
     supportsVision,
+    areImageUploadsBlocked,
     onImageUpload,
     onImageUploadError,
   );
@@ -148,6 +208,7 @@ export default function Promptbar({
   }, []);
 
   const handleProtectedAction = useCallback(() => {
+    if (submissionDisabledReason) return;
     if (hasPendingUploads) return;
     if (!isAuthenticated) {
       setShowLoginModal(true);
@@ -167,6 +228,7 @@ export default function Promptbar({
     handleClearAllFiles,
     uploadedImages,
     hasPendingUploads,
+    submissionDisabledReason,
   ]);
 
   useEffect(() => {
@@ -180,6 +242,36 @@ export default function Promptbar({
       setShowBYOK(true);
     }
   }, [isAuthenticated, hasApiKey, isApiKeyLoading]);
+
+  useEffect(() => {
+    const openApiKeyModal = () => {
+      if (!isAuthenticated) {
+        setShowLoginModal(true);
+        return;
+      }
+
+      if (!isApiKeyLoading) {
+        setShowBYOK(true);
+      }
+    };
+
+    const focusPromptInput = () => {
+      const input = document.querySelector(
+        PROMPT_INPUT_SELECTOR,
+      ) as HTMLTextAreaElement | null;
+      if (!input) return;
+
+      input.scrollIntoView({ block: "nearest", behavior: "smooth" });
+      input.focus();
+    };
+
+    window.addEventListener(UI_EVENTS.OPEN_API_KEY_MODAL, openApiKeyModal);
+    window.addEventListener(UI_EVENTS.FOCUS_PROMPT_INPUT, focusPromptInput);
+    return () => {
+      window.removeEventListener(UI_EVENTS.OPEN_API_KEY_MODAL, openApiKeyModal);
+      window.removeEventListener(UI_EVENTS.FOCUS_PROMPT_INPUT, focusPromptInput);
+    };
+  }, [isAuthenticated, isApiKeyLoading]);
 
   return (
     <div className="relative w-full">
@@ -226,15 +318,17 @@ export default function Promptbar({
                 </div>
               )}
             <Textarea
+              data-edward-prompt-input="true"
               placeholder={hideSuggestions ? "Ask Edward anything..." : ""}
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
+              disabled={isSubmissionBlocked}
               onKeyDown={(e) => {
                 if (e.key !== "Enter" || e.shiftKey || e.nativeEvent.isComposing) {
                   return;
                 }
                 e.preventDefault();
-                if (isSubmitDisabled || isStreaming) return;
+                if (isSubmitDisabled || isStreaming || submissionDisabledReason) return;
                 handleProtectedAction();
               }}
               className="min-h-[4.5rem] sm:min-h-[5.5rem] md:min-h-[6.5rem] max-h-40 sm:max-h-52 md:max-h-64 overflow-y-auto resize-none border-0 bg-transparent p-3 sm:p-4 md:p-6 text-sm sm:text-[15px] text-foreground placeholder:text-muted-foreground/70 focus-visible:ring-0 focus-visible:ring-offset-0 relative z-10 font-medium leading-relaxed tracking-tight"
@@ -254,8 +348,14 @@ export default function Promptbar({
             onProtectedAction={handleProtectedAction}
             isStreaming={isStreaming}
             onCancel={onCancel}
-            disabled={isSubmitDisabled}
+            disabled={isSubmitDisabled || Boolean(submissionDisabledReason)}
+            disableAttachmentActions={areImageUploadsBlocked}
           />
+          {submissionDisabledReason ? (
+            <p className="px-3 pb-3 sm:px-4 md:px-6 text-[11px] font-medium text-amber-500/90">
+              {submissionDisabledReason}
+            </p>
+          ) : null}
         </div>
         <LoginModal
           isOpen={showLoginModal}
@@ -264,20 +364,31 @@ export default function Promptbar({
         />
         {isAuthenticated && (
           <BYOK
-            isOpen={showBYOK}
-            onClose={() => setShowBYOK(false)}
-            onValidate={() => {
-              if (hasPendingUploads) return;
-              onProtectedAction?.(inputValue, uploadedImages);
-              setInputValue("");
-              handleClearAllFiles();
-              setShowBYOK(false);
+            controller={{
+              modal: {
+                isOpen: showBYOK,
+                onClose: () => setShowBYOK(false),
+              },
+              actions: {
+                onValidate: () => {
+                  if (submissionDisabledReason || isStreaming) return;
+                  if (hasPendingUploads) return;
+                  onProtectedAction?.(inputValue, uploadedImages);
+                  setInputValue("");
+                  handleClearAllFiles();
+                  setShowBYOK(false);
+                },
+                onSaveApiKey,
+              },
+              state: {
+                preferredModel,
+                keyPreview,
+                hasExistingKey: hasApiKey === true,
+                error: apiKeyError,
+                isRateLimited: isApiKeyRateLimited,
+                rateLimitMessage: apiKeyRateLimitMessage,
+              },
             }}
-            onSaveApiKey={onSaveApiKey}
-            preferredModel={preferredModel}
-            keyPreview={keyPreview}
-            hasExistingKey={hasApiKey === true}
-            error={apiKeyError}
           />
         )}
       </Card>

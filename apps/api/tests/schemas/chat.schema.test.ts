@@ -38,14 +38,6 @@ describe("chat schemas", () => {
   });
 
   describe("UnifiedSendMessageSchema", () => {
-    it("should validate valid message", () => {
-      const result = UnifiedSendMessageSchema.safeParse({
-        content: "Hello, world!",
-      });
-
-      expect(result.success).toBe(true);
-    });
-
     it("should validate message with all fields", () => {
       const result = UnifiedSendMessageSchema.safeParse({
         content: "Test message",
@@ -96,15 +88,24 @@ describe("chat schemas", () => {
       }
     });
 
-    it("should validate multimodal content with text and image", () => {
+    it("should validate retry target IDs when chatId is provided", () => {
       const result = UnifiedSendMessageSchema.safeParse({
-        content: [
-          { type: "text", text: "What is in this image?" },
-          { type: "image", base64: validJpegBase64, mimeType: "image/jpeg" },
-        ],
+        content: "Retry this",
+        chatId: "chat-123",
+        retryTargetUserMessageId: "user-msg-1",
+        retryTargetAssistantMessageId: "assistant-msg-1",
       });
 
       expect(result.success).toBe(true);
+    });
+
+    it("should reject retry target IDs without chatId", () => {
+      const result = UnifiedSendMessageSchema.safeParse({
+        content: "Retry this",
+        retryTargetUserMessageId: "user-msg-1",
+      });
+
+      expect(result.success).toBe(false);
     });
 
     it("should validate multimodal content with image only", () => {
@@ -333,19 +334,6 @@ describe("chat schemas", () => {
         userMessageId: "msg-1",
         assistantMessageId: "msg-2",
         isNewChat: true,
-      });
-
-      expect(result.success).toBe(true);
-    });
-
-    it("should validate META event with loopStopReason", () => {
-      const result = ParserEventSchema.safeParse({
-        type: ParserEventType.META,
-        chatId: "chat-123",
-        userMessageId: "msg-1",
-        assistantMessageId: "msg-2",
-        isNewChat: false,
-        loopStopReason: "done",
       });
 
       expect(result.success).toBe(true);

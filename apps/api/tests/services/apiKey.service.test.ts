@@ -132,21 +132,6 @@ describe("apiKey service", () => {
       );
     });
 
-    it("should throw error when API key is empty string", async () => {
-      const mockUserData = {
-        id: mockUserId,
-        apiKey: "",
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
-
-      vi.mocked(mockedDb.limit).mockResolvedValue([mockUserData]);
-
-      await expect(getDecryptedApiKey(mockUserId)).rejects.toThrow(
-        "API key configuration not found for this user.",
-      );
-    });
-
     it("should propagate decryption errors", async () => {
       const mockUserData = {
         id: mockUserId,

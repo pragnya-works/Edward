@@ -19,17 +19,70 @@ interface CreateRunInput {
   userId: string;
   userMessageId: string;
   assistantMessageId: string;
-  model?: string;
-  intent?: string;
   metadata?: Record<string, unknown>;
+}
+
+interface RunAdmissionLimits {
+  maxActiveRunsPerUser: number;
+  maxActiveRunsPerChat: number;
+  maxActiveRunsGlobal: number;
+}
+
+export type RunAdmissionRejectionReason =
+  | "global_limit"
+  | "user_limit"
+  | "chat_limit";
+
+export type RunAdmissionResult =
+  | {
+      run: null;
+      rejectedBy: RunAdmissionRejectionReason;
+    }
+  | {
+      run: CreatedRun;
+      rejectedBy: null;
+    };
+
+export interface CreatedRun {
+  id: string;
+  chatId: string;
+  userId: string;
+  userMessageId: string;
+  assistantMessageId: string;
+  status: RunStatus;
+  state: RunState;
+  currentTurn: number;
+  nextEventSeq: number;
+  loopStopReason: string | null;
+  terminationReason: string | null;
+  errorMessage: string | null;
+  metadata: Record<string, unknown> | null;
+  startedAt: Date | null;
+  completedAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 export async function createRunWithUserLimit(
   data: CreateRunInput,
-  maxActiveRuns: number,
-) {
+  limits: RunAdmissionLimits,
+): Promise<RunAdmissionResult> {
   return db.transaction(async (tx) => {
+    await tx.execute(
+      sql`select pg_advisory_xact_lock(hashtext('run_admission_global'))`,
+    );
+
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${data.userId}))`);
+
+    const [globalActiveCountResult] = await tx
+      .select({ value: count() })
+      .from(run)
+      .where(inArray(run.status, ["queued", "running"]));
+
+    const globalActiveRuns = Number(globalActiveCountResult?.value ?? 0);
+    if (globalActiveRuns >= limits.maxActiveRunsGlobal) {
+      return { run: null, rejectedBy: "global_limit" };
+    }
 
     const [activeCountResult] = await tx
       .select({ value: count() })
@@ -42,8 +95,23 @@ export async function createRunWithUserLimit(
       );
 
     const activeRuns = Number(activeCountResult?.value ?? 0);
-    if (activeRuns >= maxActiveRuns) {
-      return null;
+    if (activeRuns >= limits.maxActiveRunsPerUser) {
+      return { run: null, rejectedBy: "user_limit" };
+    }
+
+    const [activeChatCountResult] = await tx
+      .select({ value: count() })
+      .from(run)
+      .where(
+        and(
+          eq(run.chatId, data.chatId),
+          inArray(run.status, ["queued", "running"]),
+        ),
+      );
+
+    const activeChatRuns = Number(activeChatCountResult?.value ?? 0);
+    if (activeChatRuns >= limits.maxActiveRunsPerChat) {
+      return { run: null, rejectedBy: "chat_limit" };
     }
 
     const id = nanoid(24);
@@ -55,15 +123,21 @@ export async function createRunWithUserLimit(
         userId: data.userId,
         userMessageId: data.userMessageId,
         assistantMessageId: data.assistantMessageId,
-        model: data.model,
-        intent: data.intent,
         metadata: data.metadata ?? null,
         status: "queued",
         state: "INIT",
       })
       .returning();
 
-    return inserted[0] ?? null;
+    const createdRun = (inserted[0] as CreatedRun | undefined) ?? null;
+    if (!createdRun) {
+      return { run: null, rejectedBy: "user_limit" };
+    }
+
+    return {
+      run: createdRun,
+      rejectedBy: null,
+    };
   });
 }
 

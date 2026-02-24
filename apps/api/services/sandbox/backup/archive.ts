@@ -1,7 +1,7 @@
 import tar from 'tar-stream';
 import zlib from 'zlib';
 import { Readable } from 'stream';
-import { CONTAINER_WORKDIR } from '../docker.sandbox.js';
+import { CONTAINER_WORKDIR } from '../docker.service.js';
 
 interface DockerContainer {
   getArchive(options: { path: string }): Promise<NodeJS.ReadableStream>;

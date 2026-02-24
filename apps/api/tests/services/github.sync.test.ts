@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach, Mocked } from "vitest";
 import { db } from "@edward/auth";
-import { syncChatToGithub } from "../../services/github.service.js";
+import { syncChatToGithub } from "../../services/github/sync.service.js";
 import * as syncUtils from "../../services/github/sync.utils.js";
 import * as provisioning from "../../services/sandbox/lifecycle/provisioning.js";
 import * as storage from "../../services/storage.service.js";
@@ -74,11 +74,11 @@ vi.mock("../../services/storage.service.js", async () => {
   };
 });
 
-vi.mock("../../services/sandbox/state.sandbox.js", () => ({
+vi.mock("../../services/sandbox/state.service.js", () => ({
   getSandboxState: vi.fn().mockResolvedValue({ containerId: "mock-container" }),
 }));
 
-vi.mock("../../services/sandbox/docker.sandbox.js", () => ({
+vi.mock("../../services/sandbox/docker.service.js", () => ({
   getContainer: vi.fn().mockReturnValue({}),
 }));
 
@@ -86,7 +86,7 @@ vi.mock("../../services/sandbox/backup/archive.js", () => ({
   createBackupArchive: vi.fn(),
 }));
 
-vi.mock("../../services/storage/config.js", () => ({
+vi.mock("../../services/storage/storage.config.js", () => ({
   isS3Configured: vi.fn().mockReturnValue(true),
   BUCKET_NAME: "test-bucket",
   s3Client: {},
@@ -140,6 +140,19 @@ describe("github sync service", () => {
     expect(result.sha).toBe("mock-sha");
     expect(provisioning.getActiveSandbox).toHaveBeenCalledWith(mockChatId);
     expect(syncUtils.extractFilesFromStream).toHaveBeenCalled();
+    expect(githubClient.syncFiles).toHaveBeenCalledWith(
+      expect.anything(),
+      "owner",
+      "repo",
+      mockBranch,
+      expect.arrayContaining([
+        expect.objectContaining({
+          path: "README.md",
+          encoding: "utf-8",
+        }),
+      ]),
+      mockMessage,
+    );
   });
 
   it("should report noChanges when remote branch already matches local files", async () => {

@@ -1,462 +1,69 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { Response, NextFunction } from "express";
-import {
-  getApiKey,
-  createApiKey,
-  updateApiKey,
-  deleteApiKey,
-} from "../../controllers/apiKey.controller.js";
-import * as apiKeyService from "../../services/apiKey.service.js";
-import * as encryption from "../../utils/encryption.js";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { NextFunction, Response } from "express";
 import type { AuthenticatedRequest } from "../../middleware/auth.js";
-import { HttpStatus } from "../../utils/constants.js";
+import {
+  createApiKey,
+  deleteApiKey,
+  getApiKey,
+  updateApiKey,
+} from "../../controllers/apiKey.controller.js";
 
-vi.mock("@edward/auth", async () => {
-  const actual =
-    await vi.importActual<typeof import("@edward/auth")>("@edward/auth");
-  return {
-    ...actual,
-    db: {
-      select: vi.fn().mockReturnThis(),
-      from: vi.fn().mockReturnThis(),
-      where: vi.fn().mockReturnThis(),
-      limit: vi.fn(),
-      update: vi.fn().mockReturnThis(),
-      set: vi.fn().mockReturnThis(),
-      returning: vi.fn().mockResolvedValue([{ id: "user-123" }]),
-    },
-    user: {},
-    eq: vi.fn(),
-  };
-});
-
-vi.mock("../../services/apiKey.service.js", () => ({
-  getUserWithApiKey: vi.fn(),
+const mockRefs = vi.hoisted(() => ({
+  getApiKeyInternal: vi.fn(),
+  createApiKeyInternal: vi.fn(),
+  updateApiKeyInternal: vi.fn(),
+  deleteApiKeyInternal: vi.fn(),
 }));
 
-vi.mock("../../utils/encryption.js", () => ({
-  encrypt: vi.fn().mockReturnValue("encrypted-key"),
-  decrypt: vi.fn().mockReturnValue("sk-proj-original-key"),
+vi.mock("../../services/apiKey/controller.service.js", () => ({
+  getApiKey: mockRefs.getApiKeyInternal,
+  createApiKey: mockRefs.createApiKeyInternal,
+  updateApiKey: mockRefs.updateApiKeyInternal,
+  deleteApiKey: mockRefs.deleteApiKeyInternal,
 }));
 
-describe("apiKey controller", () => {
-  const mockUserId = "user-123";
-  const mockEncryptedKey = "encrypted-key-data";
-
-  const createMockRequest = (
-    body = {},
-    userId = mockUserId,
-  ): AuthenticatedRequest => {
-    return {
-      body,
-      userId,
-    } as AuthenticatedRequest;
-  };
-
-  const createMockResponse = () => {
-    const res = {
-      status: vi.fn().mockReturnThis(),
-      json: vi.fn().mockReturnThis(),
-    } as unknown as Response;
-    return res;
-  };
-
-  const createMockNext = (): NextFunction => vi.fn();
-
+describe("apiKey controller delegation", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  describe("getApiKey", () => {
-    it("should return API key status when key exists", async () => {
-      const mockUserData = {
-        id: mockUserId,
-        apiKey: mockEncryptedKey,
-        preferredModel: null,
-        createdAt: new Date("2024-01-01"),
-        updatedAt: new Date("2024-01-02"),
-      };
+  it("delegates getApiKey to service module", async () => {
+    const req = {} as AuthenticatedRequest;
+    const res = {} as Response;
+    const next = vi.fn() as NextFunction;
 
-      vi.mocked(apiKeyService.getUserWithApiKey).mockResolvedValue(
-        mockUserData,
-      );
-      vi.mocked(encryption.decrypt).mockReturnValue("sk-proj-1234567890abcdef");
+    await getApiKey(req, res, next);
 
-      const req = createMockRequest();
-      const res = createMockResponse();
-      const next = createMockNext();
-
-      await getApiKey(req, res, next);
-
-      expect(res.status).toHaveBeenCalledWith(HttpStatus.OK);
-      const jsonCall = (res.json as ReturnType<typeof vi.fn>).mock
-        .calls[0]?.[0];
-      expect(jsonCall).toMatchObject({
-        message: "API key status retrieved successfully",
-        data: {
-          hasApiKey: true,
-          keyPreview: "sk-proj...cdef",
-          userId: mockUserId,
-          createdAt: mockUserData.createdAt,
-          updatedAt: mockUserData.updatedAt,
-        },
-      });
-      expect(jsonCall?.timestamp).toBeDefined();
-      expect(new Date(jsonCall?.timestamp).toISOString()).toBe(
-        jsonCall?.timestamp,
-      );
-    });
-
-    it("should return no key status when API key not set", async () => {
-      const mockUserData = {
-        id: mockUserId,
-        apiKey: null,
-        preferredModel: null,
-        createdAt: new Date("2024-01-01"),
-        updatedAt: new Date("2024-01-02"),
-      };
-
-      vi.mocked(apiKeyService.getUserWithApiKey).mockResolvedValue(
-        mockUserData,
-      );
-
-      const req = createMockRequest();
-      const res = createMockResponse();
-      const next = createMockNext();
-
-      await getApiKey(req, res, next);
-
-      expect(res.status).toHaveBeenCalledWith(HttpStatus.OK);
-      const jsonCall = (res.json as ReturnType<typeof vi.fn>).mock
-        .calls[0]?.[0];
-      expect(jsonCall).toMatchObject({
-        message: "No API key found",
-        data: {
-          hasApiKey: false,
-          userId: mockUserId,
-          createdAt: mockUserData.createdAt,
-          updatedAt: mockUserData.updatedAt,
-        },
-      });
-      expect(jsonCall?.timestamp).toBeDefined();
-      expect(new Date(jsonCall?.timestamp).toISOString()).toBe(
-        jsonCall?.timestamp,
-      );
-    });
-
-    it("should handle decryption errors gracefully", async () => {
-      const mockUserData = {
-        id: mockUserId,
-        apiKey: "corrupted-key",
-        preferredModel: null,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
-
-      vi.mocked(apiKeyService.getUserWithApiKey).mockResolvedValue(
-        mockUserData,
-      );
-      vi.mocked(encryption.decrypt).mockImplementation(() => {
-        throw new Error("Decryption failed");
-      });
-
-      const req = createMockRequest();
-      const res = createMockResponse();
-      const next = createMockNext();
-
-      await getApiKey(req, res, next);
-
-      expect(res.status).toHaveBeenCalledWith(HttpStatus.OK);
-      const jsonCall = (res.json as ReturnType<typeof vi.fn>).mock
-        .calls[0]?.[0];
-      expect(jsonCall?.data?.hasApiKey).toBe(true);
-      expect(jsonCall?.data?.keyPreview).toBeUndefined();
-    });
-
-    it("should return 500 on service error", async () => {
-      vi.mocked(apiKeyService.getUserWithApiKey).mockRejectedValue(
-        new Error("DB error"),
-      );
-
-      const req = createMockRequest();
-      const res = createMockResponse();
-      const next = createMockNext();
-
-      await getApiKey(req, res, next);
-
-      expect(res.status).toHaveBeenCalledWith(HttpStatus.INTERNAL_SERVER_ERROR);
-    });
+    expect(mockRefs.getApiKeyInternal).toHaveBeenCalledWith(req, res, next);
   });
 
-  describe("createApiKey", () => {
-    it("should create new API key", async () => {
-      const mockUserData = {
-        id: mockUserId,
-        apiKey: null,
-        preferredModel: null,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
+  it("delegates createApiKey to service module", async () => {
+    const req = {} as AuthenticatedRequest;
+    const res = {} as Response;
+    const next = vi.fn() as NextFunction;
 
-      vi.mocked(apiKeyService.getUserWithApiKey).mockResolvedValue(
-        mockUserData,
-      );
+    await createApiKey(req, res, next);
 
-      const req = createMockRequest({
-        apiKey: "sk-proj-valid-key-12345678901234567890",
-      });
-      const res = createMockResponse();
-      const next = createMockNext();
-
-      await createApiKey(req, res, next);
-
-      expect(res.status).toHaveBeenCalledWith(HttpStatus.CREATED);
-      const jsonCall = (res.json as ReturnType<typeof vi.fn>).mock
-        .calls[0]?.[0];
-      expect(jsonCall).toMatchObject({
-        message: "API key created successfully",
-        data: {
-          userId: mockUserId,
-          keyPreview: "sk-proj...7890",
-        },
-      });
-      expect(jsonCall?.timestamp).toBeDefined();
-      expect(new Date(jsonCall?.timestamp).toISOString()).toBe(
-        jsonCall?.timestamp,
-      );
-    });
-
-    it("should return 404 when user not found", async () => {
-      vi.mocked(apiKeyService.getUserWithApiKey).mockResolvedValue(undefined);
-
-      const req = createMockRequest({
-        apiKey: "sk-proj-valid-key-12345678901234567890",
-      });
-      const res = createMockResponse();
-      const next = createMockNext();
-
-      await createApiKey(req, res, next);
-
-      expect(res.status).toHaveBeenCalledWith(HttpStatus.NOT_FOUND);
-    });
-
-    it("should return 409 when API key already exists", async () => {
-      const mockUserData = {
-        id: mockUserId,
-        apiKey: "existing-key",
-        preferredModel: null,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
-
-      vi.mocked(apiKeyService.getUserWithApiKey).mockResolvedValue(
-        mockUserData,
-      );
-
-      const req = createMockRequest({
-        apiKey: "sk-proj-valid-key-12345678901234567890",
-      });
-      const res = createMockResponse();
-      const next = createMockNext();
-
-      await createApiKey(req, res, next);
-
-      expect(res.status).toHaveBeenCalledWith(HttpStatus.CONFLICT);
-    });
-
-    it("should reject incompatible model for provided API key", async () => {
-      const mockUserData = {
-        id: mockUserId,
-        apiKey: null,
-        preferredModel: null,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
-
-      vi.mocked(apiKeyService.getUserWithApiKey).mockResolvedValue(
-        mockUserData,
-      );
-
-      const req = createMockRequest({
-        apiKey: "AIza12345678901234567890123456789012345",
-        model: "gpt-5.2-pro-2025-12-11",
-      });
-      const res = createMockResponse();
-      const next = createMockNext();
-
-      await createApiKey(req, res, next);
-
-      expect(res.status).toHaveBeenCalledWith(HttpStatus.BAD_REQUEST);
-      const jsonCall = (res.json as ReturnType<typeof vi.fn>).mock
-        .calls[0]?.[0];
-      expect(jsonCall?.error).toBe(
-        "Selected model is incompatible with the provided API key",
-      );
-    });
+    expect(mockRefs.createApiKeyInternal).toHaveBeenCalledWith(req, res, next);
   });
 
-  describe("updateApiKey", () => {
-    it("should update existing API key", async () => {
-      const mockUserData = {
-        id: mockUserId,
-        apiKey: "old-key",
-        preferredModel: null,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
+  it("delegates updateApiKey to service module", async () => {
+    const req = {} as AuthenticatedRequest;
+    const res = {} as Response;
+    const next = vi.fn() as NextFunction;
 
-      vi.mocked(apiKeyService.getUserWithApiKey).mockResolvedValue(
-        mockUserData,
-      );
+    await updateApiKey(req, res, next);
 
-      const req = createMockRequest({
-        apiKey: "sk-proj-new-key-12345678901234567890",
-      });
-      const res = createMockResponse();
-      const next = createMockNext();
-
-      await updateApiKey(req, res, next);
-
-      expect(res.status).toHaveBeenCalledWith(HttpStatus.OK);
-      const jsonCall = (res.json as ReturnType<typeof vi.fn>).mock
-        .calls[0]?.[0];
-      expect(jsonCall).toMatchObject({
-        message: "API key updated successfully",
-        data: {
-          userId: mockUserId,
-          keyPreview: "sk-proj...7890",
-        },
-      });
-      expect(jsonCall?.timestamp).toBeDefined();
-      expect(new Date(jsonCall?.timestamp).toISOString()).toBe(
-        jsonCall?.timestamp,
-      );
-    });
-
-    it("should return 404 when user not found", async () => {
-      vi.mocked(apiKeyService.getUserWithApiKey).mockResolvedValue(undefined);
-
-      const req = createMockRequest({
-        apiKey: "sk-proj-valid-key-12345678901234567890",
-      });
-      const res = createMockResponse();
-      const next = createMockNext();
-
-      await updateApiKey(req, res, next);
-
-      expect(res.status).toHaveBeenCalledWith(HttpStatus.NOT_FOUND);
-    });
-
-    it("should update model without requiring a new API key", async () => {
-      const mockUserData = {
-        id: mockUserId,
-        apiKey: "existing-encrypted-key",
-        preferredModel: "gpt-5.2-pro-2025-12-11",
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
-
-      vi.mocked(apiKeyService.getUserWithApiKey).mockResolvedValue(
-        mockUserData,
-      );
-      vi.mocked(encryption.decrypt).mockReturnValue("sk-proj-original-key");
-
-      const req = createMockRequest({
-        model: "gpt-5.2-codex",
-      });
-      const res = createMockResponse();
-      const next = createMockNext();
-
-      await updateApiKey(req, res, next);
-
-      expect(encryption.encrypt).not.toHaveBeenCalled();
-      expect(res.status).toHaveBeenCalledWith(HttpStatus.OK);
-      const jsonCall = (res.json as ReturnType<typeof vi.fn>).mock
-        .calls[0]?.[0];
-      expect(jsonCall).toMatchObject({
-        message: "API key updated successfully",
-        data: {
-          userId: mockUserId,
-          keyPreview: "sk-proj...-key",
-        },
-      });
-    });
-
-    it("should reject incompatible model for existing key provider", async () => {
-      const mockUserData = {
-        id: mockUserId,
-        apiKey: "existing-encrypted-key",
-        preferredModel: "gemini-2.5-flash",
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
-
-      vi.mocked(apiKeyService.getUserWithApiKey).mockResolvedValue(
-        mockUserData,
-      );
-      vi.mocked(encryption.decrypt).mockReturnValue(
-        "AIza12345678901234567890123456789012345",
-      );
-
-      const req = createMockRequest({
-        model: "gpt-5.2-pro-2025-12-11",
-      });
-      const res = createMockResponse();
-      const next = createMockNext();
-
-      await updateApiKey(req, res, next);
-
-      expect(res.status).toHaveBeenCalledWith(HttpStatus.BAD_REQUEST);
-      const jsonCall = (res.json as ReturnType<typeof vi.fn>).mock
-        .calls[0]?.[0];
-      expect(jsonCall?.error).toBe(
-        "Selected model is incompatible with the provided API key",
-      );
-    });
+    expect(mockRefs.updateApiKeyInternal).toHaveBeenCalledWith(req, res, next);
   });
 
-  describe("deleteApiKey", () => {
-    it("should delete API key", async () => {
-      const mockUserData = {
-        id: mockUserId,
-        apiKey: "existing-key",
-        preferredModel: null,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
+  it("delegates deleteApiKey to service module", async () => {
+    const req = {} as AuthenticatedRequest;
+    const res = {} as Response;
+    const next = vi.fn() as NextFunction;
 
-      vi.mocked(apiKeyService.getUserWithApiKey).mockResolvedValue(
-        mockUserData,
-      );
+    await deleteApiKey(req, res, next);
 
-      const req = createMockRequest();
-      const res = createMockResponse();
-      const next = createMockNext();
-
-      await deleteApiKey(req, res, next);
-
-      expect(res.status).toHaveBeenCalledWith(HttpStatus.OK);
-      const jsonCall = (res.json as ReturnType<typeof vi.fn>).mock
-        .calls[0]?.[0];
-      expect(jsonCall).toMatchObject({
-        message: "API key deleted successfully",
-      });
-      expect(jsonCall?.timestamp).toBeDefined();
-      expect(new Date(jsonCall?.timestamp).toISOString()).toBe(
-        jsonCall?.timestamp,
-      );
-    });
-
-    it("should return 404 when user not found", async () => {
-      vi.mocked(apiKeyService.getUserWithApiKey).mockResolvedValue(undefined);
-
-      const req = createMockRequest();
-      const res = createMockResponse();
-      const next = createMockNext();
-
-      await deleteApiKey(req, res, next);
-
-      expect(res.status).toHaveBeenCalledWith(HttpStatus.NOT_FOUND);
-    });
+    expect(mockRefs.deleteApiKeyInternal).toHaveBeenCalledWith(req, res, next);
   });
 });

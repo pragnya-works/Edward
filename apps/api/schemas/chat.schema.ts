@@ -6,17 +6,17 @@ import {
   MetaPhase,
   ParserEventType,
   StreamTerminationReason,
-} from "@edward/shared/stream-events";
+} from "@edward/shared/streamEvents";
 import { ChatActionSchema } from "../services/planning/schemas.js";
 import {
   NPM_PACKAGE_REGEX,
   MAX_DEPENDENCIES,
   MAX_PACKAGE_NAME_LENGTH,
-} from "../utils/sharedConstants.js";
+} from "../utils/constants.js";
 import {
   MessageContentPartSchema,
   MultimodalContentSchema,
-} from "../utils/imageValidation.js";
+} from "../utils/imageValidation/schemas.js";
 
 const ModelValues = Object.values(Model) as [string, ...string[]];
 
@@ -39,17 +39,32 @@ export const RunStreamParamsSchema = z.object({
   runId: z.string().min(1, "Run ID is required"),
 });
 
-export const UnifiedSendMessageSchema = z.object({
-  content: z.union([
-    z.string().min(1, "Message content cannot be empty"),
-    MultimodalContentSchema,
-  ]),
-  chatId: z.string().optional(),
-  title: z.string().optional(),
-  description: z.string().optional(),
-  visibility: z.boolean().optional(),
-  model: z.enum(ModelValues).optional(),
-});
+export const UnifiedSendMessageSchema = z
+  .object({
+    content: z.union([
+      z.string().min(1, "Message content cannot be empty"),
+      MultimodalContentSchema,
+    ]),
+    chatId: z.string().optional(),
+    title: z.string().optional(),
+    description: z.string().optional(),
+    visibility: z.boolean().optional(),
+    model: z.enum(ModelValues).optional(),
+    retryTargetUserMessageId: z.string().min(1).optional(),
+    retryTargetAssistantMessageId: z.string().min(1).optional(),
+  })
+  .superRefine((value, ctx) => {
+    if (
+      (value.retryTargetUserMessageId || value.retryTargetAssistantMessageId) &&
+      !value.chatId
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["chatId"],
+        message: "chatId is required when retry target message IDs are provided",
+      });
+    }
+  });
 
 export type MessageContentPart = z.infer<typeof MessageContentPartSchema>;
 export type MultimodalContent = z.infer<typeof MultimodalContentSchema>;
@@ -67,6 +82,27 @@ export const StreamRunEventsRequestSchema = z.object({
   query: z.object({
     lastEventId: z.string().optional(),
   }),
+});
+
+export const CancelRunRequestSchema = z.object({
+  params: RunStreamParamsSchema,
+});
+
+export const UpdateShareSettingsBodySchema = z.object({
+  enabled: z.boolean(),
+});
+
+export const ShareStatusRequestSchema = z.object({
+  params: ChatIdParamSchema,
+});
+
+export const UpdateShareSettingsRequestSchema = z.object({
+  params: ChatIdParamSchema,
+  body: UpdateShareSettingsBodySchema,
+});
+
+export const SharedChatHistoryRequestSchema = z.object({
+  params: ChatIdParamSchema,
 });
 
 export const RecentChatsQuerySchema = z.object({
@@ -158,6 +194,7 @@ export const ParserEventSchema = z.discriminatedUnion("type", [
         contextWindowTokens: z.number().int().nonnegative(),
         reservedOutputTokens: z.number().int().nonnegative(),
         inputTokens: z.number().int().nonnegative(),
+        totalContextTokens: z.number().int().nonnegative(),
         remainingInputTokens: z.number().int().nonnegative(),
         perMessage: z.array(
           z.object({

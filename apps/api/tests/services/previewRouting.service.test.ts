@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 async function loadService() {
-  const mod = await import("../../services/previewRouting.service.js");
+  const mod = await import("../../services/previewRouting/registration.js");
   return {
     generatePreviewSubdomain: mod.generatePreviewSubdomain,
     registerPreviewSubdomain: mod.registerPreviewSubdomain,
@@ -71,5 +71,16 @@ describe("previewRouting.service", () => {
     expect(url).toContain("/accounts/cf-account/storage/kv/namespaces/cf-namespace/values/");
     expect(init.method).toBe("PUT");
     expect(init.body).toBe("user_id/chat.id");
+  });
+
+  it("rejects invalid custom subdomains before KV routing", async () => {
+    const { registerPreviewSubdomain } = await loadService();
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      registerPreviewSubdomain("user-1", "chat-1", "Invalid_Subdomain"),
+    ).rejects.toThrow("Invalid provided subdomain");
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

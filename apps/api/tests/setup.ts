@@ -48,7 +48,19 @@ vi.mock("../lib/redis.js", () => {
       exec: vi.fn().mockResolvedValue([]),
     })),
   };
-  return { redis: mockRedis };
+
+  const createRedisClient = vi.fn(() => ({
+    get: vi.fn(),
+    set: vi.fn(),
+    del: vi.fn(),
+    on: vi.fn(),
+    subscribe: vi.fn().mockResolvedValue(undefined),
+    unsubscribe: vi.fn().mockResolvedValue(undefined),
+    publish: vi.fn().mockResolvedValue(0),
+    quit: vi.fn().mockResolvedValue(undefined),
+  }));
+
+  return { redis: mockRedis, createRedisClient };
 });
 
 vi.mock("bullmq", () => ({

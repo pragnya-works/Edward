@@ -3,8 +3,6 @@ import {
   text,
   timestamp,
   boolean,
-  foreignKey,
-  unique,
   pgEnum,
   integer,
   jsonb,
@@ -14,15 +12,8 @@ import {
 import { relations } from "drizzle-orm";
 import { Model } from "@edward/shared/schema";
 
-export const roleEnum = pgEnum("role", ["viewer", "editor", "owner"]);
-export const inviteStatusEnum = pgEnum("invite_status", [
-  "pending",
-  "accepted",
-  "rejected",
-]);
 export const attachmentTypeEnum = pgEnum("attachment_type", [
   "image",
-  "pdf",
   "figma",
 ]);
 export const messageRoleEnum = pgEnum("message_role", [
@@ -138,11 +129,7 @@ export const chat = pgTable(
     title: text("title"),
     description: text("description"),
     visibility: boolean("visibility").default(false),
-    githubRepoId: text("github_repo_id"),
     githubRepoFullName: text("github_repo_full_name"),
-    isFavourite: boolean("is_favourite").default(false),
-    originalChatId: text("original_chat_id"),
-    rootChatId: text("root_chat_id"),
     customSubdomain: text("custom_subdomain"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at")
@@ -150,68 +137,7 @@ export const chat = pgTable(
       .defaultNow()
       .$onUpdate(() => new Date()),
   },
-  (table) => [
-    foreignKey({
-      columns: [table.originalChatId],
-      foreignColumns: [table.id],
-      name: "chat_original_chat_id_fk",
-    }).onDelete("set null"),
-    foreignKey({
-      columns: [table.rootChatId],
-      foreignColumns: [table.id],
-      name: "chat_root_chat_id_fk",
-    }).onDelete("set null"),
-    uniqueIndex("chat_custom_subdomain_unique").on(table.customSubdomain),
-  ],
-);
-
-export const chatCollaborator = pgTable(
-  "chat_collaborator",
-  {
-    id: text("id").primaryKey(),
-    chatId: text("chat_id")
-      .notNull()
-      .references(() => chat.id, { onDelete: "cascade" }),
-    userId: text("user_id")
-      .notNull()
-      .references(() => user.id, { onDelete: "cascade" }),
-    role: roleEnum("role").notNull().default("viewer"),
-    createdAt: timestamp("created_at").notNull().defaultNow(),
-    updatedAt: timestamp("updated_at")
-      .notNull()
-      .defaultNow()
-      .$onUpdate(() => new Date()),
-  },
-  (table) => [
-    unique("chat_collaborator_chat_id_user_id_unique").on(
-      table.chatId,
-      table.userId,
-    ),
-  ],
-);
-
-export const chatInvite = pgTable(
-  "chat_invite",
-  {
-    id: text("id").primaryKey(),
-    chatId: text("chat_id")
-      .notNull()
-      .references(() => chat.id, { onDelete: "cascade" }),
-    email: text("email").notNull(),
-    role: roleEnum("role").notNull().default("viewer"),
-    inviterId: text("inviter_id")
-      .notNull()
-      .references(() => user.id, { onDelete: "cascade" }),
-    status: inviteStatusEnum("status").notNull().default("pending"),
-    createdAt: timestamp("created_at").notNull().defaultNow(),
-    updatedAt: timestamp("updated_at")
-      .notNull()
-      .defaultNow()
-      .$onUpdate(() => new Date()),
-  },
-  (table) => [
-    unique("chat_invite_chat_id_email_unique").on(table.chatId, table.email),
-  ],
+  (table) => [uniqueIndex("chat_custom_subdomain_unique").on(table.customSubdomain)],
 );
 
 export const message = pgTable("message", {
@@ -275,8 +201,6 @@ export const run = pgTable(
     state: runStateEnum("state").notNull().default("INIT"),
     currentTurn: integer("current_turn").notNull().default(0),
     nextEventSeq: integer("next_event_seq").notNull().default(0),
-    model: text("model"),
-    intent: text("intent"),
     loopStopReason: text("loop_stop_reason"),
     terminationReason: text("termination_reason"),
     errorMessage: text("error_message"),
@@ -363,7 +287,6 @@ export const userRelations = relations(user, ({ many }) => ({
   sessions: many(session),
   accounts: many(account),
   chats: many(chat),
-  collaborations: many(chatCollaborator),
   messages: many(message),
   runs: many(run),
 }));
@@ -387,52 +310,9 @@ export const chatRelations = relations(chat, ({ one, many }) => ({
     fields: [chat.userId],
     references: [user.id],
   }),
-  originalChat: one(chat, {
-    fields: [chat.originalChatId],
-    references: [chat.id],
-    relationName: "chat_copies",
-  }),
-  copies: many(chat, {
-    relationName: "chat_copies",
-  }),
-  rootChat: one(chat, {
-    fields: [chat.rootChatId],
-    references: [chat.id],
-    relationName: "chat_root",
-  }),
-  familyMembers: many(chat, {
-    relationName: "chat_root",
-  }),
-  collaborators: many(chatCollaborator),
-  invites: many(chatInvite),
   messages: many(message),
   builds: many(build),
   runs: many(run),
-}));
-
-export const chatCollaboratorRelations = relations(
-  chatCollaborator,
-  ({ one }) => ({
-    chat: one(chat, {
-      fields: [chatCollaborator.chatId],
-      references: [chat.id],
-    }),
-    user: one(user, {
-      fields: [chatCollaborator.userId],
-      references: [user.id],
-    }),
-  }),
-);
-
-export const chatInviteRelations = relations(chatInvite, ({ one }) => ({
-  chat: one(chat, {
-    fields: [chatInvite.chatId],
-    references: [chat.id],
-  }),
-  inviter: one(user, {
-    fields: [chatInvite.inviterId],
-    references: [user.id],
-  }),
 }));
 
 export const messageRelations = relations(message, ({ one, many }) => ({

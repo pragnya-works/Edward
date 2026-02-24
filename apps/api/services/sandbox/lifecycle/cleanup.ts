@@ -1,9 +1,12 @@
 import { logger } from '../../../utils/logger.js';
-import { deleteSandboxState, getSandboxState } from '../state.sandbox.js';
-import { destroyContainer, listContainers } from '../docker.sandbox.js';
-import { backupSandboxInstance } from '../backup.sandbox.js';
-import { flushSandbox, clearWriteTimers, clearBuffers } from '../writes.sandbox.js';
-import { SANDBOX_DOCKER_LABEL, containerStatusCache } from './state.js';
+import { deleteSandboxState, getSandboxState } from '../state.service.js';
+import { destroyContainer, listContainers } from '../docker.service.js';
+import { backupSandboxInstance } from '../backup.service.js';
+import { flushSandbox } from "../write/flush.js";
+import { clearWriteTimers } from "../write/scheduler.js";
+import { clearBuffers } from "../write/buffer.js";
+import { SANDBOX_DOCKER_LABEL } from "./state.js";
+import { deleteContainerStatus } from "./runtimeState.store.js";
 
 export async function cleanupSandbox(sandboxId: string): Promise<void> {
   try {
@@ -26,7 +29,7 @@ export async function cleanupSandbox(sandboxId: string): Promise<void> {
 
     try {
       await destroyContainer(sandbox.containerId);
-      containerStatusCache.delete(sandbox.containerId);
+      await deleteContainerStatus(sandbox.containerId);
     } catch (error) {
       logger.error({ error, containerId: sandbox.containerId }, 'Failed to destroy container');
     }
@@ -66,7 +69,7 @@ export async function cleanupExpiredSandboxContainers(): Promise<void> {
           await destroyContainer(info.Id).catch((err: unknown) =>
             logger.error({ err, sandboxId }, 'Failed to cleanup orphaned container')
           );
-          containerStatusCache.delete(info.Id);
+          await deleteContainerStatus(info.Id);
         } else {
           logger.debug({ sandboxId, containerId: info.Id, chatId }, 'Skipping lone orphan container (eligible for label recovery)');
         }

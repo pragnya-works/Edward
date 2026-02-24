@@ -9,7 +9,7 @@ import { ChangelogIssue } from "@/lib/linear";
 import { Badge } from "@edward/ui/components/badge";
 import { Skeleton } from "@edward/ui/components/skeleton";
 import { cn } from "@edward/ui/lib/utils";
-import { MarkdownRenderer } from "@/components/chat/markdownRenderer";
+import { MarkdownRenderer } from "@/components/chat/messages/markdownRenderer";
 
 interface IssueCardProps {
   issue: ChangelogIssue;
@@ -17,6 +17,9 @@ interface IssueCardProps {
   isExpanded?: boolean;
   onToggle?: (id: string) => void;
 }
+
+export const IssueCard = memo(IssueCardComponent);
+IssueCard.displayName = "IssueCard";
 
 function IssueCardComponent({ issue, index = 0, isExpanded: controlledExpanded, onToggle }: IssueCardProps) {
   const [internalExpanded, setInternalExpanded] = useState(false);
@@ -158,9 +161,6 @@ function IssueCardComponent({ issue, index = 0, isExpanded: controlledExpanded, 
     </m.article>
   );
 }
-
-export const IssueCard = memo(IssueCardComponent);
-IssueCard.displayName = "IssueCard";
 
 export function IssueCardSkeleton({ index = 0 }: { index?: number }) {
   return (

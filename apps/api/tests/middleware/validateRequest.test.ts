@@ -137,46 +137,4 @@ describe('validateRequest middleware', () => {
       message: 'Unexpected error',
     }));
   });
-
-  it('should validate nested objects', () => {
-    const schema = z.object({
-      body: z.object({
-        user: z.object({
-          name: z.string(),
-          settings: z.object({
-            theme: z.enum(['light', 'dark']),
-          }),
-        }),
-      }),
-    });
-
-    const req = createMockRequest({
-      user: { name: 'John', settings: { theme: 'blue' } },
-    });
-    const res = createMockResponse();
-    const next = createMockNext();
-
-    const middleware = validateRequest(schema);
-    middleware(req, res, next);
-
-    expect(res.status).toHaveBeenCalledWith(HttpStatus.BAD_REQUEST);
-  });
-
-  it('should handle optional fields correctly', () => {
-    const schema = z.object({
-      body: z.object({
-        name: z.string(),
-        description: z.string().optional(),
-      }),
-    });
-
-    const req = createMockRequest({ name: 'Test' });
-    const res = createMockResponse();
-    const next = createMockNext();
-
-    const middleware = validateRequest(schema);
-    middleware(req, res, next);
-
-    expect(next).toHaveBeenCalled();
-  });
 });

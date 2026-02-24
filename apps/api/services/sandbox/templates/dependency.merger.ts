@@ -1,7 +1,7 @@
-import { getContainer, execCommand, CONTAINER_WORKDIR } from '../docker.sandbox.js';
+import { getContainer, execCommand, CONTAINER_WORKDIR } from '../docker.service.js';
 import { logger } from '../../../utils/logger.js';
-import { TIMEOUT_DEPENDENCY_INSTALL_MS } from '../utils.sandbox.js';
-import { getSandboxState } from '../state.sandbox.js';
+import { TIMEOUT_DEPENDENCY_INSTALL_MS } from '../utils.service.js';
+import { getSandboxState } from '../state.service.js';
 import { getFrameworkContract, validateFrameworkContract, type PackageJson } from './framework.contracts.js';
 import { Framework } from '../../planning/schemas.js';
 

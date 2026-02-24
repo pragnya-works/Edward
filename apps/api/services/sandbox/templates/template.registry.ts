@@ -1,4 +1,4 @@
-import { config } from "../../../config.js";
+import { config } from "../../../app.config.js";
 
 export interface TemplateConfig {
   image: string;
@@ -44,6 +44,7 @@ export const TEMPLATE_REGISTRY: Record<string, TemplateConfig> = {
       "tsconfig.node.json",
       "index.css",
       "src/index.css",
+      "index.html",
     ],
   },
   vanilla: {

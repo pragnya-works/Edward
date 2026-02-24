@@ -8,7 +8,7 @@ import { ReactNode, useState } from "react";
 import UserProfile from "../userProfile";
 import { LoaderIcon } from "lucide-react";
 import { usePathname } from "next/navigation";
-import { useRecentChats } from "@/hooks/useRecentChats";
+import { useRecentChats } from "@/hooks/server-state/useRecentChats";
 
 interface ConditionalSidebarLayoutProps {
   children: ReactNode;

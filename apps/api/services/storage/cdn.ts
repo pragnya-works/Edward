@@ -3,8 +3,8 @@ import {
   CreateInvalidationCommand,
 } from "@aws-sdk/client-cloudfront";
 import { logger } from "../../utils/logger.js";
-import { REGION } from "./config.js";
-import { config } from "../../config.js";
+import { REGION } from "./storage.config.js";
+import { config } from "../../app.config.js";
 
 const DISTRIBUTION_ID = config.aws.cloudfrontDistributionId;
 

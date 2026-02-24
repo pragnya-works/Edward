@@ -1,7 +1,7 @@
 import { ChatActionSchema, WorkflowStateSchema } from "../planning/schemas.js";
 import type { ChatAction, WorkflowState } from "../planning/schemas.js";
 import type { LlmChatMessage } from "../../lib/llm/context.js";
-import type { MessageContent } from "../../lib/llm/types.js";
+import type { MessageContent } from "@edward/shared/llm/types";
 
 export const AGENT_RUN_METADATA_VERSION = "agent_run_v1";
 

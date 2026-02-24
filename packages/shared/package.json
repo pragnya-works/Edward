@@ -12,14 +12,47 @@
       "types": "./dist/schema.d.ts",
       "default": "./dist/schema.js"
     },
-    "./stream-events": {
-      "types": "./dist/stream-events.d.ts",
-      "default": "./dist/stream-events.js"
+    "./streamEvents": {
+      "types": "./dist/streamEvents.d.ts",
+      "default": "./dist/streamEvents.js"
+    },
+    "./streamToolResults": {
+      "types": "./dist/streamToolResults.d.ts",
+      "default": "./dist/streamToolResults.js"
+    },
+    "./llm/streamTagParser": {
+      "types": "./dist/llm/streamTagParser.d.ts",
+      "default": "./dist/llm/streamTagParser.js"
+    },
+    "./llm/types": {
+      "types": "./dist/llm/types.d.ts",
+      "default": "./dist/llm/types.js"
+    },
+    "./chat/types": {
+      "types": "./dist/chat/types.d.ts",
+      "default": "./dist/chat/types.js"
+    },
+    "./chat/streamActions": {
+      "types": "./dist/chat/streamActions.d.ts",
+      "default": "./dist/chat/streamActions.js"
+    },
+    "./github/types": {
+      "types": "./dist/github/types.d.ts",
+      "default": "./dist/github/types.js"
+    },
+    "./github/naming": {
+      "types": "./dist/github/naming.d.ts",
+      "default": "./dist/github/naming.js"
+    },
+    "./api/contracts": {
+      "types": "./dist/api/contracts.d.ts",
+      "default": "./dist/api/contracts.js"
     }
   },
   "scripts": {
     "build": "tsc",
     "typecheck": "tsc --noEmit",
+    "test": "vitest run",
     "lint": "eslint . --max-warnings 0",
     "lint:fix": "eslint . --fix"
   },
@@ -31,6 +64,7 @@
     "typescript": "5.7.3",
     "@edward/eslint-config": "workspace:*",
     "@edward/typescript-config": "workspace:*",
-    "eslint": "^9.32.0"
+    "eslint": "^9.32.0",
+    "vitest": "^2.1.8"
   }
 }

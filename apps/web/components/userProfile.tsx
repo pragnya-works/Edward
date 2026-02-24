@@ -20,7 +20,7 @@ import {
 import { LogOut, Key } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { BYOK } from "@edward/ui/components/ui/byok";
-import { useApiKey } from "@/hooks/useApiKey";
+import { useApiKey } from "@/hooks/server-state/useApiKey";
 import { getBestGuessProvider } from "@edward/shared/schema";
 import {
   AnimatedThemeToggler,
@@ -39,6 +39,8 @@ export default function UserProfile() {
     validateAndSaveApiKey,
     preferredModel,
     error,
+    isRateLimited,
+    rateLimitMessage,
   } = useApiKey();
   const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState(false);
   const themeTogglerRef = useRef<AnimatedThemeTogglerHandle>(null);
@@ -128,15 +130,25 @@ export default function UserProfile() {
       </DropdownMenu>
 
       <BYOK
-        isOpen={isApiKeyModalOpen}
-        onClose={() => setIsApiKeyModalOpen(false)}
-        onValidate={() => {}}
-        onSaveApiKey={validateAndSaveApiKey}
-        keyPreview={keyPreview}
-        hasExistingKey={hasApiKey ?? false}
-        preferredModel={preferredModel || undefined}
-        initialProvider={getBestGuessProvider(preferredModel, keyPreview)}
-        error={error}
+        controller={{
+          modal: {
+            isOpen: isApiKeyModalOpen,
+            onClose: () => setIsApiKeyModalOpen(false),
+          },
+          actions: {
+            onValidate: () => {},
+            onSaveApiKey: validateAndSaveApiKey,
+          },
+          state: {
+            keyPreview,
+            hasExistingKey: hasApiKey ?? false,
+            preferredModel: preferredModel || undefined,
+            initialProvider: getBestGuessProvider(preferredModel, keyPreview),
+            error,
+            isRateLimited,
+            rateLimitMessage,
+          },
+        }}
       />
     </>
   );

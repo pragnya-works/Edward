@@ -1,6 +1,6 @@
 import { Upload } from '@aws-sdk/lib-storage';
 import { StreamingBlobPayloadInputTypes } from '@smithy/types';
-import { s3Client, MAX_RETRIES, RETRY_BASE_DELAY_MS, BUCKET_NAME } from './config.js';
+import { s3Client, MAX_RETRIES, RETRY_BASE_DELAY_MS, BUCKET_NAME } from './storage.config.js';
 import { logger } from '../../utils/logger.js';
 
 interface NetworkError extends Error {

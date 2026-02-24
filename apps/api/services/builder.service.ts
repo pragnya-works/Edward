@@ -2,13 +2,13 @@ import {
   getContainer,
   execCommand,
   CONTAINER_WORKDIR,
-} from "./sandbox/docker.sandbox.js";
+} from "./sandbox/docker.service.js";
 import { logger } from "../utils/logger.js";
 import {
   detectBuildOutput,
   BuildOutputInfo,
 } from "./sandbox/builder/output.detector.js";
-import { TIMEOUT_BUILD_MS } from "./sandbox/utils.sandbox.js";
+import { TIMEOUT_BUILD_MS } from "./sandbox/utils.service.js";
 import {
   injectBasePathConfigs,
   calculateBasePath,

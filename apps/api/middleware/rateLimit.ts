@@ -1,5 +1,11 @@
 import type { Request, Response } from 'express';
 import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
+import {
+  RATE_LIMIT_POLICY_BY_SCOPE,
+  RATE_LIMIT_SCOPE,
+  type KnownRateLimitScope,
+  type RateLimitPolicy,
+} from '@edward/shared/constants';
 import { RedisStore } from 'rate-limit-redis';
 import { redis } from '../lib/redis.js';
 import { HttpStatus } from '../utils/constants.js';
@@ -45,73 +51,72 @@ function getAuthenticatedRateLimitKey(req: Request): string {
   return ipKeyGenerator(req.ip || 'anonymous');
 }
 
-function createRateLimitExceededHandler(scope: string, message: string) {
+function createRateLimitExceededHandler(
+  scope: KnownRateLimitScope,
+  policy: RateLimitPolicy,
+) {
   return (req: Request, res: Response): void => {
+    res.setHeader('RateLimit-Scope', scope);
     logSecurityEvent('rate_limit_exceeded', {
-      scope,
+      scope: policy.securityScope,
       path: req.originalUrl,
       ip: getClientIp(req),
       requestId: getRequestId(req),
       userId: (req as AuthenticatedRequest).userId,
     });
-    sendError(res, HttpStatus.TOO_MANY_REQUESTS, message);
+    sendError(res, HttpStatus.TOO_MANY_REQUESTS, policy.limitExceededMessage);
   };
 }
 
-export const apiKeyRateLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 1000,
-  ...SHARED_RATE_LIMIT_OPTIONS,
-  handler: createRateLimitExceededHandler(
-    'api_key',
-    'Too many requests. Please try again in 15 minutes.',
-  ),
-  store: createRedisStore('api-key'),
-});
+function createRateLimiterForScope(
+  scope: KnownRateLimitScope,
+  options: {
+    keyGenerator?: (req: Request) => string;
+    skip?: (req: Request, res: Response) => boolean;
+  } = {},
+) {
+  const policy = RATE_LIMIT_POLICY_BY_SCOPE[scope];
+  return rateLimit({
+    windowMs: policy.windowMs,
+    max: policy.max,
+    ...SHARED_RATE_LIMIT_OPTIONS,
+    ...options,
+    handler: createRateLimitExceededHandler(scope, policy),
+    store: createRedisStore(policy.redisPrefix),
+  });
+}
 
-export const chatRateLimiter = rateLimit({
-  windowMs: 60 * 1000,
-  max: 10,
-  ...SHARED_RATE_LIMIT_OPTIONS,
-  handler: createRateLimitExceededHandler(
-    'chat_burst',
-    'Chat burst limit reached. Please wait a minute.',
-  ),
-  store: createRedisStore('chat'),
-});
+export const apiKeyRateLimiter = createRateLimiterForScope(
+  RATE_LIMIT_SCOPE.API_KEY,
+  {
+    keyGenerator: getAuthenticatedRateLimitKey,
+    skip: (req) => {
+      const method = req.method.toUpperCase();
+      return (
+        method === 'GET' ||
+        method === 'HEAD' ||
+        method === 'OPTIONS'
+      );
+    },
+  },
+);
 
-export const dailyChatRateLimiter = rateLimit({
-  windowMs: 24 * 60 * 60 * 1000,
-  max: 1000,
-  ...SHARED_RATE_LIMIT_OPTIONS,
-  keyGenerator: getAuthenticatedRateLimitKey,
-  handler: createRateLimitExceededHandler(
-    'chat_daily',
-    'Daily message quota exceeded (1000 messages/24h)',
-  ),
-  store: createRedisStore('chat-daily'),
-});
+export const chatRateLimiter = createRateLimiterForScope(
+  RATE_LIMIT_SCOPE.CHAT_BURST,
+  { keyGenerator: getAuthenticatedRateLimitKey },
+);
 
-export const githubRateLimiter = rateLimit({
-  windowMs: 60 * 1000,
-  max: 20,
-  ...SHARED_RATE_LIMIT_OPTIONS,
-  keyGenerator: getAuthenticatedRateLimitKey,
-  handler: createRateLimitExceededHandler(
-    'github_burst',
-    'GitHub request burst limit reached. Please wait a minute.',
-  ),
-  store: createRedisStore('github'),
-});
+export const dailyChatRateLimiter = createRateLimiterForScope(
+  RATE_LIMIT_SCOPE.CHAT_DAILY,
+  { keyGenerator: getAuthenticatedRateLimitKey },
+);
 
-export const dailyGithubRateLimiter = rateLimit({
-  windowMs: 24 * 60 * 60 * 1000,
-  max: 400,
-  ...SHARED_RATE_LIMIT_OPTIONS,
-  keyGenerator: getAuthenticatedRateLimitKey,
-  handler: createRateLimitExceededHandler(
-    'github_daily',
-    'Daily GitHub quota exceeded (400 requests/24h).',
-  ),
-  store: createRedisStore('github-daily'),
-});
+export const githubRateLimiter = createRateLimiterForScope(
+  RATE_LIMIT_SCOPE.GITHUB_BURST,
+  { keyGenerator: getAuthenticatedRateLimitKey },
+);
+
+export const dailyGithubRateLimiter = createRateLimiterForScope(
+  RATE_LIMIT_SCOPE.GITHUB_DAILY,
+  { keyGenerator: getAuthenticatedRateLimitKey },
+);

@@ -7,12 +7,21 @@ import {
   getChatHistory,
   deleteChat,
   getRecentChats,
+} from "../controllers/chat/query/history.controller.js";
+import {
   getBuildStatus,
-  getActiveRun,
   streamBuildEvents,
+} from "../controllers/chat/query/build.controller.js";
+import {
+  getActiveRun,
   streamRunEvents,
-  getSandboxFiles,
-} from "../controllers/chat/query.controller.js";
+  cancelRunHandler,
+} from "../controllers/chat/query/run.controller.js";
+import { getSandboxFiles } from "../controllers/chat/query/sandbox.controller.js";
+import {
+  getShareStatus,
+  updateShareSettings,
+} from "../controllers/chat/query/share.controller.js";
 import {
   checkSubdomainAvailabilityHandler,
   updateChatSubdomainHandler,
@@ -22,6 +31,9 @@ import {
   GetChatHistoryRequestSchema,
   UnifiedSendMessageRequestSchema,
   StreamRunEventsRequestSchema,
+  CancelRunRequestSchema,
+  ShareStatusRequestSchema,
+  UpdateShareSettingsRequestSchema,
 } from "../schemas/chat.schema.js";
 import {
   chatRateLimiter,
@@ -34,7 +46,6 @@ export const chatRouter: ExpressRouter = Router();
 chatRouter.post(
   "/image-upload",
   chatRateLimiter,
-  dailyChatRateLimiter,
   express.raw({
     type: [...IMAGE_UPLOAD_CONFIG.ALLOWED_MIME_TYPES],
     limit: `${IMAGE_UPLOAD_CONFIG.MAX_SIZE_BYTES / (1024 * 1024)}mb`,
@@ -77,25 +88,35 @@ chatRouter.get(
   validateRequest(StreamRunEventsRequestSchema),
   streamRunEvents,
 );
+chatRouter.post(
+  "/:chatId/runs/:runId/cancel",
+  validateRequest(CancelRunRequestSchema),
+  cancelRunHandler,
+);
 chatRouter.get(
   "/:chatId/sandbox-files",
   validateRequest(GetChatHistoryRequestSchema),
   getSandboxFiles,
+);
+chatRouter.get(
+  "/:chatId/share",
+  validateRequest(ShareStatusRequestSchema),
+  getShareStatus,
+);
+chatRouter.patch(
+  "/:chatId/share",
+  validateRequest(UpdateShareSettingsRequestSchema),
+  updateShareSettings,
 );
 chatRouter.delete(
   "/:chatId",
   validateRequest(GetChatHistoryRequestSchema),
   deleteChat,
 );
-
-// GET /chat/subdomain/check?subdomain=<value>&chatId=<id>
-// Must be registered before /:chatId to avoid "subdomain" being parsed as chatId
 chatRouter.get(
   "/subdomain/check",
   checkSubdomainAvailabilityHandler,
 );
-
-// PATCH /chat/:chatId/subdomain
 chatRouter.patch(
   "/:chatId/subdomain",
   validateRequest(GetChatHistoryRequestSchema),

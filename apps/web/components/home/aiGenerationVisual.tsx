@@ -4,7 +4,7 @@ import React, { memo, useState, useCallback, useMemo } from "react";
 import { m, AnimatePresence } from "motion/react";
 import { TextAnimate } from "@edward/ui/components/textAnimate";
 import { cn } from "@edward/ui/lib/utils";
-import { useVisibilityAwareInterval } from "@/hooks/useVisibilityAwareInterval";
+import { useVisibilityAwareInterval } from "@edward/ui/hooks/useVisibilityAwareInterval";
 
 const EXAMPLES = [
     {

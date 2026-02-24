@@ -1,5 +1,5 @@
 import { logger } from "../../../utils/logger.js";
-import { getSandboxState, saveSandboxState } from "../state.sandbox.js";
+import { getSandboxState, saveSandboxState } from "../state.service.js";
 
 export async function addSandboxPackages(sandboxId: string, packages: string[]): Promise<void> {
   try {

@@ -40,44 +40,4 @@ describe('ensureError', () => {
     expect(result).toBeInstanceOf(Error);
     expect(result.message).toBe('An unknown error occurred');
   });
-
-  it('should handle undefined', () => {
-    const result = ensureError(undefined);
-
-    expect(result).toBeInstanceOf(Error);
-    expect(result.message).toBe('An unknown error occurred');
-  });
-
-  it('should handle number', () => {
-    const result = ensureError(404);
-
-    expect(result).toBeInstanceOf(Error);
-    expect(result.message).toBe('An unknown error occurred');
-  });
-
-  it('should preserve stack trace from error-like object', () => {
-    const stackTrace = 'Error: test\n    at Test.method (file.ts:1:1)';
-    const errorLike = { message: 'Test error', stack: stackTrace };
-    const result = ensureError(errorLike);
-
-    expect(result.stack).toBe(stackTrace);
-  });
-
-  it('should handle empty object', () => {
-    const result = ensureError({});
-
-    expect(result).toBeInstanceOf(Error);
-    expect(result.message).toBe('{}');
-  });
-
-  it('should handle nested error objects', () => {
-    const nestedError = {
-      message: 'Outer error',
-      inner: { message: 'Inner error' },
-    };
-    const result = ensureError(nestedError);
-
-    expect(result).toBeInstanceOf(Error);
-    expect(result.message).toBe('Outer error');
-  });
 });

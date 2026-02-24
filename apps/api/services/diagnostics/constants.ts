@@ -13,7 +13,6 @@ export const STRIP_ANSI = new RegExp(
 export const ERROR_PATTERNS: ErrorPattern[] = [
   {
     name: "typescript",
-    // anchored and optimized to prevent ReDoS
     regex: /^([\w/.\\\\ @-]+\.(?:ts|tsx))[:(](\d+)[:;,](\d+)?\)?\s*(?:-?\s*error)?\s*(TS\d+)?:?\s*([^\n]+)/gim,
     stage: "typecheck",
   },

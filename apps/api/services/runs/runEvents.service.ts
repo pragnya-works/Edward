@@ -1,5 +1,5 @@
 import { appendRunEvent } from "@edward/auth";
-import type { StreamEvent } from "@edward/shared/stream-events";
+import type { StreamEvent } from "@edward/shared/streamEvents";
 
 const RUN_EVENT_CHANNEL_PREFIX = "edward:run-events:";
 

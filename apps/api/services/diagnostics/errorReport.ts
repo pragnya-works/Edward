@@ -162,7 +162,7 @@ export async function createErrorReport(
     const target = extractTarget(type, parsed.message);
 
     const shouldReadFile = parsed.file !== "unknown";
-    const isTopError = index < 3; // Lazy loading: only fetch context for top 3 errors
+    const isTopError = index < 3;
 
     let content = "";
     let relatedFiles: Array<{ path: string; reason: string; snippet?: string }> = [];

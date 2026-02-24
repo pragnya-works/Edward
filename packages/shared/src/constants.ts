@@ -39,3 +39,102 @@ export const IMAGE_UPLOAD_CONFIG = {
   ALLOWED_EXTENSIONS: [".jpg", ".jpeg", ".png", ".webp"] as const,
   MAX_FILES: 3,
 } as const;
+
+export const SUBDOMAIN_RESERVED = new Set([
+  "www",
+  "api",
+  "admin",
+  "app",
+  "mail",
+  "dashboard",
+  "ftp",
+  "dev",
+  "smtp",
+  "staging",
+  "preview",
+  "static",
+  "assets",
+  "cdn",
+  "media",
+  "files",
+  "storage",
+]);
+
+export const UI_EVENTS = {
+  OPEN_API_KEY_MODAL: "edward:open-api-key-modal",
+  FOCUS_PROMPT_INPUT: "edward:focus-prompt-input",
+} as const;
+
+export const RATE_LIMIT_SCOPE = {
+  API_KEY: "apiKeyRateLimiter",
+  CHAT_BURST: "chatRateLimiter",
+  CHAT_DAILY: "dailyChatRateLimiter",
+  GITHUB_BURST: "githubRateLimiter",
+  GITHUB_DAILY: "dailyGithubRateLimiter",
+} as const;
+
+export const KNOWN_RATE_LIMIT_SCOPES = [
+  RATE_LIMIT_SCOPE.API_KEY,
+  RATE_LIMIT_SCOPE.CHAT_BURST,
+  RATE_LIMIT_SCOPE.CHAT_DAILY,
+  RATE_LIMIT_SCOPE.GITHUB_BURST,
+  RATE_LIMIT_SCOPE.GITHUB_DAILY,
+] as const;
+
+export type KnownRateLimitScope = (typeof KNOWN_RATE_LIMIT_SCOPES)[number];
+
+export interface RateLimitPolicy {
+  windowMs: number;
+  max: number;
+  redisPrefix: string;
+  securityScope:
+    | "api_key"
+    | "chat_burst"
+    | "chat_daily"
+    | "github_burst"
+    | "github_daily";
+  limitExceededMessage: string;
+}
+
+export const RATE_LIMIT_POLICY_BY_SCOPE: Record<
+  KnownRateLimitScope,
+  RateLimitPolicy
+> = {
+  [RATE_LIMIT_SCOPE.API_KEY]: {
+    windowMs: 15 * 60 * 1000,
+    max: 10,
+    redisPrefix: "api-key",
+    securityScope: "api_key",
+    limitExceededMessage:
+      "Too many API key update attempts. Please try again in 15 minutes.",
+  },
+  [RATE_LIMIT_SCOPE.CHAT_BURST]: {
+    windowMs: 60 * 1000,
+    max: 10,
+    redisPrefix: "chat",
+    securityScope: "chat_burst",
+    limitExceededMessage: "Chat burst limit reached. Please wait a minute.",
+  },
+  [RATE_LIMIT_SCOPE.CHAT_DAILY]: {
+    windowMs: 24 * 60 * 60 * 1000,
+    max: 10,
+    redisPrefix: "chat-daily",
+    securityScope: "chat_daily",
+    limitExceededMessage: "Daily message quota exceeded (10 messages/24h)",
+  },
+  [RATE_LIMIT_SCOPE.GITHUB_BURST]: {
+    windowMs: 60 * 1000,
+    max: 20,
+    redisPrefix: "github",
+    securityScope: "github_burst",
+    limitExceededMessage:
+      "GitHub request burst limit reached. Please wait a minute.",
+  },
+  [RATE_LIMIT_SCOPE.GITHUB_DAILY]: {
+    windowMs: 24 * 60 * 60 * 1000,
+    max: 400,
+    redisPrefix: "github-daily",
+    securityScope: "github_daily",
+    limitExceededMessage: "Daily GitHub quota exceeded (400 requests/24h).",
+  },
+} as const;
