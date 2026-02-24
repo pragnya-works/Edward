@@ -4,7 +4,7 @@ import {
   getContainer,
   execCommand,
   CONTAINER_WORKDIR,
-} from "../sandbox/docker.sandbox.js";
+} from "../sandbox/docker.service.js";
 
 const ValidationStageSchema = z.enum(["syntax", "imports", "types", "build"]);
 type ValidationStage = z.infer<typeof ValidationStageSchema>;

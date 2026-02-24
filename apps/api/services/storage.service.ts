@@ -5,7 +5,7 @@ import {
 } from "@aws-sdk/client-s3";
 import { StreamingBlobPayloadInputTypes } from "@smithy/types";
 import { logger } from "../utils/logger.js";
-import { s3Client, BUCKET_NAME } from "./storage/config.js";
+import { s3Client, BUCKET_NAME } from "./storage/storage.config.js";
 import { getContentType, validateS3Key } from "./storage/key.utils.js";
 import { uploadWithRetry } from "./storage/upload.js";
 

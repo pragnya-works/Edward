@@ -32,14 +32,17 @@ vi.mock("../../../services/sandbox/lifecycle/provisioning.js", () => ({
   getActiveSandbox: getActiveSandboxMock,
 }));
 
-vi.mock("../../../services/sandbox/read.sandbox.js", () => ({
+vi.mock("../../../services/sandbox/read.service.js", () => ({
   readAllProjectFiles: vi.fn(),
   readSpecificFiles: vi.fn(),
   formatProjectSnapshot: vi.fn(() => ""),
 }));
 
-vi.mock("../../../utils/imageValidation.js", () => ({
+vi.mock("../../../utils/imageValidation/binary.js", () => ({
   validateBase64Image: vi.fn(),
+}));
+
+vi.mock("../../../utils/imageValidation/network.js", () => ({
   validateImageUrl: vi.fn(),
 }));
 

@@ -16,4 +16,8 @@ if (hasSentryDsn) {
   });
 }
 
-export const onRouterTransitionStart = Sentry.captureRouterTransitionStart;
+export function onRouterTransitionStart(
+  ...args: Parameters<typeof Sentry.captureRouterTransitionStart>
+): ReturnType<typeof Sentry.captureRouterTransitionStart> {
+  return Sentry.captureRouterTransitionStart(...args);
+}

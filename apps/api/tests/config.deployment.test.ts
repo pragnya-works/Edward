@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DEPLOYMENT_TYPES, resolveDeploymentType } from "../config.js";
+import { DEPLOYMENT_TYPES, resolveDeploymentType } from "../app.config.js";
 
 function makeEnv(overrides: Partial<NodeJS.ProcessEnv> = {}): NodeJS.ProcessEnv {
   return {

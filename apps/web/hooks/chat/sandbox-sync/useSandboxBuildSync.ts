@@ -8,7 +8,7 @@ import {
 import {
   BuildStatus,
   SandboxMode,
-} from "@/contexts/sandboxContext";
+} from "@/stores/sandbox/types";
 import {
   getSandboxFiles,
 } from "@/lib/api/build";

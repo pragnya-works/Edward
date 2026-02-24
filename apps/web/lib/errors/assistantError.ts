@@ -149,8 +149,6 @@ function normalizeActionType(
     return actionRaw;
   }
 
-  // Backward compatibility for historical payloads that encoded retry
-  // as focus_prompt + "Try again" label.
   if (/\b(try\s*again|retry)\b/i.test(actionLabel || "")) {
     return "retry_generation";
   }

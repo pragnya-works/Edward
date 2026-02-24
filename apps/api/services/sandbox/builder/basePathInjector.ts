@@ -2,11 +2,11 @@ import {
   getContainer,
   execCommand,
   CONTAINER_WORKDIR,
-} from "../docker.sandbox.js";
+} from "../docker.service.js";
 import { logger } from "../../../utils/logger.js";
 import { sanitizePathComponent } from "../../storage/key.utils.js";
 import { Framework } from "../../planning/schemas.js";
-import { config as appConfig, DEPLOYMENT_TYPES } from "../../../config.js";
+import { config as appConfig, DEPLOYMENT_TYPES } from "../../../app.config.js";
 
 export type DeploymentType = "path" | "subdomain";
 

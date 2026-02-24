@@ -1,5 +1,5 @@
 import { Queue, Job } from 'bullmq';
-import { connection, QUEUE_NAME } from '../../lib/queue.js';
+import { connection, QUEUE_NAME } from '../../lib/queue.binding.js';
 import { JobPayload } from './queue.schemas.js';
 
 export type TypedJob<T extends JobPayload = JobPayload> = Job<T>;

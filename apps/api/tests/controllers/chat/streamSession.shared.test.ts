@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { buildAgentContinuationPrompt } from "../../../controllers/chat/streamSession.shared.js";
-import { MAX_AGENT_CONTINUATION_PROMPT_CHARS } from "../../../utils/sharedConstants.js";
+import { buildAgentContinuationPrompt } from "../../../controllers/chat/session/shared/continuation.js";
+import { MAX_AGENT_CONTINUATION_PROMPT_CHARS } from "../../../utils/constants.js";
 
 describe("buildAgentContinuationPrompt", () => {
   it("returns non-truncated prompt for small payloads", () => {

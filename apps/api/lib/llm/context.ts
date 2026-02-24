@@ -13,18 +13,20 @@ import {
   readAllProjectFiles,
   readSpecificFiles,
   formatProjectSnapshot,
-} from "../../services/sandbox/read.sandbox.js";
+} from "../../services/sandbox/read.service.js";
 import { logger } from "../../utils/logger.js";
 import {
   type LlmConversationRole,
   isAssistantConversationRole,
   normalizeConversationRole,
 } from "./messageRole.js";
-import { type MessageContentPart, type MessageContent } from "./types.js";
+import type { MessageContentPart, MessageContent } from "@edward/shared/llm/types";
 import {
   validateBase64Image,
+} from "../../utils/imageValidation/binary.js";
+import {
   validateImageUrl,
-} from "../../utils/imageValidation.js";
+} from "../../utils/imageValidation/network.js";
 
 const MAX_CONTEXT_BYTES = 150 * 1024;
 const MAX_HISTORY_BYTES = 35 * 1024;

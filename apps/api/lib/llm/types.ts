@@ -1,43 +1,28 @@
-import type { AllowedImageMimeType } from "../../utils/imageValidation.js";
+import type {
+  MessageContentPart,
+} from "@edward/shared/llm/types";
+import {
+  getTextFromContent as getSharedTextFromContent,
+  hasImages as hasSharedImages,
+  isMultimodalContent as isSharedMultimodalContent,
+} from "@edward/shared/llm/types";
 
-export interface VisionImage {
-  type: "image";
-  base64: string;
-  mimeType: AllowedImageMimeType;
-}
-
-export interface TextContent {
-  type: "text";
-  text: string;
-}
-
-export type MessageContentPart = VisionImage | TextContent;
-
-export type MessageContent = string | MessageContentPart[];
+type VisionImage = Extract<MessageContentPart, { type: "image" }>;
 
 export function isMultimodalContent(
   content: string | MessageContentPart[],
 ): content is MessageContentPart[] {
-  return Array.isArray(content);
+  return isSharedMultimodalContent(content);
 }
 
 export function getTextFromContent(
   content: string | MessageContentPart[],
 ): string {
-  if (typeof content === "string") {
-    return content;
-  }
-  return content
-    .filter((part): part is TextContent => part.type === "text")
-    .map((part) => part.text)
-    .join("");
+  return getSharedTextFromContent(content);
 }
 
 export function hasImages(content: string | MessageContentPart[]): boolean {
-  if (typeof content === "string") {
-    return false;
-  }
-  return content.some((part) => part.type === "image");
+  return hasSharedImages(content);
 }
 
 export type OpenAIContentPart =
@@ -61,13 +46,15 @@ export function formatContentForOpenAI(
 
   return content.map((part) => {
     if (part.type === "image") {
+      const image = part as VisionImage;
       return {
         type: "image_url" as const,
         image_url: {
-          url: `data:${part.mimeType};base64,${part.base64}`,
+          url: `data:${image.mimeType};base64,${image.base64}`,
         },
       };
     }
+
     return {
       type: "text" as const,
       text: part.text,
@@ -88,13 +75,15 @@ export function formatContentForGemini(
 
   return content.map((part): GeminiContentPart => {
     if (part.type === "image") {
+      const image = part as VisionImage;
       return {
         inlineData: {
-          mimeType: part.mimeType,
-          data: part.base64,
+          mimeType: image.mimeType,
+          data: image.base64,
         },
       };
     }
+
     return { text: part.text };
   });
 }

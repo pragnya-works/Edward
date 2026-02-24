@@ -1,10 +1,10 @@
+import type { MetaEvent } from "../streamEvents.js";
 import type {
-  MetaEvent,
   StreamState,
   StreamedFile,
-} from "@edward/shared/chat/types";
+} from "./types.js";
 
-export type StreamActionType =
+type StreamActionType =
   | "REMOVE_STREAM"
   | "START_STREAMING"
   | "STOP_STREAMING"

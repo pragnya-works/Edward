@@ -1,4 +1,4 @@
-import { config } from "../../config.js";
+import { config } from "../../app.config.js";
 
 const DEFAULT_TIMEOUT_MS = 10_000;
 const MAX_SNIPPET_LENGTH = 320;

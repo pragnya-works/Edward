@@ -8,8 +8,8 @@ import {
   useMutation,
   useQueryClient,
 } from "@tanstack/react-query";
+import type { MetaEvent } from "@edward/shared/streamEvents";
 import type {
-  MetaEvent,
   StreamState,
 } from "@edward/shared/chat/types";
 import {
@@ -54,8 +54,6 @@ interface UseStartStreamParams {
   persistCursor: (chatId: string, runId: string, lastEventId: string) => void;
   clearCursor: (chatId: string, runId: string) => void;
 }
-
-export type { StartStreamOptions };
 
 export function useStartStream({
   dispatch,
@@ -132,6 +130,8 @@ export function useStartStream({
         content,
         chatId: opts?.chatId,
         model: opts?.model,
+        retryTargetUserMessageId: opts?.retryTargetUserMessageId,
+        retryTargetAssistantMessageId: opts?.retryTargetAssistantMessageId,
         streamKey,
         mutationId,
         controller,

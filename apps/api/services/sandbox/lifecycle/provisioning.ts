@@ -1,19 +1,19 @@
 import { nanoid } from "nanoid";
 import { logger } from "../../../utils/logger.js";
 import { ensureError } from "../../../utils/error.js";
-import { SandboxInstance } from "../types.sandbox.js";
+import { SandboxInstance } from "../types.service.js";
 import {
   saveSandboxState,
   getActiveSandboxState,
   refreshSandboxTTL,
   deleteSandboxState,
-} from "../state.sandbox.js";
+} from "../state.service.js";
 import {
   createContainer,
   getContainer,
   listContainers,
-} from "../docker.sandbox.js";
-import { restoreSandboxInstance } from "../backup.sandbox.js";
+} from "../docker.service.js";
+import { restoreSandboxInstance } from "../backup.service.js";
 import { redis } from "../../../lib/redis.js";
 import {
   getTemplateConfig,
@@ -25,8 +25,12 @@ import {
   SANDBOX_TTL,
   CONTAINER_STATUS_CACHE_MS,
   SANDBOX_DOCKER_LABEL,
-  containerStatusCache,
 } from "./state.js";
+import {
+  deleteContainerStatus,
+  getContainerStatus,
+  setContainerStatus,
+} from "./runtimeState.store.js";
 
 async function releaseLock(lockKey: string, lockValue: string): Promise<void> {
   const script = `if redis.call("get", KEYS[1]) == ARGV[1] then return redis.call("del", KEYS[1]) else return 0 end`;
@@ -54,7 +58,7 @@ export async function getActiveSandbox(
 ): Promise<string | undefined> {
   const sandbox = await getActiveSandboxState(chatId);
   if (sandbox) {
-    const cached = containerStatusCache.get(sandbox.containerId);
+    const cached = await getContainerStatus(sandbox.containerId);
     if (cached && Date.now() - cached.timestamp < CONTAINER_STATUS_CACHE_MS) {
       if (!cached.alive) {
         logger.warn(
@@ -62,7 +66,7 @@ export async function getActiveSandbox(
           "Cached container is dead, cleaning up stale Redis state",
         );
         await deleteSandboxState(sandbox.id, chatId);
-        containerStatusCache.delete(sandbox.containerId);
+        await deleteContainerStatus(sandbox.containerId);
       } else {
         await refreshSandboxTTL(sandbox.id, sandbox.chatId);
         return sandbox.id;
@@ -72,19 +76,13 @@ export async function getActiveSandbox(
         const container = getContainer(sandbox.containerId);
         await container.inspect();
 
-        containerStatusCache.set(sandbox.containerId, {
-          alive: true,
-          timestamp: Date.now(),
-        });
+        await setContainerStatus(sandbox.containerId, true);
         await refreshSandboxTTL(sandbox.id, sandbox.chatId);
 
         return sandbox.id;
       } catch (error) {
         const err = ensureError(error);
-        containerStatusCache.set(sandbox.containerId, {
-          alive: false,
-          timestamp: Date.now(),
-        });
+        await setContainerStatus(sandbox.containerId, false);
         logger.warn(
           { error: err, sandboxId: sandbox.id, chatId },
           "Active sandbox container not found or error inspecting, cleaning up",
@@ -123,10 +121,7 @@ export async function getActiveSandbox(
         };
 
         await saveSandboxState(recovered);
-        containerStatusCache.set(chatContainer.Id, {
-          alive: true,
-          timestamp: Date.now(),
-        });
+        await setContainerStatus(chatContainer.Id, true);
         return sandboxId;
       }
     }

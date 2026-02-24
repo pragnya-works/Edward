@@ -1,6 +1,7 @@
 "use client";
 
-import { useSandbox, BuildStatus } from "@/contexts/sandboxContext";
+import { useSandbox } from "@/contexts/sandboxContext";
+import { BuildStatus } from "@/stores/sandbox/types";
 import {
   CheckCircle2,
   XCircle,

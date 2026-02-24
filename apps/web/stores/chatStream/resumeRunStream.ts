@@ -1,6 +1,7 @@
 import type { RefObject } from "react";
 import type { QueryClient } from "@tanstack/react-query";
-import type { MetaEvent, StreamState } from "@edward/shared/chat/types";
+import type { MetaEvent } from "@edward/shared/streamEvents";
+import type { StreamState } from "@edward/shared/chat/types";
 import { StreamActionType, type StreamAction } from "@edward/shared/chat/streamActions";
 import { openRunEventsStream } from "@/lib/api/chat";
 import { queryKeys } from "@/lib/queryKeys";

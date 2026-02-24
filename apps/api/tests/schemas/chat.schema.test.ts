@@ -88,6 +88,26 @@ describe("chat schemas", () => {
       }
     });
 
+    it("should validate retry target IDs when chatId is provided", () => {
+      const result = UnifiedSendMessageSchema.safeParse({
+        content: "Retry this",
+        chatId: "chat-123",
+        retryTargetUserMessageId: "user-msg-1",
+        retryTargetAssistantMessageId: "assistant-msg-1",
+      });
+
+      expect(result.success).toBe(true);
+    });
+
+    it("should reject retry target IDs without chatId", () => {
+      const result = UnifiedSendMessageSchema.safeParse({
+        content: "Retry this",
+        retryTargetUserMessageId: "user-msg-1",
+      });
+
+      expect(result.success).toBe(false);
+    });
+
     it("should validate multimodal content with image only", () => {
       const result = UnifiedSendMessageSchema.safeParse({
         content: [

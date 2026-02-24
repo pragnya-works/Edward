@@ -28,5 +28,3 @@ export function useMobileViewport() {
     () => false,
   );
 }
-
-export const useIsMobileViewport = useMobileViewport;

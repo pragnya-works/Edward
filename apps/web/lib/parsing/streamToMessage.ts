@@ -1,4 +1,5 @@
-import { ChatRole, type StreamState, type MetaEvent, type ChatMessage } from "@edward/shared/chat/types";
+import type { MetaEvent } from "@edward/shared/streamEvents";
+import { ChatRole, type StreamState, type ChatMessage } from "@edward/shared/chat/types";
 
 function escapeHtmlAttribute(value: string): string {
   return value

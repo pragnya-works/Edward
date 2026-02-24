@@ -1,25 +1,38 @@
-# Edward v1.0
+# Edward Monorepo
 
-A professional AI agent monorepo for shipping modern web apps instantly. Constructed with Next.js, Turborepo, and SSE streaming.
+Edward is a pnpm + Turborepo workspace for the web app, API, and shared packages.
 
-## Structure
+## Workspace Scope
 
-- `apps/web` - Next.js web application
-- `apps/api` - API server
-- `packages/ui` - Reusable UI components
-- `packages/auth` - Authentication utilities
-- `packages/eslint-config` - ESLint configurations
-- `packages/typescript-config` - TypeScript configurations
+`apps/`
+- `apps/web`: Next.js app (frontend + auth route handlers)
+- `apps/api`: backend API service
 
-## Commands
+`packages/`
+- `packages/auth`: auth + DB schema/helpers used across services
+- `packages/shared`: shared types/schemas/utilities
+- `packages/ui`: shared UI components/styles
+- `packages/eslint-config`: workspace ESLint presets
+- `packages/typescript-config`: workspace TS presets
+- `packages/octokit`: GitHub API helpers
 
-- `pnpm dev` - Start development servers
-- `pnpm build` - Build all packages
-- `pnpm lint` - Lint code
+## Prerequisites
 
-## Setup
+- Node.js `>=20`
+- pnpm `10.x`
+
+## Common Commands (from repo root)
 
 ```bash
 pnpm install
 pnpm dev
+pnpm build
+pnpm lint
+pnpm lint:fix
 ```
+
+## Notes
+
+- Turbo task behavior and env passthrough are in `turbo.json`.
+- Package globs are defined in `pnpm-workspace.yaml`.
+- Each app/package README contains local details specific to that directory.

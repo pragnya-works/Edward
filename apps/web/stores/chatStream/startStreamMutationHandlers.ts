@@ -133,6 +133,8 @@ export async function executeStartStreamMutation(
     content: variables.content,
     chatId: variables.chatId,
     model: variables.model,
+    retryTargetUserMessageId: variables.retryTargetUserMessageId,
+    retryTargetAssistantMessageId: variables.retryTargetAssistantMessageId,
   };
   const response = await postChatMessageStream(body, variables.controller.signal);
 

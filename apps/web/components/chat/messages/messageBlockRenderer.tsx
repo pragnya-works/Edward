@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, m } from "motion/react";
-import { ParserEventType, STREAM_EVENT_VERSION } from "@edward/shared/stream-events";
+import { ParserEventType, STREAM_EVENT_VERSION } from "@edward/shared/streamEvents";
 import { CommandBlock } from "@/components/chat/blocks/commandBlock";
 import { FileBlock } from "@/components/chat/blocks/fileBlock";
 import { InstallBlock } from "@/components/chat/blocks/installBlock";

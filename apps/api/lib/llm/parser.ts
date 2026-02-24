@@ -1,25 +1,29 @@
 import path from "path";
 import {
+  ASSISTANT_STREAM_TAGS,
+  parseInstallDependencies,
+} from "@edward/shared/llm/streamTagParser";
+import {
   StreamState,
   ParserEventType,
   type ParserEvent,
 } from "../../schemas/chat.schema.js";
-import { NPM_PACKAGE_REGEX } from "../../utils/sharedConstants.js";
+import { NPM_PACKAGE_REGEX } from "../../utils/constants.js";
 import type { Framework } from "../../services/planning/schemas.js";
 
 const TAGS = {
-  THINKING_START: "<Thinking>",
-  THINKING_END: "</Thinking>",
-  SANDBOX_START: "<edward_sandbox",
-  SANDBOX_END: "</edward_sandbox>",
-  FILE_START: "<file",
-  FILE_END: "</file>",
-  INSTALL_START: "<edward_install>",
-  INSTALL_END: "</edward_install>",
-  COMMAND: "<edward_command",
-  WEB_SEARCH: "<edward_web_search",
-  RESPONSE_START: "<Response>",
-  DONE: "<edward_done",
+  THINKING_START: ASSISTANT_STREAM_TAGS.THINKING_START,
+  THINKING_END: ASSISTANT_STREAM_TAGS.THINKING_END,
+  SANDBOX_START: ASSISTANT_STREAM_TAGS.SANDBOX_START,
+  SANDBOX_END: ASSISTANT_STREAM_TAGS.SANDBOX_END,
+  FILE_START: ASSISTANT_STREAM_TAGS.FILE_START,
+  FILE_END: ASSISTANT_STREAM_TAGS.FILE_END,
+  INSTALL_START: ASSISTANT_STREAM_TAGS.INSTALL_START,
+  INSTALL_END: ASSISTANT_STREAM_TAGS.INSTALL_END,
+  COMMAND: ASSISTANT_STREAM_TAGS.COMMAND_START,
+  WEB_SEARCH: ASSISTANT_STREAM_TAGS.WEB_SEARCH_START,
+  RESPONSE_START: ASSISTANT_STREAM_TAGS.RESPONSE_START,
+  DONE: ASSISTANT_STREAM_TAGS.DONE_START,
 } as const;
 
 const LOOKAHEAD_LIMIT = 256;
@@ -427,14 +431,11 @@ export function createStreamParser() {
       .map((l) => l.trim())
       .filter(Boolean);
     let framework: AllowedFramework | undefined;
-    const dependencies: string[] = [];
-    let inPackagesList = false;
+    const dependencies = parseInstallDependencies(content).filter(
+      isValidPackageName,
+    );
 
     for (const line of lines) {
-      if (line.includes("<") || line.includes(">")) {
-        continue;
-      }
-
       const cleanLine = line.replace(/^\s*[-*]\s*/, "").trim();
 
       if (cleanLine.startsWith("framework:")) {
@@ -451,36 +452,10 @@ export function createStreamParser() {
         framework = validFrameworks.includes(rawFramework as AllowedFramework)
           ? (rawFramework as AllowedFramework)
           : undefined;
-        inPackagesList = false;
-        continue;
-      }
-
-      if (cleanLine.startsWith("packages:")) {
-        const pkgs = cleanLine.replace("packages:", "").trim();
-        if (pkgs) {
-          dependencies.push(...parsePackageList(pkgs));
-          inPackagesList = false;
-        } else {
-          inPackagesList = true;
-        }
-        continue;
-      }
-
-      if (isValidPackageName(cleanLine)) {
-        dependencies.push(cleanLine);
-      } else if (inPackagesList && cleanLine) {
-        dependencies.push(...parsePackageList(cleanLine));
       }
     }
 
     return { dependencies, framework };
-  }
-
-  function parsePackageList(input: string): string[] {
-    return input
-      .split(",")
-      .map((p) => p.trim())
-      .filter(isValidPackageName);
   }
 
   function isValidPackageName(name: string): boolean {

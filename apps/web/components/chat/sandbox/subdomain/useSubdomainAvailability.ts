@@ -6,6 +6,7 @@ import {
   updateChatSubdomain,
 } from "@/lib/api/subdomain";
 import { toast } from "@edward/ui/components/sonner";
+import { SUBDOMAIN_RESERVED } from "@edward/shared/constants";
 
 export type AvailabilityState =
   | { status: "idle" }
@@ -22,26 +23,6 @@ interface UseSubdomainAvailabilityParams {
   onClose: () => void;
   onSaved: (newUrl: string) => void;
 }
-
-const SUBDOMAIN_RESERVED = new Set([
-  "www",
-  "api",
-  "admin",
-  "app",
-  "mail",
-  "dashboard",
-  "ftp",
-  "dev",
-  "smtp",
-  "staging",
-  "preview",
-  "static",
-  "assets",
-  "cdn",
-  "media",
-  "files",
-  "storage",
-]);
 
 const SUBDOMAIN_REGEX = /^[a-z0-9][a-z0-9-]*[a-z0-9]$/;
 const AVAILABILITY_DEBOUNCE_MS = 380;

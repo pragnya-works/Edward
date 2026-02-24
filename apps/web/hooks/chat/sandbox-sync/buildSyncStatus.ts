@@ -2,13 +2,10 @@ import type {
   RefObject,
 } from "react";
 import {
-  BuildStatus,
-  SandboxMode,
-} from "@/contexts/sandboxContext";
-import {
   BuildRecordStatus,
   type BuildErrorReport,
-} from "@/lib/api/build";
+} from "@edward/shared/api/contracts";
+import { BuildStatus, SandboxMode } from "@/stores/sandbox/types";
 import type {
   BuildStatusPayload,
 } from "@/hooks/chat/sandbox-sync/buildSyncTypes";

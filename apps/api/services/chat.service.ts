@@ -1,7 +1,7 @@
 import { db, chat, message, attachment, MessageRole, eq } from "@edward/auth";
 import { nanoid } from "nanoid";
 import { logger } from "../utils/logger.js";
-import type { AllowedImageMimeType } from "../utils/imageValidation.js";
+import type { AllowedImageMimeType } from "../utils/imageValidation/types.js";
 import { normalizeUserMessageText } from "../utils/userMessageText.js";
 
 export interface MessageMetadata {

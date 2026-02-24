@@ -3,7 +3,7 @@
 import { memo, useMemo } from "react";
 import { m, useReducedMotion } from "motion/react";
 import {
-    Loader2,
+    LoaderIcon,
     Code2,
 } from "lucide-react";
 import { cn } from "@edward/ui/lib/utils";
@@ -102,7 +102,7 @@ export const ProjectButton = memo(function ProjectButton({
                 }}
             >
                 {isStreaming ? (
-                    <Loader2 className={cn("h-4 w-4 text-primary", !prefersReducedMotion && "animate-spin")} />
+                    <LoaderIcon className={cn("h-4 w-4 text-primary", !prefersReducedMotion && "animate-spin")} />
                 ) : framework ? (
                     <FrameworkIcon framework={framework} />
                 ) : (

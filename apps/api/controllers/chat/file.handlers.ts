@@ -1,4 +1,4 @@
-import { writeSandboxFile } from "../../services/sandbox/writes.sandbox.js";
+import { writeSandboxFile } from "../../services/sandbox/write/buffer.js";
 
 export async function handleFileContent(
     sandboxId: string,

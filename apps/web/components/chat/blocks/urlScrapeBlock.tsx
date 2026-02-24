@@ -2,7 +2,7 @@
 
 import { m } from "motion/react";
 import { AlertTriangle, CheckCircle2, ExternalLink, Link2 } from "lucide-react";
-import type { UrlScrapeEvent } from "@edward/shared/chat/types";
+import type { UrlScrapeEvent } from "@edward/shared/streamEvents";
 import Link from "next/link";
 
 interface UrlScrapeBlockProps {

@@ -5,7 +5,8 @@ import { RefreshCw, X, Copy, Check, FileCode } from "lucide-react";
 import { cn } from "@edward/ui/lib/utils";
 import { Button } from "@edward/ui/components/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@edward/ui/components/card";
-import { BuildStatus, useSandbox } from "@/contexts/sandboxContext";
+import { useSandbox } from "@/contexts/sandboxContext";
+import { BuildStatus } from "@/stores/sandbox/types";
 
 export function SandboxEmptyState() {
   const { buildStatus, isStreaming, fullErrorReport } = useSandbox();

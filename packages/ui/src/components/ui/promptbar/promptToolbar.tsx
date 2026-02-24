@@ -1,4 +1,4 @@
-import { ArrowRight, PaperclipIcon, EyeOff, X, Square } from "lucide-react";
+import { ArrowRight, PaperclipIcon, EyeOff, X, Square, CornerDownLeft } from "lucide-react";
 import { Button } from "@edward/ui/components/button";
 import {
   Tooltip,
@@ -70,7 +70,7 @@ export function PromptToolbar({
       <Button
         type="button"
         className={cn(
-          "shrink-0 rounded-full px-6 py-2.5 text-sm font-semibold transition-all duration-300 transform active:scale-95 border-none",
+          "shrink-0 rounded-xl gap-2 px-3 py-2.5 text-sm font-semibold transition-all duration-300 transform active:scale-95 border-none",
           isStreaming
             ? "bg-foreground/10 hover:bg-foreground/20 text-foreground"
             : "bg-foreground text-background hover:brightness-110 shadow-md",
@@ -81,12 +81,21 @@ export function PromptToolbar({
         {isStreaming ? (
           <>
             Stop
-            <Square className="ml-2 h-3.5 w-3.5 fill-current" />
+            <Square className="h-3.5 w-3.5 fill-current" />
           </>
         ) : (
           <>
             Build now
-            <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+            <span
+              className={cn(
+                "ml-0.5 inline-flex h-[22px] min-w-[26px] items-center justify-center rounded-[7px] px-1",
+                "border border-black/15 bg-gradient-to-b from-black/[0.03] via-black/[0.08] to-black/[0.14]",
+                "shadow-[inset_0_1px_0_rgba(255,255,255,0.38),inset_0_-1px_0_rgba(0,0,0,0.12),0_1px_1.5px_rgba(0,0,0,0.2)]",
+              )}
+              aria-hidden="true"
+            >
+              <CornerDownLeft className="size-3 stroke-[2.15] text-zinc-300 dark:text-zinc-600" />
+            </span>
           </>
         )}
       </Button>

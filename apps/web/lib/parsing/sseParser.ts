@@ -1,6 +1,6 @@
-import type { SSEEvent } from "@edward/shared/chat/types";
+import type { StreamEvent as SSEEvent } from "@edward/shared/streamEvents";
 
-export interface ParsedSSEEvent {
+interface ParsedSSEEvent {
   id?: string;
   event: SSEEvent;
 }

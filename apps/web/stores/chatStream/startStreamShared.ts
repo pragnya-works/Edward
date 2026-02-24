@@ -1,8 +1,8 @@
 import type { RefObject } from "react";
 import type { QueryClient } from "@tanstack/react-query";
+import type { MetaEvent } from "@edward/shared/streamEvents";
 import type {
   ChatMessage,
-  MetaEvent,
   StreamState,
 } from "@edward/shared/chat/types";
 import type {
@@ -27,6 +27,8 @@ export interface StartStreamMutationVariables {
   content: MessageContent;
   chatId?: string;
   model?: string;
+  retryTargetUserMessageId?: string;
+  retryTargetAssistantMessageId?: string;
   streamKey: string;
   mutationId: string;
   controller: AbortController;
@@ -39,6 +41,7 @@ export interface StartStreamOptions {
   chatId?: string;
   model?: string;
   suppressOptimisticUserMessage?: boolean;
+  retryTargetUserMessageId?: string;
   retryTargetAssistantMessageId?: string;
 }
 

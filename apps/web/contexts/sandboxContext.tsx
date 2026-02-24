@@ -5,15 +5,6 @@ import { useShallow } from "zustand/react/shallow";
 import {
   useSandboxStore,
 } from "@/stores/sandbox/store";
-import {
-  BuildStatus as StoreBuildStatus,
-  SandboxMode as StoreSandboxMode,
-} from "@/stores/sandbox/types";
-
-export type BuildStatus = StoreBuildStatus;
-export const BuildStatus = StoreBuildStatus;
-export type SandboxMode = StoreSandboxMode;
-export const SandboxMode = StoreSandboxMode;
 
 function isEditableEventTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) {

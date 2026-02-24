@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   validateBase64Image,
   validateImageCount,
-} from "../../utils/imageValidation.js";
+} from "../../utils/imageValidation/binary.js";
 
 const validJpegBase64 =
   "/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/wAALCAABAAEBAREA/8QAFAABAAAAAAAAAAAAAAAAAAAACf/EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAD8AVN//2Q==";

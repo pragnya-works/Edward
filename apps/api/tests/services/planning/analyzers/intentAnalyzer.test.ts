@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { analyzeIntent } from "../../../../services/planning/analyzers/intentAnalyzer.js";
-import { generateResponse } from "../../../../lib/llm/response.js";
+import { generateResponse } from "../../../../lib/llm/provider.client.js";
 
-vi.mock("../../../../lib/llm/response.js", () => ({
+vi.mock("../../../../lib/llm/provider.client.js", () => ({
   generateResponse: vi.fn(),
 }));
 

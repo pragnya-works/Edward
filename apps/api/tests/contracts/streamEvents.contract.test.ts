@@ -6,7 +6,7 @@ import {
   StreamTerminationReason,
   STREAM_EVENT_VERSION,
   type StreamEvent,
-} from "@edward/shared/stream-events";
+} from "@edward/shared/streamEvents";
 import { ParserEventSchema } from "../../schemas/chat.schema.js";
 
 describe("stream event contract", () => {

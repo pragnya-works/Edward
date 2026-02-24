@@ -32,9 +32,21 @@ export default defineConfig({
         __dirname,
         "../../packages/shared/dist/schema.js",
       ),
-      "@edward/shared/stream-events": path.resolve(
+      "@edward/shared/streamEvents": path.resolve(
         __dirname,
-        "../../packages/shared/dist/stream-events.js",
+        "../../packages/shared/dist/streamEvents.js",
+      ),
+      "@edward/shared/streamToolResults": path.resolve(
+        __dirname,
+        "../../packages/shared/dist/streamToolResults.js",
+      ),
+      "@edward/shared/llm/streamTagParser": path.resolve(
+        __dirname,
+        "../../packages/shared/dist/llm/streamTagParser.js",
+      ),
+      "@edward/shared/llm/types": path.resolve(
+        __dirname,
+        "../../packages/shared/dist/llm/types.js",
       ),
       "@edward/shared/constants": path.resolve(
         __dirname,
