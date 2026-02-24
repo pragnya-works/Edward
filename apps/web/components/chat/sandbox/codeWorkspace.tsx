@@ -7,7 +7,6 @@ import { SandboxActivityBar } from "@/components/chat/sandbox/sandboxActivityBar
 import { SandboxFileSidebar } from "@/components/chat/sandbox/sandboxFileSidebar";
 
 interface CodeWorkspaceProps {
-  chatId: string;
   isMobile: boolean;
   isMobileExplorerOpen: boolean;
   setIsMobileExplorerOpen: Dispatch<SetStateAction<boolean>>;
@@ -17,7 +16,6 @@ interface CodeWorkspaceProps {
 }
 
 export function CodeWorkspace({
-  chatId,
   isMobile,
   isMobileExplorerOpen,
   setIsMobileExplorerOpen,
@@ -68,7 +66,7 @@ export function CodeWorkspace({
               side="left"
               className="w-[82vw] max-w-sm p-0 gap-0 bg-workspace-sidebar border-workspace-border"
             >
-              <SandboxFileSidebar chatId={chatId} />
+              <SandboxFileSidebar />
             </SheetContent>
           </Sheet>
 
@@ -86,7 +84,7 @@ export function CodeWorkspace({
               maxSize={200}
               className="bg-workspace-sidebar"
             >
-              <SandboxFileSidebar chatId={chatId} />
+              <SandboxFileSidebar />
             </Panel>
 
             <PanelResizeHandle className="w-1 bg-workspace-border hover:bg-workspace-accent/60 transition-colors cursor-col-resize z-10 select-none hover:shadow-[inset_0_0_8px_rgba(79,193,255,0.15)]" />

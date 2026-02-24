@@ -17,62 +17,20 @@ import {
 } from "@edward/ui/components/dialog";
 import { GitHub } from "@edward/ui/components/icons/github";
 import { Input } from "@edward/ui/components/input";
+import type { GithubIntegrationController } from "./useGithubIntegration";
 
 interface GithubIntegrationDialogProps {
-  actionLabel: "Connect" | "Sync";
-  errorMessage: string | null;
-  isCheckingStatus: boolean;
-  isModalOpen: boolean;
-  isRepoLocked: boolean;
-  isSubmitting: boolean;
-  isRateLimited: boolean;
-  rateLimitMessage: string | null;
-  branchValidationError: string | null;
-  branchSuggestions: string[];
-  normalizedBranchInput: string;
-  normalizedCommitMessage: string;
-  normalizedRepoInput: string;
-  repoValidationError: string | null;
-  repoSuggestions: string[];
-  repoInput: string;
-  branchInput: string;
-  commitMessage: string;
-  resolvedBaseBranch: string;
-  onBranchInputChange: (value: string) => void;
-  onCommitMessageChange: (value: string) => void;
-  onOpenChange: (open: boolean) => void;
-  onRepoInputChange: (value: string) => void;
-  onRunGithubFlow: () => void;
+  integration: GithubIntegrationController;
 }
 
 export function GithubIntegrationDialog({
-  actionLabel,
-  errorMessage,
-  isCheckingStatus,
-  isModalOpen,
-  isRepoLocked,
-  isSubmitting,
-  isRateLimited,
-  rateLimitMessage,
-  branchValidationError,
-  branchSuggestions,
-  normalizedBranchInput,
-  normalizedCommitMessage,
-  normalizedRepoInput,
-  repoValidationError,
-  repoSuggestions,
-  repoInput,
-  branchInput,
-  commitMessage,
-  resolvedBaseBranch,
-  onBranchInputChange,
-  onCommitMessageChange,
-  onOpenChange,
-  onRepoInputChange,
-  onRunGithubFlow,
+  integration,
 }: GithubIntegrationDialogProps) {
+  const isRateLimited = integration.isGithubRateLimited;
+  const rateLimitMessage = integration.githubRateLimitMessage;
+
   return (
-    <Dialog open={isModalOpen} onOpenChange={onOpenChange}>
+    <Dialog open={integration.isModalOpen} onOpenChange={integration.setIsModalOpen}>
       <DialogContent className="overflow-hidden border-workspace-border bg-workspace-bg p-0 sm:max-w-2xl">
         <DialogHeader className="gap-3 border-b border-workspace-border bg-gradient-to-b from-workspace-sidebar to-workspace-bg px-5 py-4 text-left">
           <div className="flex items-center gap-2">
@@ -80,11 +38,13 @@ export function GithubIntegrationDialog({
               <GitHub className="h-4 w-4 text-workspace-foreground" />
             </div>
             <DialogTitle className="text-base font-semibold text-workspace-foreground">
-              {isRepoLocked ? "Sync GitHub Repository" : "Connect GitHub Repository"}
+              {integration.isRepoLocked
+                ? "Sync GitHub Repository"
+                : "Connect GitHub Repository"}
             </DialogTitle>
           </div>
           <DialogDescription className="text-sm leading-relaxed text-workspace-foreground/70">
-            {isRepoLocked
+            {integration.isRepoLocked
               ? "Repository is already connected for this project. Choose branch and commit details to sync."
               : "Configure repository, branch, and commit details. Edward connects, prepares the branch, and syncs in one flow."}
           </DialogDescription>
@@ -103,25 +63,29 @@ export function GithubIntegrationDialog({
               Repository
             </label>
             <Input
-              value={repoInput}
-              onChange={(event) => onRepoInputChange(event.target.value)}
+              value={integration.repoInput}
+              onChange={(event) => integration.setRepoInput(event.target.value)}
               placeholder="owner/repo or repo-name"
-              disabled={isRepoLocked || isRateLimited}
+              disabled={integration.isRepoLocked || isRateLimited}
               className="h-10 rounded-xl border-workspace-border bg-workspace-sidebar text-[13px] text-workspace-foreground placeholder:text-workspace-foreground/45 focus-visible:ring-workspace-accent/40"
             />
-            {repoValidationError && !isRepoLocked ? (
+            {integration.repoValidationError && !integration.isRepoLocked ? (
               <div className="space-y-1">
-                <p className="text-[11px] text-destructive">{repoValidationError}</p>
-                {repoSuggestions.length > 0 ? (
+                <p className="text-[11px] text-destructive">
+                  {integration.repoValidationError}
+                </p>
+                {integration.repoSuggestions.length > 0 ? (
                   <div className="flex flex-wrap items-center gap-1.5">
                     <span className="text-[11px] text-workspace-foreground/60">Try:</span>
-                    {repoSuggestions.map(function mapRepoSuggestion(suggestion) {
+                    {integration.repoSuggestions.map(function mapRepoSuggestion(
+                      suggestion,
+                    ) {
                       return (
                         <button
                           key={suggestion}
                           type="button"
                           onClick={function handleRepoSuggestionClick() {
-                            onRepoInputChange(suggestion);
+                            integration.setRepoInput(suggestion);
                           }}
                           className="rounded-md border border-workspace-border bg-workspace-sidebar px-2 py-0.5 text-[11px] text-workspace-foreground/85 hover:bg-workspace-hover"
                         >
@@ -134,7 +98,7 @@ export function GithubIntegrationDialog({
               </div>
             ) : (
               <p className="text-[11px] text-workspace-foreground/55">
-                {isRepoLocked
+                {integration.isRepoLocked
                   ? "This project is already bound to the connected repository. Only branch and commit can be changed."
                   : "If only a repo name is provided, Edward uses your GitHub username."}
               </p>
@@ -148,28 +112,33 @@ export function GithubIntegrationDialog({
                 Branch
               </label>
               <Input
-                value={branchInput}
-                onChange={(event) => onBranchInputChange(event.target.value)}
+                value={integration.branchInput}
+                onChange={(event) => integration.setBranchInput(event.target.value)}
                 placeholder="feature/my-change"
                 disabled={isRateLimited}
                 className="h-10 rounded-xl border-workspace-border bg-workspace-sidebar text-[13px] text-workspace-foreground placeholder:text-workspace-foreground/45 focus-visible:ring-workspace-accent/40"
               />
               <p className="text-[11px] text-workspace-foreground/55">
-                Base branch for creation: <span className="font-medium">{resolvedBaseBranch}</span>
+                Base branch for creation:{" "}
+                <span className="font-medium">{integration.resolvedBaseBranch}</span>
               </p>
-              {branchValidationError ? (
+              {integration.branchValidationError ? (
                 <div className="space-y-1">
-                  <p className="text-[11px] text-destructive">{branchValidationError}</p>
-                  {branchSuggestions.length > 0 ? (
+                  <p className="text-[11px] text-destructive">
+                    {integration.branchValidationError}
+                  </p>
+                  {integration.branchSuggestions.length > 0 ? (
                     <div className="flex flex-wrap items-center gap-1.5">
                       <span className="text-[11px] text-workspace-foreground/60">Try:</span>
-                      {branchSuggestions.map(function mapBranchSuggestion(suggestion) {
+                      {integration.branchSuggestions.map(function mapBranchSuggestion(
+                        suggestion,
+                      ) {
                         return (
                           <button
                             key={suggestion}
                             type="button"
                             onClick={function handleBranchSuggestionClick() {
-                              onBranchInputChange(suggestion);
+                              integration.setBranchInput(suggestion);
                             }}
                             className="rounded-md border border-workspace-border bg-workspace-sidebar px-2 py-0.5 text-[11px] text-workspace-foreground/85 hover:bg-workspace-hover"
                           >
@@ -189,8 +158,8 @@ export function GithubIntegrationDialog({
                 Commit message
               </label>
               <Input
-                value={commitMessage}
-                onChange={(event) => onCommitMessageChange(event.target.value)}
+                value={integration.commitMessage}
+                onChange={(event) => integration.setCommitMessage(event.target.value)}
                 placeholder="chore: sync project changes"
                 disabled={isRateLimited}
                 className="h-10 rounded-xl border-workspace-border bg-workspace-sidebar text-[13px] text-workspace-foreground placeholder:text-workspace-foreground/45 focus-visible:ring-workspace-accent/40"
@@ -205,10 +174,10 @@ export function GithubIntegrationDialog({
             </p>
           ) : null}
 
-          {errorMessage ? (
+          {integration.errorMessage ? (
             <p className="flex items-center gap-1.5 rounded-lg border border-destructive/25 bg-destructive/5 px-3 py-2 text-[12px] text-destructive">
               <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-              {errorMessage}
+              {integration.errorMessage}
             </p>
           ) : null}
         </div>
@@ -217,33 +186,33 @@ export function GithubIntegrationDialog({
           <Button
             type="button"
             variant="outline"
-            onClick={() => onOpenChange(false)}
+            onClick={() => integration.setIsModalOpen(false)}
             className="h-10 rounded-xl border-workspace-border bg-workspace-bg text-workspace-foreground hover:bg-workspace-hover"
           >
             Cancel
           </Button>
           <Button
             type="button"
-            onClick={onRunGithubFlow}
+            onClick={() => void integration.handleRunGithubFlow()}
             disabled={
-              isSubmitting ||
-              isCheckingStatus ||
+              integration.isSubmitting ||
+              integration.isCheckingStatus ||
               isRateLimited ||
-              (!isRepoLocked && !normalizedRepoInput) ||
-              Boolean(repoValidationError) ||
-              !normalizedBranchInput ||
-              Boolean(branchValidationError) ||
-              !normalizedCommitMessage
+              (!integration.isRepoLocked && !integration.normalizedRepoInput) ||
+              Boolean(integration.repoValidationError) ||
+              !integration.normalizedBranchInput ||
+              Boolean(integration.branchValidationError) ||
+              !integration.normalizedCommitMessage
             }
             className="h-10 rounded-xl px-4"
           >
-            {isSubmitting || isCheckingStatus ? (
+            {integration.isSubmitting || integration.isCheckingStatus ? (
               <>
                 <LoaderIcon className="h-3.5 w-3.5 animate-spin" />
-                {isRepoLocked ? "Syncing..." : "Connecting..."}
+                {integration.isRepoLocked ? "Syncing..." : "Connecting..."}
               </>
             ) : (
-              actionLabel
+              integration.actionLabel
             )}
           </Button>
         </DialogFooter>

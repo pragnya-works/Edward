@@ -6,19 +6,13 @@ import { Button } from "@edward/ui/components/button";
 import { GitHub } from "@edward/ui/components/icons/github";
 import { useSandbox } from "@/contexts/sandboxContext";
 import { useChatStream } from "@/contexts/chatStreamContext";
+import { useChatWorkspaceContext } from "@/components/chat/chatWorkspaceContext";
 import { GithubIntegrationDialog } from "./github/githubIntegrationDialog";
 import { useGithubIntegration } from "./github/useGithubIntegration";
 import { INITIAL_STREAM_STATE } from "@edward/shared/chat/types";
 
-interface GithubIntegrationBarProps {
-  chatId: string;
-  projectName: string | null;
-}
-
-export function GithubIntegrationBar({
-  chatId,
-  projectName,
-}: GithubIntegrationBarProps) {
+export function GithubIntegrationBar() {
+  const { chatId, projectName } = useChatWorkspaceContext();
   const { files } = useSandbox();
   const { streams } = useChatStream();
   const hasGeneratedCode = files.length > 0;
@@ -81,32 +75,7 @@ export function GithubIntegrationBar({
         ) : null}
       </div>
 
-      <GithubIntegrationDialog
-        actionLabel={integration.actionLabel}
-        errorMessage={integration.errorMessage}
-        isCheckingStatus={integration.isCheckingStatus}
-        isModalOpen={integration.isModalOpen}
-        isRepoLocked={integration.isRepoLocked}
-        isSubmitting={integration.isSubmitting}
-        isRateLimited={integration.isGithubRateLimited}
-        rateLimitMessage={integration.githubRateLimitMessage}
-        normalizedBranchInput={integration.normalizedBranchInput}
-        normalizedCommitMessage={integration.normalizedCommitMessage}
-        normalizedRepoInput={integration.normalizedRepoInput}
-        branchValidationError={integration.branchValidationError}
-        branchSuggestions={integration.branchSuggestions}
-        repoValidationError={integration.repoValidationError}
-        repoSuggestions={integration.repoSuggestions}
-        repoInput={integration.repoInput}
-        branchInput={integration.branchInput}
-        commitMessage={integration.commitMessage}
-        resolvedBaseBranch={integration.resolvedBaseBranch}
-        onBranchInputChange={integration.setBranchInput}
-        onCommitMessageChange={integration.setCommitMessage}
-        onOpenChange={integration.setIsModalOpen}
-        onRepoInputChange={integration.setRepoInput}
-        onRunGithubFlow={() => void integration.handleRunGithubFlow()}
-      />
+      <GithubIntegrationDialog integration={integration} />
     </>
   );
 }

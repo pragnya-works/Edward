@@ -1,11 +1,11 @@
 import { redis } from '../../lib/redis.js';
 import { SandboxInstance } from './types.service.js';
 import { logger } from '../../utils/logger.js';
+import { SANDBOX_TTL } from './lifecycle/state.js';
 
 const SANDBOX_KEY_PREFIX = 'edward:sandbox:';
 const CHAT_SANDBOX_INDEX_PREFIX = 'edward:chat:sandbox:';
 const CHAT_FRAMEWORK_PREFIX = 'edward:chat:framework:';
-const SANDBOX_TTL = 30 * 60 * 1000;
 const FRAMEWORK_TTL = 7 * 24 * 60 * 60;
 
 export async function saveSandboxState(sandbox: SandboxInstance): Promise<void> {

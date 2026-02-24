@@ -40,12 +40,7 @@ import {
 } from "@/components/chat/sandbox/previewState";
 import { useMobileViewport } from "@edward/ui/hooks/useMobileViewport";
 
-interface SandboxPanelProps {
-  chatId: string;
-  projectName: string | null;
-}
-
-export function SandboxPanel({ chatId, projectName }: SandboxPanelProps) {
+export function SandboxPanel() {
   const [isMobileExplorerOpen, setIsMobileExplorerOpen] = useState(false);
   const [previewFrameState, dispatchPreviewFrame] = useReducer(
     previewFrameReducer,
@@ -283,11 +278,10 @@ export function SandboxPanel({ chatId, projectName }: SandboxPanelProps) {
   return (
     <SandboxErrorBoundary>
       <div className="h-full flex flex-col bg-workspace-bg text-workspace-foreground overflow-hidden relative font-sans">
-        <SandboxHeader chatId={chatId} projectName={projectName} />
+        <SandboxHeader />
         {mode === SandboxMode.PREVIEW ? (
           <SandboxPreviewBar
             url={previewAddress ?? normalizePreviewAddress(previewUrl)}
-            chatId={chatId}
             canGoBack={canGoBack}
             canGoForward={canGoForward}
             onBack={navigatePreviewBack}
@@ -300,7 +294,6 @@ export function SandboxPanel({ chatId, projectName }: SandboxPanelProps) {
         <div className="flex-1 min-h-0 flex overflow-hidden">
           {mode === SandboxMode.CODE ? (
             <CodeWorkspace
-              chatId={chatId}
               isMobile={isMobile}
               isMobileExplorerOpen={isMobileExplorerOpen}
               setIsMobileExplorerOpen={setIsMobileExplorerOpen}
@@ -311,7 +304,6 @@ export function SandboxPanel({ chatId, projectName }: SandboxPanelProps) {
           ) : (
             <div className="flex-1 min-h-0 flex flex-col bg-workspace-bg">
               <PreviewWorkspace
-                chatId={chatId}
                 previewUrl={previewUrl}
                 previewAddress={previewAddress}
                 previewFrameState={previewFrameState}

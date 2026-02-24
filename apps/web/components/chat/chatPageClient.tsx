@@ -93,7 +93,6 @@ export default function ChatPageClient({ chatId }: ChatPageClientProps) {
       chatId={chatId}
       messages={messages}
       stream={stream}
-      sandboxOpen={sandboxOpen}
     />
   );
 }

@@ -14,6 +14,7 @@ import {
   isProtectedFile,
   MAX_WRITE_BUFFER,
 } from "./shared.js";
+import { SANDBOX_TTL } from "../lifecycle/state.js";
 
 export async function writeSandboxFile(
   sandboxId: string,
@@ -47,8 +48,8 @@ export async function writeSandboxFile(
     const pipeline = redis.pipeline();
     pipeline.append(bufferKey, content);
     pipeline.sadd(filesSetKey, normalizedPath);
-    pipeline.pexpire(bufferKey, 30 * 60 * 1000);
-    pipeline.pexpire(filesSetKey, 30 * 60 * 1000);
+    pipeline.pexpire(bufferKey, SANDBOX_TTL);
+    pipeline.pexpire(filesSetKey, SANDBOX_TTL);
 
     const results = await pipeline.exec();
     if (!results) {

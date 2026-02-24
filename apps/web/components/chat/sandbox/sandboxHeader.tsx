@@ -5,15 +5,12 @@ import { RefreshCw, X, Code2, AlertCircle, Monitor } from "lucide-react";
 import { Button } from "@edward/ui/components/button";
 import { cn } from "@edward/ui/lib/utils";
 import { useSandbox } from "@/contexts/sandboxContext";
+import { useChatWorkspaceContext } from "@/components/chat/chatWorkspaceContext";
 import { BuildStatus, SandboxMode } from "@/stores/sandbox/types";
 import { GithubIntegrationBar } from "@/components/chat/sandbox/githubIntegrationBar";
 
-interface SandboxHeaderProps {
-  chatId: string;
-  projectName: string | null;
-}
-
-export function SandboxHeader({ chatId, projectName }: SandboxHeaderProps) {
+export function SandboxHeader() {
+  const { projectName } = useChatWorkspaceContext();
   const { mode, files, buildStatus, isStreaming, setMode, closeSandbox } =
     useSandbox();
 
@@ -117,7 +114,7 @@ export function SandboxHeader({ chatId, projectName }: SandboxHeaderProps) {
       </div>
 
       <div className="flex items-center gap-2 shrink-0">
-        <GithubIntegrationBar chatId={chatId} projectName={projectName} />
+        <GithubIntegrationBar />
 
         <Button
           variant="ghost"

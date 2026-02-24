@@ -54,27 +54,78 @@ function extractUrlsFromPrompt(text: string): string[] {
   return urls.slice(0, URL_SOURCE_PREVIEW_LIMIT);
 }
 
-export default function Promptbar({
-  isAuthenticated = false,
-  onSignIn,
-  onProtectedAction,
-  hasApiKey = null,
-  isApiKeyLoading = false,
-  apiKeyError = "",
-  isApiKeyRateLimited = false,
-  apiKeyRateLimitMessage = "",
-  onSaveApiKey,
-  preferredModel,
-  keyPreview,
-  selectedModelId,
-  hideSuggestions = false,
-  isStreaming = false,
-  onCancel,
-  onImageUpload,
-  onImageUploadError,
-  submissionDisabledReason,
-  disableImageUploads = false,
-}: PromptbarProps) {
+function resolvePromptbarProps(props: PromptbarProps) {
+  if ("controller" in props) {
+    const controller = props.controller;
+    return {
+      isAuthenticated: controller.auth?.isAuthenticated ?? false,
+      onSignIn: controller.auth?.onSignIn,
+      onProtectedAction: controller.submission?.onProtectedAction,
+      hasApiKey: controller.apiKey?.hasApiKey ?? null,
+      isApiKeyLoading: controller.apiKey?.isApiKeyLoading ?? false,
+      apiKeyError: controller.apiKey?.apiKeyError ?? "",
+      isApiKeyRateLimited: controller.apiKey?.isApiKeyRateLimited ?? false,
+      apiKeyRateLimitMessage: controller.apiKey?.apiKeyRateLimitMessage ?? "",
+      onSaveApiKey: controller.apiKey?.onSaveApiKey,
+      preferredModel: controller.apiKey?.preferredModel,
+      keyPreview: controller.apiKey?.keyPreview,
+      selectedModelId: controller.apiKey?.selectedModelId,
+      hideSuggestions: controller.submission?.hideSuggestions ?? false,
+      isStreaming: controller.submission?.isStreaming ?? false,
+      onCancel: controller.submission?.onCancel,
+      onImageUpload: controller.attachments?.onImageUpload,
+      onImageUploadError: controller.attachments?.onImageUploadError,
+      submissionDisabledReason: controller.submission?.submissionDisabledReason,
+      disableImageUploads: controller.attachments?.disableImageUploads ?? false,
+    };
+  }
+
+  return {
+    isAuthenticated: props.isAuthenticated ?? false,
+    onSignIn: props.onSignIn,
+    onProtectedAction: props.onProtectedAction,
+    hasApiKey: props.hasApiKey ?? null,
+    isApiKeyLoading: props.isApiKeyLoading ?? false,
+    apiKeyError: props.apiKeyError ?? "",
+    isApiKeyRateLimited: props.isApiKeyRateLimited ?? false,
+    apiKeyRateLimitMessage: props.apiKeyRateLimitMessage ?? "",
+    onSaveApiKey: props.onSaveApiKey,
+    preferredModel: props.preferredModel,
+    keyPreview: props.keyPreview,
+    selectedModelId: props.selectedModelId,
+    hideSuggestions: props.hideSuggestions ?? false,
+    isStreaming: props.isStreaming ?? false,
+    onCancel: props.onCancel,
+    onImageUpload: props.onImageUpload,
+    onImageUploadError: props.onImageUploadError,
+    submissionDisabledReason: props.submissionDisabledReason,
+    disableImageUploads: props.disableImageUploads ?? false,
+  };
+}
+
+export default function Promptbar(props: PromptbarProps) {
+  const {
+    isAuthenticated,
+    onSignIn,
+    onProtectedAction,
+    hasApiKey,
+    isApiKeyLoading,
+    apiKeyError,
+    isApiKeyRateLimited,
+    apiKeyRateLimitMessage,
+    onSaveApiKey,
+    preferredModel,
+    keyPreview,
+    selectedModelId,
+    hideSuggestions,
+    isStreaming,
+    onCancel,
+    onImageUpload,
+    onImageUploadError,
+    submissionDisabledReason,
+    disableImageUploads,
+  } = resolvePromptbarProps(props);
+
   const [inputValue, setInputValue] = useState("");
   const [suggestionIndex, setSuggestionIndex] = useState(0);
   const [showLoginModal, setShowLoginModal] = useState(false);
@@ -313,23 +364,31 @@ export default function Promptbar({
         />
         {isAuthenticated && (
           <BYOK
-            isOpen={showBYOK}
-            onClose={() => setShowBYOK(false)}
-            onValidate={() => {
-              if (submissionDisabledReason || isStreaming) return;
-              if (hasPendingUploads) return;
-              onProtectedAction?.(inputValue, uploadedImages);
-              setInputValue("");
-              handleClearAllFiles();
-              setShowBYOK(false);
+            controller={{
+              modal: {
+                isOpen: showBYOK,
+                onClose: () => setShowBYOK(false),
+              },
+              actions: {
+                onValidate: () => {
+                  if (submissionDisabledReason || isStreaming) return;
+                  if (hasPendingUploads) return;
+                  onProtectedAction?.(inputValue, uploadedImages);
+                  setInputValue("");
+                  handleClearAllFiles();
+                  setShowBYOK(false);
+                },
+                onSaveApiKey,
+              },
+              state: {
+                preferredModel,
+                keyPreview,
+                hasExistingKey: hasApiKey === true,
+                error: apiKeyError,
+                isRateLimited: isApiKeyRateLimited,
+                rateLimitMessage: apiKeyRateLimitMessage,
+              },
             }}
-            onSaveApiKey={onSaveApiKey}
-            preferredModel={preferredModel}
-            keyPreview={keyPreview}
-            hasExistingKey={hasApiKey === true}
-            error={apiKeyError}
-            isRateLimited={isApiKeyRateLimited}
-            rateLimitMessage={apiKeyRateLimitMessage}
           />
         )}
       </Card>

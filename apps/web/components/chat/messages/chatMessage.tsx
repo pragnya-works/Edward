@@ -6,7 +6,7 @@ import { User } from "lucide-react";
 import { EdwardAvatar } from "./avatars";
 import { MessageMetrics } from "./streamMetrics";
 import { cn } from "@edward/ui/lib/utils";
-import { useSandbox } from "@/contexts/sandboxContext";
+import { useChatWorkspaceContext } from "@/components/chat/chatWorkspaceContext";
 import type { ChatMessage as ChatMessageType } from "@edward/shared/chat/types";
 import { ChatRole } from "@edward/shared/chat/types";
 import { MessageContentPartType } from "@/lib/api/messageContent";
@@ -28,8 +28,6 @@ import {
 interface ChatMessageProps {
   message: ChatMessageType;
   index: number;
-  onRetryAssistantMessage?: (assistantMessageId: string) => boolean;
-  retryDisabled?: boolean;
 }
 
 function formatTime(dateStr: string): string {
@@ -52,10 +50,11 @@ function UserAvatar() {
 export function ChatMessage({
   message,
   index,
-  onRetryAssistantMessage,
-  retryDisabled = false,
 }: ChatMessageProps) {
-  const { setFiles, files: globalFiles } = useSandbox();
+  const {
+    onRetryAssistantMessage,
+    retryDisabled,
+  } = useChatWorkspaceContext();
 
   const isUser = message.role === ChatRole.USER;
   const time = useMemo(
@@ -130,18 +129,6 @@ export function ChatMessage({
   const hasFiles = fileBlocks.length > 0 || !!sandboxBlock;
   const showFooterButton = hasFiles && !sandboxBlock;
 
-  const handleToggle = useCallback(() => {
-    if (globalFiles.length === 0 && fileBlocks.length > 0) {
-      setFiles(
-        fileBlocks.map((fileBlock) => ({
-          path: fileBlock.path,
-          content: fileBlock.content,
-          isComplete: true,
-        })),
-      );
-    }
-  }, [globalFiles.length, fileBlocks, setFiles]);
-
   const handleRetry = useCallback((): boolean => {
     if (!onRetryAssistantMessage || message.role !== ChatRole.ASSISTANT) {
       return false;
@@ -196,7 +183,7 @@ export function ChatMessage({
           ) : assistantError ? (
             <AssistantErrorCard
               error={assistantError}
-              onRetry={onRetryAssistantMessage ? handleRetry : undefined}
+              onRetry={handleRetry}
               isRetryDisabled={retryDisabled}
             />
           ) : (
@@ -204,7 +191,6 @@ export function ChatMessage({
               blocks={blocks ?? []}
               fileBlocks={fileBlocks}
               showFooterButton={showFooterButton}
-              onBeforeToggleWorkspace={handleToggle}
             />
           )}
         </div>

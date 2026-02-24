@@ -36,10 +36,39 @@ interface UseGithubIntegrationOptions {
   projectName: string | null;
 }
 
+export interface GithubIntegrationController {
+  normalizedChatId: string;
+  repoInput: string;
+  setRepoInput: (value: string) => void;
+  branchInput: string;
+  setBranchInput: (value: string) => void;
+  commitMessage: string;
+  setCommitMessage: (value: string) => void;
+  errorMessage: string | null;
+  isModalOpen: boolean;
+  setIsModalOpen: (open: boolean) => void;
+  isSubmitting: boolean;
+  isCheckingStatus: boolean;
+  isGithubRateLimited: boolean;
+  githubRateLimitMessage: string | null;
+  isRepoLocked: boolean;
+  actionLabel: "Sync" | "Connect";
+  normalizedRepoInput: string;
+  normalizedBranchInput: string;
+  normalizedCommitMessage: string;
+  repoValidationError: string | null;
+  branchValidationError: string | null;
+  repoSuggestions: string[];
+  branchSuggestions: string[];
+  resolvedBaseBranch: string;
+  handleRunGithubFlow: () => Promise<void>;
+  openModal: () => void;
+}
+
 export function useGithubIntegration({
   chatId,
   projectName,
-}: UseGithubIntegrationOptions) {
+}: UseGithubIntegrationOptions): GithubIntegrationController {
   const normalizedChatId = useMemo(() => normalizeChatId(chatId), [chatId]);
   const chatIdForDefaults = normalizedChatId || chatId;
 

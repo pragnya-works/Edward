@@ -1,5 +1,7 @@
 import type { StateCreator } from "zustand";
 import {
+  BuildStatus,
+  SandboxMode,
   type SandboxStoreState,
   type SandboxUiSlice,
 } from "./types";
@@ -11,9 +13,28 @@ export const createSandboxUiSlice: StateCreator<
   [],
   SandboxUiSlice
 > = (set) => ({
-  openSandbox: () => set({ isOpen: true }),
+  openSandbox: () =>
+    set((state) => ({
+      isOpen: true,
+      mode:
+        state.buildStatus === BuildStatus.SUCCESS && Boolean(state.previewUrl)
+          ? SandboxMode.PREVIEW
+          : state.mode,
+    })),
   closeSandbox: () => set({ isOpen: false }),
-  toggleSandbox: () => set((state) => ({ isOpen: !state.isOpen })),
+  toggleSandbox: () =>
+    set((state) => {
+      const isOpening = !state.isOpen;
+      return {
+        isOpen: isOpening,
+        mode:
+          isOpening &&
+          state.buildStatus === BuildStatus.SUCCESS &&
+          Boolean(state.previewUrl)
+            ? SandboxMode.PREVIEW
+            : state.mode,
+      };
+    }),
   openSearch: () => set({ isSearchOpen: true }),
   closeSearch: () => set({ isSearchOpen: false }),
   toggleSearch: () => set((state) => ({ isSearchOpen: !state.isSearchOpen })),

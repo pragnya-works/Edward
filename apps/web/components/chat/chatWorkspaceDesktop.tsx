@@ -8,29 +8,18 @@ import {
   Separator as PanelResizeHandle,
 } from "react-resizable-panels";
 import { cn } from "@edward/ui/lib/utils";
-import type {
-  ChatMessage as ChatMessageType,
-  StreamState,
-} from "@edward/shared/chat/types";
+import { useSandbox } from "@/contexts/sandboxContext";
 import AuthenticatedPromptbar from "@/components/authenticatedPromptbar";
 import { ChatMessageList } from "@/components/chat/messages/chatMessageList";
 import { SandboxPanel } from "@/components/chat/sandbox/sandboxPanel";
 
 interface ChatWorkspaceDesktopProps {
-  chatId: string;
-  messages: ChatMessageType[];
-  stream: StreamState;
-  sandboxOpen: boolean;
-  projectName: string | null;
   prefersReducedMotion: boolean;
   isDesktopSandboxVisible: boolean;
   desktopKeepMounted: boolean;
   sandboxPanelRef: RefObject<PanelImperativeHandle | null>;
   sandboxMinSize: string;
   onSandboxResize: (panelSize: PanelSize) => void;
-  onRetryStreamError: () => boolean;
-  onRetryAssistantMessage: (assistantMessageId: string) => boolean;
-  retryDisabled: boolean;
 }
 
 const DEFAULT_SANDBOX_SIZE = 45;
@@ -38,21 +27,15 @@ const MAX_SANDBOX_SIZE = 75;
 const MIN_CHAT_SIZE = 100 - MAX_SANDBOX_SIZE;
 
 export function ChatWorkspaceDesktop({
-  chatId,
-  messages,
-  stream,
-  sandboxOpen,
-  projectName,
   prefersReducedMotion,
   isDesktopSandboxVisible,
   desktopKeepMounted,
   sandboxPanelRef,
   sandboxMinSize,
   onSandboxResize,
-  onRetryStreamError,
-  onRetryAssistantMessage,
-  retryDisabled,
 }: ChatWorkspaceDesktopProps) {
+  const { isOpen: sandboxOpen } = useSandbox();
+
   return (
     <div className="flex h-[100dvh] w-full overflow-hidden">
       <PanelGroup
@@ -69,16 +52,10 @@ export function ChatWorkspaceDesktop({
           className="relative flex flex-col h-full min-w-[350px]"
         >
           <div className="flex-1 min-h-0">
-            <ChatMessageList
-              messages={messages}
-              stream={stream}
-              onRetryStreamError={onRetryStreamError}
-              onRetryAssistantMessage={onRetryAssistantMessage}
-              retryDisabled={retryDisabled}
-            />
+            <ChatMessageList />
           </div>
           <div className="shrink-0 w-full max-w-4xl mx-auto px-4 pb-6 pt-2">
-            <AuthenticatedPromptbar chatId={chatId} />
+            <AuthenticatedPromptbar />
           </div>
         </Panel>
         <PanelResizeHandle
@@ -116,7 +93,7 @@ export function ChatWorkspaceDesktop({
             className="flex-1 min-h-[0] h-full"
           >
             {sandboxOpen || desktopKeepMounted ? (
-              <SandboxPanel chatId={chatId} projectName={projectName} />
+              <SandboxPanel />
             ) : null}
           </m.div>
         </Panel>

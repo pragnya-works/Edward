@@ -29,6 +29,8 @@ export function useFileAttachments(
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dragCounter = useRef(0);
   const filesRef = useRef(attachedFiles);
+  const isAttachmentInteractionEnabled =
+    isAuthenticated && supportsVision && !isUploadBlocked;
 
   const uploadQueueRef = useRef<UploadQueueItem[]>([]);
   const activeUploadsRef = useRef(0);
@@ -44,6 +46,14 @@ export function useFileAttachments(
       });
     };
   }, []);
+
+  useEffect(() => {
+    if (isAttachmentInteractionEnabled) {
+      return;
+    }
+    setIsDragging(false);
+    dragCounter.current = 0;
+  }, [isAttachmentInteractionEnabled]);
 
   const processUploadQueue = useCallback(() => {
     if (!onImageUpload) return;
@@ -208,7 +218,7 @@ export function useFileAttachments(
 
   const handleDragEnter = useCallback(
     (e: React.DragEvent) => {
-      if (!isAuthenticated || !supportsVision || isUploadBlocked) return;
+      if (!isAttachmentInteractionEnabled) return;
       e.preventDefault();
       e.stopPropagation();
       dragCounter.current++;
@@ -216,43 +226,50 @@ export function useFileAttachments(
         setIsDragging(true);
       }
     },
-    [isAuthenticated, supportsVision, isUploadBlocked],
+    [isAttachmentInteractionEnabled],
   );
 
-  const handleDragLeave = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    dragCounter.current--;
-    if (dragCounter.current === 0) {
-      setIsDragging(false);
-    }
-  }, []);
+  const handleDragLeave = useCallback(
+    (e: React.DragEvent) => {
+      if (!isAttachmentInteractionEnabled) return;
+      e.preventDefault();
+      e.stopPropagation();
+      dragCounter.current--;
+      if (dragCounter.current === 0) {
+        setIsDragging(false);
+      }
+    },
+    [isAttachmentInteractionEnabled],
+  );
 
-  const handleDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-  }, []);
+  const handleDragOver = useCallback(
+    (e: React.DragEvent) => {
+      if (!isAttachmentInteractionEnabled) return;
+      e.preventDefault();
+      e.stopPropagation();
+    },
+    [isAttachmentInteractionEnabled],
+  );
 
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
+      if (!isAttachmentInteractionEnabled) return;
       e.preventDefault();
       e.stopPropagation();
       setIsDragging(false);
       dragCounter.current = 0;
       void handleFiles(e.dataTransfer.files);
     },
-    [handleFiles],
+    [handleFiles, isAttachmentInteractionEnabled],
   );
 
   const handleAttachmentClick = useCallback(() => {
-    if (!isAuthenticated || !supportsVision || isUploadBlocked) return;
+    if (!isAttachmentInteractionEnabled) return;
     fileInputRef.current?.click();
-  }, [isAuthenticated, supportsVision, isUploadBlocked]);
+  }, [isAttachmentInteractionEnabled]);
 
   const canAttachMore =
-    isAuthenticated &&
-    supportsVision &&
-    !isUploadBlocked &&
+    isAttachmentInteractionEnabled &&
     attachedFiles.length < IMAGE_UPLOAD_CONFIG.MAX_FILES;
 
   return {

@@ -12,6 +12,7 @@ import type { ChatMessage as ChatMessageType, StreamState } from "@edward/shared
 import { ChatRole } from "@edward/shared/chat/types";
 import { ChatWorkspaceDesktop } from "@/components/chat/chatWorkspaceDesktop";
 import { ChatWorkspaceMobile } from "@/components/chat/chatWorkspaceMobile";
+import { ChatWorkspaceProvider } from "@/components/chat/chatWorkspaceContext";
 import {
   clampSandboxSize,
   easeSandboxToggle,
@@ -40,7 +41,6 @@ interface ChatWorkspaceProps {
   chatId: string;
   messages: ChatMessageType[];
   stream: StreamState;
-  sandboxOpen: boolean;
 }
 
 const DEFAULT_SANDBOX_SIZE = 45;
@@ -51,8 +51,8 @@ export function ChatWorkspace({
   chatId,
   messages,
   stream,
-  sandboxOpen,
 }: ChatWorkspaceProps) {
+  const { isOpen: sandboxOpen } = useSandbox();
   const sandboxPanelRef = useRef<PanelImperativeHandle | null>(null);
   const animationFrameRef = useRef<number | null>(null);
   const animationTokenRef = useRef(0);
@@ -63,7 +63,6 @@ export function ChatWorkspace({
     INITIAL_DESKTOP_SANDBOX_UI_STATE,
   );
   const prefersReducedMotion = useReducedMotion();
-  const { closeSandbox } = useSandbox();
   const { startStream } = useChatStreamActions();
   const chatSubmissionGuards = useChatSubmissionGuards();
   const streamingProjectName = useMemo(() => {
@@ -282,39 +281,45 @@ export function ChatWorkspace({
   const isRetryDisabled =
     chatSubmissionGuards.isChatRateLimited ||
     chatSubmissionGuards.isSubmissionLocked;
+  const workspaceContextValue = useMemo(
+    () => ({
+      chatId,
+      projectName,
+      messages,
+      stream,
+      retryDisabled: isRetryDisabled,
+      onRetryStreamError: handleRetryStreamError,
+      onRetryAssistantMessage: handleRetryAssistantMessage,
+    }),
+    [
+      chatId,
+      projectName,
+      messages,
+      stream,
+      isRetryDisabled,
+      handleRetryStreamError,
+      handleRetryAssistantMessage,
+    ],
+  );
 
   if (isMobile) {
     return (
-      <ChatWorkspaceMobile
-        chatId={chatId}
-        messages={messages}
-        stream={stream}
-        sandboxOpen={sandboxOpen}
-        projectName={projectName}
-        closeSandbox={closeSandbox}
-        onRetryStreamError={handleRetryStreamError}
-        onRetryAssistantMessage={handleRetryAssistantMessage}
-        retryDisabled={isRetryDisabled}
-      />
+      <ChatWorkspaceProvider value={workspaceContextValue}>
+        <ChatWorkspaceMobile />
+      </ChatWorkspaceProvider>
     );
   }
 
   return (
-    <ChatWorkspaceDesktop
-      chatId={chatId}
-      messages={messages}
-      stream={stream}
-      sandboxOpen={sandboxOpen}
-      projectName={projectName}
-      prefersReducedMotion={Boolean(prefersReducedMotion)}
-      isDesktopSandboxVisible={isDesktopSandboxVisible}
-      desktopKeepMounted={desktopSandboxUi.keepMounted}
-      sandboxPanelRef={sandboxPanelRef}
-      sandboxMinSize={sandboxMinSize}
-      onSandboxResize={handleSandboxResize}
-      onRetryStreamError={handleRetryStreamError}
-      onRetryAssistantMessage={handleRetryAssistantMessage}
-      retryDisabled={isRetryDisabled}
-    />
+    <ChatWorkspaceProvider value={workspaceContextValue}>
+      <ChatWorkspaceDesktop
+        prefersReducedMotion={Boolean(prefersReducedMotion)}
+        isDesktopSandboxVisible={isDesktopSandboxVisible}
+        desktopKeepMounted={desktopSandboxUi.keepMounted}
+        sandboxPanelRef={sandboxPanelRef}
+        sandboxMinSize={sandboxMinSize}
+        onSandboxResize={handleSandboxResize}
+      />
+    </ChatWorkspaceProvider>
   );
 }

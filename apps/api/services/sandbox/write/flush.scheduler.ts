@@ -3,7 +3,9 @@ import { logger } from "../../../utils/logger.js";
 import { ensureError } from "../../../utils/error.js";
 import { flushSandbox } from "./flush.js";
 import { FLUSH_DUE_PREFIX, WRITE_DEBOUNCE_MS } from "./shared.js";
-const FLUSH_MARKER_TTL_MS = 30 * 60 * 1000;
+import { SANDBOX_TTL } from "../lifecycle/state.js";
+
+const FLUSH_MARKER_TTL_MS = SANDBOX_TTL;
 const SCHEDULER_LOCK_TTL_MS = 5_000;
 const SCAN_COUNT = 200;
 

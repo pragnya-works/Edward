@@ -7,14 +7,12 @@ import { Separator } from "@edward/ui/components/separator";
 import { cn } from "@edward/ui/lib/utils";
 import { getSandboxFiles } from "@/lib/api/build";
 import { useSandbox } from "@/contexts/sandboxContext";
+import { useChatWorkspaceContext } from "@/components/chat/chatWorkspaceContext";
 import { buildFileTree } from "@/components/chat/editor/fileTree";
 import { FileTreeView } from "@/components/chat/editor/fileTreeItem";
 
-interface SandboxFileSidebarProps {
-  chatId: string;
-}
-
-export function SandboxFileSidebar({ chatId }: SandboxFileSidebarProps) {
+export function SandboxFileSidebar() {
+  const { chatId } = useChatWorkspaceContext();
   const {
     files,
     activeFilePath,

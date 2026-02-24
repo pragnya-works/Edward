@@ -130,17 +130,25 @@ export default function UserProfile() {
       </DropdownMenu>
 
       <BYOK
-        isOpen={isApiKeyModalOpen}
-        onClose={() => setIsApiKeyModalOpen(false)}
-        onValidate={() => {}}
-        onSaveApiKey={validateAndSaveApiKey}
-        keyPreview={keyPreview}
-        hasExistingKey={hasApiKey ?? false}
-        preferredModel={preferredModel || undefined}
-        initialProvider={getBestGuessProvider(preferredModel, keyPreview)}
-        error={error}
-        isRateLimited={isRateLimited}
-        rateLimitMessage={rateLimitMessage}
+        controller={{
+          modal: {
+            isOpen: isApiKeyModalOpen,
+            onClose: () => setIsApiKeyModalOpen(false),
+          },
+          actions: {
+            onValidate: () => {},
+            onSaveApiKey: validateAndSaveApiKey,
+          },
+          state: {
+            keyPreview,
+            hasExistingKey: hasApiKey ?? false,
+            preferredModel: preferredModel || undefined,
+            initialProvider: getBestGuessProvider(preferredModel, keyPreview),
+            error,
+            isRateLimited,
+            rateLimitMessage,
+          },
+        }}
       />
     </>
   );

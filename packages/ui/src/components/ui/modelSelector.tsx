@@ -36,10 +36,11 @@ export function ModelSelector({
   return (
     <LazyMotion features={domAnimation}>
       <div className="w-full flex flex-col gap-2">
-        <div className="grid gap-1.5">
+        <div className="grid gap-1.5 overflow-y-auto scrollbar-hide [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
           {models.map((model, index) => {
             const isSelected = selectedModelId === model.id;
             const iconUrl = getModelIconUrl(provider, model.id);
+            const isOpenAIProvider = provider === Provider.OPENAI;
             const iconSize = provider === Provider.GEMINI ? 20 : 24;
 
             return (
@@ -70,20 +71,31 @@ export function ModelSelector({
                 <div className="flex items-center gap-3.5 relative z-10 min-w-0">
                   <div
                     className={cn(
-                      "flex-shrink-0 h-9 w-9 rounded-lg flex items-center justify-center border transition-all duration-300",
+                      "relative flex-shrink-0 h-9 w-9 rounded-lg flex items-center justify-center border transition-all duration-300 overflow-hidden",
                       isSelected
                         ? "bg-muted/50 border-primary/30 shadow-sm shadow-primary/5 dark:bg-primary dark:border-primary dark:shadow-md dark:shadow-primary/10"
                         : "bg-muted/20 dark:bg-muted/10 border-border group-hover:border-primary/20 text-muted-foreground group-hover:text-primary",
                     )}
                   >
-                    <Image
-                      src={iconUrl}
-                      alt={`${model.label} icon`}
-                      width={iconSize}
-                      height={iconSize}
-                      unoptimized
-                      className="object-contain m-0 p-0"
-                    />
+                    {isOpenAIProvider ? (
+                      <Image
+                        src={iconUrl}
+                        alt={`${model.label} icon`}
+                        fill
+                        unoptimized
+                        sizes="36px"
+                        className="object-cover m-0 p-0"
+                      />
+                    ) : (
+                      <Image
+                        src={iconUrl}
+                        alt={`${model.label} icon`}
+                        width={iconSize}
+                        height={iconSize}
+                        unoptimized
+                        className="object-contain m-0 p-0"
+                      />
+                    )}
                   </div>
 
                   <div className="flex flex-col min-w-0">

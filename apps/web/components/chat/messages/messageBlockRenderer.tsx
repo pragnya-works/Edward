@@ -1,5 +1,6 @@
 "use client";
 
+import { useCallback } from "react";
 import { AnimatePresence, m } from "motion/react";
 import { ParserEventType, STREAM_EVENT_VERSION } from "@edward/shared/streamEvents";
 import { CommandBlock } from "@/components/chat/blocks/commandBlock";
@@ -11,12 +12,12 @@ import { ProjectButton } from "@/components/chat/sandbox/workspaceToggleButton";
 import { MessageBlockType, type MessageBlock } from "@/lib/parsing/messageParser";
 import { MarkdownRenderer } from "@/components/chat/messages/markdownRenderer";
 import { ThinkingIndicator } from "@/components/chat/messages/thinkingIndicator";
+import { useSandbox } from "@/contexts/sandboxContext";
 
 interface MessageBlockRendererProps {
   blocks: MessageBlock[];
   fileBlocks: Extract<MessageBlock, { type: MessageBlockType.FILE }>[];
   showFooterButton: boolean;
-  onBeforeToggleWorkspace: () => void;
 }
 
 function mapFilesForWorkspace(
@@ -33,9 +34,14 @@ export function MessageBlockRenderer({
   blocks,
   fileBlocks,
   showFooterButton,
-  onBeforeToggleWorkspace,
 }: MessageBlockRendererProps) {
+  const { files: globalFiles, setFiles } = useSandbox();
   const workspaceFiles = mapFilesForWorkspace(fileBlocks);
+  const handleBeforeToggleWorkspace = useCallback(() => {
+    if (globalFiles.length === 0 && workspaceFiles.length > 0) {
+      setFiles(workspaceFiles);
+    }
+  }, [globalFiles.length, setFiles, workspaceFiles]);
 
   return (
     <div className="flex flex-col gap-3 sm:gap-4 w-full">
@@ -135,7 +141,7 @@ export function MessageBlockRenderer({
                   files={workspaceFiles}
                   activeFilePath={null}
                   projectName={block.project}
-                  onBeforeToggle={onBeforeToggleWorkspace}
+                  onBeforeToggle={handleBeforeToggleWorkspace}
                 />
               </m.div>
             );
@@ -165,7 +171,7 @@ export function MessageBlockRenderer({
               files={workspaceFiles}
               activeFilePath={null}
               projectName={undefined}
-              onBeforeToggle={onBeforeToggleWorkspace}
+              onBeforeToggle={handleBeforeToggleWorkspace}
             />
           </m.div>
         ) : null}

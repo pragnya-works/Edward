@@ -11,6 +11,7 @@ import {
 import { Button } from "@edward/ui/components/button";
 import { cn } from "@edward/ui/lib/utils";
 import { useSandbox } from "@/contexts/sandboxContext";
+import { useChatWorkspaceContext } from "@/components/chat/chatWorkspaceContext";
 import { SubdomainModal } from "@/components/chat/sandbox/subdomain/subdomainModal";
 
 function isSubdomainPreviewUrl(url: string | null): boolean {
@@ -57,7 +58,6 @@ function formatPreviewUrl(url: string | null): { host: string; route: string } {
 
 interface SandboxPreviewBarProps {
   url: string | null;
-  chatId?: string;
   canGoBack: boolean;
   canGoForward: boolean;
   onBack: () => void;
@@ -68,7 +68,6 @@ interface SandboxPreviewBarProps {
 
 export function SandboxPreviewBar({
   url,
-  chatId,
   canGoBack,
   canGoForward,
   onBack,
@@ -77,6 +76,7 @@ export function SandboxPreviewBar({
   onRefresh,
 }: SandboxPreviewBarProps) {
   const { setPreviewUrl } = useSandbox();
+  const { chatId } = useChatWorkspaceContext();
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const { host, route } = formatPreviewUrl(url);

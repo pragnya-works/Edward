@@ -10,7 +10,6 @@ import { InstallBlock } from "@/components/chat/blocks/installBlock";
 import { WebSearchBlock } from "@/components/chat/blocks/webSearchBlock";
 import { UrlScrapeBlock } from "@/components/chat/blocks/urlScrapeBlock";
 import { EdwardAvatar } from "./avatars";
-import type { StreamState } from "@edward/shared/chat/types";
 import { Terminal, Box, Search, Link2 } from "lucide-react";
 import { MessageMetrics } from "./streamMetrics";
 import { MarkdownRenderer } from "@/components/chat/messages/markdownRenderer";
@@ -20,18 +19,13 @@ import { MessageBlockType, parseMessageContent } from "@/lib/parsing/messagePars
 import { FileBlock } from "@/components/chat/blocks/fileBlock";
 import { AssistantErrorCard } from "@/components/chat/blocks/assistantErrorCard";
 import { mapStreamErrorToViewModel } from "@/lib/errors/assistantError";
-
-interface StreamingMessageProps {
-  stream: StreamState;
-  onRetry?: () => boolean;
-  retryDisabled?: boolean;
-}
-
-export const StreamingMessage = memo(function StreamingMessage({
-  stream,
-  onRetry,
-  retryDisabled = false,
-}: StreamingMessageProps) {
+import { useChatWorkspaceContext } from "@/components/chat/chatWorkspaceContext";
+export const StreamingMessage = memo(function StreamingMessage() {
+  const {
+    stream,
+    onRetryStreamError,
+    retryDisabled,
+  } = useChatWorkspaceContext();
   const { isOpen: sandboxOpen } = useSandbox();
 
   const blocks = useMemo(() => {
@@ -231,7 +225,7 @@ export const StreamingMessage = memo(function StreamingMessage({
           >
             <AssistantErrorCard
               error={streamError}
-              onRetry={onRetry}
+              onRetry={onRetryStreamError}
               isRetryDisabled={retryDisabled}
             />
           </m.div>

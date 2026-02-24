@@ -2,9 +2,9 @@ import type { RefObject, SyntheticEvent } from "react";
 import { AlertTriangle, RefreshCw } from "lucide-react";
 import { BuildStatus } from "@/stores/sandbox/types";
 import { PreviewFrameState, type PreviewFrameState as PreviewFrameStateType } from "@/components/chat/sandbox/previewState";
+import { useChatWorkspaceContext } from "@/components/chat/chatWorkspaceContext";
 
 interface PreviewWorkspaceProps {
-  chatId: string;
   previewUrl: string | null;
   previewAddress: string | null;
   previewFrameState: PreviewFrameStateType;
@@ -16,7 +16,6 @@ interface PreviewWorkspaceProps {
 }
 
 export function PreviewWorkspace({
-  chatId,
   previewUrl,
   previewAddress,
   previewFrameState,
@@ -26,6 +25,8 @@ export function PreviewWorkspace({
   onPreviewLoad,
   onPreviewError,
 }: PreviewWorkspaceProps) {
+  const { chatId } = useChatWorkspaceContext();
+
   if (previewUrl) {
     if (previewFrameState === PreviewFrameState.FAILED) {
       return (

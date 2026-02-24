@@ -55,42 +55,6 @@ function StatusIcon({
   return null;
 }
 
-function SubdomainModalHeader({
-  currentSubdomain,
-  suffix,
-  onClose,
-}: {
-  currentSubdomain: string;
-  suffix: string;
-  onClose: () => void;
-}) {
-  return (
-    <div className="flex items-center gap-2.5 border-b border-workspace-border/60 px-5 py-4">
-      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-workspace-accent/10">
-        <Globe className="h-3.5 w-3.5 text-workspace-accent" />
-      </div>
-      <div className="min-w-0 flex-1">
-        <DialogTitle className="text-[13px] font-semibold text-workspace-foreground">
-          Custom preview domain
-        </DialogTitle>
-        <p className="mt-0.5 truncate text-[11px] text-workspace-foreground/45">
-          {currentSubdomain}
-          {suffix}
-        </p>
-      </div>
-      <Button
-        type="button"
-        onClick={onClose}
-        aria-label="Close"
-        variant="ghost"
-        className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-workspace-foreground/40 transition-colors hover:bg-workspace-hover hover:text-workspace-foreground/80 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-workspace-accent/50"
-      >
-        <XIcon className="h-3.5 w-3.5" />
-      </Button>
-    </div>
-  );
-}
-
 function PreviewUrlSection({
   previewUrl,
   isPreviewAvailable,
@@ -127,56 +91,6 @@ function PreviewUrlSection({
           </m.span>
         )}
       </div>
-    </div>
-  );
-}
-
-function FooterActions({
-  canSave,
-  isSaving,
-  onClose,
-  onSave,
-}: {
-  canSave: boolean;
-  isSaving: boolean;
-  onClose: () => void;
-  onSave: () => void;
-}) {
-  return (
-    <div className="flex items-center justify-between border-t border-workspace-border/60 px-5 py-3.5">
-      <Button
-        type="button"
-        variant="ghost"
-        onClick={onClose}
-        disabled={isSaving}
-        className="text-[12px] font-medium text-workspace-foreground/50 transition-colors hover:text-workspace-foreground/80 disabled:pointer-events-none"
-      >
-        Cancel
-      </Button>
-
-      <Button
-        type="button"
-        onClick={onSave}
-        disabled={!canSave}
-        className={cn(
-          "flex h-8 items-center gap-1.5 rounded-lg px-3.5 text-[12px] font-semibold transition-all duration-150",
-          canSave
-            ? "bg-workspace-foreground text-workspace-bg shadow-sm hover:opacity-85 active:scale-[0.98]"
-            : "cursor-not-allowed bg-workspace-foreground/8 text-workspace-foreground/30",
-        )}
-      >
-        {isSaving ? (
-          <>
-            <LoaderIcon className="h-3 w-3 animate-spin" />
-            Saving...
-          </>
-        ) : (
-          <>
-            Update domain
-            <ArrowRight className="h-3 w-3" />
-          </>
-        )}
-      </Button>
     </div>
   );
 }
@@ -232,11 +146,29 @@ export function SubdomainModal({
           Update the custom subdomain used for this preview URL.
         </DialogDescription>
 
-        <SubdomainModalHeader
-          currentSubdomain={currentSubdomain}
-          suffix={suffix}
-          onClose={onClose}
-        />
+        <div className="flex items-center gap-2.5 border-b border-workspace-border/60 px-5 py-4">
+          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-workspace-accent/10">
+            <Globe className="h-3.5 w-3.5 text-workspace-accent" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <DialogTitle className="text-[13px] font-semibold text-workspace-foreground">
+              Custom preview domain
+            </DialogTitle>
+            <p className="mt-0.5 truncate text-[11px] text-workspace-foreground/45">
+              {currentSubdomain}
+              {suffix}
+            </p>
+          </div>
+          <Button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            variant="ghost"
+            className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-workspace-foreground/40 transition-colors hover:bg-workspace-hover hover:text-workspace-foreground/80 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-workspace-accent/50"
+          >
+            <XIcon className="h-3.5 w-3.5" />
+          </Button>
+        </div>
 
         <div className="space-y-4 px-5 py-5">
           <div className="space-y-1.5">
@@ -308,12 +240,41 @@ export function SubdomainModal({
           />
         </div>
 
-        <FooterActions
-          canSave={canSave}
-          isSaving={isSaving}
-          onClose={onClose}
-          onSave={() => void saveSubdomain()}
-        />
+        <div className="flex items-center justify-between border-t border-workspace-border/60 px-5 py-3.5">
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={onClose}
+            disabled={isSaving}
+            className="text-[12px] font-medium text-workspace-foreground/50 transition-colors hover:text-workspace-foreground/80 disabled:pointer-events-none"
+          >
+            Cancel
+          </Button>
+
+          <Button
+            type="button"
+            onClick={() => void saveSubdomain()}
+            disabled={!canSave}
+            className={cn(
+              "flex h-8 items-center gap-1.5 rounded-lg px-3.5 text-[12px] font-semibold transition-all duration-150",
+              canSave
+                ? "bg-workspace-foreground text-workspace-bg shadow-sm hover:opacity-85 active:scale-[0.98]"
+                : "cursor-not-allowed bg-workspace-foreground/8 text-workspace-foreground/30",
+            )}
+          >
+            {isSaving ? (
+              <>
+                <LoaderIcon className="h-3 w-3 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              <>
+                Update domain
+                <ArrowRight className="h-3 w-3" />
+              </>
+            )}
+          </Button>
+        </div>
       </DialogContent>
     </Dialog>
   );

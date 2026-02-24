@@ -7,19 +7,8 @@ import { EdwardLogo } from "@edward/ui/components/brand/edwardLogo";
 import { ChatMessage } from "./chatMessage";
 import { StreamingMessage } from "./streamingMessage";
 import { useScrollToBottom } from "@edward/ui/hooks/useScrollToBottom";
-import type {
-  ChatMessage as ChatMessageType,
-  StreamState,
-} from "@edward/shared/chat/types";
 import { ChatRole } from "@edward/shared/chat/types";
-
-interface ChatMessageListProps {
-  messages: ChatMessageType[];
-  stream: StreamState;
-  onRetryStreamError?: () => boolean;
-  onRetryAssistantMessage?: (assistantMessageId: string) => boolean;
-  retryDisabled?: boolean;
-}
+import { useChatWorkspaceContext } from "@/components/chat/chatWorkspaceContext";
 
 const SUGGESTED_STARTS = [
   "Build a landing page",
@@ -78,13 +67,12 @@ const WELCOME_SCREEN = (
   </div>
 );
 
-export const ChatMessageList = memo(function ChatMessageList({
-  messages,
-  stream,
-  onRetryStreamError,
-  onRetryAssistantMessage,
-  retryDisabled = false,
-}: ChatMessageListProps) {
+export const ChatMessageList = memo(function ChatMessageList() {
+  const {
+    messages,
+    stream,
+  } = useChatWorkspaceContext();
+
   const { scrollRef, bottomRef, showScrollButton, scrollToBottom } =
     useScrollToBottom([
       messages.length,
@@ -148,24 +136,16 @@ export const ChatMessageList = memo(function ChatMessageList({
       >
         <div className="max-w-4xl mx-auto w-full px-3 sm:px-4 md:px-0 pt-8 sm:pt-12 pb-2 space-y-8 sm:space-y-12">
           <AnimatePresence mode="popLayout" initial={false}>
-            {visibleMessages.map((message: ChatMessageType, index: number) => (
+            {visibleMessages.map((message, index: number) => (
               <ChatMessage
                 key={message.id}
                 message={message}
                 index={index}
-                onRetryAssistantMessage={onRetryAssistantMessage}
-                retryDisabled={retryDisabled}
               />
             ))}
           </AnimatePresence>
 
-          {hasStreamActivity && (
-            <StreamingMessage
-              stream={stream}
-              onRetry={onRetryStreamError}
-              retryDisabled={retryDisabled}
-            />
-          )}
+          {hasStreamActivity && <StreamingMessage />}
 
           <div ref={bottomRef} className="h-4 sm:h-8 w-full shrink-0" />
         </div>

@@ -1,49 +1,20 @@
 import { Sheet, SheetContent } from "@edward/ui/components/sheet";
-import type {
-  ChatMessage as ChatMessageType,
-  StreamState,
-} from "@edward/shared/chat/types";
 import AuthenticatedPromptbar from "@/components/authenticatedPromptbar";
 import { ChatMessageList } from "@/components/chat/messages/chatMessageList";
 import { SandboxPanel } from "@/components/chat/sandbox/sandboxPanel";
+import { useSandbox } from "@/contexts/sandboxContext";
 
-interface ChatWorkspaceMobileProps {
-  chatId: string;
-  messages: ChatMessageType[];
-  stream: StreamState;
-  sandboxOpen: boolean;
-  projectName: string | null;
-  closeSandbox: () => void;
-  onRetryStreamError: () => boolean;
-  onRetryAssistantMessage: (assistantMessageId: string) => boolean;
-  retryDisabled: boolean;
-}
+export function ChatWorkspaceMobile() {
+  const { isOpen: sandboxOpen, closeSandbox } = useSandbox();
 
-export function ChatWorkspaceMobile({
-  chatId,
-  messages,
-  stream,
-  sandboxOpen,
-  projectName,
-  closeSandbox,
-  onRetryStreamError,
-  onRetryAssistantMessage,
-  retryDisabled,
-}: ChatWorkspaceMobileProps) {
   return (
     <div className="flex h-[100dvh] w-full overflow-hidden">
       <div className="relative flex flex-col h-full w-full min-w-0">
         <div className="flex-1 min-h-0">
-          <ChatMessageList
-            messages={messages}
-            stream={stream}
-            onRetryStreamError={onRetryStreamError}
-            onRetryAssistantMessage={onRetryAssistantMessage}
-            retryDisabled={retryDisabled}
-          />
+          <ChatMessageList />
         </div>
         <div className="shrink-0 w-full max-w-4xl mx-auto px-4 pb-6 pt-2">
-          <AuthenticatedPromptbar chatId={chatId} />
+          <AuthenticatedPromptbar />
         </div>
       </div>
 
@@ -60,7 +31,7 @@ export function ChatWorkspaceMobile({
           showCloseButton={false}
           className="w-full max-w-none p-0 gap-0 border-l border-workspace-border bg-workspace-bg"
         >
-          <SandboxPanel chatId={chatId} projectName={projectName} />
+          <SandboxPanel />
         </SheetContent>
       </Sheet>
     </div>

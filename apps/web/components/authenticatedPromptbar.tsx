@@ -7,6 +7,7 @@ import {
   useChatStreamActions,
   useChatStream,
 } from "@/contexts/chatStreamContext";
+import { useOptionalChatWorkspaceContext } from "@/components/chat/chatWorkspaceContext";
 import {
   filesToMessageContent,
   type UploadedImage,
@@ -26,6 +27,8 @@ interface AuthenticatedPromptbarProps {
 export default function AuthenticatedPromptbar({
   chatId,
 }: AuthenticatedPromptbarProps) {
+  const workspaceContext = useOptionalChatWorkspaceContext();
+  const effectiveChatId = chatId ?? workspaceContext?.chatId;
   const { data: session } = useSession();
   const {
     hasApiKey,
@@ -43,14 +46,15 @@ export default function AuthenticatedPromptbar({
   const chatSubmissionGuards = useChatSubmissionGuards();
 
   const { stream, activeStreamKey } = useMemo(() => {
-    if (chatId) {
-      const direct = streams[chatId];
+    if (effectiveChatId) {
+      const direct = streams[effectiveChatId];
       if (direct) {
-        return { stream: direct, activeStreamKey: chatId };
+        return { stream: direct, activeStreamKey: effectiveChatId };
       }
 
       const matchedEntry = Object.entries(streams).find(([, candidate]) =>
-        candidate.streamChatId === chatId || candidate.meta?.chatId === chatId,
+        candidate.streamChatId === effectiveChatId ||
+        candidate.meta?.chatId === effectiveChatId,
       );
 
       if (matchedEntry) {
@@ -69,15 +73,15 @@ export default function AuthenticatedPromptbar({
       return { stream: pendingEntry[1], activeStreamKey: pendingEntry[0] };
     }
     return { stream: INITIAL_STREAM_STATE, activeStreamKey: null };
-  }, [chatId, streams]);
+  }, [effectiveChatId, streams]);
 
   const handleMeta = useCallback(
     (meta: MetaEvent) => {
-      if (!chatId && meta.chatId) {
+      if (!effectiveChatId && meta.chatId) {
         router.push(`/chat/${meta.chatId}`);
       }
     },
-    [chatId, router],
+    [effectiveChatId, router],
   );
 
   useEffect(() => {
@@ -109,11 +113,18 @@ export default function AuthenticatedPromptbar({
 
       const content = await filesToMessageContent(text, uploadedImages);
       startStream(content, {
-        chatId,
+        chatId: effectiveChatId,
         model: preferredModel || undefined,
       });
     },
-    [startStream, chatId, preferredModel, stream.isStreaming, activeStreamKey, cancelStream],
+    [
+      startStream,
+      effectiveChatId,
+      preferredModel,
+      stream.isStreaming,
+      activeStreamKey,
+      cancelStream,
+    ],
   );
 
   const submissionDisabledReason = useMemo(() => {
@@ -138,36 +149,77 @@ export default function AuthenticatedPromptbar({
     chatSubmissionGuards.isSubmissionLocked ||
     stream.isStreaming;
 
+  const handleSignIn = useCallback(() => {
+    signIn();
+  }, []);
+
+  const handleImageUploadError = useCallback((message: string) => {
+    toast.error("Image upload failed", {
+      id: `image-upload-failed-${message}`,
+      description: message,
+    });
+  }, []);
+
+  const handleCancel = useCallback(() => {
+    if (activeStreamKey) {
+      cancelStream(activeStreamKey);
+    }
+  }, [activeStreamKey, cancelStream]);
+
+  const promptbarController = useMemo(
+    () => ({
+      auth: {
+        isAuthenticated: Boolean(session?.user),
+        onSignIn: handleSignIn,
+      },
+      submission: {
+        onProtectedAction: handleProtectedAction,
+        hideSuggestions: Boolean(effectiveChatId),
+        isStreaming: stream.isStreaming,
+        onCancel: handleCancel,
+        submissionDisabledReason,
+      },
+      attachments: {
+        onImageUpload: uploadImageToCdn,
+        onImageUploadError: handleImageUploadError,
+        disableImageUploads: shouldDisableImageUploads,
+      },
+      apiKey: {
+        hasApiKey,
+        isApiKeyLoading: isLoading,
+        apiKeyError: error,
+        isApiKeyRateLimited: isRateLimited,
+        apiKeyRateLimitMessage: rateLimitMessage,
+        preferredModel: preferredModel || undefined,
+        keyPreview,
+        selectedModelId: preferredModel || undefined,
+        onSaveApiKey: validateAndSaveApiKey,
+      },
+    }),
+    [
+      session?.user,
+      handleSignIn,
+      handleProtectedAction,
+      effectiveChatId,
+      stream.isStreaming,
+      handleCancel,
+      submissionDisabledReason,
+      shouldDisableImageUploads,
+      hasApiKey,
+      isLoading,
+      error,
+      isRateLimited,
+      rateLimitMessage,
+      preferredModel,
+      keyPreview,
+      validateAndSaveApiKey,
+      handleImageUploadError,
+    ],
+  );
+
   return (
     <div className="w-full">
-      <Promptbar
-        isAuthenticated={!!session?.user}
-        onSignIn={function () {
-          signIn();
-        }}
-        onProtectedAction={handleProtectedAction}
-        onImageUpload={uploadImageToCdn}
-        onImageUploadError={(message) => {
-          toast.error("Image upload failed", {
-            id: `image-upload-failed-${message}`,
-            description: message,
-          });
-        }}
-        hasApiKey={hasApiKey}
-        isApiKeyLoading={isLoading}
-        apiKeyError={error}
-        isApiKeyRateLimited={isRateLimited}
-        apiKeyRateLimitMessage={rateLimitMessage}
-        preferredModel={preferredModel || undefined}
-        keyPreview={keyPreview}
-        selectedModelId={preferredModel || undefined}
-        onSaveApiKey={validateAndSaveApiKey}
-        hideSuggestions={!!chatId}
-        isStreaming={stream.isStreaming}
-        onCancel={() => activeStreamKey && cancelStream(activeStreamKey)}
-        submissionDisabledReason={submissionDisabledReason}
-        disableImageUploads={shouldDisableImageUploads}
-      />
+      <Promptbar controller={promptbarController} />
     </div>
   );
 }
