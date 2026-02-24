@@ -26,6 +26,11 @@ const DEFAULT_FRAME_ANCESTORS = [
 ].join(" ");
 
 const RATE_LIMIT_MAX_REQUESTS_PER_MINUTE = 500;
+const FAVICON_ICO_URL = "https://assets.pragnyaa.in/home/favicon_io/favicon.ico";
+const FAVICON_16_URL = "https://assets.pragnyaa.in/home/favicon_io/favicon-16x16.png";
+const FAVICON_32_URL = "https://assets.pragnyaa.in/home/favicon_io/favicon-32x32.png";
+const EDWARD_LOGO_URL = "https://assets.pragnyaa.in/home/favicon_io/apple-touch-icon.png";
+const WEB_MANIFEST_URL = "https://assets.pragnyaa.in/home/favicon_io/site.webmanifest";
 
 function getCurrentMinuteWindow() {
     return Math.floor(Date.now() / 60000);
@@ -202,6 +207,10 @@ export default {
             },
         });
 
+        if (!response.ok && !isAsset && (response.status === 403 || response.status === 404)) {
+            return notFound(subdomain);
+        }
+
         const headers = new Headers();
         headers.set(
             "Content-Type",
@@ -233,24 +242,187 @@ export default {
 };
 
 function notFound(subdomain) {
+    const domain = `${subdomain}.edwardd.app`;
+    const escapedDomain = escapeHtml(domain);
+
     return new Response(
         `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>App Not Found — Edwardd</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>App Not Found - Edward</title>
+  <link rel="preconnect" href="https://assets.pragnyaa.in" crossorigin>
+  <link rel="icon" href="${FAVICON_ICO_URL}">
+  <link rel="icon" type="image/png" sizes="16x16" href="${FAVICON_16_URL}">
+  <link rel="icon" type="image/png" sizes="32x32" href="${FAVICON_32_URL}">
+  <link rel="apple-touch-icon" href="${EDWARD_LOGO_URL}">
+  <link rel="manifest" href="${WEB_MANIFEST_URL}">
   <style>
-    body { font-family: system-ui, sans-serif; text-align: center; padding: 60px; background: #f9fafb; }
-    h1 { color: #111; }
-    p { color: #666; }
-    code { background: #f0f0f0; padding: 2px 6px; border-radius: 4px; }
+    :root {
+      --bg: #f4f6f9;
+      --surface: rgba(255, 255, 255, 0.96);
+      --text: #141923;
+      --muted: #4c5568;
+      --line: rgba(20, 25, 35, 0.1);
+      --accent: #2563eb;
+      --shadow: 0 6px 20px rgba(15, 23, 42, 0.08);
+      --glow: radial-gradient(55% 50% at 50% 0%, rgba(37, 99, 235, 0.17), rgba(37, 99, 235, 0));
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: clamp(16px, 4vw, 28px);
+      font-family: "Avenir Next", "Segoe UI Variable", "SF Pro Display", "Segoe UI", sans-serif;
+      background:
+        radial-gradient(1000px 480px at 50% -20%, rgba(148, 163, 184, 0.24) 0%, transparent 60%),
+        linear-gradient(180deg, #f8fafd 0%, var(--bg) 100%);
+      color: var(--text);
+    }
+    .frame {
+      position: relative;
+      width: min(100%, 560px);
+    }
+    .frame::before {
+      content: "";
+      position: absolute;
+      inset: -40px -48px;
+      background: var(--glow);
+      filter: blur(14px);
+      z-index: 0;
+      opacity: 0.35;
+      pointer-events: none;
+    }
+    .card {
+      position: relative;
+      z-index: 1;
+      border-radius: 24px;
+      border: 1px solid var(--line);
+      background: var(--surface);
+      box-shadow: var(--shadow);
+      padding: clamp(22px, 4vw, 30px) clamp(16px, 4vw, 28px) clamp(18px, 3vw, 24px);
+      text-align: center;
+      opacity: 0;
+      transform: translateY(10px) scale(0.985);
+      animation: rise 300ms ease-out 40ms forwards;
+    }
+    .logo {
+      display: block;
+      margin: 0 auto;
+      width: clamp(50px, 7vw, 56px);
+      height: clamp(50px, 7vw, 56px);
+      border-radius: 14px;
+      border: 1px solid rgba(20, 25, 35, 0.08);
+      box-shadow: 0 2px 8px rgba(15, 23, 42, 0.1);
+      object-fit: cover;
+    }
+    h1 {
+      margin: 16px 0 8px;
+      font-size: clamp(1.4rem, 2vw, 1.7rem);
+      line-height: 1.22;
+      letter-spacing: -0.02em;
+      font-weight: 700;
+    }
+    p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.62;
+      font-size: clamp(0.92rem, 2.7vw, 0.96rem);
+    }
+    .domain {
+      margin-top: 12px;
+    }
+    .domain span {
+      display: inline-block;
+      max-width: 100%;
+      border-radius: 999px;
+      border: 1px solid rgba(20, 25, 35, 0.14);
+      background: rgba(255, 255, 255, 0.92);
+      color: #2a3342;
+      padding: 6px 12px;
+      font-size: 0.84rem;
+      letter-spacing: 0.01em;
+      font-family: "SF Mono", "Menlo", "Consolas", monospace;
+      overflow-wrap: anywhere;
+    }
+    .hint {
+      margin-top: 16px;
+      font-size: 0.89rem;
+    }
+    .hint a {
+      color: var(--accent);
+      text-underline-offset: 0.15em;
+      text-decoration-thickness: 1.5px;
+      text-decoration-color: rgba(37, 99, 235, 0.35);
+      font-weight: 500;
+    }
+    .hint a:hover {
+      text-decoration-color: rgba(37, 99, 235, 0.75);
+    }
+    @media (max-width: 560px) {
+      .card {
+        border-radius: 22px;
+      }
+      .domain span {
+        border-radius: 12px;
+      }
+      h1 { font-size: 1.3rem; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .frame::before,
+      .card {
+        animation: none !important;
+      }
+      .card {
+        opacity: 1;
+        transform: none;
+      }
+    }
+    @keyframes rise {
+      from { opacity: 0; transform: translateY(10px) scale(0.985); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
   </style>
 </head>
 <body>
-  <h1>App not found</h1>
-  <p><code>${subdomain}.edwardd.app</code> doesn't exist or hasn't been deployed yet.</p>
+  <main class="frame">
+    <section class="card" role="status" aria-live="polite">
+      <img
+        class="logo"
+        src="${EDWARD_LOGO_URL}"
+        alt="Edward logo"
+        width="56"
+        height="56"
+        loading="eager"
+        decoding="async"
+        fetchpriority="high"
+      />
+      <h1>App not found</h1>
+      <p>This preview is currently unavailable.</p>
+      <p class="domain"><span>${escapedDomain}</span></p>
+      <p class="hint"><a href="https://edwardd.app" rel="noopener noreferrer">Build again in Edward</a> to restore this preview.</p>
+    </section>
+  </main>
 </body>
 </html>`,
-        { status: 404, headers: { "Content-Type": "text/html; charset=utf-8" } }
+        {
+            status: 404,
+            headers: {
+                "Content-Type": "text/html; charset=utf-8",
+                "Cache-Control": "no-store",
+            },
+        }
     );
+}
+
+function escapeHtml(value) {
+    return value
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
 }

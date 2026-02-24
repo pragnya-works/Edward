@@ -16,6 +16,10 @@ import { cleanupSandbox } from "../../../services/sandbox/lifecycle/cleanup.js";
 import { buildS3Key } from "../../../services/storage/key.utils.js";
 import { deleteFolder } from "../../../services/storage.service.js";
 import {
+  deletePreviewSubdomain,
+  generatePreviewSubdomain,
+} from "../../../services/previewRouting/registration.js";
+import {
   ERROR_MESSAGES,
   HttpStatus,
 } from "../../../utils/constants.js";
@@ -127,6 +131,23 @@ export async function deleteChat(
     if (!hasAccess) {
       return;
     }
+
+    const [chatData] = await db
+      .select({ customSubdomain: chat.customSubdomain })
+      .from(chat)
+      .where(eq(chat.id, chatId))
+      .limit(1);
+
+    const storagePrefix = buildS3Key(userId, chatId).replace(/\/$/, "");
+    const subdomain =
+      chatData?.customSubdomain ?? generatePreviewSubdomain(userId, chatId);
+
+    await deletePreviewSubdomain(subdomain, storagePrefix).catch((err) =>
+      logger.warn(
+        { err, chatId, subdomain, storagePrefix },
+        "Failed to cleanup preview routing during chat deletion",
+      ),
+    );
 
     const activeSandboxId = await getActiveSandbox(chatId);
     if (activeSandboxId) {
