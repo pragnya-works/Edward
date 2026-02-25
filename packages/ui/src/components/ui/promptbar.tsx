@@ -6,8 +6,14 @@ import { useIsMobile } from "@edward/ui/hooks/useMobile";
 import { LoginModal } from "@edward/ui/components/ui/loginModal";
 import { BYOK } from "@edward/ui/components/ui/byok";
 import { modelSupportsVision } from "@edward/shared/schema";
-import { UI_EVENTS } from "@edward/shared/constants";
+import { PROMPT_INPUT_CONFIG, UI_EVENTS } from "@edward/shared/constants";
 import { cn } from "@edward/ui/lib/utils";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipPositioner,
+  TooltipTrigger,
+} from "@edward/ui/components/tooltip";
 import {
   SUGGESTIONS,
   isUploaded,
@@ -177,6 +183,44 @@ export default function Promptbar(props: PromptbarProps) {
     () => attachedFiles.some((file) => isUploading(file)),
     [attachedFiles],
   );
+  const promptCharCount = inputValue.length;
+  const isNearPromptCharLimit =
+    promptCharCount >= PROMPT_INPUT_CONFIG.WARNING_CHARS;
+  const isPromptCharLimitReached =
+    promptCharCount >= PROMPT_INPUT_CONFIG.MAX_CHARS;
+  const promptUsageRatio = Math.min(
+    promptCharCount / PROMPT_INPUT_CONFIG.MAX_CHARS,
+    1,
+  );
+  const promptCharsLeft = Math.max(
+    PROMPT_INPUT_CONFIG.MAX_CHARS - promptCharCount,
+    0,
+  );
+  const promptCounterToneClass = isPromptCharLimitReached
+    ? "text-red-500/95"
+    : isNearPromptCharLimit
+      ? "text-muted-foreground"
+      : "text-muted-foreground/75";
+  const promptTooltipToneClass = isPromptCharLimitReached
+    ? "bg-red-500 text-white [&_[data-slot=tooltip-arrow]]:bg-red-500 [&_[data-slot=tooltip-arrow]]:fill-red-500"
+    : isNearPromptCharLimit
+      ? "bg-zinc-700 text-zinc-100 [&_[data-slot=tooltip-arrow]]:bg-zinc-700 [&_[data-slot=tooltip-arrow]]:fill-zinc-700"
+      : "";
+  const promptTooltipTextToneClass = isPromptCharLimitReached
+    ? "text-white/90"
+    : isNearPromptCharLimit
+      ? "text-zinc-100/90"
+      : "text-primary-foreground/90";
+  const promptProgressTrackClass = isPromptCharLimitReached
+    ? "stroke-white/35"
+    : isNearPromptCharLimit
+      ? "stroke-zinc-100/25"
+      : "stroke-primary-foreground/25";
+  const promptProgressClass = isPromptCharLimitReached
+    ? "stroke-white"
+    : isNearPromptCharLimit
+      ? "stroke-zinc-100"
+      : "stroke-primary-foreground";
   const isSubmitDisabled =
     (!inputValue.trim() && uploadedImages.length === 0) || hasPendingUploads;
   const detectedSourceUrls = useMemo(
@@ -317,11 +361,86 @@ export default function Promptbar(props: PromptbarProps) {
                   />
                 </div>
               )}
+            <div className="absolute right-3 top-2.5 z-20 sm:right-4 sm:top-3 md:right-6 md:top-4">
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <button
+                      type="button"
+                      aria-live="polite"
+                      aria-label={`Prompt characters ${promptCharCount} of ${PROMPT_INPUT_CONFIG.MAX_CHARS}`}
+                      className={cn(
+                        "rounded-md bg-card/85 px-1.5 py-0.5 text-[10px] font-medium tabular-nums backdrop-blur-sm sm:text-[11px]",
+                        promptCounterToneClass,
+                      )}
+                    >
+                      {promptCharCount}/{PROMPT_INPUT_CONFIG.MAX_CHARS}
+                    </button>
+                  }
+                />
+                <TooltipPositioner side="top" align="end">
+                  <TooltipContent
+                    className={cn(
+                      "max-w-56 px-2.5 py-1.5",
+                      promptTooltipToneClass,
+                    )}
+                  >
+                    <div className="flex items-center gap-2">
+                      <svg
+                        width="28"
+                        height="28"
+                        viewBox="0 0 28 28"
+                        aria-hidden="true"
+                        className="-rotate-90"
+                      >
+                        <circle
+                          cx="14"
+                          cy="14"
+                          r="11"
+                          className={promptProgressTrackClass}
+                          strokeWidth="2.5"
+                          fill="none"
+                        />
+                        <circle
+                          cx="14"
+                          cy="14"
+                          r="11"
+                          className={promptProgressClass}
+                          strokeWidth="2.5"
+                          fill="none"
+                          strokeLinecap="round"
+                          style={{
+                            strokeDasharray: `${2 * Math.PI * 11}`,
+                            strokeDashoffset: `${(2 * Math.PI * 11) * (1 - promptUsageRatio)}`,
+                            transition: "stroke-dashoffset 200ms ease",
+                          }}
+                        />
+                      </svg>
+                      <p
+                        className={cn(
+                          "text-[11px] leading-tight",
+                          promptTooltipTextToneClass,
+                        )}
+                      >
+                        <span className="font-semibold">{promptCharsLeft}</span>{" "}
+                        chars left. Short prompts are usually faster and more
+                        reliable.
+                      </p>
+                    </div>
+                  </TooltipContent>
+                </TooltipPositioner>
+              </Tooltip>
+            </div>
             <Textarea
               data-edward-prompt-input="true"
               placeholder={hideSuggestions ? "Ask Edward anything..." : ""}
               value={inputValue}
-              onChange={(e) => setInputValue(e.target.value)}
+              maxLength={PROMPT_INPUT_CONFIG.MAX_CHARS}
+              onChange={(e) =>
+                setInputValue(
+                  e.target.value.slice(0, PROMPT_INPUT_CONFIG.MAX_CHARS),
+                )
+              }
               disabled={isSubmissionBlocked}
               onKeyDown={(e) => {
                 if (e.key !== "Enter" || e.shiftKey || e.nativeEvent.isComposing) {
@@ -331,7 +450,7 @@ export default function Promptbar(props: PromptbarProps) {
                 if (isSubmitDisabled || isStreaming || submissionDisabledReason) return;
                 handleProtectedAction();
               }}
-              className="min-h-[4.5rem] sm:min-h-[5.5rem] md:min-h-[6.5rem] max-h-40 sm:max-h-52 md:max-h-64 overflow-y-auto resize-none border-0 bg-transparent p-3 sm:p-4 md:p-6 text-sm sm:text-[15px] text-foreground placeholder:text-muted-foreground/70 focus-visible:ring-0 focus-visible:ring-offset-0 relative z-10 font-medium leading-relaxed tracking-tight"
+              className="min-h-[4.5rem] sm:min-h-[5.5rem] md:min-h-[6.5rem] max-h-40 sm:max-h-52 md:max-h-64 overflow-y-auto resize-none border-0 bg-transparent p-3 pr-16 sm:p-4 sm:pr-20 md:p-6 md:pr-24 text-sm sm:text-[15px] text-foreground placeholder:text-muted-foreground/70 focus-visible:ring-0 focus-visible:ring-offset-0 relative z-10 font-medium leading-relaxed tracking-tight"
             />
           </div>
 
@@ -351,11 +470,6 @@ export default function Promptbar(props: PromptbarProps) {
             disabled={isSubmitDisabled || Boolean(submissionDisabledReason)}
             disableAttachmentActions={areImageUploadsBlocked}
           />
-          {submissionDisabledReason ? (
-            <p className="px-3 pb-3 sm:px-4 md:px-6 text-[11px] font-medium text-amber-500/90">
-              {submissionDisabledReason}
-            </p>
-          ) : null}
         </div>
         <LoginModal
           isOpen={showLoginModal}
@@ -392,6 +506,11 @@ export default function Promptbar(props: PromptbarProps) {
           />
         )}
       </Card>
+      {submissionDisabledReason ? (
+        <p className="mt-2 px-1 text-center text-[11px] font-medium text-amber-600/90 sm:px-2">
+          {submissionDisabledReason}
+        </p>
+      ) : null}
     </div>
   );
 }

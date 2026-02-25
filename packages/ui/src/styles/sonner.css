@@ -1,1 +1,190 @@
 @import "sonner/dist/styles.css";
+
+:root {
+  --sonner-surface: color-mix(
+    in oklch,
+    var(--workspace-sidebar, oklch(0.98 0 0)) 84%,
+    var(--workspace-bg, oklch(1 0 0)) 16%
+  );
+  --sonner-surface-soft: color-mix(
+    in oklch,
+    var(--workspace-bg, oklch(1 0 0)) 92%,
+    white 8%
+  );
+  --sonner-border: color-mix(
+    in oklch,
+    var(--workspace-border, oklch(0.86 0 0)) 72%,
+    var(--workspace-accent, oklch(0.62 0.15 248)) 28%
+  );
+  --sonner-text: var(--workspace-foreground, oklch(0.18 0 0));
+  --sonner-text-muted: color-mix(
+    in oklch,
+    var(--workspace-foreground, oklch(0.18 0 0)) 72%,
+    transparent
+  );
+  --sonner-shadow: 0 18px 50px -28px oklch(0 0 0 / 0.45);
+  --sonner-success: oklch(0.72 0.19 154);
+  --sonner-error: oklch(0.66 0.24 27);
+  --sonner-info: oklch(0.7 0.18 247);
+  --sonner-warning: oklch(0.78 0.17 84);
+}
+
+.dark {
+  --sonner-surface: color-mix(
+    in oklch,
+    var(--workspace-sidebar, oklch(0.24 0 0)) 84%,
+    black 16%
+  );
+  --sonner-surface-soft: color-mix(
+    in oklch,
+    var(--workspace-bg, oklch(0.2 0 0)) 88%,
+    white 12%
+  );
+  --sonner-border: color-mix(
+    in oklch,
+    var(--workspace-border, oklch(0.35 0 0)) 75%,
+    var(--workspace-accent, oklch(0.7 0.15 247)) 25%
+  );
+  --sonner-text: oklch(0.97 0 0);
+  --sonner-text-muted: oklch(0.82 0 0);
+  --sonner-shadow: 0 24px 58px -30px oklch(0 0 0 / 0.62);
+}
+
+[data-sonner-toaster].toaster {
+  --width: min(430px, calc(100vw - 2.25rem));
+}
+
+[data-sonner-toaster].toaster [data-sonner-toast].ed-toast {
+  background: var(--sonner-surface);
+  color: var(--sonner-text);
+  border-color: var(--sonner-border);
+  box-shadow: var(--sonner-shadow);
+  backdrop-filter: blur(14px) saturate(1.12);
+  gap: 10px;
+  padding: 14px 14px 14px 12px;
+}
+
+[data-sonner-toaster].toaster [data-sonner-toast].ed-toast .ed-toast__content {
+  gap: 4px;
+}
+
+[data-sonner-toaster].toaster [data-sonner-toast].ed-toast .ed-toast__title {
+  color: var(--sonner-text) !important;
+  font-size: 14px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  line-height: 1.32;
+}
+
+[data-sonner-toaster].toaster [data-sonner-toast].ed-toast .ed-toast__description {
+  color: var(--sonner-text-muted) !important;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.45;
+}
+
+[data-sonner-toaster].toaster [data-sonner-toast].ed-toast .ed-toast__icon {
+  width: 22px;
+  height: 22px;
+  margin: 0;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in oklch, var(--sonner-text) 9%, transparent);
+  color: var(--sonner-text);
+}
+
+[data-sonner-toaster].toaster [data-sonner-toast].ed-toast .ed-toast__close {
+  top: 10px;
+  right: 10px;
+  left: auto;
+  transform: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in oklch, var(--sonner-text) 16%, transparent);
+  background: color-mix(in oklch, var(--sonner-surface-soft) 88%, transparent);
+  color: var(--sonner-text-muted);
+}
+
+[data-sonner-toaster].toaster
+  [data-sonner-toast].ed-toast:hover
+  .ed-toast__close {
+  border-color: color-mix(in oklch, var(--sonner-text) 28%, transparent);
+  color: var(--sonner-text);
+}
+
+[data-sonner-toaster].toaster [data-sonner-toast].ed-toast .ed-toast__action,
+[data-sonner-toaster].toaster [data-sonner-toast].ed-toast .ed-toast__cancel {
+  height: 28px;
+  border-radius: 9px;
+  padding-inline: 10px;
+  font-size: 11px;
+  font-weight: 650;
+}
+
+[data-sonner-toaster].toaster [data-sonner-toast].ed-toast .ed-toast__action {
+  background: var(--sonner-text);
+  color: var(--sonner-surface);
+}
+
+[data-sonner-toaster].toaster [data-sonner-toast].ed-toast .ed-toast__cancel {
+  border: 1px solid color-mix(in oklch, var(--sonner-text) 22%, transparent);
+  background: color-mix(in oklch, var(--sonner-surface-soft) 75%, transparent);
+  color: var(--sonner-text-muted);
+}
+
+[data-sonner-toaster].toaster [data-sonner-toast].ed-toast.ed-toast--success {
+  border-color: color-mix(in oklch, var(--sonner-success) 55%, var(--sonner-border));
+}
+
+[data-sonner-toaster].toaster
+  [data-sonner-toast].ed-toast.ed-toast--success
+  .ed-toast__icon {
+  color: var(--sonner-success);
+  background: color-mix(in oklch, var(--sonner-success) 18%, transparent);
+}
+
+[data-sonner-toaster].toaster [data-sonner-toast].ed-toast.ed-toast--error {
+  border-color: color-mix(in oklch, var(--sonner-error) 55%, var(--sonner-border));
+}
+
+[data-sonner-toaster].toaster
+  [data-sonner-toast].ed-toast.ed-toast--error
+  .ed-toast__icon {
+  color: var(--sonner-error);
+  background: color-mix(in oklch, var(--sonner-error) 16%, transparent);
+}
+
+[data-sonner-toaster].toaster [data-sonner-toast].ed-toast.ed-toast--info {
+  border-color: color-mix(in oklch, var(--sonner-info) 55%, var(--sonner-border));
+}
+
+[data-sonner-toaster].toaster
+  [data-sonner-toast].ed-toast.ed-toast--info
+  .ed-toast__icon {
+  color: var(--sonner-info);
+  background: color-mix(in oklch, var(--sonner-info) 16%, transparent);
+}
+
+[data-sonner-toaster].toaster [data-sonner-toast].ed-toast.ed-toast--warning {
+  border-color: color-mix(in oklch, var(--sonner-warning) 55%, var(--sonner-border));
+}
+
+[data-sonner-toaster].toaster
+  [data-sonner-toast].ed-toast.ed-toast--warning
+  .ed-toast__icon {
+  color: var(--sonner-warning);
+  background: color-mix(in oklch, var(--sonner-warning) 16%, transparent);
+}
+
+[data-sonner-toaster].toaster [data-sonner-toast].ed-toast.ed-toast--loading .ed-toast__icon {
+  color: var(--sonner-info);
+}
+
+@media (max-width: 640px) {
+  [data-sonner-toaster].toaster [data-sonner-toast].ed-toast {
+    padding: 13px 13px 13px 11px;
+  }
+}

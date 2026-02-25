@@ -2,40 +2,62 @@
 
 import { useTheme } from "next-themes";
 import { Toaster as Sonner, toast, type ToasterProps } from "sonner";
+import {
+  CheckCircle2,
+  CircleAlert,
+  CircleX,
+  Info,
+  Loader2,
+  X,
+} from "lucide-react";
 import { cn } from "@edward/ui/lib/utils";
 
 function Toaster({ className, toastOptions, ...props }: ToasterProps) {
-  const { theme = "system" } = useTheme();
+  const { theme = "system", resolvedTheme } = useTheme();
+  const sonnerTheme =
+    theme === "system"
+      ? (resolvedTheme as ToasterProps["theme"] | undefined) || "dark"
+      : (theme as ToasterProps["theme"]);
 
   return (
     <Sonner
-      theme={theme as ToasterProps["theme"]}
+      theme={sonnerTheme}
       className={cn("toaster group", className)}
       position="bottom-right"
+      richColors={false}
       closeButton
       expand
       duration={4200}
       visibleToasts={4}
       gap={10}
+      offset={20}
+      mobileOffset={14}
+      icons={{
+        success: <CheckCircle2 className="size-4" />,
+        error: <CircleX className="size-4" />,
+        warning: <CircleAlert className="size-4" />,
+        info: <Info className="size-4" />,
+        loading: <Loader2 className="size-4 animate-spin" />,
+        close: <X className="size-3.5" />,
+      }}
       toastOptions={{
         ...toastOptions,
         classNames: {
           toast:
-            "group toast pointer-events-auto rounded-xl border border-workspace-border text-workspace-foreground bg-workspace-sidebar shadow-[0_22px_52px_-28px_rgba(0,0,0,0.55)]",
-          title:
-            "text-[13px] font-semibold tracking-tight text-workspace-foreground",
-          description: "text-[12px] leading-relaxed text-workspace-foreground/65",
-          actionButton:
-            "rounded-lg bg-workspace-foreground px-2.5 py-1.5 text-[11px] font-semibold text-workspace-bg",
-          cancelButton:
-            "rounded-lg border border-workspace-border bg-workspace-bg px-2.5 py-1.5 text-[11px] font-semibold text-workspace-foreground/80 hover:bg-workspace-hover",
-          success:
-            "!border-emerald-500 !bg-workspace-sidebar [&_[data-icon]]:text-emerald-400",
-          error:
-            "!border-destructive !bg-workspace-sidebar [&_[data-icon]]:text-destructive",
-          info: "!border-workspace-accent !bg-workspace-sidebar [&_[data-icon]]:text-workspace-accent",
-          warning:
-            "!border-amber-500 !bg-workspace-sidebar [&_[data-icon]]:text-amber-500",
+            "ed-toast group pointer-events-auto select-none rounded-2xl border shadow-none",
+          content: "ed-toast__content",
+          icon: "ed-toast__icon",
+          title: "ed-toast__title",
+          description: "ed-toast__description",
+          closeButton: "ed-toast__close",
+          actionButton: "ed-toast__action",
+          cancelButton: "ed-toast__cancel",
+          success: "ed-toast--success",
+          error: "ed-toast--error",
+          info: "ed-toast--info",
+          warning: "ed-toast--warning",
+          loading: "ed-toast--loading",
+          default: "ed-toast--default",
           ...toastOptions?.classNames,
         },
       }}

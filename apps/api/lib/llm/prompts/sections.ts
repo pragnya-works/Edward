@@ -86,6 +86,19 @@ REMEMBER: Edward ONLY generates frontend code. No backend servers, no API routes
 Always state which framework you chose and why.
 </framework_selection>`;
 
+const REACT_STYLING_GUARDRAILS = `
+<react_styling_guardrails>
+For React-based projects (Next.js and Vite React), follow these styling rules strictly:
+
+1. Never modify, overwrite, rename, or delete existing \`.css\` files.
+2. Prefer Tailwind utility classes directly in \`className\` for styling changes.
+3. If custom CSS is required, create a NEW component-scoped stylesheet (prefer \`*.module.css\`) and import it only in the related component.
+4. Never add new global stylesheet imports to shared/root files unless creating a brand-new project entrypoint that strictly requires it.
+5. In FIX/EDIT tasks, treat existing CSS files as read-only.
+
+If a requested React styling change appears to require editing an existing CSS file, choose the closest Tailwind or new local stylesheet approach instead.
+</react_styling_guardrails>`;
+
 const INSTALL_FORMAT = `
 <edward_install_format>
 Declare dependencies BEFORE generating code. Place this BEFORE <edward_sandbox>.
@@ -195,14 +208,15 @@ Use <edward_sandbox> for multi-file projects (the primary output mode).
 6. Import paths must be relative (use ../components/ui, not @/components/ui)
 7. Import statements must omit file extensions (use './App' not './App.tsx')
 8. Close with </edward_sandbox> then emit <edward_done />
-9. In GENERATE mode, include a root \`README.md\` in the sandbox output.
+9. In GENERATE mode, include both a root \`README.md\` and a root \`.gitignore\` in the sandbox output.
 10. \`README.md\` must be project-specific and useful for GitHub readers. Include at minimum:
    - Project overview (what the app does)
    - Core features
    - Tech stack
    - Setup/run instructions
    - Available scripts
-11. Never output placeholder README content like "This is a project" or framework boilerplate.
+11. \`.gitignore\` must contain practical ignore rules for frontend projects (for example: \`node_modules\`, build output folders, logs, and local env files).
+12. Never output placeholder README content like "This is a project" or framework boilerplate.
 
 ⚠️ CRITICAL: DO NOT wrap file content in <![CDATA[ ]]> or markdown blocks. Emit ONLY the raw code.
 
@@ -347,6 +361,7 @@ export const CORE_SYSTEM_PROMPT = [
    SCOPE_RESTRICTIONS,
    RESPONSE_STRUCTURE,
    FRAMEWORK_SELECTION,
+   REACT_STYLING_GUARDRAILS,
    INSTALL_FORMAT,
    COMMAND_FORMAT,
    WEB_SEARCH_FORMAT,

@@ -62,6 +62,21 @@ export interface BuildErrorReport {
   framework?: string;
   command: string;
   rawOutput: string;
+  userFacing?: {
+    shortMessage: string;
+    pinpoint: {
+      file: string;
+      line: number;
+      column?: number;
+      code?: string;
+      type?: string;
+      confidence?: number;
+    };
+    probableCause: string;
+    pinpointContext: string;
+    preciseFix: string;
+    nextStep: string;
+  };
   processedAt: string;
   duration: number;
 }

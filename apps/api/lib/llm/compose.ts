@@ -1,6 +1,7 @@
 import { CORE_SYSTEM_PROMPT, MODE_PROMPTS } from "./systemPrompt.js";
 import { getSkillsForContext, type Complexity } from "./skills/index.js";
 import { Framework, ChatAction } from "../../services/planning/schemas.js";
+import { getTemplateConfig } from "../../services/sandbox/templates/template.registry.js";
 
 export interface ComposeOptions {
   framework?: Framework;
@@ -40,6 +41,17 @@ export function composePrompt(options: ComposeOptions = {}): string {
     parts.push(
       `\n[ENVIRONMENT] You are working in a ${frameworkLabel} project. Include the required entry point files.`,
     );
+
+    const templateConfig = getTemplateConfig(framework);
+    if (templateConfig?.protectedFiles.length) {
+      const protectedFiles = Array.from(new Set(templateConfig.protectedFiles));
+      const protectedFilesList = protectedFiles
+        .map((filePath) => `- ${filePath}`)
+        .join("\n");
+      parts.push(
+        `\n[READ-ONLY FILES]\nThe following framework files are protected and MUST NOT be created, modified, overwritten, renamed, or deleted:\n${protectedFilesList}\nIf the user asks to edit one of these files, use an alternative implementation.`,
+      );
+    }
   }
 
   return parts.join("\n\n");

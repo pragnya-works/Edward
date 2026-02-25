@@ -132,7 +132,7 @@ export default function AuthenticatedPromptbar({
       return chatSubmissionGuards.chatRateLimitMessage;
     }
     if (stream.isStreaming) {
-      return "Message send in progress. Wait for completion or stop generation.";
+      return "A message is currently being sent. Please wait for it to finish or stop generation.";
     }
     if (chatSubmissionGuards.submissionLockMessage) {
       return chatSubmissionGuards.submissionLockMessage;

@@ -82,4 +82,121 @@ describe("Post-Generation Validator", () => {
     expect(result.valid).toBe(true);
     expect(result.violations.length).toBe(0);
   });
+
+  test("should require README.md and .gitignore in generate mode", () => {
+    const output = {
+      framework: "vite-react",
+      mode: "generate" as const,
+      files: new Map([
+        ["src/main.tsx", 'import "./index.css"'],
+        ["src/App.tsx", "export default function App() { return null }"],
+      ]),
+      declaredPackages: [],
+    };
+
+    const result = validateGeneratedOutput(output);
+    expect(result.valid).toBe(false);
+    expect(
+      result.violations.some(
+        (violation) =>
+          violation.type === "missing-project-file" &&
+          violation.file === "README.md",
+      ),
+    ).toBe(true);
+    expect(
+      result.violations.some(
+        (violation) =>
+          violation.type === "missing-project-file" &&
+          violation.file === ".gitignore",
+      ),
+    ).toBe(true);
+  });
+
+  test("should pass generate mode when README.md and .gitignore are present", () => {
+    const output = {
+      framework: "vite-react",
+      mode: "generate" as const,
+      files: new Map([
+        ["README.md", "# Demo"],
+        [".gitignore", "node_modules"],
+        [
+          "src/main.tsx",
+          'import { createRoot } from "react-dom/client";\nimport App from "./App";\nimport "./index.css";\ncreateRoot(document.getElementById("root")!).render(<App />);',
+        ],
+        ["src/index.css", "/* styles */"],
+        ["src/App.tsx", "export default function App() { return <main>Demo</main> }"],
+      ]),
+      declaredPackages: [],
+    };
+
+    const result = validateGeneratedOutput(output);
+    expect(result.valid).toBe(true);
+    expect(result.violations.length).toBe(0);
+  });
+
+  test("should detect imports placed after executable code", () => {
+    const output = {
+      framework: "vite-react",
+      mode: "edit" as const,
+      files: new Map([
+        [
+          "src/main.tsx",
+          'const boot = true;\nimport { createRoot } from "react-dom/client";\nif (boot) console.log("boot");',
+        ],
+      ]),
+      declaredPackages: [],
+    };
+
+    const result = validateGeneratedOutput(output);
+    expect(
+      result.violations.some((violation) => violation.type === "import-placement"),
+    ).toBe(true);
+  });
+
+  test("should reject generate mode when root component renders null", () => {
+    const output = {
+      framework: "vite-react",
+      mode: "generate" as const,
+      files: new Map([
+        ["README.md", "# Demo"],
+        [".gitignore", "node_modules"],
+        [
+          "src/main.tsx",
+          'import { createRoot } from "react-dom/client";\nimport App from "./App";\nimport "./index.css";\ncreateRoot(document.getElementById("root")!).render(<App />);',
+        ],
+        ["src/index.css", "/* styles */"],
+        ["src/App.tsx", "export default function App() { return null; }"],
+      ]),
+      declaredPackages: [],
+    };
+
+    const result = validateGeneratedOutput(output);
+    expect(result.valid).toBe(false);
+    expect(
+      result.violations.some((violation) => violation.type === "logic-quality"),
+    ).toBe(true);
+  });
+
+  test("should resolve directory imports to index.js files", () => {
+    const output = {
+      framework: "vite-react",
+      mode: "edit" as const,
+      files: new Map([
+        [
+          "src/App.tsx",
+          'import Components from "./components";\nexport default function App() { return <Components />; }',
+        ],
+        [
+          "src/components/index.js",
+          "export default function Components() { return null; }",
+        ],
+      ]),
+      declaredPackages: [],
+    };
+
+    const result = validateGeneratedOutput(output);
+    expect(
+      result.violations.some((violation) => violation.type === "orphaned-import"),
+    ).toBe(false);
+  });
 });

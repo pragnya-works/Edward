@@ -65,7 +65,9 @@ export interface TokenUsageBreakdown {
   method: "openai-tiktoken" | "gemini-countTokens" | "approx";
   contextWindowTokens: number;
   reservedOutputTokens: number;
+  /** Tokens for the current user prompt only (latest turn input), not full context. */
   inputTokens: number;
+  /** Full request context tokens (system prompt + conversation/context messages). */
   totalContextTokens: number;
   remainingInputTokens: number;
   perMessage: Array<{

@@ -11,11 +11,13 @@ import { normalizeConversationRole, toGeminiRole } from "./messageRole.js";
 import {
   DEFAULT_OPENAI_MODEL,
   DEFAULT_GEMINI_MODEL,
+  getModelSpecByProvider,
 } from "@edward/shared/schema";
 import type { LlmConversationRole } from "./messageRole.js";
 import {
   isMultimodalContent,
-  formatContentForOpenAI,
+  getTextFromContent,
+  formatContentForOpenAIResponses,
   formatContentForGemini,
 } from "./types.js";
 import type { MessageContent } from "@edward/shared/llm/types";
@@ -30,14 +32,14 @@ const GENERATION_CONFIG = {
 
 function getClient(apiKey: string, modelOverride?: string) {
   if (API_KEY_REGEX[Provider.OPENAI].test(apiKey)) {
-    const model = modelOverride || DEFAULT_OPENAI_MODEL;
+    const model = resolveModelForProvider(Provider.OPENAI, modelOverride);
     return {
       type: Provider.OPENAI,
       client: new OpenAI({ apiKey }),
       model,
     };
   } else if (API_KEY_REGEX[Provider.GEMINI].test(apiKey)) {
-    const model = modelOverride || DEFAULT_GEMINI_MODEL;
+    const model = resolveModelForProvider(Provider.GEMINI, modelOverride);
     return {
       type: Provider.GEMINI,
       client: new GoogleGenerativeAI(apiKey),
@@ -48,6 +50,75 @@ function getClient(apiKey: string, modelOverride?: string) {
       "Unrecognized API key format. Please provide a valid OpenAI or Gemini API key.",
     );
   }
+}
+
+function resolveModelForProvider(
+  provider: Provider,
+  modelOverride?: string,
+): string {
+  if (!modelOverride) {
+    return provider === Provider.OPENAI
+      ? DEFAULT_OPENAI_MODEL
+      : DEFAULT_GEMINI_MODEL;
+  }
+
+  const spec = getModelSpecByProvider(provider, modelOverride);
+  if (spec) {
+    return spec.id;
+  }
+
+  const fallbackModel =
+    provider === Provider.OPENAI ? DEFAULT_OPENAI_MODEL : DEFAULT_GEMINI_MODEL;
+  logger.warn(
+    { provider, requestedModel: modelOverride, fallbackModel },
+    "Unknown model for provider; falling back to default model",
+  );
+  return fallbackModel;
+}
+
+function isLegacyCompletionsHint(error: unknown): boolean {
+  const err = ensureError(error);
+  const message = err.message.toLowerCase();
+  return (
+    message.includes("not a chat model") ||
+    message.includes("v1/completions endpoint")
+  );
+}
+
+function buildJsonModeInput(content: string): string {
+  const trimmed = content.trim();
+  return `${trimmed}\n\nRespond with valid JSON only.`;
+}
+
+function buildLegacyCompletionPrompt(
+  systemPrompt: string,
+  messages: NormalizedMessage[],
+  options?: { jsonMode?: boolean },
+): string {
+  const sections: string[] = [
+    `System:\n${systemPrompt}${options?.jsonMode ? "\n\nReturn only a valid JSON object." : ""}`,
+  ];
+
+  for (const msg of messages) {
+    const text = getTextFromContent(msg.content).trim();
+    if (!text) continue;
+    sections.push(`${msg.role === MessageRole.Assistant ? "Assistant" : "User"}:\n${text}`);
+  }
+
+  sections.push("Assistant:\n");
+  return sections.join("\n\n");
+}
+
+function buildOpenAIResponseInput(
+  messages: NormalizedMessage[],
+): OpenAI.Responses.ResponseInputItem[] {
+  return messages.map((msg) => ({
+    type: "message",
+    role: msg.role === MessageRole.Assistant ? "assistant" : "user",
+    content: isMultimodalContent(msg.content)
+      ? formatContentForOpenAIResponses(msg.content)
+      : [{ type: "input_text", text: msg.content }],
+  }));
 }
 
 interface NormalizedMessage {
@@ -108,47 +179,50 @@ export async function* streamResponse(
   try {
     if (type === Provider.OPENAI) {
       const openai = client as OpenAI;
+      const input = buildOpenAIResponseInput(normalized);
 
-      const openaiMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] =
-        [{ role: MessageRole.System, content: fullSystemPrompt }];
+      try {
+        const stream = await openai.responses.create(
+          {
+            model,
+            instructions: fullSystemPrompt,
+            input,
+            stream: true,
+          },
+          { signal },
+        );
 
-      for (const msg of normalized) {
-        const openaiRole = msg.role as "user" | "assistant";
-        const formattedContent = isMultimodalContent(msg.content)
-          ? formatContentForOpenAI(msg.content)
-          : msg.content;
-
-        if (openaiRole === "user") {
-          openaiMessages.push({
-            role: "user",
-            content: formattedContent,
-          });
-        } else {
-          openaiMessages.push({
-            role: "assistant",
-            content:
-              typeof formattedContent === "string"
-                ? formattedContent
-                : formattedContent
-                    .map((p) => (p.type === "text" ? p.text : ""))
-                    .join(""),
-          });
+        for await (const event of stream) {
+          if (signal?.aborted) break;
+          if (event.type === "response.output_text.delta" && event.delta) {
+            yield event.delta;
+          }
         }
-      }
+      } catch (error) {
+        if (!isLegacyCompletionsHint(error)) {
+          throw error;
+        }
 
-      const stream = await openai.chat.completions.create(
-        {
-          model,
-          messages: openaiMessages,
-          stream: true,
-        },
-        { signal },
-      );
+        logger.warn(
+          { model },
+          "Falling back to OpenAI legacy completions endpoint for this model",
+        );
 
-      for await (const chunk of stream) {
-        if (signal?.aborted) break;
-        const text = chunk.choices[0]?.delta?.content || "";
-        if (text) yield text;
+        const prompt = buildLegacyCompletionPrompt(fullSystemPrompt, normalized);
+        const stream = await openai.completions.create(
+          {
+            model,
+            prompt,
+            stream: true,
+          },
+          { signal },
+        );
+
+        for await (const chunk of stream) {
+          if (signal?.aborted) break;
+          const text = chunk.choices[0]?.text || "";
+          if (text) yield text;
+        }
       }
     } else {
       const genAI = client as GoogleGenerativeAI;
@@ -226,15 +300,46 @@ export async function generateResponse(
   try {
     if (type === Provider.OPENAI) {
       const openai = client as OpenAI;
-      const completion = await openai.chat.completions.create({
-        model,
-        messages: [
-          { role: MessageRole.System, content: fullSystemPrompt },
-          { role: MessageRole.User, content },
-        ],
-        ...(jsonMode && { response_format: { type: "json_object" } }),
-      });
-      return completion.choices[0]?.message?.content || "";
+      const inputText = jsonMode ? buildJsonModeInput(content) : content;
+
+      try {
+        const response = await openai.responses.create({
+          model,
+          instructions: fullSystemPrompt,
+          input: [
+            {
+              type: "message",
+              role: "user",
+              content: [{ type: "input_text", text: inputText }],
+            },
+          ],
+          ...(jsonMode && { text: { format: { type: "json_object" } } }),
+        });
+
+        return response.output_text || "";
+      } catch (error) {
+        if (!isLegacyCompletionsHint(error)) {
+          throw error;
+        }
+
+        logger.warn(
+          { model },
+          "Falling back to OpenAI legacy completions endpoint for this model",
+        );
+
+        const prompt = buildLegacyCompletionPrompt(
+          fullSystemPrompt,
+          [{ role: MessageRole.User, content }],
+          { jsonMode },
+        );
+
+        const completion = await openai.completions.create({
+          model,
+          prompt,
+        });
+
+        return completion.choices[0]?.text || "";
+      }
     } else {
       const genAI = client as GoogleGenerativeAI;
 

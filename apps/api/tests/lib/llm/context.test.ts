@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const findManyMock = vi.fn();
 const getLatestBuildByChatIdMock = vi.fn();
 const getActiveSandboxMock = vi.fn();
+const formatErrorForLLMMock = vi.fn(() => "");
 
 vi.mock("@edward/auth", () => ({
   db: {
@@ -25,7 +26,7 @@ vi.mock("@edward/auth", () => ({
 }));
 
 vi.mock("../../../services/diagnostics/analyzer.js", () => ({
-  formatErrorForLLM: vi.fn(() => ""),
+  formatErrorForLLM: formatErrorForLLMMock,
 }));
 
 vi.mock("../../../services/sandbox/lifecycle/provisioning.js", () => ({
@@ -58,6 +59,7 @@ describe("buildConversationMessages", () => {
     vi.clearAllMocks();
     getLatestBuildByChatIdMock.mockResolvedValue(null);
     getActiveSandboxMock.mockResolvedValue(null);
+    formatErrorForLLMMock.mockReturnValue("");
   });
 
   it("excludes the just-persisted user message from follow-up history", async () => {
@@ -94,5 +96,29 @@ describe("buildConversationMessages", () => {
       role: "assistant",
       content: "Existing assistant context",
     });
+  });
+
+  it("uses normalized error formatting for failed builds even when parsed errors are empty", async () => {
+    findManyMock.mockResolvedValue([]);
+    formatErrorForLLMMock.mockReturnValue("FORMATTED BUILD ERROR");
+    getLatestBuildByChatIdMock.mockResolvedValue({
+      status: "failed",
+      errorReport: {
+        failed: true,
+        headline: "Build failed",
+        errors: [],
+        rawOutput: "raw logs",
+      },
+    });
+
+    const { buildConversationMessages } = await import(
+      "../../../lib/llm/context.js"
+    );
+
+    const result = await buildConversationMessages("chat-1");
+
+    expect(formatErrorForLLMMock).toHaveBeenCalledTimes(1);
+    expect(result.projectContext).toContain("FORMATTED BUILD ERROR");
+    expect(result.projectContext).toContain("PROJECT CONTEXT:");
   });
 });

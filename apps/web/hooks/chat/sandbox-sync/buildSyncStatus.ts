@@ -68,6 +68,7 @@ export function applyBuildStatusUpdate({
     setBuildStatus(BuildStatus.FAILED);
     const report = build.errorReport as BuildErrorReport | null;
     const laymanReason =
+      report?.userFacing?.shortMessage ||
       report?.rootCause?.suggestion ||
       report?.errors?.[0]?.suggestion ||
       report?.headline ||

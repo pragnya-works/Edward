@@ -190,7 +190,7 @@ export async function buildConversationMessages(
   })();
 
   if (latestBuild && latestBuild.status === "failed") {
-    if (errorReport && errorReport.errors.length > 0) {
+    if (errorReport) {
       projectContext += formatErrorForLLM(errorReport) + "\n";
     } else {
       const rawError =

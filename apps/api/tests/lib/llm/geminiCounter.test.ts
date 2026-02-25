@@ -54,10 +54,11 @@ describe("countGeminiInputTokens", () => {
     ]);
   });
 
-  it("always reports full context tokens as inputTokens", async () => {
+  it("reports only current userPrompt tokens as inputTokens", async () => {
     countTokensMock
       .mockResolvedValueOnce({ totalTokens: 2 })
-      .mockResolvedValueOnce({ totalTokens: 3 });
+      .mockResolvedValueOnce({ totalTokens: 3 })
+      .mockResolvedValueOnce({ totalTokens: 4 });
 
     const usage = await countGeminiInputTokens(
       "system",
@@ -67,8 +68,25 @@ describe("countGeminiInputTokens", () => {
       "new user prompt",
     );
 
+    expect(countTokensMock).toHaveBeenCalledTimes(3);
+    expect(usage.totalContextTokens).toBe(5);
+    expect(usage.inputTokens).toBe(4);
+  });
+
+  it("reports zero inputTokens when userPrompt is absent", async () => {
+    countTokensMock
+      .mockResolvedValueOnce({ totalTokens: 2 })
+      .mockResolvedValueOnce({ totalTokens: 3 });
+
+    const usage = await countGeminiInputTokens(
+      "system",
+      [{ role: MessageRole.User, content: "hello" }],
+      "gemini-2.5-flash",
+      "fake-key",
+    );
+
     expect(countTokensMock).toHaveBeenCalledTimes(2);
     expect(usage.totalContextTokens).toBe(5);
-    expect(usage.inputTokens).toBe(usage.totalContextTokens);
+    expect(usage.inputTokens).toBe(0);
   });
 });

@@ -3,7 +3,14 @@ import { createLogger } from '../../../utils/logger.js';
 const logger = createLogger('PostGenValidator');
 
 export interface ValidationViolation {
-  type: 'missing-entry-point' | 'orphaned-import' | 'markdown-fence' | 'missing-package';
+  type:
+    | 'missing-entry-point'
+    | 'missing-project-file'
+    | 'import-placement'
+    | 'logic-quality'
+    | 'orphaned-import'
+    | 'markdown-fence'
+    | 'missing-package';
   severity: 'error' | 'warning';
   message: string;
   file?: string;
@@ -31,6 +38,46 @@ const REQUIRED_CSS_IMPORTS: Record<string, { file: string; importPattern: RegExp
   nextjs: { file: 'src/app/layout.tsx', importPattern: /import\s+['"]\.\/globals\.css['"]/ },
   'vite-react': { file: 'src/main.tsx', importPattern: /import\s+['"]\.\/index\.css['"]/ },
 };
+
+const REQUIRED_GENERATE_PROJECT_FILES = ['README.md', '.gitignore'] as const;
+const SOURCE_FILE_PATTERN = /\.(ts|tsx|js|jsx)$/i;
+const MARKDOWN_FENCE_PATTERN = /^```/m;
+const RELATIVE_IMPORT_PATTERN = /(?:import|from)\s+['"](\.[^'"]+)['"]/g;
+const PACKAGE_IMPORT_PATTERN = /(?:import|from)\s+['"]([^./][^'"]*)['"]/g;
+const EMPTY_ROOT_COMPONENT_PATTERN =
+  /export\s+default\s+function[\s\S]*?return\s+(?:null|<>\s*<\/>|<React\.Fragment>\s*<\/React\.Fragment>)\s*;?/m;
+const PLACEHOLDER_PATTERN =
+  /\b(?:TODO|FIXME|TBD)\b|lorem ipsum|your content here|replace with your/i;
+const EMPTY_HANDLER_PATTERN = /\bon[A-Z][A-Za-z0-9_]*=\{\s*\(\)\s*=>\s*\{\s*\}\s*\}/;
+const LOCAL_FILE_EXTENSIONS = [
+  '',
+  '.tsx',
+  '.ts',
+  '.jsx',
+  '.js',
+  '/index.tsx',
+  '/index.ts',
+  '/index.jsx',
+  '/index.js',
+];
+const NEXT_BUILTIN_MODULES = new Set([
+  'react',
+  'react-dom',
+  'react-dom/client',
+  'react/jsx-runtime',
+  'next',
+  'next/link',
+  'next/image',
+  'next/navigation',
+  'next/dynamic',
+  'next/font',
+  'next/font/google',
+  'next/font/local',
+  'next/headers',
+  'next/server',
+  'next-themes',
+]);
+
 const IMPORT_TO_PACKAGE: Record<string, string> = {
   'framer-motion': 'framer-motion',
   'motion': 'framer-motion',
@@ -51,8 +98,24 @@ const IMPORT_TO_PACKAGE: Record<string, string> = {
 
 export function validateGeneratedOutput(output: GeneratedOutput): ValidationResult {
   const violations: ValidationViolation[] = [];
+  const declaredPackages = new Set(output.declaredPackages);
+  const shouldValidateFramework =
+    Boolean(output.framework) && output.mode !== 'edit' && output.mode !== 'fix';
 
-  if (output.framework && output.mode !== 'edit' && output.mode !== 'fix') {
+  if (output.mode === 'generate') {
+    for (const requiredFile of REQUIRED_GENERATE_PROJECT_FILES) {
+      if (!output.files.has(requiredFile)) {
+        violations.push({
+          type: 'missing-project-file',
+          severity: 'error',
+          message: `Missing required project file in generate mode: ${requiredFile}`,
+          file: requiredFile,
+        });
+      }
+    }
+  }
+
+  if (output.framework && shouldValidateFramework) {
     const required = REQUIRED_ENTRY_POINTS[output.framework];
     if (required) {
       for (const entryPoint of required) {
@@ -68,7 +131,7 @@ export function validateGeneratedOutput(output: GeneratedOutput): ValidationResu
     }
   }
 
-  if (output.framework && output.mode !== 'edit' && output.mode !== 'fix') {
+  if (output.framework && shouldValidateFramework) {
     const cssRule = REQUIRED_CSS_IMPORTS[output.framework];
     if (cssRule) {
       const { file, importPattern } = cssRule;
@@ -85,7 +148,7 @@ export function validateGeneratedOutput(output: GeneratedOutput): ValidationResu
   }
 
   for (const [filePath, content] of output.files) {
-    if (/^```/m.test(content)) {
+    if (MARKDOWN_FENCE_PATTERN.test(content)) {
       violations.push({
         type: 'markdown-fence',
         severity: 'error',
@@ -93,55 +156,224 @@ export function validateGeneratedOutput(output: GeneratedOutput): ValidationResu
         file: filePath,
       });
     }
+    violations.push(...validateRelativeImportsForFile(filePath, content, output.files));
+    violations.push(
+      ...validateMissingPackagesForFile(
+        filePath,
+        content,
+        output.framework,
+        declaredPackages,
+      ),
+    );
+    violations.push(...validateImportPlacementForFile(filePath, content, output.mode));
+    violations.push(...validateLogicQualityForFile(filePath, content, output.mode));
   }
 
-  for (const [filePath, content] of output.files) {
-    const importMatches = content.matchAll(/(?:import|from)\s+['"](\.[^'"]+)['"]/g);
-    for (const match of importMatches) {
-      const importPath = match[1];
-      if (!importPath) continue;
-      const resolvedPath = resolveImportPath(filePath, importPath);
-      if (resolvedPath && !fileExists(resolvedPath, output.files)) {
-        violations.push({
-          type: 'orphaned-import',
-          severity: 'warning',
-          message: `Import "${importPath}" in ${filePath} does not match any generated file`,
-          file: filePath,
-        });
-      }
-    }
-  }
+  violations.push(...validateFrameworkEntrypoints(output));
 
-  for (const [filePath, content] of output.files) {
-    const importMatches = content.matchAll(/(?:import|from)\s+['"]([^./][^'"]*)['"]/g);
-    for (const match of importMatches) {
-      const importedModule = match[1];
-      if (!importedModule) continue;
-      if (isBuiltinModule(importedModule, output.framework)) continue;
-
-      const packageName = getPackageName(importedModule);
-      if (IMPORT_TO_PACKAGE[packageName] && !output.declaredPackages.includes(IMPORT_TO_PACKAGE[packageName])) {
-        violations.push({
-          type: 'missing-package',
-          severity: 'warning',
-          message: `${filePath} imports "${packageName}" but it's not in <edward_install> packages`,
-          file: filePath,
-        });
-      }
-    }
-  }
-
-  const valid = violations.filter(v => v.severity === 'error').length === 0;
+  const errorCount = violations.filter(v => v.severity === 'error').length;
+  const warningCount = violations.length - errorCount;
+  const valid = errorCount === 0;
 
   if (violations.length > 0) {
-    logger.info({ 
-      valid, 
-      errorCount: violations.filter(v => v.severity === 'error').length,
-      warningCount: violations.filter(v => v.severity === 'warning').length,
+    logger.info({
+      valid,
+      errorCount,
+      warningCount,
     }, 'Post-generation validation completed');
   }
 
   return { valid, violations };
+}
+
+function validateRelativeImportsForFile(
+  filePath: string,
+  content: string,
+  files: Map<string, string>,
+): ValidationViolation[] {
+  const violations: ValidationViolation[] = [];
+
+  const importMatches = content.matchAll(RELATIVE_IMPORT_PATTERN);
+  for (const match of importMatches) {
+    const importPath = match[1];
+    if (!importPath) continue;
+    const resolvedPath = resolveImportPath(filePath, importPath);
+    if (resolvedPath && !fileExists(resolvedPath, files)) {
+      violations.push({
+        type: 'orphaned-import',
+        severity: 'warning',
+        message: `Import "${importPath}" in ${filePath} does not match any generated file`,
+        file: filePath,
+      });
+    }
+  }
+
+  return violations;
+}
+
+function validateMissingPackagesForFile(
+  filePath: string,
+  content: string,
+  framework: string | undefined,
+  declaredPackages: Set<string>,
+): ValidationViolation[] {
+  const violations: ValidationViolation[] = [];
+  const importMatches = content.matchAll(PACKAGE_IMPORT_PATTERN);
+  for (const match of importMatches) {
+    const importedModule = match[1];
+    if (!importedModule) continue;
+    if (isBuiltinModule(importedModule, framework)) continue;
+
+    const packageName = getPackageName(importedModule);
+    const packageToInstall = IMPORT_TO_PACKAGE[packageName];
+    if (packageToInstall && !declaredPackages.has(packageToInstall)) {
+      violations.push({
+        type: 'missing-package',
+        severity: 'warning',
+        message: `${filePath} imports "${packageName}" but it's not in <edward_install> packages`,
+        file: filePath,
+      });
+    }
+  }
+
+  return violations;
+}
+
+function validateImportPlacementForFile(
+  filePath: string,
+  content: string,
+  mode: GeneratedOutput['mode'],
+): ValidationViolation[] {
+  if (!SOURCE_FILE_PATTERN.test(filePath)) return [];
+
+  const lines = content.split('\n');
+  const violations: ValidationViolation[] = [];
+  let inBlockComment = false;
+  let passedImportSection = false;
+
+  for (let lineNumber = 0; lineNumber < lines.length; lineNumber++) {
+    const raw = lines[lineNumber] ?? '';
+    const line = raw.trim();
+    if (!line) continue;
+
+    if (inBlockComment) {
+      if (line.includes('*/')) inBlockComment = false;
+      continue;
+    }
+
+    if (line.startsWith('/*')) {
+      if (!line.includes('*/')) inBlockComment = true;
+      continue;
+    }
+
+    if (line.startsWith('//')) continue;
+    if (/^['"]use (client|server)['"];?$/.test(line)) continue;
+
+    if (line.startsWith('import ')) {
+      if (passedImportSection) {
+        violations.push({
+          type: 'import-placement',
+          severity: mode === 'generate' ? 'error' : 'warning',
+          message: `${filePath}:${lineNumber + 1} has an import after executable code. Keep imports at the top of the file.`,
+          file: filePath,
+        });
+        break;
+      }
+      continue;
+    }
+
+    passedImportSection = true;
+  }
+
+  return violations;
+}
+
+function validateFrameworkEntrypoints(output: GeneratedOutput): ValidationViolation[] {
+  const violations: ValidationViolation[] = [];
+
+  const mainFile = output.files.get('src/main.tsx');
+  if (output.framework === 'vite-react' && mainFile) {
+    if (!/from\s+['"]react-dom\/client['"]/.test(mainFile)) {
+      violations.push({
+        type: 'missing-entry-point',
+        severity: 'error',
+        message: `src/main.tsx must import createRoot from react-dom/client.`,
+        file: 'src/main.tsx',
+      });
+    }
+
+    if (!/import\s+App\s+from\s+['"]\.\/App['"]/.test(mainFile)) {
+      violations.push({
+        type: 'missing-entry-point',
+        severity: 'error',
+        message: `src/main.tsx must import App from './App'.`,
+        file: 'src/main.tsx',
+      });
+    }
+
+    if (!/createRoot\s*\(/.test(mainFile) || !/document\.getElementById\(\s*['"]root['"]\s*\)/.test(mainFile)) {
+      violations.push({
+        type: 'missing-entry-point',
+        severity: 'error',
+        message: `src/main.tsx must mount using createRoot(document.getElementById('root')).`,
+        file: 'src/main.tsx',
+      });
+    }
+  }
+
+  const indexHtml = output.files.get('index.html');
+  if (output.framework === 'vite-react' && indexHtml && !/id=["']root["']/.test(indexHtml)) {
+    violations.push({
+      type: 'missing-entry-point',
+      severity: 'error',
+      message: `index.html must include a root mount node with id="root".`,
+      file: 'index.html',
+    });
+  }
+
+  return violations;
+}
+
+function validateLogicQualityForFile(
+  filePath: string,
+  content: string,
+  mode: GeneratedOutput['mode'],
+): ValidationViolation[] {
+  const violations: ValidationViolation[] = [];
+  const isSourceFile = SOURCE_FILE_PATTERN.test(filePath);
+  const severity = mode === 'generate' ? 'error' : 'warning';
+
+  if (isSourceFile && PLACEHOLDER_PATTERN.test(content)) {
+    violations.push({
+      type: 'logic-quality',
+      severity,
+      message: `${filePath} contains placeholder markers (TODO/FIXME/TBD/lorem ipsum). Provide complete implementation.`,
+      file: filePath,
+    });
+  }
+
+  if (
+    (filePath === 'src/App.tsx' || filePath === 'src/app/page.tsx') &&
+    EMPTY_ROOT_COMPONENT_PATTERN.test(content)
+  ) {
+    violations.push({
+      type: 'logic-quality',
+      severity: 'error',
+      message: `${filePath} returns an empty UI (null/empty fragment). Root components must render meaningful content.`,
+      file: filePath,
+    });
+  }
+
+  if (isSourceFile && EMPTY_HANDLER_PATTERN.test(content)) {
+    violations.push({
+      type: 'logic-quality',
+      severity: 'warning',
+      message: `${filePath} includes no-op event handlers. Replace empty handlers with actual logic or remove them.`,
+      file: filePath,
+    });
+  }
+
+  return violations;
 }
 
 function resolveImportPath(fromFile: string, importPath: string): string | null {
@@ -156,19 +388,12 @@ function resolveImportPath(fromFile: string, importPath: string): string | null 
 }
 
 function fileExists(resolvedPath: string, files: Map<string, string>): boolean {
-  const extensions = ['', '.tsx', '.ts', '.jsx', '.js', '/index.tsx', '/index.ts'];
-  return extensions.some(ext => files.has(resolvedPath + ext));
+  return LOCAL_FILE_EXTENSIONS.some(ext => files.has(resolvedPath + ext));
 }
 
 function isBuiltinModule(moduleName: string, framework?: string): boolean {
-  const builtins = new Set([
-    'react', 'react-dom', 'react-dom/client', 'react/jsx-runtime',
-    'next', 'next/link', 'next/image', 'next/navigation', 'next/dynamic',
-    'next/font', 'next/font/google', 'next/font/local', 'next/headers',
-    'next/server', 'next-themes',
-  ]);
   if (framework === 'nextjs') {
-    return builtins.has(moduleName) || moduleName.startsWith('next/');
+    return NEXT_BUILTIN_MODULES.has(moduleName) || moduleName.startsWith('next/');
   }
   return moduleName === 'react' || moduleName === 'react-dom' || moduleName.startsWith('react-dom/');
 }

@@ -40,6 +40,11 @@ export const IMAGE_UPLOAD_CONFIG = {
   MAX_FILES: 3,
 } as const;
 
+export const PROMPT_INPUT_CONFIG = {
+  MAX_CHARS: 2000,
+  WARNING_CHARS: 1800,
+} as const;
+
 export const SUBDOMAIN_RESERVED = new Set([
   "www",
   "api",
@@ -117,7 +122,7 @@ export const RATE_LIMIT_POLICY_BY_SCOPE: Record<
   },
   [RATE_LIMIT_SCOPE.CHAT_DAILY]: {
     windowMs: 24 * 60 * 60 * 1000,
-    max: 10,
+    max: 1000,
     redisPrefix: "chat-daily",
     securityScope: "chat_daily",
     limitExceededMessage: "Daily message quota exceeded (10 messages/24h)",
