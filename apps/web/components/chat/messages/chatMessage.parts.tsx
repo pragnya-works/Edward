@@ -51,21 +51,20 @@ export function CopyMessageButton({
       type="button"
       onClick={onCopy}
       aria-label={isCopied ? "Message copied" : "Copy message"}
-      title={isCopied ? "Copied" : "Copy message"}
       disabled={!canCopyMessage}
       className={cn(
-        "inline-flex h-5 w-5 items-center justify-center rounded-md border border-transparent transition-colors duration-200",
+        "inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-transparent transition-all duration-200",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-1 focus-visible:ring-offset-background",
-        "opacity-65 sm:opacity-0 sm:group-hover:opacity-100 sm:focus-visible:opacity-100",
+        "opacity-75 sm:opacity-0 sm:group-hover:opacity-100 sm:focus-visible:opacity-100",
         canCopyMessage
-          ? "text-foreground/45 hover:bg-foreground/[0.06] hover:text-foreground/75"
+          ? "text-foreground/50 hover:bg-foreground/[0.07] hover:text-foreground active:scale-[0.96]"
           : "text-foreground/25 cursor-not-allowed",
       )}
     >
       {isCopied ? (
-        <Check className="h-3.5 w-3.5 text-emerald-500" />
+        <Check className="h-4 w-4 text-emerald-500" />
       ) : (
-        <Copy className="h-3.5 w-3.5" />
+        <Copy className="h-4 w-4" />
       )}
     </button>
   );

@@ -29,6 +29,7 @@ const GENERATION_CONFIG = {
   topP: 0.95,
   geminiMaxOutputTokens: 65536,
 } as const;
+const LEGACY_COMPLETIONS_MAX_TOKENS = 4096;
 
 function getClient(apiKey: string, modelOverride?: string) {
   if (API_KEY_REGEX[Provider.OPENAI].test(apiKey)) {
@@ -107,6 +108,18 @@ function buildLegacyCompletionPrompt(
 
   sections.push("Assistant:\n");
   return sections.join("\n\n");
+}
+
+function getLegacyCompletionsMaxTokens(model: string): number {
+  const spec = getModelSpecByProvider(Provider.OPENAI, model);
+  if (!spec) {
+    return LEGACY_COMPLETIONS_MAX_TOKENS;
+  }
+
+  return Math.max(
+    1,
+    Math.min(spec.maxOutputTokens, LEGACY_COMPLETIONS_MAX_TOKENS),
+  );
 }
 
 function buildOpenAIResponseInput(
@@ -215,6 +228,7 @@ export async function* streamResponse(
           {
             model,
             prompt,
+            max_tokens: getLegacyCompletionsMaxTokens(model),
             stream: true,
           },
           { signal },
@@ -338,6 +352,7 @@ export async function generateResponse(
         const completion = await openai.completions.create({
           model,
           prompt,
+          max_tokens: getLegacyCompletionsMaxTokens(model),
         });
 
         return completion.choices[0]?.text || "";

@@ -1,28 +1,13 @@
 @import "sonner/dist/styles.css";
 
 :root {
-  --sonner-surface: color-mix(
-    in oklch,
-    var(--workspace-sidebar, oklch(0.98 0 0)) 84%,
-    var(--workspace-bg, oklch(1 0 0)) 16%
-  );
-  --sonner-surface-soft: color-mix(
-    in oklch,
-    var(--workspace-bg, oklch(1 0 0)) 92%,
-    white 8%
-  );
-  --sonner-border: color-mix(
-    in oklch,
-    var(--workspace-border, oklch(0.86 0 0)) 72%,
-    var(--workspace-accent, oklch(0.62 0.15 248)) 28%
-  );
+  --sonner-surface: color-mix(in oklch, var(--workspace-sidebar, oklch(0.98 0 0)) 90%, var(--workspace-bg, oklch(1 0 0)) 10%);
+  --sonner-surface-soft: color-mix(in oklch, var(--workspace-bg, oklch(1 0 0)) 95%, white 5%);
+  --sonner-border: color-mix(in oklch, var(--workspace-border, oklch(0.86 0 0)) 84%, var(--workspace-accent, oklch(0.62 0.15 248)) 16%);
   --sonner-text: var(--workspace-foreground, oklch(0.18 0 0));
-  --sonner-text-muted: color-mix(
-    in oklch,
-    var(--workspace-foreground, oklch(0.18 0 0)) 72%,
-    transparent
-  );
-  --sonner-shadow: 0 18px 50px -28px oklch(0 0 0 / 0.45);
+  --sonner-text-muted: color-mix(in oklch, var(--workspace-foreground, oklch(0.18 0 0)) 65%, transparent);
+  --sonner-shadow: 0 14px 30px -24px oklch(0 0 0 / 0.26);
+  --sonner-ring: color-mix(in oklch, var(--workspace-accent, oklch(0.68 0.15 240)) 34%, transparent);
   --sonner-success: oklch(0.72 0.19 154);
   --sonner-error: oklch(0.66 0.24 27);
   --sonner-info: oklch(0.7 0.18 247);
@@ -30,57 +15,64 @@
 }
 
 .dark {
-  --sonner-surface: color-mix(
-    in oklch,
-    var(--workspace-sidebar, oklch(0.24 0 0)) 84%,
-    black 16%
-  );
-  --sonner-surface-soft: color-mix(
-    in oklch,
-    var(--workspace-bg, oklch(0.2 0 0)) 88%,
-    white 12%
-  );
-  --sonner-border: color-mix(
-    in oklch,
-    var(--workspace-border, oklch(0.35 0 0)) 75%,
-    var(--workspace-accent, oklch(0.7 0.15 247)) 25%
-  );
+  --sonner-surface: color-mix(in oklch, var(--workspace-sidebar, oklch(0.24 0 0)) 90%, black 10%);
+  --sonner-surface-soft: color-mix(in oklch, var(--workspace-bg, oklch(0.2 0 0)) 93%, white 7%);
+  --sonner-border: color-mix(in oklch, var(--workspace-border, oklch(0.35 0 0)) 88%, var(--workspace-accent, oklch(0.7 0.15 247)) 12%);
   --sonner-text: oklch(0.97 0 0);
-  --sonner-text-muted: oklch(0.82 0 0);
-  --sonner-shadow: 0 24px 58px -30px oklch(0 0 0 / 0.62);
+  --sonner-text-muted: oklch(0.8 0 0);
+  --sonner-shadow: 0 16px 36px -22px oklch(0 0 0 / 0.58);
+  --sonner-ring: color-mix(in oklch, var(--workspace-accent, oklch(0.75 0.16 247)) 36%, transparent);
 }
 
 [data-sonner-toaster].toaster {
-  --width: min(430px, calc(100vw - 2.25rem));
+  --width: min(360px, calc(100vw - 1.5rem));
+  font-family: var(--font-sans, "IBM Plex Sans", "Geist", sans-serif);
 }
 
 [data-sonner-toaster].toaster [data-sonner-toast].ed-toast {
-  background: var(--sonner-surface);
+  --ed-toast-accent: color-mix(in oklch, var(--workspace-accent, oklch(0.7 0.15 247)) 70%, white 30%);
+  background: color-mix(in oklch, var(--sonner-surface) 92%, var(--sonner-surface-soft) 8%);
   color: var(--sonner-text);
-  border-color: var(--sonner-border);
   box-shadow: var(--sonner-shadow);
-  backdrop-filter: blur(14px) saturate(1.12);
-  gap: 10px;
-  padding: 14px 14px 14px 12px;
+  backdrop-filter: blur(10px) saturate(1.03);
+  gap: 9px;
+  min-height: 52px;
+  padding: 10px 38px 10px 10px;
+  transition: transform 400ms, opacity 400ms, height 400ms, box-shadow 200ms,
+    background-color 180ms ease;
+}
+
+[data-sonner-toaster].toaster [data-sonner-toast].ed-toast[data-front="false"] {
+  opacity: 0.94;
+}
+
+[data-sonner-toaster].toaster [data-sonner-toast].ed-toast:hover {
+  background: color-mix(in oklch, var(--sonner-surface) 88%, var(--sonner-surface-soft) 12%);
+}
+
+[data-sonner-toaster].toaster [data-sonner-toast].ed-toast:focus-visible {
+  box-shadow: 0 0 0 1px var(--sonner-ring),
+    0 0 0 3px color-mix(in oklch, var(--sonner-ring) 30%, transparent),
+    var(--sonner-shadow);
 }
 
 [data-sonner-toaster].toaster [data-sonner-toast].ed-toast .ed-toast__content {
-  gap: 4px;
+  gap: 2px;
 }
 
 [data-sonner-toaster].toaster [data-sonner-toast].ed-toast .ed-toast__title {
   color: var(--sonner-text) !important;
-  font-size: 14px;
-  font-weight: 650;
-  letter-spacing: -0.01em;
-  line-height: 1.32;
+  font-size: 13px;
+  font-weight: 590;
+  letter-spacing: -0.008em;
+  line-height: 1.3;
 }
 
 [data-sonner-toaster].toaster [data-sonner-toast].ed-toast .ed-toast__description {
   color: var(--sonner-text-muted) !important;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 500;
-  line-height: 1.45;
+  line-height: 1.38;
 }
 
 [data-sonner-toaster].toaster [data-sonner-toast].ed-toast .ed-toast__icon {
@@ -91,92 +83,92 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: color-mix(in oklch, var(--sonner-text) 9%, transparent);
-  color: var(--sonner-text);
+  border: 1px solid color-mix(in oklch, var(--ed-toast-accent) 34%, transparent);
+  background: color-mix(in oklch, var(--ed-toast-accent) 12%, transparent);
+  color: var(--ed-toast-accent);
+}
+
+[data-sonner-toaster].toaster [data-sonner-toast].ed-toast .ed-toast__icon > svg {
+  margin: 0;
+  width: 14px;
+  height: 14px;
 }
 
 [data-sonner-toaster].toaster [data-sonner-toast].ed-toast .ed-toast__close {
-  top: 10px;
+  top: 50%;
   right: 10px;
   left: auto;
-  transform: none;
-  width: 18px;
-  height: 18px;
+  transform: translateY(-50%);
+  width: 22px;
+  height: 22px;
   border-radius: 999px;
-  border: 1px solid color-mix(in oklch, var(--sonner-text) 16%, transparent);
-  background: color-mix(in oklch, var(--sonner-surface-soft) 88%, transparent);
+  border: 1px solid color-mix(in oklch, var(--sonner-text) 12%, transparent);
+  background: transparent;
   color: var(--sonner-text-muted);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 140ms ease, color 140ms ease, border-color 140ms ease,
+    background-color 140ms ease;
+}
+
+[data-sonner-toaster].toaster
+  [data-sonner-toast].ed-toast:hover
+  .ed-toast__close,
+[data-sonner-toaster].toaster
+  [data-sonner-toast].ed-toast:focus-within
+  .ed-toast__close {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 [data-sonner-toaster].toaster
   [data-sonner-toast].ed-toast:hover
   .ed-toast__close {
-  border-color: color-mix(in oklch, var(--sonner-text) 28%, transparent);
+  border-color: color-mix(in oklch, var(--sonner-text) 24%, transparent);
   color: var(--sonner-text);
+  background: color-mix(in oklch, var(--sonner-surface-soft) 68%, transparent);
 }
 
 [data-sonner-toaster].toaster [data-sonner-toast].ed-toast .ed-toast__action,
 [data-sonner-toaster].toaster [data-sonner-toast].ed-toast .ed-toast__cancel {
-  height: 28px;
+  height: 26px;
   border-radius: 9px;
-  padding-inline: 10px;
+  padding-inline: 9px;
   font-size: 11px;
-  font-weight: 650;
+  font-weight: 600;
+  transition: border-color 140ms ease, background-color 140ms ease;
 }
 
 [data-sonner-toaster].toaster [data-sonner-toast].ed-toast .ed-toast__action {
-  background: var(--sonner-text);
-  color: var(--sonner-surface);
+  border: 1px solid color-mix(in oklch, var(--ed-toast-accent) 32%, transparent);
+  background: color-mix(in oklch, var(--ed-toast-accent) 82%, black 18%);
+  color: oklch(0.98 0 0);
 }
 
 [data-sonner-toaster].toaster [data-sonner-toast].ed-toast .ed-toast__cancel {
-  border: 1px solid color-mix(in oklch, var(--sonner-text) 22%, transparent);
-  background: color-mix(in oklch, var(--sonner-surface-soft) 75%, transparent);
+  border: 1px solid color-mix(in oklch, var(--sonner-text) 16%, transparent);
+  background: color-mix(in oklch, var(--sonner-surface-soft) 70%, transparent);
   color: var(--sonner-text-muted);
 }
 
 [data-sonner-toaster].toaster [data-sonner-toast].ed-toast.ed-toast--success {
-  border-color: color-mix(in oklch, var(--sonner-success) 55%, var(--sonner-border));
-}
-
-[data-sonner-toaster].toaster
-  [data-sonner-toast].ed-toast.ed-toast--success
-  .ed-toast__icon {
-  color: var(--sonner-success);
-  background: color-mix(in oklch, var(--sonner-success) 18%, transparent);
+  --ed-toast-accent: var(--sonner-success);
 }
 
 [data-sonner-toaster].toaster [data-sonner-toast].ed-toast.ed-toast--error {
-  border-color: color-mix(in oklch, var(--sonner-error) 55%, var(--sonner-border));
-}
-
-[data-sonner-toaster].toaster
-  [data-sonner-toast].ed-toast.ed-toast--error
-  .ed-toast__icon {
-  color: var(--sonner-error);
-  background: color-mix(in oklch, var(--sonner-error) 16%, transparent);
+  --ed-toast-accent: var(--sonner-error);
 }
 
 [data-sonner-toaster].toaster [data-sonner-toast].ed-toast.ed-toast--info {
-  border-color: color-mix(in oklch, var(--sonner-info) 55%, var(--sonner-border));
-}
-
-[data-sonner-toaster].toaster
-  [data-sonner-toast].ed-toast.ed-toast--info
-  .ed-toast__icon {
-  color: var(--sonner-info);
-  background: color-mix(in oklch, var(--sonner-info) 16%, transparent);
+  --ed-toast-accent: var(--sonner-info);
 }
 
 [data-sonner-toaster].toaster [data-sonner-toast].ed-toast.ed-toast--warning {
-  border-color: color-mix(in oklch, var(--sonner-warning) 55%, var(--sonner-border));
+  --ed-toast-accent: var(--sonner-warning);
 }
 
-[data-sonner-toaster].toaster
-  [data-sonner-toast].ed-toast.ed-toast--warning
-  .ed-toast__icon {
-  color: var(--sonner-warning);
-  background: color-mix(in oklch, var(--sonner-warning) 16%, transparent);
+[data-sonner-toaster].toaster [data-sonner-toast].ed-toast.ed-toast--loading {
+  --ed-toast-accent: var(--sonner-info);
 }
 
 [data-sonner-toaster].toaster [data-sonner-toast].ed-toast.ed-toast--loading .ed-toast__icon {
@@ -184,7 +176,26 @@
 }
 
 @media (max-width: 640px) {
+  [data-sonner-toaster].toaster {
+    --width: min(100%, calc(100vw - 1rem));
+  }
+
   [data-sonner-toaster].toaster [data-sonner-toast].ed-toast {
-    padding: 13px 13px 13px 11px;
+    min-height: 50px;
+    padding: 9px 34px 9px 10px;
+  }
+
+  [data-sonner-toaster].toaster [data-sonner-toast].ed-toast .ed-toast__close {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-sonner-toaster].toaster [data-sonner-toast].ed-toast,
+  [data-sonner-toaster].toaster [data-sonner-toast].ed-toast .ed-toast__close,
+  [data-sonner-toaster].toaster [data-sonner-toast].ed-toast .ed-toast__action,
+  [data-sonner-toaster].toaster [data-sonner-toast].ed-toast .ed-toast__cancel {
+    transition: none !important;
   }
 }

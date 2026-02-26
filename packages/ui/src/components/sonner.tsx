@@ -26,25 +26,25 @@ function Toaster({ className, toastOptions, ...props }: ToasterProps) {
       position="bottom-right"
       richColors={false}
       closeButton
-      expand
-      duration={4200}
-      visibleToasts={4}
-      gap={10}
+      expand={false}
+      duration={3200}
+      visibleToasts={3}
+      gap={8}
       offset={20}
-      mobileOffset={14}
+      mobileOffset={12}
       icons={{
-        success: <CheckCircle2 className="size-4" />,
-        error: <CircleX className="size-4" />,
-        warning: <CircleAlert className="size-4" />,
-        info: <Info className="size-4" />,
-        loading: <Loader2 className="size-4 animate-spin" />,
-        close: <X className="size-3.5" />,
+        success: <CheckCircle2 className="size-[18px]" />,
+        error: <CircleX className="size-[18px]" />,
+        warning: <CircleAlert className="size-[18px]" />,
+        info: <Info className="size-[18px]" />,
+        loading: <Loader2 className="size-[18px] animate-spin" />,
+        close: <X className="size-4" />,
       }}
       toastOptions={{
         ...toastOptions,
         classNames: {
           toast:
-            "ed-toast group pointer-events-auto select-none rounded-2xl border shadow-none",
+            "ed-toast group relative overflow-hidden pointer-events-auto select-none rounded-[18px] shadow-none",
           content: "ed-toast__content",
           icon: "ed-toast__icon",
           title: "ed-toast__title",

@@ -7,12 +7,14 @@ interface EdwardAvatarProps {
 
 export const EdwardAvatar = ({ isActive }: EdwardAvatarProps = {}) => (
   <div className="relative shrink-0">
-    <EdwardLogo
-      size={28}
-      quality={68}
-      sizes="(max-width: 640px) 24px, 28px"
-      className="h-6 w-6 sm:h-7 sm:w-7 rounded-lg shadow-sm"
-    />
+    <div className="h-6 w-6 sm:h-7 sm:w-7 rounded-lg overflow-hidden">
+      <EdwardLogo
+        size={28}
+        quality={68}
+        sizes="(max-width: 640px) 24px, 28px"
+        className="h-full w-full rounded-none object-cover scale-[1.2]"
+      />
+    </div>
     {isActive && (
       <m.div
         className="absolute -inset-[2px] sm:-inset-[3px] rounded-[8px] sm:rounded-[10px] border border-sky-500/40 dark:border-sky-400/30"
