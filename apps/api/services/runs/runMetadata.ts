@@ -22,8 +22,8 @@ export interface AgentRunMetadata {
   preVerifiedDeps: string[];
   isFollowUp: boolean;
   intent: ChatAction;
-  historyMessages: LlmChatMessage[];
-  projectContext: string;
+  historyMessages?: LlmChatMessage[];
+  projectContext?: string;
   model?: string;
   traceId?: string;
   resumeCheckpoint?: RunResumeCheckpoint;
@@ -71,17 +71,15 @@ export function parseAgentRunMetadata(input: unknown): AgentRunMetadata {
 
   const intent = ChatActionSchema.parse(input.intent);
 
-  const historyMessagesRaw = input.historyMessages;
-  if (!Array.isArray(historyMessagesRaw)) {
-    throw new Error("Run metadata historyMessages is invalid");
-  }
-
-  if (typeof input.projectContext !== "string") {
-    throw new Error("Run metadata projectContext is invalid");
-  }
-
   const userContent = input.userContent as MessageContent;
-  const historyMessages = historyMessagesRaw as LlmChatMessage[];
+  const historyMessagesRaw = input.historyMessages;
+  const historyMessages = Array.isArray(historyMessagesRaw)
+    ? (historyMessagesRaw as LlmChatMessage[])
+    : undefined;
+  const projectContext =
+    typeof input.projectContext === "string"
+      ? input.projectContext
+      : undefined;
 
   return {
     version: AGENT_RUN_METADATA_VERSION,
@@ -92,7 +90,7 @@ export function parseAgentRunMetadata(input: unknown): AgentRunMetadata {
     isFollowUp: input.isFollowUp,
     intent,
     historyMessages,
-    projectContext: input.projectContext,
+    projectContext,
     model: typeof input.model === "string" ? input.model : undefined,
     traceId: typeof input.traceId === "string" ? input.traceId : undefined,
     resumeCheckpoint: isRecord(input.resumeCheckpoint) &&

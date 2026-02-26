@@ -9,10 +9,13 @@ import {
   Pencil,
 } from "lucide-react";
 import { Button } from "@edward/ui/components/button";
+import { toast } from "@edward/ui/components/sonner";
+import { copyTextToClipboard } from "@edward/ui/lib/clipboard";
 import { cn } from "@edward/ui/lib/utils";
 import { useSandbox } from "@/contexts/sandboxContext";
 import { useChatWorkspaceContext } from "@/components/chat/chatWorkspaceContext";
 import { SubdomainModal } from "@/components/chat/sandbox/subdomain/subdomainModal";
+import { ensureHttpsUrl } from "@/lib/url";
 
 function isSubdomainPreviewUrl(url: string | null): boolean {
   if (!url) return false;
@@ -82,6 +85,9 @@ export function SandboxPreviewBar({
   const { host, route } = formatPreviewUrl(url);
   const canEditSubdomain = Boolean(chatId) && isSubdomainPreviewUrl(url);
   const { subdomain, suffix } = parseSubdomainParts(url);
+  const copyPreviewValue = host
+    ? `https://${host}${route || "/"}`
+    : ensureHttpsUrl(url ?? "");
 
   const handleSaved = useCallback(
     (newUrl: string) => {
@@ -97,6 +103,24 @@ export function SandboxPreviewBar({
   const handleCloseModal = useCallback(() => {
     setIsModalOpen(false);
   }, []);
+
+  const handleCopyPreviewUrl = useCallback(async () => {
+    if (!copyPreviewValue) {
+      return;
+    }
+
+    const copied = await copyTextToClipboard(copyPreviewValue);
+    if (copied) {
+      toast.success("Preview URL copied", {
+        description: copyPreviewValue,
+      });
+      return;
+    }
+
+    toast.error("Copy failed", {
+      description: "Couldn't copy preview URL. Please try again.",
+    });
+  }, [copyPreviewValue]);
 
   return (
     <>
@@ -132,9 +156,15 @@ export function SandboxPreviewBar({
               <div className="flex min-w-0 items-center gap-1 leading-none">
                 {host ? (
                   <div className="flex shrink-0 items-center">
-                    <span className="text-[11px] font-medium text-workspace-foreground/60">
+                    <button
+                      type="button"
+                      onClick={() => void handleCopyPreviewUrl()}
+                      className="max-w-[16rem] truncate rounded-sm text-[11px] font-medium text-workspace-foreground/60 transition-colors hover:text-workspace-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-workspace-accent/50"
+                      aria-label="Copy preview URL"
+                      title={`Copy preview URL: ${copyPreviewValue}`}
+                    >
                       {host}
-                    </span>
+                    </button>
                   </div>
                 ) : null}
                 <span

@@ -75,6 +75,22 @@ export function classifyAssistantError(rawMessage: string): AssistantErrorPresen
   }
 
   if (
+    /\b(503|service unavailable|high demand|temporarily unavailable|try again later|overloaded|capacity)\b/i.test(
+      normalizedMessage,
+    )
+  ) {
+    return {
+      code: "provider_temporarily_unavailable",
+      title: "Provider temporarily unavailable",
+      message:
+        "The model provider is currently under high demand. Wait a moment and retry.",
+      severity: "caution",
+      action: "retry_generation",
+      actionLabel: "Try again",
+    };
+  }
+
+  if (
     /\b(401|403|unauthorized|forbidden|authentication|invalid api key|api key)\b/i.test(
       normalizedMessage,
     )

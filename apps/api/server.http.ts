@@ -10,6 +10,7 @@ import {
   shutdownSandboxService,
 } from "./services/sandbox/lifecycle/control.js";
 import { redis } from "./lib/redis.js";
+import { shutdownRedisPubSub } from "./lib/redisPubSub.js";
 import { apiKeyRouter } from "./routes/apiKey.routes.js";
 import { chatRouter } from "./routes/chat.routes.js";
 import { githubRouter } from "./routes/github.routes.js";
@@ -26,6 +27,7 @@ import {
 } from "./utils/constants.js";
 import { ensureError } from "./utils/error.js";
 import { config } from "./app.config.js";
+import { ensureChatSeoColumns } from "./services/db/schemaCompatibility.service.js";
 
 const PORT = config.server.port;
 const ENV = config.server.environment as Environment;
@@ -35,6 +37,26 @@ const ALLOWED_ORIGINS = config.cors.origins;
 
 const logger = createLogger("API");
 const app = express();
+const processHandlerState = globalThis as typeof globalThis & {
+  __edwardProcessHandlers?: Map<string, (...args: unknown[]) => void>;
+};
+
+function registerProcessHandlerOnce(
+  key: string,
+  event: "SIGINT" | "SIGTERM" | "uncaughtException" | "unhandledRejection",
+  handler: (...args: unknown[]) => void,
+): void {
+  const registry = processHandlerState.__edwardProcessHandlers ?? new Map();
+  processHandlerState.__edwardProcessHandlers = registry;
+
+  const existing = registry.get(key);
+  if (existing) {
+    process.off(event, existing as never);
+  }
+
+  process.on(event, handler as never);
+  registry.set(key, handler);
+}
 
 app.set("trust proxy", config.server.trustProxy);
 
@@ -189,6 +211,7 @@ const serverInstance = app.listen(PORT, async function onServerStarted() {
   );
 
   try {
+    await ensureChatSeoColumns();
     await initSandboxService();
     logger.info("Sandbox Service initialized.");
   } catch (err) {
@@ -212,7 +235,11 @@ async function handleGracefulShutdown(signal: string) {
 
   serverInstance.close(async function onServerClosed() {
     try {
-      await Promise.all([shutdownSandboxService(), redis.quit()]);
+      await Promise.all([
+        shutdownSandboxService(),
+        shutdownRedisPubSub(),
+        redis.quit(),
+      ]);
 
       logger.info("Graceful shutdown successful.");
       clearTimeout(shutdownTimeout);
@@ -224,17 +251,22 @@ async function handleGracefulShutdown(signal: string) {
   });
 }
 
-process.on("SIGINT", () => handleGracefulShutdown("SIGINT"));
-process.on("SIGTERM", () => handleGracefulShutdown("SIGTERM"));
-
-process.on("uncaughtException", (error) => {
-  logger.fatal(error, "Uncaught Exception");
-  Sentry.captureException(error);
-  handleGracefulShutdown("uncaughtException");
+registerProcessHandlerOnce("api:SIGINT", "SIGINT", () => {
+  void handleGracefulShutdown("SIGINT");
 });
 
-process.on("unhandledRejection", (reason) => {
+registerProcessHandlerOnce("api:SIGTERM", "SIGTERM", () => {
+  void handleGracefulShutdown("SIGTERM");
+});
+
+registerProcessHandlerOnce("api:uncaughtException", "uncaughtException", (error) => {
+  logger.fatal(error, "Uncaught Exception");
+  Sentry.captureException(error);
+  void handleGracefulShutdown("uncaughtException");
+});
+
+registerProcessHandlerOnce("api:unhandledRejection", "unhandledRejection", (reason) => {
   logger.fatal({ reason }, "Unhandled Rejection");
   Sentry.captureException(reason);
-  handleGracefulShutdown("unhandledRejection");
+  void handleGracefulShutdown("unhandledRejection");
 });

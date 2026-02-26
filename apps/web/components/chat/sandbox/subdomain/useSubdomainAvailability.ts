@@ -1,12 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import {
-  checkSubdomainAvailability,
-  updateChatSubdomain,
-} from "@/lib/api/subdomain";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "@edward/ui/components/sonner";
+import { copyTextToClipboard } from "@edward/ui/lib/clipboard";
 import { SUBDOMAIN_RESERVED } from "@edward/shared/constants";
+import type { SubdomainAvailabilityResponse } from "@edward/shared/api/contracts";
+import { useSubdomainMutations } from "@/hooks/server-state/useSubdomain";
+import { queryKeys } from "@/lib/queryKeys";
+import { ensureHttpsUrl } from "@/lib/url";
 
 export type AvailabilityState =
   | { status: "idle" }
@@ -49,6 +51,8 @@ export function useSubdomainAvailability({
   onClose,
   onSaved,
 }: UseSubdomainAvailabilityParams) {
+  const queryClient = useQueryClient();
+  const { checkAvailabilityMutation, saveSubdomainMutation } = useSubdomainMutations();
   const inputRef = useRef<HTMLInputElement | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const activeRequestControllerRef = useRef<AbortController | null>(null);
@@ -98,7 +102,18 @@ export function useSubdomainAvailability({
   const runAvailabilityCheck = useCallback(
     async (subdomain: string, requestId: number, signal: AbortSignal) => {
       try {
-        const response = await checkSubdomainAvailability(subdomain, chatId, signal);
+        const queryKey = queryKeys.subdomain.availability(chatId, subdomain);
+        const cachedAvailability =
+          queryClient.getQueryData<SubdomainAvailabilityResponse>(queryKey);
+
+        const response =
+          cachedAvailability ??
+          (await checkAvailabilityMutation.mutateAsync({
+            chatId,
+            subdomain,
+            signal,
+          }));
+
         if (signal.aborted || latestRequestIdRef.current !== requestId) return;
         setAvailability(
           response.data.available
@@ -113,7 +128,7 @@ export function useSubdomainAvailability({
         });
       }
     },
-    [chatId],
+    [chatId, checkAvailabilityMutation, queryClient],
   );
 
   const handleChange = useCallback(
@@ -162,19 +177,35 @@ export function useSubdomainAvailability({
     setSaveError(null);
 
     try {
-      const response = await updateChatSubdomain(chatId, value);
+      const response = await saveSubdomainMutation.mutateAsync({
+        chatId,
+        subdomain: value,
+      });
+      const nextPreviewUrl = ensureHttpsUrl(response.data.previewUrl);
+      const copied = await copyTextToClipboard(nextPreviewUrl);
+
       onClose();
-      onSaved(response.data.previewUrl);
+      onSaved(nextPreviewUrl);
       toast.success("Subdomain updated", {
         description: `${response.data.subdomain}${suffix}`,
       });
+      if (copied) {
+        toast.success("Preview URL copied", {
+          description: nextPreviewUrl,
+        });
+      } else {
+        toast.error("Copy failed", {
+          description: "Couldn't copy preview URL automatically.",
+        });
+      }
     } catch (error) {
       setSaveError(
         error instanceof Error ? error.message : "Failed to save. Please try again.",
       );
+    } finally {
       setIsSaving(false);
     }
-  }, [canSave, chatId, onClose, onSaved, suffix, value]);
+  }, [canSave, chatId, onClose, onSaved, saveSubdomainMutation, suffix, value]);
 
   const handleInputKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLInputElement>) => {

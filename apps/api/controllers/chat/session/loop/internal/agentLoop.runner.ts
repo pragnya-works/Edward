@@ -6,6 +6,10 @@ import {
 import { createStreamParser } from "../../../../../lib/llm/parser.js";
 import { streamResponse } from "../../../../../lib/llm/provider.client.js";
 import {
+  PromptProfile,
+  type PromptProfile as PromptProfileType,
+} from "../../../../../lib/llm/prompts/sections.js";
+import {
   computeTokenUsage,
   isOverContextLimit,
 } from "../../../../../lib/llm/tokens.js";
@@ -27,7 +31,10 @@ import type {
   ChatAction,
   Framework,
 } from "../../../../../services/planning/schemas.js";
-import type { AgentToolResult } from "@edward/shared/streamToolResults";
+import type {
+  AgentToolResult,
+  WebSearchToolResult,
+} from "@edward/shared/streamToolResults";
 import { sendSSEError } from "../../../sse.utils.js";
 import { buildAgentContinuationPrompt } from "../../shared/continuation.js";
 import {
@@ -52,6 +59,7 @@ export interface RunAgentLoopParams {
   framework: Framework | undefined;
   complexity: "simple" | "moderate" | "complex";
   mode: ChatAction;
+  promptProfile?: PromptProfileType;
   model: string | undefined;
   abortController: AbortController;
   userContent: MessageContent;
@@ -88,6 +96,7 @@ export interface RunAgentLoopResult {
   fullRawResponse: string;
   agentTurn: number;
   loopStopReason: AgentLoopStopReason;
+  webSearchResults: WebSearchToolResult[];
   aborted: boolean;
 }
 
@@ -102,6 +111,7 @@ export async function runAgentLoop(
     framework,
     complexity,
     mode,
+    promptProfile = PromptProfile.COMPACT,
     model,
     abortController,
     userContent,
@@ -137,6 +147,7 @@ export async function runAgentLoop(
   let agentTurn = resumeCheckpoint?.turn ?? 0;
   let totalToolCallsInRun = resumeCheckpoint?.totalToolCallsInRun ?? 0;
   let sandboxTagDetected = resumeCheckpoint?.sandboxTagDetected ?? false;
+  const webSearchResults: WebSearchToolResult[] = [];
   let loopStopReason: AgentLoopStopReason = AgentLoopStopReason.NO_TOOL_RESULTS;
 
   agentLoop: while (agentTurn < MAX_AGENT_TURNS) {
@@ -193,6 +204,7 @@ export async function runAgentLoop(
       framework,
       complexity,
       mode,
+      promptProfile,
       model,
     );
 
@@ -239,6 +251,7 @@ export async function runAgentLoop(
         fullRawResponse,
         agentTurn,
         loopStopReason,
+        webSearchResults,
         aborted: true,
       };
     }
@@ -268,6 +281,11 @@ export async function runAgentLoop(
 
     sandboxTagDetected = turnState.sandboxTagDetected;
     totalToolCallsInRun = turnState.totalToolCallsInRun;
+    webSearchResults.push(
+      ...toolResultsThisTurn.filter(
+        (result): result is WebSearchToolResult => result.tool === "web_search",
+      ),
+    );
 
     if (responseSizeExceededThisTurn) {
       loopStopReason = AgentLoopStopReason.RESPONSE_SIZE_EXCEEDED;
@@ -418,6 +436,7 @@ export async function runAgentLoop(
     fullRawResponse,
     agentTurn,
     loopStopReason,
+    webSearchResults,
     aborted: false,
   };
 }

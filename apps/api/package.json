@@ -16,6 +16,7 @@
     "test:watch": "vitest",
     "lint": "eslint . --max-warnings 0",
     "lint:fix": "eslint . --fix",
+    "eval:prompts": "tsx scripts/promptEval.ts",
     "test:coverage": "vitest run --coverage",
     "clean": "rm -rf dist"
   },

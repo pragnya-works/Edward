@@ -23,7 +23,7 @@ export default function ChatPageClient({ chatId }: ChatPageClientProps) {
 
   const { streams } = useChatStream();
   const { setActiveChatId, resumeRunStream } = useChatStreamActions();
-  const { isOpen: sandboxOpen, openSandbox } = useSandbox();
+  const { isOpen: sandboxOpen, openSandbox, setRouteChatId } = useSandbox();
 
   const stream =
     streams[chatId] ??
@@ -69,6 +69,7 @@ export default function ChatPageClient({ chatId }: ChatPageClientProps) {
     activeRunLookupMode,
     sandboxOpen,
     openSandbox,
+    setRouteChatId,
     setActiveChatId,
     resumeRunStream,
   });

@@ -14,6 +14,35 @@ export type RunState =
   | "FAILED"
   | "CANCELLED";
 
+export const RUN_STATUS = {
+  QUEUED: "queued",
+  RUNNING: "running",
+  COMPLETED: "completed",
+  FAILED: "failed",
+  CANCELLED: "cancelled",
+} as const satisfies Record<string, RunStatus>;
+
+export const ACTIVE_RUN_STATUSES: RunStatus[] = [
+  RUN_STATUS.QUEUED,
+  RUN_STATUS.RUNNING,
+];
+export const TERMINAL_RUN_STATUSES: RunStatus[] = [
+  RUN_STATUS.COMPLETED,
+  RUN_STATUS.FAILED,
+  RUN_STATUS.CANCELLED,
+];
+
+const ACTIVE_RUN_STATUS_SET = new Set<RunStatus>(ACTIVE_RUN_STATUSES);
+const TERMINAL_RUN_STATUS_SET = new Set<RunStatus>(TERMINAL_RUN_STATUSES);
+
+export function isActiveRunStatus(status: RunStatus): boolean {
+  return ACTIVE_RUN_STATUS_SET.has(status);
+}
+
+export function isTerminalRunStatus(status: RunStatus): boolean {
+  return TERMINAL_RUN_STATUS_SET.has(status);
+}
+
 interface CreateRunInput {
   chatId: string;
   userId: string;
@@ -77,7 +106,7 @@ export async function createRunWithUserLimit(
     const [globalActiveCountResult] = await tx
       .select({ value: count() })
       .from(run)
-      .where(inArray(run.status, ["queued", "running"]));
+      .where(inArray(run.status, ACTIVE_RUN_STATUSES));
 
     const globalActiveRuns = Number(globalActiveCountResult?.value ?? 0);
     if (globalActiveRuns >= limits.maxActiveRunsGlobal) {
@@ -90,7 +119,7 @@ export async function createRunWithUserLimit(
       .where(
         and(
           eq(run.userId, data.userId),
-          inArray(run.status, ["queued", "running"]),
+          inArray(run.status, ACTIVE_RUN_STATUSES),
         ),
       );
 
@@ -105,7 +134,7 @@ export async function createRunWithUserLimit(
       .where(
         and(
           eq(run.chatId, data.chatId),
-          inArray(run.status, ["queued", "running"]),
+          inArray(run.status, ACTIVE_RUN_STATUSES),
         ),
       );
 
@@ -124,7 +153,7 @@ export async function createRunWithUserLimit(
         userMessageId: data.userMessageId,
         assistantMessageId: data.assistantMessageId,
         metadata: data.metadata ?? null,
-        status: "queued",
+        status: RUN_STATUS.QUEUED,
         state: "INIT",
       })
       .returning();

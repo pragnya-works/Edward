@@ -124,6 +124,9 @@ export function createResumeRunStream({
             queryKey: queryKeys.chatHistory.byChatId(resolvedChatId),
           });
           void queryClient.invalidateQueries({
+            queryKey: queryKeys.activeRun.byChatId(resolvedChatId),
+          });
+          void queryClient.invalidateQueries({
             queryKey: queryKeys.recentChats.all,
           });
 

@@ -79,6 +79,10 @@ export const MODULE_ERROR_PATTERNS: ModuleErrorPattern[] = [
     type: "network",
   },
   {
+    regex: /(eisdir|illegal operation on a directory)/gi,
+    type: "config",
+  },
+  {
     regex: /(enospc|no\s+space\s+left)/gi,
     type: "resource",
     severity: "critical",

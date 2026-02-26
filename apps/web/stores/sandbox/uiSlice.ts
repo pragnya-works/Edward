@@ -13,17 +13,41 @@ export const createSandboxUiSlice: StateCreator<
   [],
   SandboxUiSlice
 > = (set) => ({
-  openSandbox: () =>
-    set((state) => ({
-      isOpen: true,
-      mode:
-        state.buildStatus === BuildStatus.SUCCESS && Boolean(state.previewUrl)
-          ? SandboxMode.PREVIEW
-          : state.mode,
-    })),
-  closeSandbox: () => set({ isOpen: false }),
-  toggleSandbox: () =>
+  setRouteChatId: (chatId) =>
     set((state) => {
+      if (state.routeChatId === chatId) {
+        return {};
+      }
+
+      return {
+        routeChatId: chatId,
+        isOpen: false,
+        isSearchOpen: false,
+        terminalEntries: [],
+        isTerminalOpen: true,
+      };
+    }),
+  openSandbox: (chatId) =>
+    set((state) => {
+      if (chatId && state.routeChatId !== chatId) {
+        return {};
+      }
+
+      return {
+        isOpen: true,
+        mode:
+          state.buildStatus === BuildStatus.SUCCESS && Boolean(state.previewUrl)
+            ? SandboxMode.PREVIEW
+            : state.mode,
+      };
+    }),
+  closeSandbox: () => set({ isOpen: false }),
+  toggleSandbox: (chatId) =>
+    set((state) => {
+      if (chatId && state.routeChatId !== chatId) {
+        return {};
+      }
+
       const isOpening = !state.isOpen;
       return {
         isOpen: isOpening,

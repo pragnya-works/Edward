@@ -23,6 +23,7 @@ import { buildAndUploadUnified } from "./services/sandbox/builder/unified.build.
 import { backupSandboxInstance } from "./services/sandbox/backup.service.js";
 import { getSandboxState } from "./services/sandbox/state.service.js";
 import { createBuild, updateBuild } from "@edward/auth";
+import { BuildRecordStatus } from "@edward/shared/api/contracts";
 import { enqueueBackupJob } from "./services/queue/enqueue.js";
 import { createRedisClient } from "./lib/redis.js";
 import { createErrorReport } from "./services/diagnostics/errorReport.js";
@@ -32,6 +33,26 @@ import { reapStaleRuns } from "./services/runs/staleRunReaper.service.js";
 
 const logger = createLogger("WORKER");
 const pubClient = createRedisClient();
+const processHandlerState = globalThis as typeof globalThis & {
+  __edwardProcessHandlers?: Map<string, (...args: unknown[]) => void>;
+};
+
+function registerProcessHandlerOnce(
+  key: string,
+  event: "SIGINT" | "SIGTERM",
+  handler: (...args: unknown[]) => void,
+): void {
+  const registry = processHandlerState.__edwardProcessHandlers ?? new Map();
+  processHandlerState.__edwardProcessHandlers = registry;
+
+  const existing = registry.get(key);
+  if (existing) {
+    process.off(event, existing as never);
+  }
+
+  process.on(event, handler as never);
+  registry.set(key, handler);
+}
 
 async function createErrorReportIfPossible(
   sandboxId: string,
@@ -85,11 +106,11 @@ async function processBuildJob(payload: BuildJobPayload): Promise<void> {
     : await createBuild({
         chatId,
         messageId,
-        status: "queued",
+        status: BuildRecordStatus.QUEUED,
       });
 
   await updateBuild(buildRecord.id, {
-    status: "building",
+    status: BuildRecordStatus.BUILDING,
   });
 
   await pubClient.publish(
@@ -97,7 +118,7 @@ async function processBuildJob(payload: BuildJobPayload): Promise<void> {
     JSON.stringify({
       buildId: buildRecord.id,
       runId: correlationRunId,
-      status: "building",
+      status: BuildRecordStatus.BUILDING,
     }),
   );
 
@@ -120,7 +141,7 @@ async function processBuildJob(payload: BuildJobPayload): Promise<void> {
 
     if (result.success) {
       await updateBuild(buildRecord.id, {
-        status: "success",
+        status: BuildRecordStatus.SUCCESS,
         previewUrl: result.previewUrl,
         buildDuration: duration,
       });
@@ -130,7 +151,7 @@ async function processBuildJob(payload: BuildJobPayload): Promise<void> {
         JSON.stringify({
           buildId: buildRecord.id,
           runId: correlationRunId,
-          status: "success",
+          status: BuildRecordStatus.SUCCESS,
           previewUrl: result.previewUrl,
         }),
       );
@@ -159,7 +180,7 @@ async function processBuildJob(payload: BuildJobPayload): Promise<void> {
       );
 
       await updateBuild(buildRecord.id, {
-        status: "failed",
+        status: BuildRecordStatus.FAILED,
         errorReport: errorReport as Record<string, unknown> | null,
         buildDuration: duration,
       } as Parameters<typeof updateBuild>[1]);
@@ -169,7 +190,7 @@ async function processBuildJob(payload: BuildJobPayload): Promise<void> {
         JSON.stringify({
           buildId: buildRecord.id,
           runId: correlationRunId,
-          status: "failed",
+          status: BuildRecordStatus.FAILED,
           errorReport,
         }),
       );
@@ -209,7 +230,7 @@ async function processBuildJob(payload: BuildJobPayload): Promise<void> {
       const { errorReport } = await createErrorReportIfPossible(sandboxId, err);
 
       await updateBuild(buildRecord.id, {
-        status: "failed",
+        status: BuildRecordStatus.FAILED,
         errorReport: errorReport as Record<string, unknown> | null,
       } as Parameters<typeof updateBuild>[1]).catch(() => {});
 
@@ -219,7 +240,7 @@ async function processBuildJob(payload: BuildJobPayload): Promise<void> {
           JSON.stringify({
             buildId: buildRecord.id,
             runId: correlationRunId,
-            status: "failed",
+            status: BuildRecordStatus.FAILED,
             errorReport,
           }),
         )
@@ -355,8 +376,12 @@ async function gracefulShutdown() {
   process.exit(0);
 }
 
-process.on("SIGINT", gracefulShutdown);
-process.on("SIGTERM", gracefulShutdown);
+registerProcessHandlerOnce("worker:SIGINT", "SIGINT", () => {
+  void gracefulShutdown();
+});
+registerProcessHandlerOnce("worker:SIGTERM", "SIGTERM", () => {
+  void gracefulShutdown();
+});
 
 logger.info(
   {

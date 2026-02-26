@@ -8,6 +8,7 @@ import type {
   AllowedImageMimeType,
   ValidatedImage,
 } from "../../utils/imageValidation/types.js";
+import { buildAttachedImageUrlContextFromImages } from "../../utils/imageContext.js";
 import { normalizeUserMessageText } from "../../utils/userMessageText.js";
 import type { MessageContentPart } from "../../schemas/chat.schema.js";
 import type { ImageAttachment } from "../chat.service.js";
@@ -100,6 +101,11 @@ export function buildMultimodalContentForLLM(
 
   if (textContent) {
     parts.push({ type: "text", text: textContent });
+  }
+
+  const imageUrlContext = buildAttachedImageUrlContextFromImages(images);
+  if (imageUrlContext) {
+    parts.push({ type: "text", text: imageUrlContext });
   }
 
   for (const image of images) {

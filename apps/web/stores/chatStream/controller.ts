@@ -6,7 +6,7 @@ import {
   useMemo,
   useRef,
 } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { MetaEvent } from "@edward/shared/streamEvents";
 import {
   INITIAL_STREAM_STATE,
@@ -33,6 +33,7 @@ import {
 import {
   useStartStream,
 } from "@/stores/chatStream/useStartStream";
+import { queryKeys } from "@/lib/queryKeys";
 import type { StartStreamOptions } from "@/stores/chatStream/startStreamShared";
 import {
   StreamActionType,
@@ -72,6 +73,10 @@ export function useChatStreamController(): UseChatStreamControllerResult {
     (state) => state.dispatchStreamAction,
   );
   const queryClient = useQueryClient();
+  const cancelRunMutation = useMutation({
+    mutationFn: ({ chatId, runId }: { chatId: string; runId: string }) =>
+      cancelRun(chatId, runId),
+  });
 
   const abortControllersRef = useRef<Map<string, AbortControllerEntry>>(new Map());
   const latestMutationByChatRef = useRef<Map<string, string>>(new Map());
@@ -127,7 +132,10 @@ export function useChatStreamController(): UseChatStreamControllerResult {
       const realChatId = streamState?.meta?.chatId ?? chatId;
 
       if (runId && realChatId) {
-        void cancelRun(realChatId, runId);
+        void cancelRunMutation.mutateAsync({ chatId: realChatId, runId });
+        void queryClient.invalidateQueries({
+          queryKey: queryKeys.activeRun.byChatId(realChatId),
+        });
       }
 
       const entry = abortControllersRef.current.get(chatId);
@@ -138,7 +146,7 @@ export function useChatStreamController(): UseChatStreamControllerResult {
 
       dispatch({ type: StreamActionType.STOP_STREAMING, chatId });
     },
-    [dispatch],
+    [cancelRunMutation, dispatch, queryClient],
   );
 
   const getStreamForChat = useCallback(

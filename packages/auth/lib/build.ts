@@ -2,11 +2,12 @@ import { db } from "./db.js";
 import { build } from "./schema.js";
 import { eq, desc } from "drizzle-orm";
 import { nanoid } from "nanoid";
+import { BuildRecordStatus } from "@edward/shared/api/contracts";
 
 export async function createBuild(data: {
   chatId: string;
   messageId: string;
-  status?: "queued" | "building" | "success" | "failed";
+  status?: BuildRecordStatus;
 }) {
   const existing = await db.query.build.findFirst({
     where: eq(build.messageId, data.messageId),
@@ -29,7 +30,7 @@ export async function createBuild(data: {
           id,
           chatId: data.chatId,
           messageId: data.messageId,
-          status: data.status || "queued",
+          status: data.status || BuildRecordStatus.QUEUED,
         })
         .returning();
       return result[0];
@@ -49,7 +50,7 @@ export async function createBuild(data: {
 export async function updateBuild(
   id: string,
   data: Partial<{
-    status: "queued" | "building" | "success" | "failed";
+    status: BuildRecordStatus;
     errorReport: Record<string, unknown> | null;
     previewUrl: string | null;
     buildDuration: number | null;

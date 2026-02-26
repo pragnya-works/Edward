@@ -9,6 +9,33 @@ function escapeHtmlAttribute(value: string): string {
     .replaceAll(">", "&gt;");
 }
 
+function encodeBase64Utf8(value: string): string | null {
+  if (typeof globalThis.btoa !== "function") {
+    return null;
+  }
+
+  try {
+    const bytes = new TextEncoder().encode(value);
+    let binary = "";
+    const chunkSize = 0x8000;
+    for (let index = 0; index < bytes.length; index += chunkSize) {
+      const slice = bytes.subarray(index, index + chunkSize);
+      binary += String.fromCharCode(...slice);
+    }
+    return globalThis.btoa(binary);
+  } catch {
+    return null;
+  }
+}
+
+function encodeBase64Json(value: unknown): string | null {
+  try {
+    return encodeBase64Utf8(JSON.stringify(value));
+  } catch {
+    return null;
+  }
+}
+
 export function buildMessageFromStream(
   stream: StreamState,
   meta: MetaEvent,
@@ -42,8 +69,30 @@ export function buildMessageFromStream(
       typeof webSearch.maxResults === "number"
         ? ` max_results="${webSearch.maxResults}"`
         : "";
+    const answerAttr = webSearch.answer
+      ? (() => {
+          const payload = encodeBase64Json(webSearch.answer);
+          return payload ? ` answer_b64="${payload}"` : "";
+        })()
+      : "";
+    const errorAttr = webSearch.error
+      ? (() => {
+          const payload = encodeBase64Json(webSearch.error);
+          return payload ? ` error_b64="${payload}"` : "";
+        })()
+      : "";
+    const resultsAttr =
+      webSearch.results && webSearch.results.length > 0
+        ? (() => {
+            const payload = encodeBase64Json(webSearch.results);
+            if (!payload) {
+              return "";
+            }
+            return ` results_b64="${payload}" result_count="${webSearch.results!.length}"`;
+          })()
+        : "";
     contentParts.push(
-      `<edward_web_search query="${query}"${maxResultsAttr} />`,
+      `<edward_web_search query="${query}"${maxResultsAttr}${answerAttr}${errorAttr}${resultsAttr} />`,
     );
   }
   if (stream.streamingText) {

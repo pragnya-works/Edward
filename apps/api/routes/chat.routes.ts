@@ -5,6 +5,7 @@ import {
 import { unifiedSendMessage } from "../controllers/chat/message.controller.js";
 import {
   getChatHistory,
+  getChatMeta,
   deleteChat,
   getRecentChats,
 } from "../controllers/chat/query/history.controller.js";
@@ -38,6 +39,7 @@ import {
 import {
   chatRateLimiter,
   dailyChatRateLimiter,
+  imageUploadRateLimiter,
 } from "../middleware/rateLimit.js";
 import { IMAGE_UPLOAD_CONFIG } from "@edward/shared/constants";
 
@@ -45,7 +47,7 @@ export const chatRouter: ExpressRouter = Router();
 
 chatRouter.post(
   "/image-upload",
-  chatRateLimiter,
+  imageUploadRateLimiter,
   express.raw({
     type: [...IMAGE_UPLOAD_CONFIG.ALLOWED_MIME_TYPES],
     limit: `${IMAGE_UPLOAD_CONFIG.MAX_SIZE_BYTES / (1024 * 1024)}mb`,
@@ -67,6 +69,11 @@ chatRouter.get(
   "/:chatId/history",
   validateRequest(GetChatHistoryRequestSchema),
   getChatHistory,
+);
+chatRouter.get(
+  "/:chatId/meta",
+  validateRequest(GetChatHistoryRequestSchema),
+  getChatMeta,
 );
 chatRouter.get(
   "/:chatId/build-status",

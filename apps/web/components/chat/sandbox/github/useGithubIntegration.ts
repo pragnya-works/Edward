@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "@edward/ui/components/sonner";
-import { getGithubRepoStatus } from "@/lib/api/github";
 import type { GithubRepoStatusData } from "@edward/shared/github/types";
+import {
+  useGithubIntegrationMutations,
+  useGithubRepoStatus,
+} from "@/hooks/server-state/useGithub";
 import {
   buildDefaultBranchName,
   buildDefaultCommitMessage,
@@ -96,7 +99,6 @@ export function useGithubIntegration({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isCheckingStatus, setIsCheckingStatus] = useState(false);
   const [repoStatus, setRepoStatus] = useState<GithubRepoStatusData | null>(null);
   const initializedChatIdRef = useRef<string | null>(null);
   const isGithubFlowInFlightRef = useRef(false);
@@ -114,6 +116,19 @@ export function useGithubIntegration({
   }, [githubBurstRateLimit, githubDailyRateLimit]);
 
   const isGithubRateLimited = activeGithubRateLimit !== null;
+  const {
+    data: githubStatusData,
+    isFetching: isCheckingStatus,
+    refetch: refetchGithubStatus,
+  } = useGithubRepoStatus(
+    normalizedChatId,
+    !isGithubRateLimited,
+  );
+  const {
+    connectRepoMutation,
+    createBranchMutation,
+    syncRepoMutation,
+  } = useGithubIntegrationMutations(normalizedChatId);
   const githubRateLimitMessage = useMemo(() => {
     if (!activeGithubRateLimit) {
       return null;
@@ -281,15 +296,24 @@ export function useGithubIntegration({
       if (isGithubRateLimited) {
         return null;
       }
-
-      if (!options?.silent) {
-        setIsCheckingStatus(true);
-      }
-
       try {
-        const statusResponse = await getGithubRepoStatus(normalizedChatId);
-        applyRepoStatus(statusResponse.data, options);
-        return statusResponse.data;
+        const queryResult = await refetchGithubStatus();
+        if (queryResult.error) {
+          if (!options?.silent) {
+            const message = getErrorMessage(queryResult.error);
+            toast.error("Failed to check GitHub status", {
+              id: getGithubToastId(normalizedChatId),
+              description: message,
+            });
+          }
+          return null;
+        }
+        const statusData = queryResult.data?.data;
+        if (!statusData) {
+          return null;
+        }
+        applyRepoStatus(statusData, options);
+        return statusData;
       } catch (error) {
         if (!options?.silent) {
           const message = getErrorMessage(error);
@@ -299,28 +323,32 @@ export function useGithubIntegration({
           });
         }
         return null;
-      } finally {
-        if (!options?.silent) {
-          setIsCheckingStatus(false);
-        }
       }
     },
-    [normalizedChatId, applyRepoStatus, isGithubRateLimited],
+    [
+      normalizedChatId,
+      isGithubRateLimited,
+      refetchGithubStatus,
+      applyRepoStatus,
+    ],
   );
 
   useEffect(() => {
-    if (!normalizedChatId) {
+    const queryStatus = githubStatusData?.data;
+    if (!queryStatus) {
       return;
     }
-    void refreshGithubStatus({ silent: true });
-  }, [normalizedChatId, refreshGithubStatus]);
+    applyRepoStatus(queryStatus, { silent: true });
+  }, [applyRepoStatus, githubStatusData]);
 
   useEffect(() => {
     if (!isModalOpen || !normalizedChatId) {
       return;
     }
-    void refreshGithubStatus({ silent: true });
-  }, [isModalOpen, normalizedChatId, refreshGithubStatus]);
+    if (!githubStatusData?.data) {
+      void refreshGithubStatus({ silent: true });
+    }
+  }, [githubStatusData?.data, isModalOpen, normalizedChatId, refreshGithubStatus]);
 
   const handleRunGithubFlow = useCallback(async function handleRunGithubFlow() {
     if (isGithubRateLimited) {
@@ -344,6 +372,9 @@ export function useGithubIntegration({
         normalizedRepoInput,
         refreshGithubStatus,
         resolvedBaseBranch,
+        connectRepo: connectRepoMutation.mutateAsync,
+        createBranch: createBranchMutation.mutateAsync,
+        syncRepo: syncRepoMutation.mutateAsync,
         setConnectedRepo,
         setErrorMessage,
         setIsModalOpen,
@@ -364,6 +395,9 @@ export function useGithubIntegration({
     normalizedCommitMessage,
     refreshGithubStatus,
     resolvedBaseBranch,
+    connectRepoMutation.mutateAsync,
+    createBranchMutation.mutateAsync,
+    syncRepoMutation.mutateAsync,
     showRepoDisconnectedToast,
   ]);
 

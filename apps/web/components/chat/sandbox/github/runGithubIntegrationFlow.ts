@@ -1,14 +1,16 @@
 import { GithubDisconnectReason } from "@edward/shared/constants";
 import { toast } from "@edward/ui/components/sonner";
-import {
-  connectGithubRepo,
-  createGithubBranch,
-  syncGithubRepo,
-} from "@/lib/api/github";
 import type {
   ConnectGithubPayload,
   GithubRepoStatusData,
+  CreateGithubBranchPayload,
+  SyncGithubPayload,
 } from "@edward/shared/github/types";
+import type {
+  ConnectGithubResponse,
+  CreateGithubBranchResponse,
+  SyncGithubResponse,
+} from "@edward/shared/api/contracts";
 import {
   getBranchNameValidationError,
   getErrorMessage,
@@ -27,6 +29,11 @@ interface RunGithubIntegrationFlowParams {
     options?: { silent?: boolean },
   ) => Promise<GithubRepoStatusData | null>;
   resolvedBaseBranch: string;
+  connectRepo: (payload: ConnectGithubPayload) => Promise<ConnectGithubResponse>;
+  createBranch: (
+    payload: CreateGithubBranchPayload,
+  ) => Promise<CreateGithubBranchResponse>;
+  syncRepo: (payload: SyncGithubPayload) => Promise<SyncGithubResponse>;
   setConnectedRepo: (value: string | null) => void;
   setErrorMessage: (value: string | null) => void;
   setIsModalOpen: (value: boolean) => void;
@@ -79,6 +86,9 @@ export async function runGithubIntegrationFlow({
   normalizedRepoInput,
   refreshGithubStatus,
   resolvedBaseBranch,
+  connectRepo,
+  createBranch,
+  syncRepo,
   setConnectedRepo,
   setErrorMessage,
   setIsModalOpen,
@@ -127,7 +137,7 @@ export async function runGithubIntegrationFlow({
         normalizedChatId,
         effectiveRepoInput,
       );
-      const connectResponse = await connectGithubRepo(connectPayload);
+      const connectResponse = await connectRepo(connectPayload);
       resolvedRepo = connectResponse.data.repoFullName;
       effectiveBaseBranch =
         connectResponse.data.defaultBranch?.trim() || effectiveBaseBranch;
@@ -149,13 +159,13 @@ export async function runGithubIntegrationFlow({
       });
     }
 
-    await createGithubBranch({
+    await createBranch({
       chatId: normalizedChatId,
       branchName: normalizedBranchInput,
       baseBranch: effectiveBaseBranch,
     });
 
-    const syncResponse = await syncGithubRepo({
+    const syncResponse = await syncRepo({
       chatId: normalizedChatId,
       branch: normalizedBranchInput,
       commitMessage: normalizedCommitMessage,

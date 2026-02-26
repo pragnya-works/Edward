@@ -24,7 +24,6 @@ import {
   createWorkflow,
   advanceWorkflow,
 } from "../planning/workflow/engine.js";
-import { buildConversationMessages, type LlmChatMessage } from "../../lib/llm/context.js";
 import { ChatAction } from "../planning/schemas.js";
 import { modelSupportsVision } from "@edward/shared/schema";
 import { ParserEventType } from "@edward/shared/streamEvents";
@@ -256,16 +255,6 @@ export async function unifiedSendMessage(
       mode: intent,
     });
 
-    let historyMessages: LlmChatMessage[] = [];
-    let projectContext = "";
-    if (isFollowUp) {
-      const ctx = await buildConversationMessages(chatId, {
-        excludeMessageIds: userMessageId ? [userMessageId] : [],
-      });
-      historyMessages = ctx.history;
-      projectContext = ctx.projectContext;
-    }
-
     await advanceWorkflow(
       workflow,
       parsedContent.textContent || "[Image message]",
@@ -290,8 +279,6 @@ export async function unifiedSendMessage(
       preVerifiedDeps,
       isFollowUp,
       intent: intent ?? ChatAction.GENERATE,
-      historyMessages,
-      projectContext,
       model: selectedModel,
       traceId,
     });

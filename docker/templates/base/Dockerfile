@@ -1,4 +1,4 @@
-FROM node:20-slim
+FROM node:22-slim
 
 # Install pnpm and basic tooling
 RUN npm install -g pnpm && \
@@ -11,6 +11,7 @@ WORKDIR /home/node/edward
 
 # Configure pnpm store
 RUN pnpm config set store-dir /home/node/.local/share/pnpm/store --global && \
+    pnpm config set engine-strict true --global && \
     mkdir -p /home/node/.local/share/pnpm/store
 
 # Set ownership

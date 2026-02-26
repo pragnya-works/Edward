@@ -28,6 +28,48 @@ function isSameWebSearch(
   return JSON.stringify(a) === JSON.stringify(b);
 }
 
+function hasWebSearchPayload(
+  event: NonNullable<StreamState["webSearches"][number]>,
+): boolean {
+  return Boolean(
+    event.error ||
+      event.answer ||
+      (event.results && event.results.length > 0),
+  );
+}
+
+function mergeWebSearchEvent(
+  existing: StreamState["webSearches"],
+  incoming: NonNullable<StreamState["webSearches"][number]>,
+): StreamState["webSearches"] {
+  const last = existing[existing.length - 1];
+  if (!last) {
+    return [incoming];
+  }
+
+  if (isSameWebSearch(last, incoming)) {
+    return existing;
+  }
+
+  if (
+    last.query === incoming.query &&
+    !hasWebSearchPayload(last) &&
+    hasWebSearchPayload(incoming)
+  ) {
+    return [...existing.slice(0, -1), incoming];
+  }
+
+  if (
+    last.query === incoming.query &&
+    !hasWebSearchPayload(last) &&
+    !hasWebSearchPayload(incoming)
+  ) {
+    return existing;
+  }
+
+  return [...existing, incoming];
+}
+
 function isSameUrlScrape(
   a: NonNullable<StreamState["urlScrapes"][number]>,
   b: NonNullable<StreamState["urlScrapes"][number]>,
@@ -143,14 +185,10 @@ export function streamReducer(
     case StreamActionType.SET_WEB_SEARCH:
       return setStream(state, action.chatId, {
         ...getStream(state, action.chatId),
-        webSearches: (() => {
-          const existing = getStream(state, action.chatId).webSearches;
-          const last = existing[existing.length - 1];
-          if (last && isSameWebSearch(last, action.webSearch)) {
-            return existing;
-          }
-          return [...existing, action.webSearch];
-        })(),
+        webSearches: mergeWebSearchEvent(
+          getStream(state, action.chatId).webSearches,
+          action.webSearch,
+        ),
       });
     case StreamActionType.SET_URL_SCRAPE:
       return setStream(state, action.chatId, {

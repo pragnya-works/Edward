@@ -5,13 +5,11 @@ import {
   useRef,
   useState,
 } from "react";
+import type { StreamedFile } from "@edward/shared/chat/types";
 import {
   BuildStatus,
   SandboxMode,
 } from "@/stores/sandbox/types";
-import {
-  getSandboxFiles,
-} from "@/lib/api/build";
 import {
   connectBuildEvents,
   closeBuildEvents as closeBuildEventsTransport,
@@ -26,6 +24,7 @@ import {
 import {
   pollBuildStatusForChat,
 } from "@/hooks/chat/sandbox-sync/buildSyncPolling";
+import { useSandboxDataFetchers } from "@/hooks/server-state/useSandboxData";
 
 export function useSandboxBuildSync({
   chatIdFromUrl,
@@ -37,17 +36,23 @@ export function useSandboxBuildSync({
   openSandbox,
   closeSandbox,
   setMode,
+  setActiveFile,
   setPreviewUrl,
   setBuildStatus,
   setBuildError,
   setFullErrorReport,
 }: UseSandboxBuildSyncParams): void {
+  const { fetchSandboxFiles, fetchBuildStatus } = useSandboxDataFetchers(
+    chatIdFromUrl,
+  );
   const pollAttemptsRef = useRef(0);
   const pollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const loadedChatIdRef = useRef<string | null>(null);
   const activeRouteChatIdRef = useRef<string | null>(null);
   const routeEpochRef = useRef(0);
   const filesRequestSeqRef = useRef(0);
+  const filesLoadInFlightChatIdRef = useRef<string | null>(null);
+  const filesLoadRequestedChatIdRef = useRef<string | null>(null);
   const lastPolledChatIdRef = useRef<string | null>(null);
   const isPollingInFlightRef = useRef(false);
   const buildEventsSourceRef = useRef<EventSource | null>(null);
@@ -64,20 +69,79 @@ export function useSandboxBuildSync({
     );
   }, []);
 
+  const mergeFetchedFilesWithStreamFiles = useCallback(
+    (
+      fetchedFiles: Array<{ path: string; content: string; isComplete: boolean }>,
+      streamFiles: {
+        activeFiles: StreamedFile[];
+        completedFiles: StreamedFile[];
+      },
+    ): Array<{ path: string; content: string; isComplete: boolean }> => {
+      const byPath = new Map<
+        string,
+        { path: string; content: string; isComplete: boolean }
+      >();
+
+      for (const file of fetchedFiles) {
+        byPath.set(file.path, file);
+      }
+
+      for (const file of streamFiles.completedFiles) {
+        byPath.set(file.path, {
+          path: file.path,
+          content: file.content,
+          isComplete: true,
+        });
+      }
+
+      for (const file of streamFiles.activeFiles) {
+        byPath.set(file.path, {
+          path: file.path,
+          content: file.content,
+          isComplete: false,
+        });
+      }
+
+      return Array.from(byPath.values());
+    },
+    [],
+  );
+
   const loadAllSandboxFiles = useCallback(
-    async (chatId: string) => {
+    async (
+      chatId: string,
+      streamFiles: {
+        activeFiles: StreamedFile[];
+        completedFiles: StreamedFile[];
+      },
+    ) => {
+      if (filesLoadInFlightChatIdRef.current === chatId) {
+        return;
+      }
+
       const epoch = routeEpochRef.current;
       const requestSeq = ++filesRequestSeqRef.current;
+      filesLoadInFlightChatIdRef.current = chatId;
 
       try {
-        const response = await getSandboxFiles(chatId);
+        const response = await fetchSandboxFiles({
+          chatId,
+          force: true,
+        });
+        if (!response) {
+          return;
+        }
         const { files } = response.data;
         if (
           requestSeq === filesRequestSeqRef.current &&
           isCurrentRoute(chatId, epoch)
         ) {
+          const mergedFiles = mergeFetchedFilesWithStreamFiles(
+            files ?? [],
+            streamFiles,
+          );
           loadedChatIdRef.current = chatId;
-          setFiles(files ?? []);
+          setFiles(mergedFiles);
         }
       } catch (error) {
         if (
@@ -86,9 +150,18 @@ export function useSandboxBuildSync({
         ) {
           console.error("Failed to load sandbox files:", error);
         }
+      } finally {
+        if (filesLoadInFlightChatIdRef.current === chatId) {
+          filesLoadInFlightChatIdRef.current = null;
+        }
       }
     },
-    [isCurrentRoute, setFiles],
+    [
+      fetchSandboxFiles,
+      isCurrentRoute,
+      mergeFetchedFilesWithStreamFiles,
+      setFiles,
+    ],
   );
 
   const applyBuildStatus = useCallback(
@@ -153,6 +226,8 @@ export function useSandboxBuildSync({
     pushConnectedRef.current = false;
     pushTerminalRef.current = false;
     buildInFlightRef.current = false;
+    filesLoadInFlightChatIdRef.current = null;
+    filesLoadRequestedChatIdRef.current = null;
     pollAttemptsRef.current = 0;
     setSseErrorCount(0);
 
@@ -214,6 +289,7 @@ export function useSandboxBuildSync({
         epoch: routeEpochRef.current,
         isCurrentRoute,
         pollBuildStatus,
+        fetchBuildStatusForChat: fetchBuildStatus,
         applyBuildStatus,
         setBuildStatus,
         setBuildError,
@@ -226,7 +302,14 @@ export function useSandboxBuildSync({
         buildInFlightRef,
       });
     },
-    [applyBuildStatus, isCurrentRoute, setBuildError, setBuildStatus, setFullErrorReport],
+    [
+      applyBuildStatus,
+      fetchBuildStatus,
+      isCurrentRoute,
+      setBuildError,
+      setBuildStatus,
+      setFullErrorReport,
+    ],
   );
 
   const hasStreamBuildSignals =
@@ -309,20 +392,42 @@ export function useSandboxBuildSync({
   }, [setPreviewUrl, stream.previewUrl]);
 
   useEffect(() => {
-    if (
-      chatIdFromUrl &&
-      chatIdFromUrl !== loadedChatIdRef.current &&
-      !stream.isStreaming &&
-      lastPolledChatIdRef.current !== chatIdFromUrl
-    ) {
-      loadAllSandboxFiles(chatIdFromUrl);
-      if (!pushConnectedRef.current) {
-        pollAttemptsRef.current = 0;
-        lastPolledChatIdRef.current = chatIdFromUrl;
-        pollBuildStatus(chatIdFromUrl);
-      }
+    if (buildStatus !== BuildStatus.FAILED) {
+      return;
     }
-  }, [chatIdFromUrl, loadAllSandboxFiles, pollBuildStatus, stream.isStreaming]);
+
+    openSandbox();
+    setMode(SandboxMode.CODE);
+    setActiveFile(null);
+  }, [buildStatus, openSandbox, setActiveFile, setMode]);
+
+  useEffect(() => {
+    if (
+      !chatIdFromUrl ||
+      chatIdFromUrl === loadedChatIdRef.current ||
+      filesLoadRequestedChatIdRef.current === chatIdFromUrl
+    ) {
+      return;
+    }
+
+    filesLoadRequestedChatIdRef.current = chatIdFromUrl;
+    loadAllSandboxFiles(chatIdFromUrl, {
+      activeFiles: stream.activeFiles,
+      completedFiles: stream.completedFiles,
+    });
+
+    if (!pushConnectedRef.current && lastPolledChatIdRef.current !== chatIdFromUrl) {
+      pollAttemptsRef.current = 0;
+      lastPolledChatIdRef.current = chatIdFromUrl;
+      pollBuildStatus(chatIdFromUrl);
+    }
+  }, [
+    chatIdFromUrl,
+    loadAllSandboxFiles,
+    pollBuildStatus,
+    stream.activeFiles,
+    stream.completedFiles,
+  ]);
 
   useEffect(
     () => () => {

@@ -5,11 +5,11 @@ import { ChevronRight, RefreshCw, Search } from "lucide-react";
 import { Button } from "@edward/ui/components/button";
 import { Separator } from "@edward/ui/components/separator";
 import { cn } from "@edward/ui/lib/utils";
-import { getSandboxFiles } from "@/lib/api/build";
 import { useSandbox } from "@/contexts/sandboxContext";
 import { useChatWorkspaceContext } from "@/components/chat/chatWorkspaceContext";
 import { buildFileTree } from "@/components/chat/editor/fileTree";
 import { FileTreeView } from "@/components/chat/editor/fileTreeItem";
+import { useSandboxDataFetchers } from "@/hooks/server-state/useSandboxData";
 
 export function SandboxFileSidebar() {
   const { chatId } = useChatWorkspaceContext();
@@ -23,6 +23,7 @@ export function SandboxFileSidebar() {
   } = useSandbox();
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isWorkspaceExpanded, setIsWorkspaceExpanded] = useState(true);
+  const { fetchSandboxFiles } = useSandboxDataFetchers(chatId);
   const latestChatIdRef = useRef(chatId);
   const refreshRequestSeqRef = useRef(0);
 
@@ -38,7 +39,10 @@ export function SandboxFileSidebar() {
     const requestSeq = ++refreshRequestSeqRef.current;
     setIsRefreshing(true);
     try {
-      const response = await getSandboxFiles(chatId);
+      const response = await fetchSandboxFiles({ force: true });
+      if (!response) {
+        return;
+      }
       const { files: fetchedFiles } = response.data;
 
       if (
@@ -59,7 +63,7 @@ export function SandboxFileSidebar() {
         setIsRefreshing(false);
       }
     }
-  }, [chatId, isRefreshing, setFiles]);
+  }, [chatId, fetchSandboxFiles, isRefreshing, setFiles]);
 
   if (files.length === 0) {
     return (

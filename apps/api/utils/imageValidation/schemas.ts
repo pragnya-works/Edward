@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { IMAGE_UPLOAD_CONFIG } from "@edward/shared/constants";
+import { IMAGE_UPLOAD_CONFIG, PROMPT_INPUT_CONFIG } from "@edward/shared/constants";
 import { MAX_BASE64_LENGTH } from "./types.js";
 
 export const ImageContentBase64Schema = z.object({
@@ -26,7 +26,13 @@ const ImageContentSchema = z.union([
 
 export const TextContentSchema = z.object({
   type: z.literal("text"),
-  text: z.string().min(1, "Text content cannot be empty"),
+  text: z
+    .string()
+    .min(1, "Text content cannot be empty")
+    .max(
+      PROMPT_INPUT_CONFIG.MAX_CHARS,
+      `Text content exceeds ${PROMPT_INPUT_CONFIG.MAX_CHARS} characters`,
+    ),
 });
 
 export const MessageContentPartSchema = z.union([

@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const getRunByIdMock = vi.fn();
 const getRunEventsAfterMock = vi.fn();
+const isTerminalRunStatusMock = vi.fn();
 const getRunEventChannelMock = vi.fn();
 const createRedisClientMock = vi.fn();
 const configureSSEBackpressureMock = vi.fn();
@@ -12,6 +13,7 @@ const sendSSEEventWithIdMock = vi.fn();
 vi.mock("@edward/auth", () => ({
   getRunById: getRunByIdMock,
   getRunEventsAfter: getRunEventsAfterMock,
+  isTerminalRunStatus: isTerminalRunStatusMock,
 }));
 
 vi.mock("../../../lib/redis.js", () => ({
@@ -82,6 +84,10 @@ describe("streamRunEventsFromPersistence", () => {
       id: "run-1",
       status: "completed",
     });
+    isTerminalRunStatusMock.mockImplementation(
+      (status: string) =>
+        status === "completed" || status === "failed" || status === "cancelled",
+    );
     sendSSEEventWithIdMock.mockReturnValue(true);
   });
 

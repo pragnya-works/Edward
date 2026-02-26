@@ -76,6 +76,37 @@ describe("mergeAndInstallDependencies", () => {
     );
   });
 
+  it("treats versioned package specs as already installed when package name exists", async () => {
+    vi.mocked(dockerSandbox.execCommand).mockImplementation(
+      async (_container, cmd) => {
+        if (cmd[0] === "cat" && cmd[1] === "package.json") {
+          return {
+            exitCode: 0,
+            stdout: JSON.stringify({
+              name: "demo",
+              version: "1.0.0",
+              dependencies: {
+                zod: "^3.0.0",
+              },
+            }),
+            stderr: "",
+          };
+        }
+
+        throw new Error(`Unexpected command: ${cmd.join(" ")}`);
+      },
+    );
+
+    const result = await mergeAndInstallDependencies(
+      "container-1",
+      ["zod@^3.26.0"],
+      "sb-1",
+    );
+
+    expect(result.success).toBe(true);
+    expect(dockerSandbox.execCommand).toHaveBeenCalledTimes(1);
+  });
+
   it("installs only missing packages", async () => {
     let packageJsonReads = 0;
 
@@ -127,14 +158,19 @@ describe("mergeAndInstallDependencies", () => {
     );
 
     expect(result.success).toBe(true);
-    expect(dockerSandbox.execCommand).toHaveBeenCalledWith(
+    expect(dockerSandbox.execCommand).toHaveBeenNthCalledWith(
+      2,
       expect.anything(),
       ["pnpm", "add", "zod"],
       false,
       expect.any(Number),
       undefined,
       dockerSandbox.CONTAINER_WORKDIR,
-      ["NEXT_TELEMETRY_DISABLED=1", "CI=true"],
+      [
+        "NEXT_TELEMETRY_DISABLED=1",
+        "CI=true",
+        "NPM_CONFIG_ENGINE_STRICT=true",
+      ],
     );
   });
 });

@@ -39,7 +39,7 @@ interface BuildEventRefs {
 interface ConnectBuildEventsParams extends BuildEventRefs {
   chatId: string;
   applyBuildStatus: (build: BuildStatusPayload) => void;
-  openSandbox: () => void;
+  openSandbox: (chatId?: string) => void;
   setMode: (mode: SandboxMode) => void;
   setPreviewUrl: (url: string | null) => void;
   setBuildStatus: (status: BuildStatus) => void;
@@ -127,7 +127,7 @@ export function connectBuildEvents({
       if (parsed.type === ParserEventType.PREVIEW_URL && parsed.url) {
         setPreviewUrl(parsed.url);
         if (refs.buildInFlightRef.current) {
-          openSandbox();
+          openSandbox(chatId);
           setMode(SandboxMode.PREVIEW);
           setBuildStatus(BuildStatus.SUCCESS);
           setBuildError(null);

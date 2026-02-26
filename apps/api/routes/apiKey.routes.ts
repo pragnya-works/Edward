@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getApiKey, createApiKey, updateApiKey, deleteApiKey } from '../controllers/apiKey.controller.js';
+import { getApiKey, createApiKey, updateApiKey } from '../controllers/apiKey.controller.js';
 import { validateRequest } from '../middleware/validateRequest.js';
 import {
   CreateApiKeyRequestSchema,
@@ -11,4 +11,3 @@ export const apiKeyRouter: Router = Router();
 apiKeyRouter.get('/', getApiKey);
 apiKeyRouter.post('/', validateRequest(CreateApiKeyRequestSchema), createApiKey);
 apiKeyRouter.put('/', validateRequest(UpdateApiKeyRequestSchema), updateApiKey);
-apiKeyRouter.delete('/', deleteApiKey);

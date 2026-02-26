@@ -29,6 +29,7 @@ import {
 import { useRef } from "react";
 import { useSidebar } from "@edward/ui/components/sidebar";
 import { cn } from "@edward/ui/lib/utils";
+import { useMobileViewport } from "@edward/ui/hooks/useMobileViewport";
 
 export default function UserProfile() {
   const router = useRouter();
@@ -45,6 +46,8 @@ export default function UserProfile() {
   const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState(false);
   const themeTogglerRef = useRef<AnimatedThemeTogglerHandle>(null);
   const { open } = useSidebar();
+  const isMobile = useMobileViewport();
+  const isExpanded = open || isMobile;
 
   if (!session?.user) {
     return null;
@@ -70,12 +73,14 @@ export default function UserProfile() {
               variant="ghost"
               className={cn(
                 "relative group/sidebar",
-                open
+                isExpanded
                   ? "flex items-center justify-start gap-2 py-2 w-full h-auto px-0"
                   : "mx-auto h-12 w-12 flex items-center justify-center px-0 !bg-transparent hover:!bg-transparent dark:hover:!bg-transparent active:!bg-transparent",
               )}
             >
-              <Avatar className={cn("shrink-0", open ? "h-8 w-8" : "h-10 w-10")}>
+              <Avatar
+                className={cn("shrink-0", isExpanded ? "h-8 w-8" : "h-10 w-10")}
+              >
                 <AvatarImage
                   src={user.image || ""}
                   alt={user.name || "User profile"}
@@ -88,7 +93,7 @@ export default function UserProfile() {
               <span
                 className={cn(
                   "text-neutral-700 dark:text-neutral-200 text-sm whitespace-nowrap overflow-hidden transition-[max-width,opacity,transform] duration-200",
-                  open
+                  isExpanded
                     ? "max-w-50 opacity-100 translate-x-0 group-hover/sidebar:translate-x-1"
                     : "max-w-0 opacity-0 -translate-x-1",
                 )}

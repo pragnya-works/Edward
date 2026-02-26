@@ -32,6 +32,7 @@ import { connectToNetwork } from "../../../sandbox/docker.service.js";
 import { disconnectContainerFromNetwork } from "../../../sandbox/utils.service.js";
 import { saveWorkflow } from "../store.js";
 import { acquireLock, releaseLock } from "../locks.js";
+import { formatPackageSpec } from "../../../packages/packageSpec.js";
 
 export async function createWorkflow(
   userId: string,
@@ -208,9 +209,9 @@ export async function executeInstallPhase(
       };
     }
 
-    const packageNames = (state.context.resolvedPackages || [])
+    const packageSpecs = (state.context.resolvedPackages || [])
       .filter((pkg) => pkg.valid)
-      .map((pkg) => pkg.name);
+      .map((pkg) => formatPackageSpec(pkg.name, pkg.version));
 
     await connectToNetwork(sandbox.containerId);
 
@@ -225,7 +226,7 @@ export async function executeInstallPhase(
     try {
       installResult = await mergeAndInstallDependencies(
         sandbox.containerId,
-        packageNames,
+        packageSpecs,
         state.sandboxId,
       );
       installSuccess = installResult.success;
@@ -260,7 +261,7 @@ export async function executeInstallPhase(
       step: WorkflowStep.INSTALL_PACKAGES,
       success: true,
       data: {
-        installed: packageNames.length,
+        installed: packageSpecs.length,
         warnings: installResult.warnings,
       },
       durationMs: Date.now() - startTime,

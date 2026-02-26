@@ -21,8 +21,9 @@ export async function handleWebSearchEvent(
   query: string,
   maxResults?: number,
 ): Promise<void> {
+  const requestedMax = Math.min(maxResults ?? 5, 8);
+
   try {
-    const requestedMax = Math.min(maxResults ?? 5, 8);
     const search = await executeWebSearchTool({
       runId: ctx.runId,
       turn: ctx.turn ?? 1,
@@ -40,6 +41,7 @@ export async function handleWebSearchEvent(
     ctx.toolResultsThisTurn.push({
       tool: "web_search",
       query: search.query,
+      maxResults: requestedMax,
       answer: normalizedAnswer,
       results: normalizedResults,
     });
@@ -56,6 +58,7 @@ export async function handleWebSearchEvent(
     ctx.toolResultsThisTurn.push({
       tool: "web_search",
       query,
+      maxResults: requestedMax,
       results: [],
       error: err.message,
     });

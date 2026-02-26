@@ -111,6 +111,11 @@ export const dailyChatRateLimiter = createRateLimiterForScope(
   { keyGenerator: getAuthenticatedRateLimitKey },
 );
 
+export const imageUploadRateLimiter = createRateLimiterForScope(
+  RATE_LIMIT_SCOPE.IMAGE_UPLOAD_BURST,
+  { keyGenerator: getAuthenticatedRateLimitKey },
+);
+
 export const githubRateLimiter = createRateLimiterForScope(
   RATE_LIMIT_SCOPE.GITHUB_BURST,
   { keyGenerator: getAuthenticatedRateLimitKey },

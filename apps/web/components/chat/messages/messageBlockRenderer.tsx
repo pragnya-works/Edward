@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 import { AnimatePresence, m } from "motion/react";
 import { ParserEventType, STREAM_EVENT_VERSION } from "@edward/shared/streamEvents";
 import { CommandBlock } from "@/components/chat/blocks/commandBlock";
@@ -18,6 +18,42 @@ interface MessageBlockRendererProps {
   blocks: MessageBlock[];
   fileBlocks: Extract<MessageBlock, { type: MessageBlockType.FILE }>[];
   showFooterButton: boolean;
+}
+
+function buildStableKeys<T>(
+  items: T[],
+  getBaseKey: (item: T) => string,
+): string[] {
+  const seen = new Map<string, number>();
+  return items.map((item) => {
+    const base = getBaseKey(item);
+    const occurrence = seen.get(base) ?? 0;
+    seen.set(base, occurrence + 1);
+    return occurrence === 0 ? base : `${base}::${occurrence}`;
+  });
+}
+
+function getMessageBlockBaseKey(block: MessageBlock): string {
+  switch (block.type) {
+    case MessageBlockType.THINKING:
+      return "thinking";
+    case MessageBlockType.FILE:
+      return `file-${block.path}`;
+    case MessageBlockType.COMMAND:
+      return `command-${block.command}-${block.args.join(" ")}`;
+    case MessageBlockType.WEB_SEARCH:
+      return `web-search-${block.query}-${block.maxResults ?? "default"}`;
+    case MessageBlockType.URL_SCRAPE:
+      return `url-scrape-${block.url}-${block.status}`;
+    case MessageBlockType.INSTALL:
+      return `install-${block.dependencies.join("|")}`;
+    case MessageBlockType.SANDBOX:
+      return `sandbox-${block.project ?? "project"}-${block.base ?? "base"}`;
+    case MessageBlockType.DONE:
+      return "done";
+    case MessageBlockType.TEXT:
+      return "text";
+  }
 }
 
 function mapFilesForWorkspace(
@@ -42,15 +78,20 @@ export function MessageBlockRenderer({
       setFiles(workspaceFiles);
     }
   }, [globalFiles.length, setFiles, workspaceFiles]);
+  const blockKeys = useMemo(
+    () => buildStableKeys(blocks, getMessageBlockBaseKey),
+    [blocks],
+  );
 
   return (
     <div className="flex flex-col gap-3 sm:gap-4 w-full">
       {blocks.map((block, index) => {
+        const blockKey = blockKeys[index] ?? `block-${block.type}`;
         switch (block.type) {
           case MessageBlockType.THINKING:
             return (
               <ThinkingIndicator
-                key={`thinking-${block.content}`}
+                key={blockKey}
                 text={block.content}
                 isActive={false}
                 isCodeMode={false}
@@ -62,7 +103,7 @@ export function MessageBlockRenderer({
             }
             return (
               <FileBlock
-                key={`file-${block.path}`}
+                key={blockKey}
                 file={{
                   path: block.path,
                   content: block.content,
@@ -74,7 +115,7 @@ export function MessageBlockRenderer({
           case MessageBlockType.COMMAND:
             return (
               <CommandBlock
-                key={`command-${block.command}-${block.args.join(" ")}`}
+                key={blockKey}
                 command={{
                   type: ParserEventType.COMMAND,
                   version: STREAM_EVENT_VERSION,
@@ -86,19 +127,22 @@ export function MessageBlockRenderer({
           case MessageBlockType.WEB_SEARCH:
             return (
               <WebSearchBlock
-                key={`web-search-${block.query}-${block.maxResults ?? "default"}`}
+                key={blockKey}
                 search={{
                   type: ParserEventType.WEB_SEARCH,
                   version: STREAM_EVENT_VERSION,
                   query: block.query,
                   maxResults: block.maxResults,
+                  answer: block.answer,
+                  error: block.error,
+                  results: block.results,
                 }}
               />
             );
           case MessageBlockType.URL_SCRAPE:
             return (
               <UrlScrapeBlock
-                key={`url-scrape-${block.url}-${block.status}`}
+                key={blockKey}
                 scrape={{
                   type: ParserEventType.URL_SCRAPE,
                   version: STREAM_EVENT_VERSION,
@@ -123,7 +167,7 @@ export function MessageBlockRenderer({
           case MessageBlockType.INSTALL:
             return (
               <InstallBlock
-                key={`install-${block.dependencies.join("|")}`}
+                key={blockKey}
                 dependencies={block.dependencies}
                 isActive={false}
               />
@@ -131,7 +175,7 @@ export function MessageBlockRenderer({
           case MessageBlockType.SANDBOX:
             return (
               <m.div
-                key={`sandbox-${block.project ?? "project"}-${block.base ?? "base"}`}
+                key={blockKey}
                 initial={{ opacity: 0, scale: 0.98 }}
                 animate={{ opacity: 1, scale: 1 }}
                 className="w-full"
@@ -150,7 +194,7 @@ export function MessageBlockRenderer({
           case MessageBlockType.TEXT:
             return (
               <div
-                key={`text-${block.content}`}
+                key={blockKey}
                 className="text-[14px] sm:text-[15px] leading-[1.7] sm:leading-[1.8] tracking-tight font-medium"
               >
                 <MarkdownRenderer content={block.content} />
@@ -164,7 +208,7 @@ export function MessageBlockRenderer({
           <m.div
             initial={{ opacity: 0, scale: 0.98 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="mt-2"
+            className="w-full"
           >
             <ProjectButton
               isStreaming={false}

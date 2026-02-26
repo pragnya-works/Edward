@@ -40,6 +40,11 @@ export const IMAGE_UPLOAD_CONFIG = {
   MAX_FILES: 3,
 } as const;
 
+export const PROMPT_INPUT_CONFIG = {
+  MAX_CHARS: 2000,
+  WARNING_CHARS: 1800,
+} as const;
+
 export const SUBDOMAIN_RESERVED = new Set([
   "www",
   "api",
@@ -69,6 +74,7 @@ export const RATE_LIMIT_SCOPE = {
   API_KEY: "apiKeyRateLimiter",
   CHAT_BURST: "chatRateLimiter",
   CHAT_DAILY: "dailyChatRateLimiter",
+  IMAGE_UPLOAD_BURST: "imageUploadRateLimiter",
   GITHUB_BURST: "githubRateLimiter",
   GITHUB_DAILY: "dailyGithubRateLimiter",
 } as const;
@@ -77,6 +83,7 @@ export const KNOWN_RATE_LIMIT_SCOPES = [
   RATE_LIMIT_SCOPE.API_KEY,
   RATE_LIMIT_SCOPE.CHAT_BURST,
   RATE_LIMIT_SCOPE.CHAT_DAILY,
+  RATE_LIMIT_SCOPE.IMAGE_UPLOAD_BURST,
   RATE_LIMIT_SCOPE.GITHUB_BURST,
   RATE_LIMIT_SCOPE.GITHUB_DAILY,
 ] as const;
@@ -91,6 +98,7 @@ export interface RateLimitPolicy {
     | "api_key"
     | "chat_burst"
     | "chat_daily"
+    | "image_upload_burst"
     | "github_burst"
     | "github_daily";
   limitExceededMessage: string;
@@ -121,6 +129,14 @@ export const RATE_LIMIT_POLICY_BY_SCOPE: Record<
     redisPrefix: "chat-daily",
     securityScope: "chat_daily",
     limitExceededMessage: "Daily message quota exceeded (10 messages/24h)",
+  },
+  [RATE_LIMIT_SCOPE.IMAGE_UPLOAD_BURST]: {
+    windowMs: 60 * 1000,
+    max: 6,
+    redisPrefix: "chat-image-upload",
+    securityScope: "image_upload_burst",
+    limitExceededMessage:
+      "Image upload limit reached. Maximum 6 uploads per minute.",
   },
   [RATE_LIMIT_SCOPE.GITHUB_BURST]: {
     windowMs: 60 * 1000,

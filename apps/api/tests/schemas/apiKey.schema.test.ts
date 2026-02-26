@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { Model } from "@edward/shared/schema";
 import {
   ApiKeySchema,
   ApiKeyDataSchema,
@@ -80,7 +81,7 @@ describe("apiKey schemas", () => {
         hasApiKey: true,
         userId: "user-123",
         keyPreview: "sk-proj...abcd",
-        preferredModel: "gpt-5.2-pro-2025-12-11",
+        preferredModel: Model.GPT_5_2_CODEX,
         createdAt: new Date(),
         updatedAt: new Date(),
       });
@@ -146,7 +147,7 @@ describe("apiKey schemas", () => {
     it("should reject create request without apiKey", () => {
       const result = CreateApiKeyRequestSchema.safeParse({
         body: {
-          model: "gpt-5.2-pro-2025-12-11",
+          model: Model.GPT_5_2_CODEX,
         },
       });
 

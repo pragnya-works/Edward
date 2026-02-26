@@ -19,6 +19,7 @@ import {
   resolveDependencies,
   suggestAlternatives,
 } from "../../../../services/planning/resolvers/dependency.resolver.js";
+import { formatPackageSpec } from "../../../../services/packages/packageSpec.js";
 import { ensureError } from "../../../../utils/error.js";
 import { logger } from "../../../../utils/logger.js";
 import { sendSSEError, sendSSEEvent } from "../../sse.utils.js";
@@ -68,6 +69,7 @@ async function handleFileStart(
     throw new Error("FILE_START received without an active sandbox session");
   }
   await prepareSandboxFile(ctx.workflow.sandboxId, filePath);
+  ctx.generatedFiles.set(filePath, "");
   return { currentFilePath: filePath, isFirstFileChunk: true };
 }
 
@@ -149,7 +151,9 @@ async function handleInstallContent(
     rawDependencies,
     frameworkForResolution,
   );
-  const validDeps = resolution.resolved.map((dep) => dep.name);
+  const validDeps = resolution.resolved.map((dep) =>
+    formatPackageSpec(dep.name, dep.version),
+  );
 
   if (resolution.failed.length > 0) {
     const failures = resolution.failed.map((dep) => dep.name).join(", ");

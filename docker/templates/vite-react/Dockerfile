@@ -1,4 +1,4 @@
-FROM node:20-slim
+FROM node:22-slim
 
 # Install pnpm
 RUN npm install -g pnpm
@@ -7,12 +7,12 @@ WORKDIR /home/node/edward
 
 # Copy ONLY essential config files (no pre-installed deps)
 COPY tsconfig*.json vite.config.ts ./
-
-# Create minimal package.json with only scripts (deps installed dynamically)
-RUN echo '{"name":"edward-vite-react","version":"1.0.0","private":true,"type":"module","scripts":{"dev":"vite","build":"vite build","preview":"vite preview"},"dependencies":{},"devDependencies":{}}' > package.json
+COPY package.json ./
+COPY .gitignore ./
 
 # Configure pnpm to use a consistent store location
 RUN pnpm config set store-dir /home/node/.local/share/pnpm/store --global && \
+    pnpm config set engine-strict true --global && \
     mkdir -p /home/node/.local/share/pnpm/store
 
 # Create src directory structure

@@ -4,7 +4,6 @@ import {
   getApiKey,
   createApiKey,
   updateApiKey,
-  deleteApiKey,
 } from "../../services/apiKey/controller.service.js";
 import * as apiKeyService from "../../services/apiKey.service.js";
 import * as encryption from "../../utils/encryption.js";
@@ -415,48 +414,4 @@ describe("apiKey controller", () => {
     });
   });
 
-  describe("deleteApiKey", () => {
-    it("should delete API key", async () => {
-      const mockUserData = {
-        id: mockUserId,
-        apiKey: "existing-key",
-        preferredModel: null,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
-
-      vi.mocked(apiKeyService.getUserWithApiKey).mockResolvedValue(
-        mockUserData,
-      );
-
-      const req = createMockRequest();
-      const res = createMockResponse();
-      const next = createMockNext();
-
-      await deleteApiKey(req, res, next);
-
-      expect(res.status).toHaveBeenCalledWith(HttpStatus.OK);
-      const jsonCall = (res.json as ReturnType<typeof vi.fn>).mock
-        .calls[0]?.[0];
-      expect(jsonCall).toMatchObject({
-        message: "API key deleted successfully",
-      });
-      expect(jsonCall?.timestamp).toBeDefined();
-      expect(new Date(jsonCall?.timestamp).toISOString()).toBe(
-        jsonCall?.timestamp,
-      );
-    });
-
-    it("should return 404 when user not found", async () => {
-      vi.mocked(apiKeyService.getUserWithApiKey).mockResolvedValue(undefined);
-
-      const req = createMockRequest();
-      const res = createMockResponse();
-      const next = createMockNext();
-
-      await deleteApiKey(req, res, next);
-
-      expect(res.status).toHaveBeenCalledWith(HttpStatus.NOT_FOUND);
-    });
-  });
 });

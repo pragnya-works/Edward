@@ -9,12 +9,26 @@ import { ChangelogHeader } from "@/components/changelog/header";
 import { IssueCardSkeleton } from "@/components/changelog/issueCard";
 import { ChangelogViewer } from "@/components/changelog/changelogViewer";
 import { AlertCircle, FolderGit } from "lucide-react";
+import { getCanonicalUrl, STATIC_OG_IMAGE_URL } from "@/lib/seo/siteUrl";
 
 export const revalidate = 3600;
+const changelogCanonicalUrl = getCanonicalUrl("/changelog");
 
 export const metadata: Metadata = {
   title: "Changelog",
   description: "Stay up to date with the latest improvements, features, and fixes we've shipped.",
+  alternates: {
+    canonical: "/changelog",
+  },
+  openGraph: {
+    url: changelogCanonicalUrl ?? undefined,
+    images: [STATIC_OG_IMAGE_URL],
+  },
+  twitter: {
+    title: "Changelog | Edward",
+    description: "Stay up to date with the latest improvements, features, and fixes we've shipped.",
+    images: [STATIC_OG_IMAGE_URL],
+  },
 };
 
 function ChangelogSkeleton() {

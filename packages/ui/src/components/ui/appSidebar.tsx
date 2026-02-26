@@ -28,6 +28,7 @@ import {
   quickScrollToRecentProjects,
 } from "@edward/ui/lib/recentProjectsScroll";
 import { EdwardLogo } from "@edward/ui/components/brand/edwardLogo";
+import { useMobileViewport } from "@edward/ui/hooks/useMobileViewport";
 
 export interface SidebarRecentChat {
   id: string;
@@ -90,6 +91,8 @@ export function AppSidebar({
   recentProjectsHref = "/?section=recent-projects",
 }: AppSidebarProps) {
   const { open } = useSidebar();
+  const isMobile = useMobileViewport();
+  const isExpanded = open || isMobile;
   const router = useRouter();
   const pathname = usePathname();
 
@@ -138,12 +141,14 @@ export function AppSidebar({
   const totalRecentChats = recentChatsTotal ?? recentChats.length;
 
   return (
-    <SidebarBody className={cn("justify-between", open ? "gap-10" : "gap-5")}>
+    <SidebarBody
+      className={cn("justify-between", isExpanded ? "gap-10" : "gap-5")}
+    >
       <ToggleHandle />
       <div
         className={cn(
           "flex flex-col flex-1 min-h-0 overflow-y-auto overflow-x-hidden",
-          !open && "items-center w-full",
+          !isExpanded && "items-center w-full",
         )}
       >
         <div className="flex flex-col gap-2 mb-8">
@@ -152,7 +157,7 @@ export function AppSidebar({
         <div
           className={cn(
             "flex flex-col gap-1.5",
-            !open && "w-full items-center gap-2",
+            !isExpanded && "w-full items-center gap-2",
           )}
         >
           {links.map((link) => (
@@ -163,10 +168,10 @@ export function AppSidebar({
         <div
           className={cn(
             "mt-6",
-            !open && "mt-8 w-full flex flex-col items-center",
+            !isExpanded && "mt-8 w-full flex flex-col items-center",
           )}
         >
-          {open ? (
+          {isExpanded ? (
             <div className="rounded-xl border border-neutral-200/80 dark:border-neutral-700/70 bg-white/70 dark:bg-neutral-900/40 backdrop-blur-sm p-2.5">
               <div className="mb-2 flex items-center justify-between gap-2 px-1">
                 <div className="flex items-center gap-1.5 text-neutral-700 dark:text-neutral-200">
@@ -246,7 +251,9 @@ export function AppSidebar({
           )}
         </div>
       </div>
-      <div className={cn("flex flex-col gap-2", !open && "items-center pb-1")}>
+      <div
+        className={cn("flex flex-col gap-2", !isExpanded && "items-center pb-1")}
+      >
         {children}
       </div>
     </SidebarBody>
@@ -293,14 +300,16 @@ const ToggleHandle = () => {
 
 export const Logo = () => {
   const { open } = useSidebar();
-  const logoSize = open ? 24 : 44;
+  const isMobile = useMobileViewport();
+  const isExpanded = open || isMobile;
+  const logoSize = isExpanded ? 24 : 44;
 
   return (
     <Link
       href="/"
       className={cn(
         "font-normal flex items-center text-sm text-black relative z-20",
-        open
+        isExpanded
           ? "space-x-2 py-1"
           : "justify-center rounded-xl border-2 border-neutral-200/85 dark:border-neutral-700/80 bg-white/90 dark:bg-neutral-900/75 shadow-sm",
       )}
@@ -309,13 +318,13 @@ export const Logo = () => {
         size={logoSize}
         priority
         quality={78}
-        sizes={open ? "24px" : "44px"}
-        className={cn("rounded-md", !open && "h-11 w-11 rounded-xl")}
+        sizes={isExpanded ? "24px" : "44px"}
+        className={cn("rounded-md", !isExpanded && "h-11 w-11 rounded-xl")}
       />
       <span
         className={cn(
           "font-medium text-black dark:text-white whitespace-pre overflow-hidden transition-[max-width,opacity,transform] duration-200",
-          open
+          isExpanded
             ? "max-w-30 opacity-100 translate-x-0"
             : "max-w-0 opacity-0 -translate-x-1",
         )}
