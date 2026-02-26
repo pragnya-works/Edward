@@ -2,6 +2,21 @@ import { describe, expect, it } from "vitest";
 import { evaluateFrameworkToolchainCompatibility } from "../../../../services/sandbox/templates/toolchain.compatibility.js";
 
 describe("toolchain compatibility", () => {
+  it("passes for Vite 5 on Node 20.18.x", () => {
+    const result = evaluateFrameworkToolchainCompatibility({
+      framework: "vite-react",
+      nodeVersion: "20.18.0",
+      packageJson: {
+        devDependencies: {
+          vite: "^5.4.21",
+        },
+      },
+    });
+
+    expect(result.compatible).toBe(true);
+    expect(result.issues).toHaveLength(0);
+  });
+
   it("fails when Vite major requires newer Node", () => {
     const result = evaluateFrameworkToolchainCompatibility({
       framework: "vite-react",

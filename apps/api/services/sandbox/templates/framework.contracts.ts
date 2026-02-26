@@ -76,7 +76,7 @@ const FRAMEWORK_CONTRACTS: Record<Framework, FrameworkContract> = {
 
     'vite-react': {
         framework: 'vite-react',
-        minimumNodeVersion: '20.19.0',
+        minimumNodeVersion: '20.0.0',
         runtimeDependencies: [
             'react@^19.2.3',
             'react-dom@^19.2.3',
