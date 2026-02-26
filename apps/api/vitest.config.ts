@@ -52,6 +52,10 @@ export default defineConfig({
         __dirname,
         "../../packages/shared/dist/constants.js",
       ),
+      "@edward/shared/api/contracts": path.resolve(
+        __dirname,
+        "../../packages/shared/dist/api/contracts.js",
+      ),
       "@edward/shared": path.resolve(
         __dirname,
         "../../packages/shared/dist/index.js",

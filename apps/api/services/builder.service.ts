@@ -13,6 +13,8 @@ import {
   injectBasePathConfigs,
   calculateBasePath,
 } from "./sandbox/builder/basePathInjector.js";
+import type { Framework } from "./planning/schemas.js";
+import { evaluateFrameworkToolchainCompatibility } from "./sandbox/templates/toolchain.compatibility.js";
 
 export interface BuildResult {
   success: boolean;
@@ -24,6 +26,20 @@ export interface BuildOptions {
   userId: string;
   chatId: string;
   framework?: string;
+}
+
+function inferFrameworkFromPackageJson(
+  pkg: {
+    dependencies?: Record<string, string>;
+    devDependencies?: Record<string, string>;
+  },
+): Framework {
+  const dependencies = pkg.dependencies ?? {};
+  const devDependencies = pkg.devDependencies ?? {};
+
+  if (dependencies.next) return "nextjs";
+  if (dependencies.vite || devDependencies.vite) return "vite-react";
+  return "vanilla";
 }
 
 export async function runUnifiedBuild(
@@ -68,12 +84,54 @@ export async function runUnifiedBuild(
       return { success: true, outputInfo };
     }
 
-    const pkg = JSON.parse(pkgResult.stdout);
+    const pkg = JSON.parse(pkgResult.stdout) as {
+      scripts?: Record<string, string>;
+      dependencies?: Record<string, string>;
+      devDependencies?: Record<string, string>;
+    };
 
     if (!pkg.scripts?.build) {
       logger.warn({ sandboxId }, "No build script found in package.json");
       const outputInfo = await detectBuildOutput(containerId, sandboxId);
       return { success: true, outputInfo };
+    }
+
+    const nodeVersionResult = await execCommand(
+      container,
+      ["node", "-p", "process.versions.node"],
+      false,
+      5000,
+      undefined,
+      CONTAINER_WORKDIR,
+    );
+
+    if (nodeVersionResult.exitCode !== 0) {
+      return {
+        success: false,
+        error: `Failed to detect Node.js version in sandbox: ${nodeVersionResult.stderr || nodeVersionResult.stdout}`,
+      };
+    }
+
+    const framework = (options?.framework as Framework | undefined) ??
+      inferFrameworkFromPackageJson(pkg);
+    const compatibility = evaluateFrameworkToolchainCompatibility({
+      framework,
+      nodeVersion: nodeVersionResult.stdout.trim(),
+      packageJson: {
+        dependencies: pkg.dependencies,
+        devDependencies: pkg.devDependencies,
+      },
+    });
+
+    if (!compatibility.compatible) {
+      return {
+        success: false,
+        error: [
+          "Toolchain compatibility check failed.",
+          ...compatibility.issues.map((issue) => `- ${issue}`),
+          "Rebuild sandbox templates or align package versions before rerunning build.",
+        ].join("\n"),
+      };
     }
 
     const buildResult = await execCommand(

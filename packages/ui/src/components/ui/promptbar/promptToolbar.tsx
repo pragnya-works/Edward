@@ -27,6 +27,7 @@ interface PromptToolbarProps {
   onCancel?: () => void;
   disabled?: boolean;
   disableAttachmentActions?: boolean;
+  attachmentDisabledReason?: string;
 }
 
 export function PromptToolbar({
@@ -44,6 +45,7 @@ export function PromptToolbar({
   onCancel,
   disabled,
   disableAttachmentActions,
+  attachmentDisabledReason,
 }: PromptToolbarProps) {
   const handleAction = isStreaming ? onCancel : onProtectedAction;
 
@@ -104,6 +106,14 @@ export function PromptToolbar({
     </div>
   );
 
+  const attachmentTooltip = !isAuthenticated
+    ? "Sign in to attach images"
+    : !supportsVision
+      ? "Vision not supported"
+      : disableAttachmentActions
+        ? attachmentDisabledReason || "Image uploads are currently unavailable."
+        : `Attach images${attachedFiles.length > 0 ? ` (${attachedFiles.length}/${IMAGE_UPLOAD_CONFIG.MAX_FILES})` : ""}`;
+
   return (
     <div className="flex items-center justify-between px-3 py-3 sm:px-4 sm:py-3 md:px-6 md:py-4 bg-transparent relative z-20">
       <div className="flex items-center gap-2 sm:gap-3">
@@ -148,13 +158,7 @@ export function PromptToolbar({
             }
           />
           <TooltipPositioner side="top" align="center">
-            <TooltipContent>
-              {!isAuthenticated
-                ? "Sign in to attach images"
-                : !supportsVision
-                  ? "Vision not supported"
-                  : `Attach images${attachedFiles.length > 0 ? ` (${attachedFiles.length}/${IMAGE_UPLOAD_CONFIG.MAX_FILES})` : ""}`}
-            </TooltipContent>
+            <TooltipContent>{attachmentTooltip}</TooltipContent>
           </TooltipPositioner>
         </Tooltip>
         {attachedFiles.length > 0 && (

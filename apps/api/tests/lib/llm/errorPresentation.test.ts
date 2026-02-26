@@ -13,6 +13,17 @@ describe("errorPresentation", () => {
     expect(result.actionLabel).toBe("Try again");
   });
 
+  it("classifies transient provider high-demand errors as temporary unavailability", () => {
+    const result = classifyAssistantError(
+      "[GoogleGenerativeAI Error]: [503 Service Unavailable] This model is currently experiencing high demand. Please try again later.",
+    );
+
+    expect(result.code).toBe("provider_temporarily_unavailable");
+    expect(result.title).toBe("Provider temporarily unavailable");
+    expect(result.action).toBe("retry_generation");
+    expect(result.actionLabel).toBe("Try again");
+  });
+
   it("uses retry_generation action for unknown generation failures", () => {
     const result = classifyAssistantError("Unexpected upstream failure");
 

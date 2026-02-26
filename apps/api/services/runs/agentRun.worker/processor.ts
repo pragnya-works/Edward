@@ -9,6 +9,9 @@ import {
 import {
   getLatestSessionCompleteEvent,
   getRunById,
+  isTerminalRunStatus,
+  RUN_STATUS,
+  type RunStatus,
   updateRun,
 } from "@edward/auth";
 import { createRedisClient } from "../../../lib/redis.js";
@@ -19,6 +22,10 @@ import { logger } from "../../../utils/logger.js";
 import { ensureError } from "../../../utils/error.js";
 import { runStreamSession } from "../../../controllers/chat/session/session.controller.js";
 import { classifyAssistantError } from "../../../lib/llm/errorPresentation.js";
+import {
+  buildConversationMessages,
+  type LlmChatMessage,
+} from "../../../lib/llm/context.js";
 import {
   parseAgentRunMetadata,
   type AgentRunMetadata,
@@ -116,15 +123,15 @@ function createRunEventCaptureResponse(
 function mapTerminationToStatus(
   terminationReason: StreamTerminationReason | null,
 ): {
-  status: "completed" | "failed" | "cancelled";
+  status: RunStatus;
   state: "COMPLETE" | "FAILED" | "CANCELLED";
 } {
   if (!terminationReason) {
-    return { status: "failed", state: "FAILED" };
+    return { status: RUN_STATUS.FAILED, state: "FAILED" };
   }
 
   if (terminationReason === StreamTerminationReason.CLIENT_DISCONNECT) {
-    return { status: "cancelled", state: "CANCELLED" };
+    return { status: RUN_STATUS.CANCELLED, state: "CANCELLED" };
   }
 
   if (
@@ -133,10 +140,10 @@ function mapTerminationToStatus(
     terminationReason === StreamTerminationReason.STREAM_TIMEOUT ||
     terminationReason === StreamTerminationReason.SLOW_CLIENT
   ) {
-    return { status: "failed", state: "FAILED" };
+    return { status: RUN_STATUS.FAILED, state: "FAILED" };
   }
 
-  return { status: "completed", state: "COMPLETE" };
+  return { status: RUN_STATUS.COMPLETED, state: "COMPLETE" };
 }
 
 function readTerminationFromTerminalEvent(
@@ -162,11 +169,7 @@ export async function processAgentRunJob(
     throw new Error(`Run not found: ${runId}`);
   }
 
-  if (
-    run.status === "completed" ||
-    run.status === "failed" ||
-    run.status === "cancelled"
-  ) {
+  if (isTerminalRunStatus(run.status)) {
     return;
   }
 
@@ -191,7 +194,7 @@ export async function processAgentRunJob(
   } catch (error) {
     const err = ensureError(error);
     await updateRun(runId, {
-      status: "failed",
+      status: RUN_STATUS.FAILED,
       state: "FAILED",
       errorMessage: err.message,
       completedAt: new Date(),
@@ -203,7 +206,7 @@ export async function processAgentRunJob(
   if (!userData?.apiKey) {
     const err = new Error("Missing API key for run execution");
     await updateRun(runId, {
-      status: "failed",
+      status: RUN_STATUS.FAILED,
       state: "FAILED",
       errorMessage: err.message,
       completedAt: new Date(),
@@ -217,13 +220,33 @@ export async function processAgentRunJob(
   } catch (error) {
     const err = ensureError(error);
     await updateRun(runId, {
-      status: "failed",
+      status: RUN_STATUS.FAILED,
       state: "FAILED",
       errorMessage: err.message,
       completedAt: new Date(),
     }).catch(() => {});
     throw err;
   }
+
+  let historyMessages: LlmChatMessage[] = metadata.historyMessages ?? [];
+  let projectContext = metadata.projectContext ?? "";
+
+  if (metadata.isFollowUp) {
+    try {
+      const ctx = await buildConversationMessages(run.chatId, {
+        excludeMessageIds: run.userMessageId ? [run.userMessageId] : [],
+        maxCreatedAt: run.createdAt ?? undefined,
+      });
+      historyMessages = ctx.history;
+      projectContext = ctx.projectContext;
+    } catch (err) {
+      logger.warn(
+        { err, runId, chatId: run.chatId },
+        "Failed to reconstruct follow-up context in worker; falling back to metadata snapshot",
+      );
+    }
+  }
+
   const startedAt = run.startedAt ?? new Date();
   const startedAtMs = startedAt.getTime();
   let firstTokenLatencyMs: number | null = null;
@@ -234,7 +257,7 @@ export async function processAgentRunJob(
   const turnStartTimes = new Map<number, number>();
 
   await updateRun(runId, {
-    status: "running",
+    status: RUN_STATUS.RUNNING,
     state: "INIT",
     startedAt,
     errorMessage: null,
@@ -379,8 +402,8 @@ export async function processAgentRunJob(
       preVerifiedDeps: metadata.preVerifiedDeps,
       isFollowUp: metadata.isFollowUp,
       intent: metadata.intent,
-      historyMessages: metadata.historyMessages,
-      projectContext: metadata.projectContext,
+      historyMessages,
+      projectContext,
       model: metadata.model,
       runId,
       resumeCheckpoint: metadata.resumeCheckpoint
@@ -492,7 +515,7 @@ export async function processAgentRunJob(
     await persistRunEvent(runId, completionMetaEvent, publisher).catch(() => {});
 
     await updateRun(runId, {
-      status: "failed",
+      status: RUN_STATUS.FAILED,
       state: "FAILED",
       currentTurn,
       terminationReason: StreamTerminationReason.STREAM_FAILED,

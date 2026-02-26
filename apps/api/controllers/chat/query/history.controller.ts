@@ -200,7 +200,17 @@ export async function getRecentChats(
     const { limit, offset } = parsedQuery.data.query;
 
     const chats = await db
-      .select()
+      .select({
+        id: chat.id,
+        userId: chat.userId,
+        title: chat.title,
+        description: chat.description,
+        visibility: chat.visibility,
+        githubRepoFullName: chat.githubRepoFullName,
+        customSubdomain: chat.customSubdomain,
+        createdAt: chat.createdAt,
+        updatedAt: chat.updatedAt,
+      })
       .from(chat)
       .where(eq(chat.userId, userId))
       .orderBy(desc(chat.updatedAt))
@@ -223,6 +233,105 @@ export async function getRecentChats(
     );
   } catch (error) {
     logger.error(ensureError(error), "getRecentChats error");
+    sendStandardError(
+      res,
+      HttpStatus.INTERNAL_SERVER_ERROR,
+      ERROR_MESSAGES.INTERNAL_SERVER_ERROR,
+    );
+  }
+}
+
+function isMissingChatSeoColumnError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return (
+    message.includes('column "seo_title" does not exist') ||
+    message.includes('column "seo_description" does not exist')
+  );
+}
+
+export async function getChatMeta(
+  req: AuthenticatedRequest,
+  res: Response,
+): Promise<void> {
+  try {
+    const userId = getAuthenticatedUserId(req);
+    const chatId = getChatIdOrRespond(req.params.chatId, res, sendStandardError);
+
+    if (!chatId) {
+      return;
+    }
+
+    const hasAccess = await assertChatReadableOrRespond(
+      chatId,
+      userId,
+      res,
+      sendStandardError,
+    );
+    if (!hasAccess) {
+      return;
+    }
+
+    let metaRow:
+      | {
+          title: string | null;
+          description: string | null;
+          seoTitle: string | null;
+          seoDescription: string | null;
+          updatedAt: Date;
+        }
+      | undefined;
+
+    try {
+      [metaRow] = await db
+        .select({
+          title: chat.title,
+          description: chat.description,
+          seoTitle: chat.seoTitle,
+          seoDescription: chat.seoDescription,
+          updatedAt: chat.updatedAt,
+        })
+        .from(chat)
+        .where(eq(chat.id, chatId))
+        .limit(1);
+    } catch (error) {
+      if (!isMissingChatSeoColumnError(error)) {
+        throw error;
+      }
+
+      const [fallbackRow] = await db
+        .select({
+          title: chat.title,
+          description: chat.description,
+          updatedAt: chat.updatedAt,
+        })
+        .from(chat)
+        .where(eq(chat.id, chatId))
+        .limit(1);
+
+      metaRow = fallbackRow
+        ? {
+            ...fallbackRow,
+            seoTitle: fallbackRow.title,
+            seoDescription: fallbackRow.description,
+          }
+        : undefined;
+    }
+
+    if (!metaRow) {
+      sendStandardError(res, HttpStatus.NOT_FOUND, ERROR_MESSAGES.NOT_FOUND);
+      return;
+    }
+
+    sendSuccess(res, HttpStatus.OK, "Chat metadata retrieved successfully", {
+      chatId,
+      title: metaRow.title,
+      description: metaRow.description,
+      seoTitle: metaRow.seoTitle ?? metaRow.title,
+      seoDescription: metaRow.seoDescription ?? metaRow.description,
+      updatedAt: metaRow.updatedAt,
+    });
+  } catch (error) {
+    logger.error(ensureError(error), "getChatMeta error");
     sendStandardError(
       res,
       HttpStatus.INTERNAL_SERVER_ERROR,

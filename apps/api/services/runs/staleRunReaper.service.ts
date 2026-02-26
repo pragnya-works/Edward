@@ -1,4 +1,4 @@
-import { and, db, inArray, isNull, lt, or, run } from "@edward/auth";
+import { and, db, inArray, isNull, lt, or, run, RUN_STATUS } from "@edward/auth";
 import {
   RUN_MAX_QUEUED_AGE_MS,
   RUN_MAX_RUNNING_AGE_MS,
@@ -19,7 +19,7 @@ export async function reapStaleRuns(now = new Date()): Promise<ReaperResult> {
     const staleQueuedRows = await db
       .update(run)
       .set({
-        status: "failed",
+        status: RUN_STATUS.FAILED,
         state: "FAILED",
         terminationReason: "stale_queued_timeout",
         errorMessage: "Run expired in queue before processing.",
@@ -28,7 +28,7 @@ export async function reapStaleRuns(now = new Date()): Promise<ReaperResult> {
       })
       .where(
         and(
-          inArray(run.status, ["queued"]),
+          inArray(run.status, [RUN_STATUS.QUEUED]),
           lt(run.createdAt, queuedCutoff),
         ),
       )
@@ -37,7 +37,7 @@ export async function reapStaleRuns(now = new Date()): Promise<ReaperResult> {
     const staleRunningRows = await db
       .update(run)
       .set({
-        status: "failed",
+        status: RUN_STATUS.FAILED,
         state: "FAILED",
         terminationReason: "stale_running_timeout",
         errorMessage: "Run exceeded maximum allowed execution time.",
@@ -46,7 +46,7 @@ export async function reapStaleRuns(now = new Date()): Promise<ReaperResult> {
       })
       .where(
         and(
-          inArray(run.status, ["running"]),
+          inArray(run.status, [RUN_STATUS.RUNNING]),
           or(
             and(isNull(run.startedAt), lt(run.createdAt, runningCutoff)),
             lt(run.startedAt, runningCutoff),

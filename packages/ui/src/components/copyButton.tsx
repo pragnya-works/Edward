@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Check, Copy } from "lucide-react";
 import { AnimatePresence, m } from "motion/react";
+import { copyTextToClipboard } from "../lib/clipboard";
 
 interface CopyButtonProps {
   content: string;
@@ -13,13 +14,11 @@ export function CopyButton({ content, className = "" }: CopyButtonProps) {
   const [isCopied, setIsCopied] = useState(false);
 
   const copyToClipboard = async () => {
-    try {
-      await navigator.clipboard.writeText(content);
-      setIsCopied(true);
-      setTimeout(() => setIsCopied(false), 2000);
-    } catch (error) {
-      console.error("Failed to copy text:", error);
-    }
+    const copied = await copyTextToClipboard(content);
+    if (!copied) return;
+
+    setIsCopied(true);
+    setTimeout(() => setIsCopied(false), 2000);
   };
 
   return (

@@ -28,6 +28,29 @@ export function detectStage(output: string): BuildStage {
   return "unknown";
 }
 
+function extractRuntimeMessage(output: string, stackIndex: number): string {
+  const prelude = output.slice(0, stackIndex);
+  const lines = prelude.split("\n");
+  const maxLookback = 8;
+
+  for (let i = lines.length - 1; i >= 0 && lines.length - i <= maxLookback; i--) {
+    const candidate = lines[i]?.trim();
+    if (!candidate) continue;
+    if (/^at\s+/i.test(candidate)) continue;
+    if (/^\d+\s*\|/.test(candidate)) continue;
+    if (/^>/.test(candidate)) continue;
+
+    if (/^(typeerror|referenceerror|rangeerror|syntaxerror|error):/i.test(candidate)) {
+      return candidate;
+    }
+    if (/eisdir|illegal operation on a directory/i.test(candidate)) {
+      return candidate;
+    }
+  }
+
+  return "Runtime error";
+}
+
 function generateErrorId(
   file: string,
   line: number,
@@ -148,7 +171,7 @@ export function parseErrors(output: string): ParsedError[] {
           file = match[1];
           line = match[2];
           column = match[3];
-          message = "Runtime error";
+          message = extractRuntimeMessage(cleanOutput, match.index);
           break;
       }
 

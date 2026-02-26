@@ -16,6 +16,14 @@ export interface ImageAttachment {
   name?: string;
 }
 
+function isMissingChatSeoColumnError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return (
+    message.includes('column "seo_title" does not exist') ||
+    message.includes('column "seo_description" does not exist')
+  );
+}
+
 export async function getOrCreateChat(
   userId: string,
   chatId: string | undefined,
@@ -28,18 +36,38 @@ export async function getOrCreateChat(
 }> {
   try {
     const now = new Date();
+    const title = chatData.title || "New Chat";
+    const description = chatData.description;
 
     if (!chatId) {
       const newChatId = nanoid(32);
-      await db.insert(chat).values({
+      const baseInsert = {
         id: newChatId,
         userId,
-        title: chatData.title || "New Chat",
-        description: chatData.description,
+        title,
+        description,
         visibility: chatData.visibility || false,
         createdAt: now,
         updatedAt: now,
-      });
+      };
+
+      try {
+        await db.insert(chat).values({
+          ...baseInsert,
+          seoTitle: title,
+          seoDescription: description,
+        });
+      } catch (error) {
+        if (!isMissingChatSeoColumnError(error)) {
+          throw error;
+        }
+
+        logger.warn(
+          { newChatId, userId },
+          "Chat SEO columns missing, retrying chat insert without SEO fields",
+        );
+        await db.insert(chat).values(baseInsert);
+      }
       return { chatId: newChatId, isNewChat: true };
     }
 
@@ -149,14 +177,52 @@ export async function saveMessage(
 
 export async function updateChatMeta(
   chatId: string,
-  data: { title?: string; description?: string },
+  data: {
+    title?: string;
+    description?: string;
+    seoTitle?: string;
+    seoDescription?: string;
+  },
 ): Promise<void> {
   try {
-    const updates: Record<string, unknown> = { updatedAt: new Date() };
-    if (data.title) updates.title = data.title;
-    if (data.description) updates.description = data.description;
+    const now = new Date();
+    const updates: Record<string, unknown> = { updatedAt: now };
+    if (data.title !== undefined) {
+      updates.title = data.title;
+      updates.seoTitle = data.seoTitle ?? data.title;
+    }
+    if (data.description !== undefined) {
+      updates.description = data.description;
+      updates.seoDescription = data.seoDescription ?? data.description;
+    }
+    if (data.seoTitle !== undefined && data.title === undefined) {
+      updates.seoTitle = data.seoTitle;
+    }
+    if (data.seoDescription !== undefined && data.description === undefined) {
+      updates.seoDescription = data.seoDescription;
+    }
 
-    await db.update(chat).set(updates).where(eq(chat.id, chatId));
+    try {
+      await db.update(chat).set(updates).where(eq(chat.id, chatId));
+    } catch (error) {
+      if (!isMissingChatSeoColumnError(error)) {
+        throw error;
+      }
+
+      const fallbackUpdates: Record<string, unknown> = { updatedAt: now };
+      if (data.title !== undefined) {
+        fallbackUpdates.title = data.title;
+      }
+      if (data.description !== undefined) {
+        fallbackUpdates.description = data.description;
+      }
+
+      logger.warn(
+        { chatId },
+        "Chat SEO columns missing, retrying metadata update without SEO fields",
+      );
+      await db.update(chat).set(fallbackUpdates).where(eq(chat.id, chatId));
+    }
   } catch (error) {
     logger.error({ error, chatId }, "Failed to update chat metadata");
   }

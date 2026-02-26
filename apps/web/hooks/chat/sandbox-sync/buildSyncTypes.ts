@@ -20,9 +20,10 @@ export interface UseSandboxBuildSyncParams {
   setFiles: (files: { path: string; content: string; isComplete: boolean }[]) => void;
   clearFiles: () => void;
   stopStreaming: () => void;
-  openSandbox: () => void;
+  openSandbox: (chatId?: string) => void;
   closeSandbox: () => void;
   setMode: (mode: SandboxMode) => void;
+  setActiveFile: (path: string | null) => void;
   setPreviewUrl: (url: string | null) => void;
   setBuildStatus: (status: BuildStatus) => void;
   setBuildError: (error: string | null) => void;

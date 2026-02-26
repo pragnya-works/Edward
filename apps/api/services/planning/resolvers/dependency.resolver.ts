@@ -1,22 +1,16 @@
 import { logger } from "../../../utils/logger.js";
 import { resolvePackages } from "../../registry/package.registry.js";
 import { PackageInfo, Framework } from "../schemas.js";
-
-const FRAMEWORK_CORE_DEPS: Record<Framework, string[]> = {
-  nextjs: ["react", "react-dom", "next"],
-  "vite-react": ["react", "react-dom"],
-  vanilla: [],
-};
-
-function deduplicatePackages(packages: string[]): string[] {
-  return [
-    ...new Set(packages.map((p) => p.trim().toLowerCase()).filter(Boolean)),
-  ];
-}
+import { getFrameworkContract } from "../../sandbox/templates/framework.contracts.js";
+import {
+  normalizePackageSpecs,
+  parsePackageSpec,
+  packageNamesFromSpecs,
+} from "../../packages/packageSpec.js";
 
 function isBlockedPackage(name: string): boolean {
   const blocked = ["node-gyp", "fsevents", "esbuild", "sharp"];
-  return blocked.some((b) => name.includes(b));
+  return blocked.some((b) => name.toLowerCase().includes(b));
 }
 
 export async function resolveDependencies(
@@ -30,26 +24,40 @@ export async function resolveDependencies(
   const warnings: string[] = [];
 
   try {
-    const coreDeps = FRAMEWORK_CORE_DEPS[framework] || [];
-    const allPackages = deduplicatePackages([
-      ...coreDeps,
-      ...requestedPackages,
-    ]);
+    const contract = getFrameworkContract(framework);
+    const normalizedRequestedSpecs = normalizePackageSpecs(requestedPackages);
+    const normalizedCoreSpecs = normalizePackageSpecs(
+      contract.runtimeDependencies,
+    );
 
-    const filtered = allPackages.filter((pkg) => {
-      if (isBlockedPackage(pkg)) {
-        warnings.push(`Skipped blocked package: ${pkg}`);
+    const allSpecs = normalizePackageSpecs([
+      ...normalizedCoreSpecs,
+      ...normalizedRequestedSpecs,
+    ]);
+    const allPackageNames = packageNamesFromSpecs(allSpecs);
+    const filteredNames = allPackageNames.filter((pkgName) => {
+      if (isBlockedPackage(pkgName)) {
+        warnings.push(`Skipped blocked package: ${pkgName}`);
         return false;
       }
       return true;
     });
 
+    const preferredVersions = new Map<string, string>();
+    for (const spec of allSpecs) {
+      const parsed = parsePackageSpec(spec);
+      if (!parsed?.version) continue;
+      if (!preferredVersions.has(parsed.name)) {
+        preferredVersions.set(parsed.name, parsed.version);
+      }
+    }
+
     logger.debug(
-      { framework, count: filtered.length },
+      { framework, count: filteredNames.length },
       "Resolving dependencies",
     );
 
-    const { valid, invalid, conflicts } = await resolvePackages(filtered);
+    const { valid, invalid, conflicts } = await resolvePackages(filteredNames);
 
     if (conflicts.length > 0) {
       warnings.push(...conflicts.map((c) => `Peer conflict: ${c}`));
@@ -57,29 +65,35 @@ export async function resolveDependencies(
 
     const resolved: PackageInfo[] = valid.map((v) => ({
       name: v.name,
-      version: v.version || "latest",
+      version: preferredVersions.get(v.name) ?? v.version ?? "latest",
       valid: true,
       peerDependencies: v.peerDependencies,
     }));
 
-    const failed: PackageInfo[] = invalid.map((i) => ({
-      name: i.name,
-      version: "",
-      valid: false,
-      error: i.error,
-    }));
+    const requestedNames = new Set(packageNamesFromSpecs(normalizedRequestedSpecs));
+    const failed: PackageInfo[] = invalid
+      .filter((i) => requestedNames.has(i.name))
+      .map((i) => ({
+        name: i.name,
+        version: "",
+        valid: false,
+        error: i.error,
+      }));
 
     return { resolved, failed, warnings };
   } catch (error) {
     logger.error({ error, framework }, "Dependency resolution failed");
     return {
       resolved: [],
-      failed: requestedPackages.map((name) => ({
-        name,
-        version: "",
-        valid: false,
-        error: "Resolution failed",
-      })),
+      failed: normalizePackageSpecs(requestedPackages).map((spec) => {
+        const parsed = parsePackageSpec(spec);
+        return {
+          name: parsed?.name ?? spec,
+          version: "",
+          valid: false,
+          error: "Resolution failed",
+        };
+      }),
       warnings: [
         "Resolution failed: " +
           (error instanceof Error ? error.message : "Unknown error"),

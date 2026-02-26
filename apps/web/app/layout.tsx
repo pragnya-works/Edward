@@ -6,6 +6,11 @@ import "@edward/ui/sonner.css"
 import { Providers } from "@/app/providers"
 import ConditionalSidebarLayout from "@/components/layouts/conditionalSidebarLayout"
 import Navbar from "@/components/navbar"
+import {
+  getCanonicalUrl,
+  getSiteUrl,
+  STATIC_OG_IMAGE_URL,
+} from "@/lib/seo/siteUrl"
 
 const fontSans = Geist({
   subsets: ["latin"],
@@ -17,12 +22,56 @@ const fontMono = Geist_Mono({
   variable: "--font-mono",
 })
 
+const siteUrl = getSiteUrl()
+const canonicalHomeUrl = getCanonicalUrl("/")
+const defaultTitle = "Edward - AI Web App Builder"
+const defaultDescription =
+  "Create stunning apps and websites by chatting with Edward."
+
 export const metadata: Metadata = {
+  metadataBase: siteUrl ?? undefined,
   title: {
-    default: "Edward - AI Web App Builder",
+    default: defaultTitle,
     template: "%s | Edward",
   },
-  description: "Create stunning apps & websites by chatting with Edward.",
+  description: defaultDescription,
+  applicationName: "Edward",
+  alternates: {
+    canonical: "/",
+  },
+  openGraph: {
+    type: "website",
+    locale: "en_US",
+    url: canonicalHomeUrl ?? undefined,
+    siteName: "Edward",
+    title: defaultTitle,
+    description: defaultDescription,
+    images: [
+      {
+        url: STATIC_OG_IMAGE_URL,
+        width: 1200,
+        height: 630,
+        alt: defaultTitle,
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: defaultTitle,
+    description: defaultDescription,
+    images: [STATIC_OG_IMAGE_URL],
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-video-preview": -1,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+    },
+  },
   icons: {
     icon: [
       { url: "https://assets.pragnyaa.in/home/favicon_io/favicon.ico" },
@@ -41,7 +90,7 @@ export const metadata: Metadata = {
       { url: "https://assets.pragnyaa.in/home/favicon_io/apple-touch-icon.png" },
     ],
   },
-  manifest: "https://assets.pragnyaa.in/home/favicon_io/site.webmanifest",
+  manifest: "/manifest.webmanifest",
 }
 
 export default function RootLayout({

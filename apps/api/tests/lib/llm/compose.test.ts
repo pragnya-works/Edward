@@ -1,0 +1,98 @@
+import { describe, expect, it, vi } from 'vitest';
+
+vi.mock('../../../services/sandbox/templates/template.registry.js', () => ({
+  getTemplateConfig: vi.fn((framework: string) => {
+    if (framework === 'vanilla') {
+      return { protectedFiles: [] };
+    }
+
+    return {
+      protectedFiles: [
+        'package.json',
+        'tsconfig.json',
+        framework === 'nextjs' ? 'src/app/globals.css' : 'src/index.css',
+      ],
+    };
+  }),
+}));
+
+describe('composePrompt', () => {
+  it('keeps default nextjs generate prompt under budget', async () => {
+    const { composePrompt, estimatePromptTokensApprox } = await import(
+      '../../../lib/llm/compose.js'
+    );
+
+    const prompt = composePrompt({
+      framework: 'nextjs',
+      complexity: 'simple',
+      mode: 'generate',
+    });
+
+    expect(prompt).toContain('<scope_restrictions>');
+    expect(prompt).toContain('<edward_sandbox_format>');
+    expect(prompt).toContain('<skill:nextjs-compact>');
+    expect(prompt).not.toContain('<skill:react-performance>');
+
+    const approxTokens = estimatePromptTokensApprox(prompt);
+    expect(approxTokens).toBeLessThan(5000);
+  });
+
+  it('adds performance and code quality packs for fix mode', async () => {
+    const { composePrompt } = await import('../../../lib/llm/compose.js');
+
+    const prompt = composePrompt({
+      framework: 'nextjs',
+      complexity: 'moderate',
+      mode: 'fix',
+      userRequest: 'Fix slow render and improve performance',
+      intentFeatures: ['optimization', 'performance'],
+    });
+
+    expect(prompt).toContain('You are in FIX MODE.');
+    expect(prompt).toContain('<skill:react-performance>');
+    expect(prompt).toContain('<skill:code-quality-compact>');
+  });
+
+  it('adds strict compliance pack when strict profile is selected', async () => {
+    const { composePrompt } = await import('../../../lib/llm/compose.js');
+
+    const prompt = composePrompt({
+      framework: 'nextjs',
+      complexity: 'moderate',
+      mode: 'fix',
+      profile: 'strict',
+      userRequest: 'Fix runtime errors and produce valid sandbox output',
+    });
+
+    expect(prompt).toContain('<skill:strict-compliance>');
+  });
+
+  it('adds expanded design pack for design-heavy generation requests', async () => {
+    const { composePrompt } = await import('../../../lib/llm/compose.js');
+
+    const prompt = composePrompt({
+      framework: 'vite-react',
+      complexity: 'simple',
+      mode: 'generate',
+      intentType: 'landing',
+      userRequest: 'Create a visually striking landing page with strong branding',
+    });
+
+    expect(prompt).toContain('<skill:ui-design-expanded>');
+    expect(prompt).toContain('<skill:vite-compact>');
+  });
+
+  it('uses vanilla framework pack without react performance for simple vanilla generation', async () => {
+    const { composePrompt } = await import('../../../lib/llm/compose.js');
+
+    const prompt = composePrompt({
+      framework: 'vanilla',
+      complexity: 'simple',
+      mode: 'generate',
+      userRequest: 'Build a simple static page',
+    });
+
+    expect(prompt).toContain('<skill:vanilla-compact>');
+    expect(prompt).not.toContain('<skill:react-performance>');
+  });
+});

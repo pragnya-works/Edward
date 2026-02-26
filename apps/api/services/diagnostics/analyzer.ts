@@ -148,6 +148,20 @@ type DiagnosisGuidance = {
   nextStep: string;
 };
 
+function isViteInternalCompatibilityFailure(error: BuildError): boolean {
+  const file = error.error.file.toLowerCase();
+  const message = firstLine(error.error.message).toLowerCase();
+
+  if (!file.includes("/node_modules/")) return false;
+  if (!file.includes("/vite/dist/node/chunks/config.js")) return false;
+
+  return (
+    message.includes("crypto.hash is not a function") ||
+    message.includes("runtime error") ||
+    message.includes("typeerror")
+  );
+}
+
 function buildDiagnosisGuidance(error: BuildError): DiagnosisGuidance {
   const location = buildLocation(error);
   const target = error.error.target ? `'${error.error.target}'` : "the referenced symbol";
@@ -200,6 +214,22 @@ function buildDiagnosisGuidance(error: BuildError): DiagnosisGuidance {
     }
     case "config": {
       const msg = firstLine(error.error.message);
+      const msgLower = msg.toLowerCase();
+      if (
+        msgLower.includes("eisdir") ||
+        msgLower.includes("illegal operation on a directory")
+      ) {
+        return {
+          probableCause:
+            "An HTML asset URL points to a directory path, so Vite is trying to read a directory as a file during build-html.",
+          pinpointContext:
+            `At ${location}, Vite reported directory-read failure (${msg}). This commonly happens when index.html uses canonical/asset href values like '/'.`,
+          preciseFix:
+            "Edit index.html and make canonical/asset href values absolute http(s) URLs (for example, https://edwardd.app/), not '/'. Then rebuild.",
+          nextStep:
+            "Fix canonical/asset hrefs in index.html and rerun build.",
+        };
+      }
       return {
         probableCause: "A framework/build configuration key or value is invalid.",
         pinpointContext: `At ${location}, config validation failed: ${msg}`,
@@ -209,6 +239,18 @@ function buildDiagnosisGuidance(error: BuildError): DiagnosisGuidance {
     }
     case "runtime": {
       const msg = firstLine(error.error.message);
+      if (isViteInternalCompatibilityFailure(error)) {
+        return {
+          probableCause:
+            "Vite crashed inside its own runtime bundle because the Node.js runtime and installed Vite version are incompatible.",
+          pinpointContext:
+            `At ${location}, execution failed inside Vite internals (${msg}). This is usually environment/toolchain mismatch, not an application source bug.`,
+          preciseFix:
+            "Do not edit node_modules. Use Node.js 20.19+ (or 22+), and keep Vite on a compatible major (for older runtimes, pin vite@^6 with matching plugins), then reinstall dependencies and rebuild.",
+          nextStep:
+            "Align Node/Vite versions, reinstall dependencies, and rerun build.",
+        };
+      }
       return {
         probableCause: "A runtime execution path failed during build or prerender.",
         pinpointContext: `At ${location}, runtime execution failed with: ${msg}`,
@@ -231,6 +273,18 @@ function buildDiagnosisGuidance(error: BuildError): DiagnosisGuidance {
         nextStep: "Restore connectivity and rerun build.",
       };
     case "environment":
+      if (isViteInternalCompatibilityFailure(error)) {
+        return {
+          probableCause:
+            "The build runtime does not satisfy the installed Vite toolchain requirements.",
+          pinpointContext:
+            `Failure surfaced at ${location} inside Vite internals, indicating runtime/tooling mismatch rather than user code failure.`,
+          preciseFix:
+            "Upgrade Node.js in the sandbox/runtime (20.19+ or 22+), or pin Vite to a compatible major, then reinstall dependencies and rebuild.",
+          nextStep:
+            "Fix runtime/toolchain compatibility and rerun build.",
+        };
+      }
       return {
         probableCause: "Tooling/runtime environment is missing required command, permission, or configuration.",
         pinpointContext: `Build stopped near ${location} due to environment prerequisites not being met.`,

@@ -152,6 +152,7 @@ export async function* streamResponse(
   framework?: string,
   complexity?: string,
   mode?: ChatAction,
+  promptProfile?: ComposeOptions["profile"],
   modelOverride?: string,
 ): AsyncGenerator<string> {
   if (!apiKey || typeof apiKey !== "string" || apiKey.trim().length === 0) {
@@ -174,6 +175,7 @@ export async function* streamResponse(
       complexity: (complexity || "moderate") as ComposeOptions["complexity"],
       verifiedDependencies,
       mode,
+      profile: promptProfile,
     });
 
   try {

@@ -3,11 +3,9 @@ import type {
 } from "react";
 import {
   BuildRecordStatus,
+  type BuildStatusResponse,
   type BuildErrorReport,
 } from "@edward/shared/api/contracts";
-import {
-  getBuildStatus,
-} from "@/lib/api/build";
 import { BuildStatus } from "@/stores/sandbox/types";
 import {
   BUILD_POLL_INTERVAL_MS,
@@ -20,6 +18,10 @@ interface PollBuildStatusForChatParams {
   epoch: number;
   isCurrentRoute: (chatId: string, epoch: number) => boolean;
   pollBuildStatus: (chatId: string) => Promise<void>;
+  fetchBuildStatusForChat: (options?: {
+    force?: boolean;
+    chatId?: string;
+  }) => Promise<BuildStatusResponse | null>;
   applyBuildStatus: (build: BuildStatusPayload) => void;
   setBuildStatus: (status: BuildStatus) => void;
   setBuildError: (error: string | null) => void;
@@ -37,6 +39,7 @@ export async function pollBuildStatusForChat({
   epoch,
   isCurrentRoute,
   pollBuildStatus,
+  fetchBuildStatusForChat,
   applyBuildStatus,
   setBuildStatus,
   setBuildError,
@@ -83,7 +86,13 @@ export async function pollBuildStatusForChat({
   isPollingInFlightRef.current = true;
 
   try {
-    const response = await getBuildStatus(chatId);
+    const response = await fetchBuildStatusForChat({
+      chatId,
+      force: true,
+    });
+    if (!response) {
+      return;
+    }
     if (!isCurrentRoute(chatId, epoch)) {
       return;
     }

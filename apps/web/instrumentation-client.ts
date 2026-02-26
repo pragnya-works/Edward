@@ -1,12 +1,16 @@
 import * as Sentry from "@sentry/nextjs";
+import { getValidatedSentryDsn } from "./lib/sentryDsn";
 
 const NODE_ENV_PRODUCTION = "production";
 const isDevelopment = process.env.NODE_ENV !== NODE_ENV_PRODUCTION;
-const hasSentryDsn = !!process.env.NEXT_PUBLIC_SENTRY_DSN;
+const sentryDsn = getValidatedSentryDsn(
+  process.env.NEXT_PUBLIC_SENTRY_DSN,
+  "client",
+);
 
-if (hasSentryDsn) {
+if (sentryDsn) {
   Sentry.init({
-    dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
+    dsn: sentryDsn,
     integrations: isDevelopment ? [] : [Sentry.replayIntegration()],
     tracesSampleRate: isDevelopment ? 1 : 0.1,
     enableLogs: isDevelopment,

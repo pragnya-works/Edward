@@ -3,8 +3,9 @@ import { MetaPhase, ParserEventType, type StreamEvent } from "@edward/shared/str
 import {
   getRunById,
   getRunEventsAfter,
+  isTerminalRunStatus,
 } from "@edward/auth";
-import { createRedisClient } from "../../lib/redis.js";
+import { subscribeToRedisChannel } from "../../lib/redisPubSub.js";
 import type { AuthenticatedRequest } from "../../middleware/auth.js";
 import { logger } from "../../utils/logger.js";
 import {
@@ -77,7 +78,7 @@ export async function streamRunEventsFromPersistence({
   runId,
   explicitLastEventId,
 }: StreamRunEventsOptions): Promise<void> {
-  const redisSub = createRedisClient();
+  let unsubscribeRedisChannel: (() => Promise<void>) | null = null;
   let heartbeat: ReturnType<typeof setInterval> | null = null;
   let closed = false;
   let lastSeq = readLastEventId(req, explicitLastEventId);
@@ -94,8 +95,10 @@ export async function streamRunEventsFromPersistence({
       heartbeat = null;
     }
 
-    await redisSub.unsubscribe().catch(() => {});
-    await redisSub.quit().catch(() => {});
+    if (unsubscribeRedisChannel) {
+      await unsubscribeRedisChannel().catch(() => {});
+      unsubscribeRedisChannel = null;
+    }
 
     if (res.headersSent && !res.writableEnded) {
       sendSSEDone(res);
@@ -167,8 +170,8 @@ export async function streamRunEventsFromPersistence({
 
   const channel = getRunEventChannel(runId);
 
-  const onMessage = (incomingChannel: string, payload: string) => {
-    if (closed || incomingChannel !== channel) return;
+  const onMessage = (payload: string) => {
+    if (closed) return;
 
     try {
       const envelope = JSON.parse(payload) as RunEventEnvelope;
@@ -201,8 +204,7 @@ export async function streamRunEventsFromPersistence({
     }
   };
 
-  redisSub.on("message", onMessage);
-  await redisSub.subscribe(channel);
+  unsubscribeRedisChannel = await subscribeToRedisChannel(channel, onMessage);
 
   if (lastSeq > 0) {
     logger.info(
@@ -257,7 +259,7 @@ export async function streamRunEventsFromPersistence({
     return;
   }
 
-  if (run.status === "completed" || run.status === "failed" || run.status === "cancelled") {
+  if (isTerminalRunStatus(run.status)) {
     await closeStream();
     return;
   }

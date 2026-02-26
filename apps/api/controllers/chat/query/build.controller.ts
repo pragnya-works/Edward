@@ -1,7 +1,8 @@
 import type { Response } from "express";
 import { ParserEventType } from "@edward/shared/streamEvents";
+import { BuildRecordStatus } from "@edward/shared/api/contracts";
 import { getLatestBuildByChatId } from "@edward/auth";
-import { createRedisClient } from "../../../lib/redis.js";
+import { subscribeToRedisChannel } from "../../../lib/redisPubSub.js";
 import type { AuthenticatedRequest } from "../../../middleware/auth.js";
 import { getAuthenticatedUserId } from "../../../middleware/auth.js";
 import {
@@ -79,7 +80,7 @@ export async function streamBuildEvents(
   req: AuthenticatedRequest,
   res: Response,
 ): Promise<void> {
-  const redisSub = createRedisClient();
+  let unsubscribeRedisChannel: (() => Promise<void>) | null = null;
   let heartbeat: ReturnType<typeof setInterval> | null = null;
   let closed = false;
   let sseStarted = false;
@@ -93,8 +94,10 @@ export async function streamBuildEvents(
       heartbeat = null;
     }
 
-    await redisSub.unsubscribe().catch(() => {});
-    await redisSub.quit().catch(() => {});
+    if (unsubscribeRedisChannel) {
+      await unsubscribeRedisChannel().catch(() => {});
+      unsubscribeRedisChannel = null;
+    }
 
     if (sseStarted && !res.writableEnded) {
       sendSSEDone(res);
@@ -156,20 +159,21 @@ export async function streamBuildEvents(
         });
       }
 
-      if (latestBuild.status === "success" || latestBuild.status === "failed") {
+      if (
+        latestBuild.status === BuildRecordStatus.SUCCESS ||
+        latestBuild.status === BuildRecordStatus.FAILED
+      ) {
         await closeStream();
         return;
       }
     }
 
-    const onMessage = (incomingChannel: string, payload: string) => {
-      if (incomingChannel !== channel) return;
-
+    const onMessage = (payload: string) => {
       try {
         const parsed = JSON.parse(payload) as {
           buildId?: string;
           runId?: string;
-          status?: "queued" | "building" | "success" | "failed";
+          status?: BuildRecordStatus;
           previewUrl?: string | null;
           errorReport?: unknown;
         };
@@ -197,7 +201,10 @@ export async function streamBuildEvents(
           });
         }
 
-        if (parsed.status === "success" || parsed.status === "failed") {
+        if (
+          parsed.status === BuildRecordStatus.SUCCESS ||
+          parsed.status === BuildRecordStatus.FAILED
+        ) {
           void closeStream();
         }
       } catch (err) {
@@ -208,8 +215,7 @@ export async function streamBuildEvents(
       }
     };
 
-    redisSub.on("message", onMessage);
-    await redisSub.subscribe(channel);
+    unsubscribeRedisChannel = await subscribeToRedisChannel(channel, onMessage);
 
     heartbeat = setInterval(() => {
       sendSSEComment(res, "build-events-heartbeat");

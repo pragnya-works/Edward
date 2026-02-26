@@ -61,7 +61,12 @@ pnpm-debug.log*
 async function ensureScaffoldGitignore(
   containerId: string,
   sandboxId: string,
+  framework?: string,
 ): Promise<void> {
+  if (framework === "vanilla") {
+    return;
+  }
+
   const container = getContainer(containerId);
   const existsResult = await execCommand(
     container,
@@ -202,8 +207,9 @@ export async function provisionSandbox(
 ): Promise<string> {
   const lockKey = `edward:locking:provision:${chatId}`;
   const MAX_ATTEMPTS = 10;
+  const normalizedFramework = framework?.toLowerCase();
 
-  if (framework && !isValidFramework(framework)) {
+  if (normalizedFramework && !isValidFramework(normalizedFramework)) {
     throw new Error(`Unsupported framework: ${framework}`);
   }
 
@@ -228,8 +234,8 @@ export async function provisionSandbox(
         }
 
         const sandboxId = nanoid(12);
-        const image = framework
-          ? getTemplateConfig(framework)?.image || getDefaultImage()
+        const image = normalizedFramework
+          ? getTemplateConfig(normalizedFramework)?.image || getDefaultImage()
           : getDefaultImage();
         const container = await createContainer(
           userId,
@@ -244,7 +250,7 @@ export async function provisionSandbox(
           expiresAt: Date.now() + SANDBOX_TTL,
           userId,
           chatId,
-          scaffoldedFramework: framework?.toLowerCase(),
+          scaffoldedFramework: normalizedFramework,
         };
 
         if (shouldRestore) {
@@ -258,9 +264,13 @@ export async function provisionSandbox(
           }
         }
 
-        await ensureScaffoldGitignore(container.id, sandboxId).catch((error) =>
+        await ensureScaffoldGitignore(
+          container.id,
+          sandboxId,
+          normalizedFramework,
+        ).catch((error) =>
           logger.warn(
-            { sandboxId, error: ensureError(error) },
+            { sandboxId, framework: normalizedFramework, error: ensureError(error) },
             "Failed to scaffold .gitignore (non-fatal)",
           ),
         );

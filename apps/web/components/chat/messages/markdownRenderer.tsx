@@ -1,6 +1,6 @@
 "use client";
 
-import { memo } from "react";
+import { Fragment, memo, type ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
@@ -18,9 +18,12 @@ const MARKDOWN_SYNTAX_PATTERN = /(^|\n)\s{0,3}(#{1,6}\s|[-*+]\s|\d+\.\s|>\s)|\*\
 const CODE_FENCE_PATTERN = /```/;
 const REMARK_PLUGINS: NonNullable<Options["remarkPlugins"]> = [remarkGfm];
 const EMPTY_REHYPE_PLUGINS: [] = [];
+const URL_PATTERN = /\b((?:https?:\/\/|www\.)[^\s<>{}[\]"]+)/gi;
+const TRAILING_PUNCTUATION_PATTERN = /[.,!?;:]+$/;
 
 const TYPEOF_STRING = "string";
 const TYPEOF_OBJECT = "object";
+const DEFAULT_CODE_LANGUAGE = "code";
 
 function isStringNode(node: unknown): node is string {
   return typeof node === TYPEOF_STRING;
@@ -32,47 +35,167 @@ function isObjectNode(
   return typeof node === TYPEOF_OBJECT && node !== null;
 }
 
+function getTextFromChildren(nodes: ReactNode): string {
+  if (!nodes) return "";
+  if (isStringNode(nodes)) return nodes;
+  if (Array.isArray(nodes)) return nodes.map(getTextFromChildren).join("");
+  if (
+    isObjectNode(nodes) &&
+    "props" in nodes &&
+    nodes.props?.children
+  ) {
+    return getTextFromChildren(nodes.props.children);
+  }
+  return String(nodes);
+}
+
+function normalizeLanguageLabel(languageClass: string | undefined): string {
+  if (!languageClass) {
+    return DEFAULT_CODE_LANGUAGE;
+  }
+
+  const match = /language-([\w-]+)/.exec(languageClass);
+  if (!match?.[1]) {
+    return DEFAULT_CODE_LANGUAGE;
+  }
+
+  return match[1].replace(/[-_]/g, " ");
+}
+
+function splitTrailingPunctuation(candidateUrl: string): {
+  normalizedUrl: string;
+  trailingText: string;
+} {
+  let normalizedUrl = candidateUrl;
+  let trailingText = "";
+
+  while (TRAILING_PUNCTUATION_PATTERN.test(normalizedUrl)) {
+    const punctuationMatch = normalizedUrl.match(TRAILING_PUNCTUATION_PATTERN);
+    if (!punctuationMatch?.[0]) {
+      break;
+    }
+    const punctuation = punctuationMatch[0];
+    normalizedUrl = normalizedUrl.slice(0, -punctuation.length);
+    trailingText = `${punctuation}${trailingText}`;
+  }
+
+  while (normalizedUrl.endsWith(")")) {
+    const openingParens = normalizedUrl.split("(").length - 1;
+    const closingParens = normalizedUrl.split(")").length - 1;
+    if (closingParens <= openingParens) {
+      break;
+    }
+    normalizedUrl = normalizedUrl.slice(0, -1);
+    trailingText = `)${trailingText}`;
+  }
+
+  return { normalizedUrl, trailingText };
+}
+
+function getHrefFromCandidateUrl(candidateUrl: string): string {
+  if (/^https?:\/\//i.test(candidateUrl)) {
+    return candidateUrl;
+  }
+  return `https://${candidateUrl}`;
+}
+
+function buildPlainTextWithLinksNodes(content: string): ReactNode[] {
+  const lines = content.split("\n");
+
+  return lines.flatMap((line, lineIndex) => {
+    const lineNodes: ReactNode[] = [];
+    let cursor = 0;
+    URL_PATTERN.lastIndex = 0;
+
+    for (const match of line.matchAll(URL_PATTERN)) {
+      const matchedUrl = match[0];
+      const startIndex = match.index ?? -1;
+      if (!matchedUrl || startIndex < cursor) {
+        continue;
+      }
+
+      if (startIndex > cursor) {
+        lineNodes.push(
+          <Fragment key={`line-${lineIndex}-text-${cursor}`}>
+            {line.slice(cursor, startIndex)}
+          </Fragment>,
+        );
+      }
+
+      const { normalizedUrl, trailingText } = splitTrailingPunctuation(matchedUrl);
+      if (!normalizedUrl) {
+        lineNodes.push(
+          <Fragment key={`line-${lineIndex}-raw-${startIndex}`}>{matchedUrl}</Fragment>,
+        );
+        cursor = startIndex + matchedUrl.length;
+        continue;
+      }
+
+      lineNodes.push(
+        <a
+          key={`line-${lineIndex}-link-${startIndex}`}
+          href={getHrefFromCandidateUrl(normalizedUrl)}
+          className="text-sky-600 dark:text-sky-500 hover:text-sky-500 dark:hover:text-sky-400 underline underline-offset-2 decoration-sky-500/35 transition-colors font-medium break-all"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          {normalizedUrl}
+        </a>,
+      );
+
+      if (trailingText) {
+        lineNodes.push(
+          <Fragment key={`line-${lineIndex}-punct-${startIndex}`}>
+            {trailingText}
+          </Fragment>,
+        );
+      }
+
+      cursor = startIndex + matchedUrl.length;
+    }
+
+    if (cursor < line.length) {
+      lineNodes.push(
+        <Fragment key={`line-${lineIndex}-tail-${cursor}`}>{line.slice(cursor)}</Fragment>,
+      );
+    }
+
+    if (lineIndex < lines.length - 1) {
+      lineNodes.push(<br key={`line-${lineIndex}-break`} />);
+    }
+
+    return lineNodes;
+  });
+}
+
+function PlainTextWithLinks({ content }: { content: string }) {
+  return <>{buildPlainTextWithLinksNodes(content)}</>;
+}
+
 const components: Components = {
   code({ className, children, ...props }) {
-    const match = /language-(\w+)/.exec(className || "");
-    const isBlock = isStringNode(children) ? children.includes("\n") : false;
-
-    const getTextFromChildren = (nodes: React.ReactNode): string => {
-      if (!nodes) return "";
-      if (isStringNode(nodes)) return nodes;
-      if (Array.isArray(nodes)) return nodes.map(getTextFromChildren).join("");
-      if (
-        isObjectNode(nodes) &&
-        "props" in nodes &&
-        nodes.props?.children
-      )
-        return getTextFromChildren(nodes.props.children);
-      return String(nodes);
-    };
-
     const codeContent = getTextFromChildren(children).replace(/\n$/, "");
+    const isBlock = codeContent.includes("\n");
+    const languageLabel = normalizeLanguageLabel(className);
 
-    if (match || isBlock) {
+    if (className || isBlock) {
       return (
-        <div className="relative my-4 sm:my-6 rounded-2xl overflow-hidden border border-primary/20 glass w-full">
-
-          <div className="flex items-center justify-between px-4 py-2 bg-primary/10 dark:bg-primary/20 border-b border-primary/10 backdrop-blur-md">
-            <div className="flex items-center gap-2 min-w-0">
-              <div className="flex gap-1.5 mr-2 shrink-0">
-                <div className="w-2 h-2 rounded-full bg-rose-500/40" />
-                <div className="w-2 h-2 rounded-full bg-amber-500/40" />
-                <div className="w-2 h-2 rounded-full bg-emerald-500/40" />
-              </div>
-              <span className="text-[10px] uppercase tracking-widest font-bold text-primary/60 truncate">
-                {match ? match[1] : "code"}
+        <div className="group/code my-4 sm:my-5 w-full overflow-hidden rounded-xl border border-zinc-200/80 bg-zinc-50/65 text-zinc-900 shadow-sm shadow-zinc-950/5 dark:border-zinc-800/90 dark:bg-zinc-950/80 dark:text-zinc-100">
+          <div className="flex items-center justify-between gap-3 border-b border-zinc-200/80 bg-zinc-100/70 px-3 py-2 sm:px-3.5 dark:border-zinc-800/80 dark:bg-zinc-900/70">
+            <div className="min-w-0">
+              <span className="block truncate text-[11px] font-medium lowercase tracking-wide text-zinc-600 dark:text-zinc-400">
+                {languageLabel}
               </span>
             </div>
-            <CopyButton content={codeContent} />
+            <CopyButton
+              content={codeContent}
+              className="h-7 w-7 rounded-md border border-transparent p-0 text-zinc-500 hover:border-zinc-200 hover:bg-zinc-200/80 hover:text-zinc-800 dark:text-zinc-400 dark:hover:border-zinc-700 dark:hover:bg-zinc-800/80 dark:hover:text-zinc-100"
+            />
           </div>
 
-          <pre className="overflow-x-auto p-3 sm:p-5 no-scrollbar max-w-full">
+          <pre className="no-scrollbar max-w-full overflow-x-auto bg-transparent">
             <code
-              className={`${className || ""} text-[11px] sm:text-[13px] leading-[1.6] sm:leading-[1.8] font-mono block relative whitespace-pre-wrap break-words overflow-wrap-anywhere`}
+              className={`${className || ""} block min-w-max px-3 py-3 text-[12px] leading-5 font-mono text-zinc-900 sm:px-4 sm:py-3.5 sm:text-[13px] dark:text-zinc-100`}
               {...props}
             >
               {children}
@@ -84,7 +207,7 @@ const components: Components = {
 
     return (
       <code
-        className="px-1 sm:px-1.5 py-0.5 rounded bg-foreground/[0.08] dark:bg-foreground/[0.07] text-[0.85em] sm:text-[0.88em] font-mono text-foreground font-medium break-words"
+        className="rounded-md border border-border/50 bg-foreground/[0.04] px-1.5 py-0.5 text-[0.85em] font-mono text-foreground break-words dark:bg-foreground/[0.06]"
         {...props}
       >
         {children}
@@ -214,7 +337,9 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
   if (!hasMarkdownSyntax) {
     return (
       <div className={`prose-edward leading-inherit text-foreground ${className}`}>
-        <p className="m-0 whitespace-pre-wrap break-words">{safeContent}</p>
+        <p className="m-0 whitespace-pre-wrap break-words">
+          <PlainTextWithLinks content={safeContent} />
+        </p>
       </div>
     );
   }

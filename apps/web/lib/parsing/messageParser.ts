@@ -31,6 +31,52 @@ enum MessageParseTokenType {
   RESPONSE_END = "response_end",
 }
 
+function extractTagAttribute(tag: string, attributeName: string): string | undefined {
+  const escapedName = attributeName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const quotedPattern = new RegExp(
+    `${escapedName}\\s*=\\s*(?:"([^"]*)"|'([^']*)')`,
+  );
+  const quotedMatch = tag.match(quotedPattern);
+  if (quotedMatch) {
+    return quotedMatch[1] ?? quotedMatch[2] ?? "";
+  }
+
+  const unquotedPattern = new RegExp(`${escapedName}\\s*=\\s*([^\\s>]+)`);
+  const unquotedMatch = tag.match(unquotedPattern);
+  return unquotedMatch?.[1];
+}
+
+function decodeBase64Utf8(value: string): string | null {
+  try {
+    const normalized = value.replaceAll("-", "+").replaceAll("_", "/");
+    if (typeof globalThis.atob !== "function") {
+      return null;
+    }
+    const binary = globalThis.atob(normalized);
+    const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+    return new TextDecoder().decode(bytes);
+  } catch {
+    return null;
+  }
+}
+
+function decodeBase64Json<T>(value: string | undefined): T | undefined {
+  if (!value) {
+    return undefined;
+  }
+
+  const decoded = decodeBase64Utf8(value);
+  if (!decoded) {
+    return undefined;
+  }
+
+  try {
+    return JSON.parse(decoded) as T;
+  } catch {
+    return undefined;
+  }
+}
+
 export type MessageBlock =
   | { type: MessageBlockType.THINKING; content: string }
   | {
@@ -44,6 +90,13 @@ export type MessageBlock =
       type: MessageBlockType.WEB_SEARCH;
       query: string;
       maxResults?: number;
+      answer?: string;
+      error?: string;
+      results?: Array<{
+        title: string;
+        url: string;
+        snippet: string;
+      }>;
     }
   | {
       type: MessageBlockType.URL_SCRAPE;
@@ -137,8 +190,7 @@ export function parseMessageContent(content: string): MessageBlock[] {
       const closeTagIdx = remaining.indexOf(">");
       if (closeTagIdx !== -1) {
         const tag = remaining.slice(0, closeTagIdx + 1);
-        const pathMatch = tag.match(/path="([^"]*)"/);
-        const filePath = pathMatch ? (pathMatch[1] ?? "unknown") : "unknown";
+        const filePath = extractTagAttribute(tag, "path")?.trim() || "unknown";
 
         const endTagIdx = remaining.indexOf(TAGS.FILE_END);
         if (endTagIdx !== -1) {
@@ -182,14 +234,13 @@ export function parseMessageContent(content: string): MessageBlock[] {
       const closeTagIdx = remaining.indexOf(">");
       if (closeTagIdx !== -1) {
         const tag = remaining.slice(0, closeTagIdx + 1);
-        const commandMatch = tag.match(/command="([^"]*)"/);
-        const command = commandMatch ? (commandMatch[1] ?? "") : "";
+        const command = extractTagAttribute(tag, "command") ?? "";
 
         let args: string[] = [];
-        const argsMatch = tag.match(/args='([^']*)'/);
-        if (argsMatch && argsMatch[1]) {
+        const argsRaw = extractTagAttribute(tag, "args");
+        if (argsRaw) {
           try {
-            args = JSON.parse(argsMatch[1]);
+            args = JSON.parse(argsRaw);
           } catch {
             args = [];
           }
@@ -204,13 +255,29 @@ export function parseMessageContent(content: string): MessageBlock[] {
       const closeTagIdx = remaining.indexOf(">");
       if (closeTagIdx !== -1) {
         const tag = remaining.slice(0, closeTagIdx + 1);
-        const queryMatch = tag.match(/query="([^"]*)"/);
-        const query = decodeHtmlAttribute(queryMatch ? (queryMatch[1] ?? "") : "");
-        const maxResultsMatch = tag.match(/max_results="(\d+)"|maxResults="(\d+)"/);
-        const maxRaw = maxResultsMatch?.[1] ?? maxResultsMatch?.[2];
+        const query = decodeHtmlAttribute(extractTagAttribute(tag, "query") ?? "");
+        const maxRaw =
+          extractTagAttribute(tag, "max_results") ??
+          extractTagAttribute(tag, "maxResults");
         const maxResults = maxRaw ? Number.parseInt(maxRaw, 10) : undefined;
+        const answer = decodeBase64Json<string>(
+          extractTagAttribute(tag, "answer_b64"),
+        );
+        const error = decodeBase64Json<string>(
+          extractTagAttribute(tag, "error_b64"),
+        );
+        const results = decodeBase64Json<
+          Array<{ title: string; url: string; snippet: string }>
+        >(extractTagAttribute(tag, "results_b64"));
 
-        blocks.push({ type: MessageBlockType.WEB_SEARCH, query, maxResults });
+        blocks.push({
+          type: MessageBlockType.WEB_SEARCH,
+          query,
+          maxResults,
+          answer,
+          error,
+          results,
+        });
         remaining = remaining.slice(closeTagIdx + 1);
       } else {
         break;
@@ -219,15 +286,11 @@ export function parseMessageContent(content: string): MessageBlock[] {
       const closeTagIdx = remaining.indexOf(">");
       if (closeTagIdx !== -1) {
         const tag = remaining.slice(0, closeTagIdx + 1);
-        const urlMatch = tag.match(/url="([^"]*)"/);
-        const statusMatch = tag.match(/status="([^"]*)"/);
-        const titleMatch = tag.match(/title="([^"]*)"/);
-        const errorMatch = tag.match(/error="([^"]*)"/);
-        const url = decodeHtmlAttribute(urlMatch ? (urlMatch[1] ?? "") : "");
-        const statusRaw = statusMatch ? (statusMatch[1] ?? "") : "";
+        const url = decodeHtmlAttribute(extractTagAttribute(tag, "url") ?? "");
+        const statusRaw = extractTagAttribute(tag, "status") ?? "";
         const status = statusRaw === "error" ? "error" : "success";
-        const title = decodeHtmlAttribute(titleMatch ? (titleMatch[1] ?? "") : "");
-        const error = decodeHtmlAttribute(errorMatch ? (errorMatch[1] ?? "") : "");
+        const title = decodeHtmlAttribute(extractTagAttribute(tag, "title") ?? "");
+        const error = decodeHtmlAttribute(extractTagAttribute(tag, "error") ?? "");
 
         if (url) {
           blocks.push({
@@ -246,13 +309,11 @@ export function parseMessageContent(content: string): MessageBlock[] {
       const closeTagIdx = remaining.indexOf(">");
       if (closeTagIdx !== -1) {
         const tag = remaining.slice(0, closeTagIdx + 1);
-        const projectMatch = tag.match(/project="([^"]*)"/);
-        const baseMatch = tag.match(/base="([^"]*)"/);
 
         blocks.push({
           type: MessageBlockType.SANDBOX,
-          project: projectMatch?.[1],
-          base: baseMatch?.[1],
+          project: extractTagAttribute(tag, "project"),
+          base: extractTagAttribute(tag, "base"),
         });
         inSandbox = true;
         remaining = remaining.slice(closeTagIdx + 1);

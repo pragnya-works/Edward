@@ -44,6 +44,55 @@ interface ProcessedStreamResult {
 
 const MAX_REPLAY_ATTEMPTS = 1;
 
+function isSameWebSearchEvent(
+  a: NonNullable<StreamState["webSearches"][number]>,
+  b: NonNullable<StreamState["webSearches"][number]>,
+): boolean {
+  return JSON.stringify(a) === JSON.stringify(b);
+}
+
+function hasWebSearchPayload(
+  event: NonNullable<StreamState["webSearches"][number]>,
+): boolean {
+  return Boolean(
+    event.error ||
+      event.answer ||
+      (event.results && event.results.length > 0),
+  );
+}
+
+function mergeWebSearchEvent(
+  existing: StreamState["webSearches"],
+  incoming: NonNullable<StreamState["webSearches"][number]>,
+): StreamState["webSearches"] {
+  const last = existing[existing.length - 1];
+  if (!last) {
+    return [incoming];
+  }
+
+  if (isSameWebSearchEvent(last, incoming)) {
+    return existing;
+  }
+
+  if (
+    last.query === incoming.query &&
+    !hasWebSearchPayload(last) &&
+    hasWebSearchPayload(incoming)
+  ) {
+    return [...existing.slice(0, -1), incoming];
+  }
+
+  if (
+    last.query === incoming.query &&
+    !hasWebSearchPayload(last) &&
+    !hasWebSearchPayload(incoming)
+  ) {
+    return existing;
+  }
+
+  return [...existing, incoming];
+}
+
 function schedulePerFrame(fn: () => void): void {
   if (
     typeof window !== "undefined" &&
@@ -73,6 +122,11 @@ function mergeStreamResults(
   initial: ProcessedStreamResult,
   replay: ProcessedStreamResult,
 ): ProcessedStreamResult {
+  let mergedWebSearches: StreamState["webSearches"] = [];
+  for (const item of [...initial.webSearches, ...replay.webSearches]) {
+    mergedWebSearches = mergeWebSearchEvent(mergedWebSearches, item);
+  }
+
   return {
     meta: replay.meta ?? initial.meta,
     text: `${initial.text}${replay.text}`,
@@ -84,7 +138,7 @@ function mergeStreamResults(
     installingDepsTouched:
       initial.installingDepsTouched || replay.installingDepsTouched,
     command: replay.command ?? initial.command,
-    webSearches: [...initial.webSearches, ...replay.webSearches],
+    webSearches: mergedWebSearches,
     metrics: replay.metrics ?? initial.metrics,
     previewUrl: replay.previewUrl ?? initial.previewUrl,
     lastEventId: replay.lastEventId ?? initial.lastEventId,
@@ -322,14 +376,10 @@ export async function processStreamResponse({
           });
           break;
         case ParserEventType.WEB_SEARCH:
-          if (
-            accumulated.webSearches.length === 0 ||
-            JSON.stringify(
-              accumulated.webSearches[accumulated.webSearches.length - 1],
-            ) !== JSON.stringify(event)
-          ) {
-            accumulated.webSearches.push(event);
-          }
+          accumulated.webSearches = mergeWebSearchEvent(
+            accumulated.webSearches,
+            event,
+          );
           enqueueAction({
             type: StreamActionType.SET_WEB_SEARCH,
             chatId: activeChatId,

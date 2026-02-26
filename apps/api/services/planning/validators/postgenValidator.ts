@@ -10,7 +10,9 @@ export interface ValidationViolation {
     | 'logic-quality'
     | 'orphaned-import'
     | 'markdown-fence'
-    | 'missing-package';
+    | 'missing-package'
+    | 'missing-seo-branding'
+    | 'invalid-canonical-url';
   severity: 'error' | 'warning';
   message: string;
   file?: string;
@@ -39,7 +41,8 @@ const REQUIRED_CSS_IMPORTS: Record<string, { file: string; importPattern: RegExp
   'vite-react': { file: 'src/main.tsx', importPattern: /import\s+['"]\.\/index\.css['"]/ },
 };
 
-const REQUIRED_GENERATE_PROJECT_FILES = ['README.md', '.gitignore'] as const;
+const REQUIRED_GENERATE_PROJECT_FILES = ['README.md'] as const;
+const REQUIRED_GENERATE_PROJECT_FILES_BY_FRAMEWORK: Record<string, readonly string[]> = {};
 const SOURCE_FILE_PATTERN = /\.(ts|tsx|js|jsx)$/i;
 const MARKDOWN_FENCE_PATTERN = /^```/m;
 const RELATIVE_IMPORT_PATTERN = /(?:import|from)\s+['"](\.[^'"]+)['"]/g;
@@ -78,6 +81,72 @@ const NEXT_BUILTIN_MODULES = new Set([
   'next-themes',
 ]);
 
+const EDWARD_FAVICON_ASSET_BASE = 'https://assets.pragnyaa.in/home/favicon_io';
+type PatternRequirement = { pattern: RegExp; label: string };
+
+const NEXT_REQUIRED_BRANDING_PATTERNS: PatternRequirement[] = [
+  {
+    pattern: /https:\/\/assets\.pragnyaa\.in\/home\/favicon_io\/favicon\.ico/,
+    label: 'favicon.ico URL',
+  },
+  {
+    pattern: /https:\/\/assets\.pragnyaa\.in\/home\/favicon_io\/favicon-16x16\.png/,
+    label: 'favicon-16x16 URL',
+  },
+  {
+    pattern: /https:\/\/assets\.pragnyaa\.in\/home\/favicon_io\/favicon-32x32\.png/,
+    label: 'favicon-32x32 URL',
+  },
+  {
+    pattern: /https:\/\/assets\.pragnyaa\.in\/home\/favicon_io\/apple-touch-icon\.png/,
+    label: 'apple-touch-icon URL',
+  },
+  {
+    pattern: /https:\/\/assets\.pragnyaa\.in\/home\/favicon_io\/site\.webmanifest/,
+    label: 'site.webmanifest URL',
+  },
+];
+const NEXT_REQUIRED_SEO_PATTERNS: PatternRequirement[] = [
+  { pattern: /\bmetadataBase\b/, label: 'metadataBase' },
+  { pattern: /\btitle\s*:/, label: 'title' },
+  { pattern: /\bdescription\s*:/, label: 'description' },
+  { pattern: /\balternates\s*:/, label: 'alternates' },
+  { pattern: /\bcanonical\s*:/, label: 'alternates.canonical' },
+  { pattern: /\bopenGraph\s*:/, label: 'openGraph' },
+  { pattern: /\btwitter\s*:/, label: 'twitter' },
+];
+const HTML_REQUIRED_BRANDING_PATTERNS: PatternRequirement[] = [
+  {
+    pattern: /https:\/\/assets\.pragnyaa\.in\/home\/favicon_io\/favicon\.ico/,
+    label: 'favicon.ico URL',
+  },
+  {
+    pattern: /https:\/\/assets\.pragnyaa\.in\/home\/favicon_io\/apple-touch-icon\.png/,
+    label: 'apple-touch-icon URL',
+  },
+  {
+    pattern: /https:\/\/assets\.pragnyaa\.in\/home\/favicon_io\/site\.webmanifest/,
+    label: 'site.webmanifest URL',
+  },
+];
+const HTML_REQUIRED_SEO_PATTERNS: PatternRequirement[] = [
+  { pattern: /<meta[^>]+name=["']description["']/i, label: 'meta description' },
+  { pattern: /<link[^>]+rel=["']canonical["']/i, label: 'canonical link' },
+  { pattern: /<meta[^>]+property=["']og:title["']/i, label: 'og:title' },
+  { pattern: /<meta[^>]+property=["']og:description["']/i, label: 'og:description' },
+  { pattern: /<meta[^>]+property=["']og:type["']/i, label: 'og:type' },
+  { pattern: /<meta[^>]+name=["']twitter:card["']/i, label: 'twitter:card' },
+  { pattern: /<meta[^>]+name=["']twitter:title["']/i, label: 'twitter:title' },
+  {
+    pattern: /<meta[^>]+name=["']twitter:description["']/i,
+    label: 'twitter:description',
+  },
+];
+const HTML_CANONICAL_LINK_PATTERN =
+  /<link[^>]+rel=["'][^"']*\bcanonical\b[^"']*["'][^>]*>/i;
+const HTML_CANONICAL_HREF_PATTERN = /\bhref=["']([^"']+)["']/i;
+const ABSOLUTE_HTTP_URL_PATTERN = /^https?:\/\/\S+$/i;
+
 const IMPORT_TO_PACKAGE: Record<string, string> = {
   'framer-motion': 'framer-motion',
   'motion': 'framer-motion',
@@ -103,7 +172,15 @@ export function validateGeneratedOutput(output: GeneratedOutput): ValidationResu
     Boolean(output.framework) && output.mode !== 'edit' && output.mode !== 'fix';
 
   if (output.mode === 'generate') {
-    for (const requiredFile of REQUIRED_GENERATE_PROJECT_FILES) {
+    const frameworkSpecificRequiredFiles = output.framework
+      ? (REQUIRED_GENERATE_PROJECT_FILES_BY_FRAMEWORK[output.framework] ?? [])
+      : [];
+    const requiredFiles = [
+      ...REQUIRED_GENERATE_PROJECT_FILES,
+      ...frameworkSpecificRequiredFiles,
+    ];
+
+    for (const requiredFile of requiredFiles) {
       if (!output.files.has(requiredFile)) {
         violations.push({
           type: 'missing-project-file',
@@ -170,6 +247,7 @@ export function validateGeneratedOutput(output: GeneratedOutput): ValidationResu
   }
 
   violations.push(...validateFrameworkEntrypoints(output));
+  violations.push(...validateSeoBranding(output));
 
   const errorCount = violations.filter(v => v.severity === 'error').length;
   const warningCount = violations.length - errorCount;
@@ -184,6 +262,101 @@ export function validateGeneratedOutput(output: GeneratedOutput): ValidationResu
   }
 
   return { valid, violations };
+}
+
+function validateSeoBranding(output: GeneratedOutput): ValidationViolation[] {
+  if (output.mode !== 'generate' || !output.framework) {
+    return [];
+  }
+
+  if (output.framework === 'nextjs') {
+    return validateNextSeoBranding(output.files);
+  }
+
+  if (output.framework === 'vite-react' || output.framework === 'vanilla') {
+    return validateHtmlSeoBranding(output.files, output.framework);
+  }
+
+  return [];
+}
+
+function validateNextSeoBranding(
+  files: Map<string, string>,
+): ValidationViolation[] {
+  const layoutPath = 'src/app/layout.tsx';
+  const layoutContent = files.get(layoutPath);
+  const violations: ValidationViolation[] = [];
+
+  if (layoutContent) {
+    const missingBranding = findMissingPatternLabels(
+      layoutContent,
+      NEXT_REQUIRED_BRANDING_PATTERNS,
+    );
+    const missingSeo = findMissingPatternLabels(layoutContent, NEXT_REQUIRED_SEO_PATTERNS);
+    const missingRequirements = [...missingBranding, ...missingSeo];
+
+    if (missingRequirements.length > 0) {
+      violations.push({
+        type: 'missing-seo-branding',
+        severity: 'warning',
+        message: `${layoutPath} must include Edward favicon URLs from ${EDWARD_FAVICON_ASSET_BASE} and required Next metadata fields. Missing: ${missingRequirements.join(', ')}.`,
+        file: layoutPath,
+      });
+    }
+  }
+
+  return violations;
+}
+
+function validateHtmlSeoBranding(
+  files: Map<string, string>,
+  framework: string,
+): ValidationViolation[] {
+  const htmlPath = 'index.html';
+  const htmlContent = files.get(htmlPath);
+  if (!htmlContent) {
+    return [];
+  }
+
+  const missingBranding = findMissingPatternLabels(
+    htmlContent,
+    HTML_REQUIRED_BRANDING_PATTERNS,
+  );
+  const missingSeo = findMissingPatternLabels(htmlContent, HTML_REQUIRED_SEO_PATTERNS);
+  const missingRequirements = [...missingBranding, ...missingSeo];
+
+  const violations: ValidationViolation[] = [];
+
+  if (missingRequirements.length > 0) {
+    violations.push({
+      type: 'missing-seo-branding',
+      severity: 'warning',
+      message: `${framework} ${htmlPath} must include Edward favicon + manifest URLs from ${EDWARD_FAVICON_ASSET_BASE} plus description/canonical/Open Graph/Twitter metadata. Missing: ${missingRequirements.join(', ')}.`,
+      file: htmlPath,
+    });
+  }
+
+  const canonicalTag = htmlContent.match(HTML_CANONICAL_LINK_PATTERN)?.[0];
+  const canonicalHref = canonicalTag?.match(HTML_CANONICAL_HREF_PATTERN)?.[1]?.trim();
+  if (canonicalHref && !ABSOLUTE_HTTP_URL_PATTERN.test(canonicalHref)) {
+    violations.push({
+      type: 'invalid-canonical-url',
+      severity: 'error',
+      message: `${framework} ${htmlPath} must use an absolute canonical URL (http/https). Found: "${canonicalHref}".`,
+      file: htmlPath,
+    });
+  }
+
+  return violations;
+}
+
+function findMissingPatternLabels(
+  content: string,
+  requirements: readonly PatternRequirement[],
+): string[] {
+  return requirements
+    .filter((requirement) => !requirement.pattern.test(content))
+    .map((requirement) => requirement.label);
 }
 
 function validateRelativeImportsForFile(

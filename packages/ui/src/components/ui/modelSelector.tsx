@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo } from "react";
+import { useMemo } from "react";
 import Image from "next/image";
 import {
   LazyMotion,
@@ -17,6 +17,8 @@ interface ModelSelectorProps {
   provider: Provider;
   selectedModelId?: string;
   onSelect: (modelId: string) => void;
+  className?: string;
+  listClassName?: string;
 }
 
 const ASSETS_URL = process.env.NEXT_PUBLIC_ASSETS_URL;
@@ -29,14 +31,21 @@ export function ModelSelector({
   provider,
   selectedModelId,
   onSelect,
+  className,
+  listClassName,
 }: ModelSelectorProps) {
   const models = useMemo(() => getModelsByProvider(provider), [provider]);
   const prefersReducedMotion = useReducedMotion();
 
   return (
     <LazyMotion features={domAnimation}>
-      <div className="w-full flex flex-col gap-2">
-        <div className="grid gap-1.5 overflow-y-auto scrollbar-hide [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+      <div className={cn("w-full flex flex-col gap-2", className)}>
+        <div
+          className={cn(
+            "grid gap-1.5 overflow-y-auto overscroll-contain scrollbar-hide [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden",
+            listClassName,
+          )}
+        >
           {models.map((model, index) => {
             const isSelected = selectedModelId === model.id;
             const iconUrl = getModelIconUrl(provider, model.id);

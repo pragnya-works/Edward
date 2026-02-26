@@ -128,6 +128,8 @@ export const chat = pgTable(
       .references(() => user.id, { onDelete: "cascade" }),
     title: text("title"),
     description: text("description"),
+    seoTitle: text("seo_title"),
+    seoDescription: text("seo_description"),
     visibility: boolean("visibility").default(false),
     githubRepoFullName: text("github_repo_full_name"),
     customSubdomain: text("custom_subdomain"),

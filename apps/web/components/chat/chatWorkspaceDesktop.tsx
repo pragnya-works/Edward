@@ -22,7 +22,7 @@ interface ChatWorkspaceDesktopProps {
   onSandboxResize: (panelSize: PanelSize) => void;
 }
 
-const DEFAULT_SANDBOX_SIZE = 45;
+const DEFAULT_SANDBOX_SIZE = 52;
 const MAX_SANDBOX_SIZE = 75;
 const MIN_CHAT_SIZE = 100 - MAX_SANDBOX_SIZE;
 

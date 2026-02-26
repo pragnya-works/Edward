@@ -5,6 +5,7 @@ import { RefreshCw, X, Copy, Check, FileCode } from "lucide-react";
 import { cn } from "@edward/ui/lib/utils";
 import { Button } from "@edward/ui/components/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@edward/ui/components/card";
+import { copyTextToClipboard } from "@edward/ui/lib/clipboard";
 import { useSandbox } from "@/contexts/sandboxContext";
 import { BuildStatus } from "@/stores/sandbox/types";
 
@@ -12,17 +13,15 @@ export function SandboxEmptyState() {
   const { buildStatus, isStreaming, fullErrorReport } = useSandbox();
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
-  const handleCopy = useCallback((key: string, text: string) => {
+  const handleCopy = useCallback(async (key: string, text: string) => {
     if (!text) return;
-    navigator.clipboard
-      .writeText(text)
-      .then(() => {
-        setCopiedKey(key);
-        setTimeout(() => {
-          setCopiedKey((current) => (current === key ? null : current));
-        }, 1600);
-      })
-      .catch(() => {});
+    const copied = await copyTextToClipboard(text);
+    if (!copied) return;
+
+    setCopiedKey(key);
+    setTimeout(() => {
+      setCopiedKey((current) => (current === key ? null : current));
+    }, 1600);
   }, []);
 
   const logLines = useMemo(() => {
@@ -58,6 +57,47 @@ export function SandboxEmptyState() {
       ? rootCause.suggestion ||
       `Open ${rootCause.error.file}:${rootCause.error.line}, fix this error at the pinpoint, then rebuild.`
       : null;
+  const diagnosisCopyText = useMemo(() => {
+    const lines: string[] = [];
+    const shortMessage =
+      diagnosis?.shortMessage || fullErrorReport?.headline || "Build failed.";
+    const context = diagnosis?.pinpointContext || fallbackPinpointContext;
+    const fix = diagnosis?.preciseFix || fallbackPreciseFix;
+
+    if (shortMessage) {
+      lines.push(shortMessage);
+    }
+    if (pinpointLabel) {
+      lines.push(
+        `Pinpoint: ${pinpointLabel}${pinpoint?.code ? ` (${pinpoint.code})` : ""}`,
+      );
+    }
+    if (diagnosis?.probableCause) {
+      lines.push(`Cause: ${diagnosis.probableCause}`);
+    }
+    if (context) {
+      lines.push(`Context: ${context}`);
+    }
+    if (fix) {
+      lines.push(`Fix: ${fix}`);
+    }
+    if (diagnosis?.nextStep) {
+      lines.push(`Next: ${diagnosis.nextStep}`);
+    }
+
+    return lines.join("\n");
+  }, [
+    diagnosis?.nextStep,
+    diagnosis?.pinpointContext,
+    diagnosis?.preciseFix,
+    diagnosis?.probableCause,
+    diagnosis?.shortMessage,
+    fallbackPinpointContext,
+    fallbackPreciseFix,
+    fullErrorReport?.headline,
+    pinpoint?.code,
+    pinpointLabel,
+  ]);
 
   return (
     <div className="flex-1 flex items-center justify-center bg-workspace-bg">
@@ -84,34 +124,31 @@ export function SandboxEmptyState() {
               <CardContent className="px-0">
                 <div className="px-4 py-3 text-left space-y-3">
                   <div className="rounded-md border border-workspace-border bg-workspace-bg px-3 py-2">
-                    <p className="text-[13px] text-workspace-foreground font-medium whitespace-pre-wrap [overflow-wrap:anywhere]">
-                      {diagnosis?.shortMessage || fullErrorReport?.headline || "Build failed."}
-                    </p>
+                    <div className="flex items-start gap-2">
+                      <p className="text-[13px] text-workspace-foreground font-medium whitespace-pre-wrap [overflow-wrap:anywhere] flex-1">
+                        {diagnosis?.shortMessage || fullErrorReport?.headline || "Build failed."}
+                      </p>
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => handleCopy("diagnosis", diagnosisCopyText)}
+                        className="h-6 w-6 rounded-sm text-workspace-foreground/70 hover:text-workspace-foreground shrink-0"
+                        aria-label="Copy diagnosis"
+                      >
+                        {copiedKey === "diagnosis" ? (
+                          <Check className="h-3.5 w-3.5 text-workspace-accent" />
+                        ) : (
+                          <Copy className="h-3.5 w-3.5" />
+                        )}
+                      </Button>
+                    </div>
                     {pinpointLabel ? (
                       <div className="mt-1 flex items-start gap-1.5">
                         <p className="text-[11px] text-workspace-foreground/70 flex-1 whitespace-pre-wrap [overflow-wrap:anywhere]">
                           Pinpoint: <span className="font-mono">{pinpointLabel}</span>
                           {pinpoint?.code ? ` (${pinpoint.code})` : ""}
                         </p>
-                        <Button
-                          type="button"
-                          size="icon"
-                          variant="ghost"
-                          onClick={() =>
-                            handleCopy(
-                              "pinpoint",
-                              `${pinpointLabel}${pinpoint?.code ? ` (${pinpoint.code})` : ""}`,
-                            )
-                          }
-                          className="h-6 w-6 rounded-sm text-workspace-foreground/70 hover:text-workspace-foreground"
-                          aria-label="Copy pinpoint"
-                        >
-                          {copiedKey === "pinpoint" ? (
-                            <Check className="h-3.5 w-3.5 text-workspace-accent" />
-                          ) : (
-                            <Copy className="h-3.5 w-3.5" />
-                          )}
-                        </Button>
                       </div>
                     ) : null}
                     {diagnosis?.probableCause ? (

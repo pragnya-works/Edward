@@ -216,6 +216,9 @@ export async function executeStartStreamMutation(
       void deps.queryClient.invalidateQueries({
         queryKey: queryKeys.chatHistory.byChatId(metaEvent.chatId),
       });
+      void deps.queryClient.invalidateQueries({
+        queryKey: queryKeys.activeRun.byChatId(metaEvent.chatId),
+      });
     }
     void deps.queryClient.invalidateQueries({
       queryKey: queryKeys.recentChats.all,

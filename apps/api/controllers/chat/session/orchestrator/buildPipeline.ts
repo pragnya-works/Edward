@@ -1,5 +1,6 @@
 import type { Response } from "express";
 import { ParserEventType } from "@edward/shared/streamEvents";
+import { BuildRecordStatus } from "@edward/shared/api/contracts";
 import { createBuild, updateBuild } from "@edward/auth";
 import { enqueueBuildJob } from "../../../../services/queue/enqueue.js";
 import { flushSandbox } from "../../../../services/sandbox/write/flush.js";
@@ -7,11 +8,12 @@ import {
   validateGeneratedOutput,
 } from "../../../../services/planning/validators/postgenValidator.js";
 import type { ChatAction } from "../../../../services/planning/schemas.js";
-import { createRedisClient } from "../../../../lib/redis.js";
+import { redis } from "../../../../lib/redis.js";
 import { ensureError } from "../../../../utils/error.js";
 import { logger } from "../../../../utils/logger.js";
 import { sendSSEError, sendSSEEvent } from "../../sse.utils.js";
 import { buildPostgenValidationErrorReport } from "./postgenValidationReport.js";
+import { applyDeterministicPostgenAutofixes } from "./postgenAutofix.js";
 
 interface ProcessBuildPipelineParams {
   sandboxId: string;
@@ -43,6 +45,15 @@ export async function processBuildPipeline(
   } = params;
 
   let blockingValidationReport: Record<string, unknown> | null = null;
+
+  await applyDeterministicPostgenAutofixes({
+    framework,
+    mode,
+    generatedFiles,
+    sandboxId,
+    chatId,
+    runId,
+  });
 
   if (generatedFiles.size > 0) {
     const validation = validateGeneratedOutput({
@@ -85,23 +96,22 @@ export async function processBuildPipeline(
     const failedBuild = await createBuild({
       chatId,
       messageId: assistantMessageId,
-      status: "failed",
+      status: BuildRecordStatus.FAILED,
     });
 
     await updateBuild(failedBuild.id, {
-      status: "failed",
+      status: BuildRecordStatus.FAILED,
       errorReport: blockingValidationReport,
     }).catch(() => { });
 
-    const buildStatusPublisher = createRedisClient();
     const buildStatusChannel = `edward:build-status:${chatId}`;
     try {
-      await buildStatusPublisher.publish(
+      await redis.publish(
         buildStatusChannel,
         JSON.stringify({
           buildId: failedBuild.id,
           runId,
-          status: "failed",
+          status: BuildRecordStatus.FAILED,
           errorReport: blockingValidationReport,
         }),
       );
@@ -115,14 +125,12 @@ export async function processBuildPipeline(
         },
         "Failed to publish build status update",
       );
-    } finally {
-      await buildStatusPublisher.quit().catch(() => { });
     }
 
     sendSSEEvent(res, {
       type: ParserEventType.BUILD_STATUS,
       chatId,
-      status: "failed",
+      status: BuildRecordStatus.FAILED,
       buildId: failedBuild.id,
       runId,
       errorReport: blockingValidationReport,
@@ -133,14 +141,13 @@ export async function processBuildPipeline(
   const queuedBuild = await createBuild({
     chatId,
     messageId: assistantMessageId,
-    status: "queued",
+    status: BuildRecordStatus.QUEUED,
   });
 
-  const buildStatusPublisher = createRedisClient();
   const buildStatusChannel = `edward:build-status:${chatId}`;
   const publishBuildStatus = async (payload: Record<string, unknown>) => {
     try {
-      await buildStatusPublisher.publish(
+      await redis.publish(
         buildStatusChannel,
         JSON.stringify(payload),
       );
@@ -160,58 +167,54 @@ export async function processBuildPipeline(
   await publishBuildStatus({
     buildId: queuedBuild.id,
     runId,
-    status: "queued",
+    status: BuildRecordStatus.QUEUED,
   });
 
   try {
-    try {
-      await enqueueBuildJob({
+    await enqueueBuildJob({
+      sandboxId,
+      userId,
+      chatId,
+      messageId: assistantMessageId,
+      buildId: queuedBuild.id,
+      runId,
+    });
+  } catch (queueErr) {
+    const enqueueErrorReport = {
+      failed: true,
+      headline: "Failed to enqueue build job",
+      details: queueErr instanceof Error ? queueErr.message : String(queueErr),
+    };
+
+    await updateBuild(queuedBuild.id, {
+      status: BuildRecordStatus.FAILED,
+      errorReport: enqueueErrorReport as Record<string, unknown>,
+    } as Parameters<typeof updateBuild>[1]).catch(() => { });
+
+    await publishBuildStatus({
+      buildId: queuedBuild.id,
+      runId,
+      status: BuildRecordStatus.FAILED,
+      errorReport: enqueueErrorReport,
+    });
+
+    sendSSEEvent(res, {
+      type: ParserEventType.BUILD_STATUS,
+      chatId,
+      status: BuildRecordStatus.FAILED,
+      buildId: queuedBuild.id,
+      runId,
+      errorReport: enqueueErrorReport,
+    });
+
+    logger.error(
+      {
+        err: ensureError(queueErr),
+        chatId,
+        runId,
         sandboxId,
-        userId,
-        chatId,
-        messageId: assistantMessageId,
-        buildId: queuedBuild.id,
-        runId,
-      });
-    } catch (queueErr) {
-      const enqueueErrorReport = {
-        failed: true,
-        headline: "Failed to enqueue build job",
-        details: queueErr instanceof Error ? queueErr.message : String(queueErr),
-      };
-
-      await updateBuild(queuedBuild.id, {
-        status: "failed",
-        errorReport: enqueueErrorReport as Record<string, unknown>,
-      } as Parameters<typeof updateBuild>[1]).catch(() => { });
-
-      await publishBuildStatus({
-        buildId: queuedBuild.id,
-        runId,
-        status: "failed",
-        errorReport: enqueueErrorReport,
-      });
-
-      sendSSEEvent(res, {
-        type: ParserEventType.BUILD_STATUS,
-        chatId,
-        status: "failed",
-        buildId: queuedBuild.id,
-        runId,
-        errorReport: enqueueErrorReport,
-      });
-
-      logger.error(
-        {
-          err: ensureError(queueErr),
-          chatId,
-          runId,
-          sandboxId,
-        },
-        "Failed to enqueue build job",
-      );
-    }
-  } finally {
-    await buildStatusPublisher.quit().catch(() => { });
+      },
+      "Failed to enqueue build job",
+    );
   }
 }

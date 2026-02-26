@@ -9,6 +9,7 @@ import {
 } from "@edward/ui/components/tabs";
 import { ApiKeyInput } from "@edward/ui/components/ui/apiKeyInput";
 import { ModelSelector } from "@edward/ui/components/ui/modelSelector";
+import { cn } from "@edward/ui/lib/utils";
 import { PROVIDERS_CONFIG } from "./byok.utils";
 
 interface BYOKProviderTabsProps {
@@ -38,10 +39,21 @@ export function BYOKProviderTabs({
   onKeyDown,
   onModelChange,
 }: BYOKProviderTabsProps) {
+  const hasError = error.trim().length > 0;
+
   return (
-    <div className="flex-1 overflow-y-auto overscroll-contain scrollbar-hide [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-      <div className="px-6 py-6">
-        <Tabs value={selectedProvider} onValueChange={onTabChange}>
+    <div className="flex-1 min-h-0">
+      <div
+        className={cn(
+          "px-6 h-full min-h-0 flex flex-col",
+          hasError ? "py-4" : "py-5",
+        )}
+      >
+        <Tabs
+          value={selectedProvider}
+          onValueChange={onTabChange}
+          className="h-full min-h-0"
+        >
           <TabsList className="grid w-full grid-cols-2 rounded-xl h-11 p-1 bg-muted/60 dark:bg-white/[0.06] transition-all border border-border/40 dark:border-white/[0.1]">
             {PROVIDERS_CONFIG.map(({ id, label, icon: Icon }) => (
               <TabsTrigger
@@ -61,9 +73,12 @@ export function BYOKProviderTabs({
             <TabsContent
               key={id}
               value={id}
-              className="mt-6 space-y-6 outline-none focus-visible:ring-0"
+              className={cn(
+                "mt-5 min-h-0 flex flex-col outline-none focus-visible:ring-0 overflow-hidden",
+                hasError ? "gap-4" : "gap-5",
+              )}
             >
-              <div className="space-y-2.5">
+              <div className="space-y-2 shrink-0">
                 <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/60 dark:text-muted-foreground/70 px-1">
                   Identity & Access
                 </p>
@@ -79,15 +94,15 @@ export function BYOKProviderTabs({
                 />
               </div>
 
-              <div className="space-y-2.5">
+              <div className="space-y-2 flex-1 basis-0 min-h-0 flex flex-col">
                 <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/60 dark:text-muted-foreground/70 px-1">
                   Engine Preference
                 </p>
                 <div
                   className={
                     isApiKeyActionDisabled
-                      ? "pointer-events-none opacity-60"
-                      : undefined
+                      ? "flex-1 min-h-0 pointer-events-none opacity-60"
+                      : "flex-1 min-h-0"
                   }
                 >
                   <ModelSelector
@@ -99,6 +114,8 @@ export function BYOKProviderTabs({
                         : undefined
                     }
                     onSelect={onModelChange}
+                    className="h-full min-h-0"
+                    listClassName="flex-1 min-h-0 pr-1"
                   />
                 </div>
               </div>

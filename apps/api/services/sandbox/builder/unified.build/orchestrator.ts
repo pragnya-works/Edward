@@ -155,7 +155,11 @@ export async function buildAndUploadUnified(
           TIMEOUT_DEPENDENCY_INSTALL_MS,
           undefined,
           CONTAINER_WORKDIR,
-          ["NEXT_TELEMETRY_DISABLED=1", "CI=true"],
+          [
+            "NEXT_TELEMETRY_DISABLED=1",
+            "CI=true",
+            "NPM_CONFIG_ENGINE_STRICT=true",
+          ],
         );
 
         if (installResult.exitCode !== 0) {

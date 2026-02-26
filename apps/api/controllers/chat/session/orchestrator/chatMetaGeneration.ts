@@ -32,10 +32,14 @@ Return ONLY a JSON object: {"title": "...", "description": "..."}
       const match = resp.match(/\{[\s\S]*\}/);
       if (!match) return;
       const parsed = JSON.parse(match[0]);
-      if (parsed.title || parsed.description) {
+      const title = parsed.title?.slice(0, 100);
+      const description = parsed.description?.slice(0, 200);
+      if (title || description) {
         return updateChatMeta(chatId, {
-          title: parsed.title?.slice(0, 100),
-          description: parsed.description?.slice(0, 200),
+          title,
+          description,
+          seoTitle: title,
+          seoDescription: description,
         });
       }
       return undefined;

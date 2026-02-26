@@ -15,10 +15,43 @@ interface UploadQueueItem {
   retries: number;
 }
 
+interface UploadError extends Error {
+  status?: number;
+}
+
+function getUploadErrorStatus(error: unknown): number | null {
+  const status = (error as UploadError | null)?.status;
+  return typeof status === "number" ? status : null;
+}
+
+function resolveUploadErrorMessage(error: unknown): string {
+  if (error instanceof Error && error.message.trim().length > 0) {
+    return error.message;
+  }
+  return "Upload failed";
+}
+
+function shouldRetryUpload(status: number | null, retries: number): boolean {
+  if (retries >= MAX_RETRIES) {
+    return false;
+  }
+
+  if (status === 429) {
+    return false;
+  }
+
+  if (status !== null && status >= 400 && status < 500) {
+    return false;
+  }
+
+  return true;
+}
+
 export function useFileAttachments(
   isAuthenticated: boolean,
   supportsVision: boolean,
   isUploadBlocked: boolean,
+  uploadBlockedReason: string | null,
   onImageUpload?: (
     file: File,
   ) => Promise<{ url: string; mimeType: string; sizeBytes?: number }>,
@@ -55,6 +88,25 @@ export function useFileAttachments(
     dragCounter.current = 0;
   }, [isAttachmentInteractionEnabled]);
 
+  const markFilesFailed = useCallback((fileIds: string[], errorMessage: string) => {
+    if (fileIds.length === 0) {
+      return;
+    }
+
+    const failedSet = new Set(fileIds);
+    setAttachedFiles((prev) =>
+      prev.map((file) =>
+        failedSet.has(file.id)
+          ? {
+              ...file,
+              status: AttachmentUploadStatus.FAILED,
+              error: errorMessage,
+            }
+          : file,
+      ),
+    );
+  }, []);
+
   const processUploadQueue = useCallback(() => {
     if (!onImageUpload) return;
 
@@ -82,27 +134,24 @@ export function useFileAttachments(
             ),
           );
         } catch (error) {
-          if (item.retries < MAX_RETRIES) {
+          const status = getUploadErrorStatus(error);
+
+          if (shouldRetryUpload(status, item.retries)) {
             item.retries++;
             setTimeout(() => {
               uploadQueueRef.current.push(item);
               processUploadQueue();
             }, RETRY_DELAY_MS * item.retries);
           } else {
-            const errorMessage =
-              error instanceof Error ? error.message : "Upload failed";
+            const errorMessage = resolveUploadErrorMessage(error);
             onImageUploadError?.(errorMessage);
-            setAttachedFiles((prev) =>
-              prev.map((f) =>
-                f.id === item.id
-                  ? {
-                      ...f,
-                      status: AttachmentUploadStatus.FAILED,
-                      error: errorMessage,
-                    }
-                  : f,
-              ),
-            );
+            markFilesFailed([item.id], errorMessage);
+
+            if (status === 429) {
+              const queuedIds = uploadQueueRef.current.map((queued) => queued.id);
+              uploadQueueRef.current = [];
+              markFilesFailed(queuedIds, errorMessage);
+            }
           }
         } finally {
           activeUploadsRef.current--;
@@ -112,11 +161,24 @@ export function useFileAttachments(
 
       attemptUpload();
     }
-  }, [onImageUpload, onImageUploadError]);
+  }, [markFilesFailed, onImageUpload, onImageUploadError]);
 
   const handleFiles = useCallback(
-    async (files: FileList | null) => {
-      if (!isAuthenticated || !supportsVision || isUploadBlocked) return;
+    async (files: FileList | File[] | null) => {
+      if (!isAuthenticated) {
+        onImageUploadError?.("Sign in to attach images.");
+        return;
+      }
+      if (!supportsVision) {
+        onImageUploadError?.("The selected model does not support image inputs.");
+        return;
+      }
+      if (isUploadBlocked) {
+        onImageUploadError?.(
+          uploadBlockedReason || "Image uploads are currently unavailable.",
+        );
+        return;
+      }
       if (!files || files.length === 0) return;
 
       const validFiles = Array.from(files).filter((file) => {
@@ -139,9 +201,22 @@ export function useFileAttachments(
         return true;
       });
 
+      if (validFiles.length === 0) return;
+
       const remainingSlots =
         IMAGE_UPLOAD_CONFIG.MAX_FILES - attachedFiles.length;
+      if (remainingSlots <= 0) {
+        onImageUploadError?.(
+          `You can attach up to ${IMAGE_UPLOAD_CONFIG.MAX_FILES} images.`,
+        );
+        return;
+      }
       const filesToAdd = validFiles.slice(0, remainingSlots);
+      if (validFiles.length > remainingSlots) {
+        onImageUploadError?.(
+          `Only ${remainingSlots} more image${remainingSlots === 1 ? "" : "s"} can be attached (max ${IMAGE_UPLOAD_CONFIG.MAX_FILES}).`,
+        );
+      }
 
       const newFiles: AttachedFile[] = filesToAdd.map((file) => ({
         id: `${Date.now()}-${Math.random().toString(36).substring(2, 11)}`,
@@ -185,10 +260,29 @@ export function useFileAttachments(
       isAuthenticated,
       supportsVision,
       isUploadBlocked,
+      uploadBlockedReason,
       onImageUpload,
       onImageUploadError,
       processUploadQueue,
     ],
+  );
+
+  const handlePaste = useCallback(
+    (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+      if (!isAttachmentInteractionEnabled) return;
+      const files = e.clipboardData?.files;
+      if (!files || files.length === 0) return;
+
+      const imageFiles = Array.from(files).filter((file) =>
+        file.type.startsWith("image/"),
+      );
+      if (imageFiles.length === 0) return;
+
+      // Prevent pasting opaque binary content into the prompt when clipboard holds images.
+      e.preventDefault();
+      void handleFiles(imageFiles);
+    },
+    [handleFiles, isAttachmentInteractionEnabled],
   );
 
   const handleFileInputChange = useCallback(
@@ -277,7 +371,6 @@ export function useFileAttachments(
     isDragging,
     fileInputRef,
     canAttachMore,
-    handleFiles,
     handleFileInputChange,
     handleClearAllFiles,
     handleRemoveFile,
@@ -286,5 +379,6 @@ export function useFileAttachments(
     handleDragOver,
     handleDrop,
     handleAttachmentClick,
+    handlePaste,
   };
 }

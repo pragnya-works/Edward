@@ -1,10 +1,45 @@
 import type { Metadata, Viewport } from "next";
 import { Providers } from "../components/providers";
+import { getCanonicalUrl, getSiteUrl, STATIC_OG_IMAGE_URL } from "../lib/seo";
 import "./globals.css";
 
+const siteUrl = getSiteUrl();
+const canonicalUrl = getCanonicalUrl("/");
+const title = "Edward App";
+const description = "A production-ready web application built with Edward AI.";
+
 export const metadata: Metadata = {
-  title: "Edward App",
-  description: "Built with Edward AI",
+  metadataBase: siteUrl ?? undefined,
+  title: {
+    default: title,
+    template: "%s | Edward App",
+  },
+  description,
+  alternates: canonicalUrl ? { canonical: canonicalUrl } : undefined,
+  openGraph: {
+    type: "website",
+    url: canonicalUrl ?? undefined,
+    title,
+    description,
+    images: [
+      {
+        url: STATIC_OG_IMAGE_URL,
+        width: 1200,
+        height: 630,
+        alt: title,
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title,
+    description,
+    images: [STATIC_OG_IMAGE_URL],
+  },
+  robots: {
+    index: true,
+    follow: true,
+  },
   icons: {
     icon: [
       { url: "https://assets.pragnyaa.in/home/favicon_io/favicon.ico" },

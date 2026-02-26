@@ -1,53 +1,36 @@
-import type { Response } from "express";
 import {
   ParserEventType,
   MetaPhase,
-  StreamTerminationReason,
 } from "@edward/shared/streamEvents";
-import type { AuthenticatedRequest } from "../../../../middleware/auth.js";
 import { composePrompt } from "../../../../lib/llm/compose.js";
+import { PromptProfile } from "../../../../lib/llm/prompts/sections.js";
 import {
   computeTokenUsage,
   isOverContextLimit,
-  countOutputTokens,
   type TokenUsage,
 } from "../../../../lib/llm/tokens.js";
-import { cleanupSandbox } from "../../../../services/sandbox/lifecycle/cleanup.js";
 import {
   saveMessage,
-  type MessageMetadata,
 } from "../../../../services/chat.service.js";
-import { ensureError } from "../../../../utils/error.js";
 import { logger } from "../../../../utils/logger.js";
 import { MessageRole } from "@edward/auth";
 import {
   ChatAction,
-  type WorkflowState,
-  type ChatAction as ChatActionType,
   type Framework,
 } from "../../../../services/planning/schemas.js";
 import {
   formatUrlScrapeAssistantTags,
 } from "../../../../services/websearch/urlScraper.service.js";
 import {
-  classifyAssistantError,
-  toAssistantErrorTag,
-} from "../../../../lib/llm/errorPresentation.js";
-
-import {
-  sendSSEError,
   sendSSEEvent,
   sendSSEDone,
 } from "../../sse.utils.js";
-import type { LlmChatMessage } from "../../../../lib/llm/context.js";
-import type { MessageContent } from "@edward/shared/llm/types";
 import { runAgentLoop } from "../loop/agent.loop.js";
 import {
   createMetaEmitter,
   type EmitMeta,
 } from "../shared/meta.js";
 import {
-  LOOP_STOP_REASON_TO_ERROR_HINT,
   LOOP_STOP_REASON_TO_TERMINATION,
 } from "./loopStopReasons.js";
 import { processBuildPipeline } from "./buildPipeline.js";
@@ -55,42 +38,19 @@ import { resolveFramework } from "./frameworkResolution.js";
 import { prepareBaseMessages } from "./messagePreparation.js";
 import { setupStreamGuards } from "./streamGuards.js";
 import { scheduleChatMetaGeneration } from "./chatMetaGeneration.js";
-
-export interface StreamSessionParams {
-  req: AuthenticatedRequest;
-  res: Response;
-  externalSignal?: AbortSignal;
-  workflow: WorkflowState;
-  userId: string;
-  chatId: string;
-  decryptedApiKey: string;
-  userContent: MessageContent;
-  userTextContent: string;
-  userMessageId: string;
-  assistantMessageId: string;
-  preVerifiedDeps: string[];
-  isFollowUp?: boolean;
-  intent?: ChatActionType;
-  historyMessages?: LlmChatMessage[];
-  projectContext?: string;
-  model?: string;
-  runId?: string;
-  resumeCheckpoint?: {
-    turn: number;
-    fullRawResponse: string;
-    agentMessages: LlmChatMessage[];
-    sandboxTagDetected: boolean;
-    totalToolCallsInRun: number;
-  };
-  onCheckpoint?: (checkpoint: {
-    turn: number;
-    fullRawResponse: string;
-    agentMessages: LlmChatMessage[];
-    sandboxTagDetected: boolean;
-    totalToolCallsInRun: number;
-    updatedAt: number;
-  }) => Promise<void>;
-}
+import { applyDeterministicPostgenAutofixes } from "./postgenAutofix.js";
+import {
+  resolveMode,
+  getBlockingPostgenViolations,
+  handleContextLimitExceeded,
+  handleAbortedLoop,
+  createSessionMetrics,
+  createStoredAssistantContent,
+  handleStreamSessionError,
+  type LoopState,
+} from "./runStreamSession.helpers.js";
+import { maybeRunStrictPostgenRetry } from "./runStreamSession.strictRetry.js";
+import type { StreamSessionParams } from "./runStreamSession.types.js";
 
 export async function runStreamSession(
   params: StreamSessionParams,
@@ -149,12 +109,7 @@ export async function runStreamSession(
     let framework: Framework | undefined =
       workflow.context.framework || workflow.context.intent?.suggestedFramework;
     const complexity = workflow.context.intent?.complexity ?? "moderate";
-    const mode =
-      intent === ChatAction.FIX
-        ? ChatAction.FIX
-        : intent === ChatAction.EDIT
-          ? ChatAction.EDIT
-          : ChatAction.GENERATE;
+    const mode = resolveMode(intent);
 
     framework = await resolveFramework({
       workflow,
@@ -175,6 +130,10 @@ export async function runStreamSession(
       complexity,
       verifiedDependencies: preVerifiedDeps,
       mode,
+      profile: PromptProfile.COMPACT,
+      userRequest: userTextContent,
+      intentType: workflow.context.intent?.type,
+      intentFeatures: workflow.context.intent?.features,
     });
 
     tokenUsage = await computeTokenUsage({
@@ -192,25 +151,7 @@ export async function runStreamSession(
     });
 
     if (isOverContextLimit(tokenUsage)) {
-      sendSSEError(
-        res,
-        `Message too large for model context window. Input tokens=${tokenUsage.totalContextTokens}, reservedOutputTokens=${tokenUsage.reservedOutputTokens}, contextWindowTokens=${tokenUsage.contextWindowTokens}.`,
-        {
-          code: "context_limit_exceeded",
-          details: {
-            inputTokens: tokenUsage.totalContextTokens,
-            reservedOutputTokens: tokenUsage.reservedOutputTokens,
-            contextWindowTokens: tokenUsage.contextWindowTokens,
-          },
-        },
-      );
-
-      emitMeta({
-        phase: MetaPhase.SESSION_COMPLETE,
-        terminationReason: StreamTerminationReason.CONTEXT_LIMIT_EXCEEDED,
-      });
-
-      sendSSEDone(res);
+      handleContextLimitExceeded(res, tokenUsage, emitMeta);
       return;
     }
 
@@ -222,6 +163,7 @@ export async function runStreamSession(
       framework,
       complexity,
       mode,
+      promptProfile: PromptProfile.COMPACT,
       model,
       abortController,
       userContent,
@@ -237,79 +179,122 @@ export async function runStreamSession(
       onCheckpoint,
     });
 
-    if (loopResult.aborted) {
-      const abortReason = streamGuards.getAbortReason();
-      const terminationReason: StreamTerminationReason =
-        abortReason ?? StreamTerminationReason.ABORTED;
-      const isClientDisconnect =
-        abortReason === StreamTerminationReason.CLIENT_DISCONNECT;
-      emitMeta({
-        turn: loopResult.agentTurn,
-        phase: MetaPhase.SESSION_COMPLETE,
-        loopStopReason: loopResult.loopStopReason,
-        terminationReason,
-      });
-
-      if (!isClientDisconnect) {
-        sendSSEError(res, "Stream aborted before completion", {
-          code: terminationReason,
-        });
-        if (!res.writableEnded) {
-          sendSSEDone(res);
-        }
-      }
+    if (
+      handleAbortedLoop({
+        loopResult,
+        streamGuards,
+        emitMeta,
+        res,
+      })
+    ) {
       return;
     }
 
     fullRawResponse = loopResult.fullRawResponse;
-    const agentTurn = loopResult.agentTurn;
-    const loopStopReason = loopResult.loopStopReason;
-    const terminationReason = LOOP_STOP_REASON_TO_TERMINATION[loopStopReason];
+    let loopState: LoopState = {
+      fullRawResponse: loopResult.fullRawResponse,
+      agentTurn: loopResult.agentTurn,
+      loopStopReason: loopResult.loopStopReason,
+      webSearchResults: loopResult.webSearchResults,
+    };
+
+    await applyDeterministicPostgenAutofixes({
+      framework,
+      mode,
+      generatedFiles,
+      sandboxId: workflow.sandboxId,
+      chatId,
+      runId,
+    });
+
+    const initialBlockingViolations = getBlockingPostgenViolations({
+      generatedFiles,
+      framework,
+      declaredPackages,
+      mode,
+    });
+
+    const strictRetryResult = await maybeRunStrictPostgenRetry({
+      chatId,
+      runId,
+      workflow,
+      initialBlockingViolations,
+      abortController,
+      userTextContent,
+      mode,
+      framework,
+      complexity,
+      preVerifiedDeps,
+      decryptedApiKey,
+      model,
+      res,
+      isFollowUp,
+      emitMeta,
+      generatedFiles,
+      declaredPackages,
+      loopState,
+      tokenUsage,
+    });
+
+    loopState = strictRetryResult.loopState;
+    tokenUsage = strictRetryResult.tokenUsage;
+    fullRawResponse = loopState.fullRawResponse;
+
+    await applyDeterministicPostgenAutofixes({
+      framework,
+      mode,
+      generatedFiles,
+      sandboxId: workflow.sandboxId,
+      chatId,
+      runId,
+    });
+
+    const terminationReason =
+      LOOP_STOP_REASON_TO_TERMINATION[loopState.loopStopReason];
 
     logger.info(
-      { chatId, runId, agentTurn, loopStopReason },
+      {
+        chatId,
+        runId,
+        agentTurn: loopState.agentTurn,
+        loopStopReason: loopState.loopStopReason,
+      },
       "Agent loop ended",
     );
 
-    const completionTime = Date.now() - messageStartTime;
-    const inputTokens = tokenUsage.inputTokens;
-    const outputTokens = countOutputTokens(fullRawResponse, model);
-
-    const messageMetadata: MessageMetadata = {
-      completionTime,
-      inputTokens,
-      outputTokens,
-    };
+    const metrics = createSessionMetrics(
+      messageStartTime,
+      tokenUsage.inputTokens,
+      fullRawResponse,
+    );
 
     logger.info(
       {
         chatId,
         runId,
         assistantMessageId,
-        completionTime,
-        inputTokens,
-        outputTokens,
-        totalTokens: inputTokens + outputTokens,
+        completionTime: metrics.completionTime,
+        inputTokens: metrics.inputTokens,
+        outputTokens: metrics.outputTokens,
+        totalTokens: metrics.inputTokens + metrics.outputTokens,
       },
       "Assistant message completed with metrics",
     );
 
     sendSSEEvent(res, {
       type: ParserEventType.METRICS,
-      completionTime,
-      inputTokens,
-      outputTokens,
+      completionTime: metrics.completionTime,
+      inputTokens: metrics.inputTokens,
+      outputTokens: metrics.outputTokens,
     });
 
     const urlScrapeTags = formatUrlScrapeAssistantTags(urlScrapeResults);
-    const hasAssistantContent = fullRawResponse.trim().length > 0;
-    const storedAssistantContent = hasAssistantContent
-      ? urlScrapeTags
-        ? `${urlScrapeTags}\n\n${fullRawResponse}`
-        : fullRawResponse
-      : toAssistantErrorTag(
-          classifyAssistantError(LOOP_STOP_REASON_TO_ERROR_HINT[loopStopReason]),
-        );
+    const storedAssistantContent = createStoredAssistantContent(
+      fullRawResponse,
+      urlScrapeTags,
+      loopState.webSearchResults,
+      loopState.loopStopReason,
+    );
 
     await saveMessage(
       chatId,
@@ -317,7 +302,7 @@ export async function runStreamSession(
       MessageRole.Assistant,
       storedAssistantContent,
       assistantMessageId,
-      messageMetadata,
+      metrics.messageMetadata,
     );
     committedMessageContent = storedAssistantContent;
 
@@ -349,73 +334,28 @@ export async function runStreamSession(
     }
 
     emitMeta({
-      turn: agentTurn,
+      turn: loopState.agentTurn,
       phase: MetaPhase.SESSION_COMPLETE,
-      loopStopReason,
+      loopStopReason: loopState.loopStopReason,
       terminationReason,
     });
 
     sendSSEDone(res);
   } catch (streamError) {
-    const error = ensureError(streamError);
-    const assistantError = classifyAssistantError(error.message);
-    if (workflow.sandboxId) {
-      await cleanupSandbox(workflow.sandboxId).catch((err: unknown) =>
-        logger.error(
-          ensureError(err),
-          `Cleanup failed after stream error: ${workflow.sandboxId}`,
-        ),
-      );
-    }
-
-    logger.error({ error, chatId, runId }, "Streaming error");
-
-    emitMeta({
-      phase: MetaPhase.SESSION_COMPLETE,
-      terminationReason: StreamTerminationReason.STREAM_FAILED,
+    await handleStreamSessionError({
+      streamError,
+      workflow,
+      chatId,
+      runId,
+      emitMeta,
+      res,
+      committedMessageContent,
+      messageStartTime,
+      tokenUsage,
+      fullRawResponse,
+      userId,
+      assistantMessageId,
     });
-
-    sendSSEError(res, assistantError.message, {
-      code: assistantError.code,
-      details: {
-        title: assistantError.title,
-        severity: assistantError.severity,
-        action: assistantError.action,
-        actionLabel: assistantError.actionLabel,
-        actionUrl: assistantError.actionUrl,
-      },
-    });
-
-    if (!res.writableEnded) {
-      sendSSEDone(res);
-    }
-
-    try {
-      if (committedMessageContent === null) {
-        const errorCompletionTime = Date.now() - messageStartTime;
-        const errorInputTokens = tokenUsage?.inputTokens ?? 0;
-        const errorOutputTokens = fullRawResponse
-          ? countOutputTokens(fullRawResponse, model)
-          : 0;
-
-        const errorMetadata: MessageMetadata = {
-          completionTime: errorCompletionTime,
-          inputTokens: errorInputTokens,
-          outputTokens: errorOutputTokens,
-        };
-
-        await saveMessage(
-          chatId,
-          userId,
-          MessageRole.Assistant,
-          fullRawResponse || toAssistantErrorTag(assistantError),
-          assistantMessageId,
-          errorMetadata,
-        );
-      }
-    } catch (cleanupErr) {
-      logger.error({ cleanupErr }, "Failed during error cleanup");
-    }
   } finally {
     streamGuards.clear();
   }

@@ -10,6 +10,7 @@ import {
   TooltipTrigger,
 } from "./tooltip";
 import Link from "next/link";
+import { useMobileViewport } from "@edward/ui/hooks/useMobileViewport";
 
 interface Links {
   label: string;
@@ -146,7 +147,7 @@ export const MobileSidebar = ({
       <div className="flex justify-end z-20 w-full">
         <button
           type="button"
-          onClick={() => setOpen(!open)}
+          onClick={() => setOpen(true)}
           aria-label="Open sidebar"
           className="text-neutral-800 dark:text-neutral-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background rounded-md"
         >
@@ -173,7 +174,7 @@ export const MobileSidebar = ({
                 type="button"
                 aria-label="Close sidebar"
                 className="absolute right-10 top-10 z-50 text-neutral-800 dark:text-neutral-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background rounded-md"
-                onClick={() => setOpen(!open)}
+                onClick={() => setOpen(false)}
               >
                 <IconX />
               </button>
@@ -195,12 +196,14 @@ export const SidebarLink = ({
   className?: string;
 } & React.ComponentProps<"a">) => {
   const { open } = useSidebar();
+  const isMobile = useMobileViewport();
+  const isExpanded = open || isMobile;
   const linkNode = (
     <Link
       href={link.href}
       className={cn(
         "group/sidebar flex items-center rounded-md transition-[background-color,width,padding] duration-200 hover:bg-neutral-200 dark:hover:bg-neutral-700/50",
-        open
+        isExpanded
           ? "w-full justify-start gap-2 px-2 py-2"
           : "mx-auto h-12 w-12 justify-center gap-0 rounded-xl border border-neutral-200/85 dark:border-neutral-700/80 bg-white/85 dark:bg-neutral-900/75 px-0 py-0 shadow-sm hover:bg-white dark:hover:bg-neutral-900",
         className
@@ -214,7 +217,7 @@ export const SidebarLink = ({
       <span
         className={cn(
           "text-neutral-700 dark:text-neutral-200 whitespace-nowrap text-sm font-medium overflow-hidden transition-[max-width,opacity,transform] duration-200",
-          open
+          isExpanded
             ? "max-w-40 opacity-100 translate-x-0 group-hover/sidebar:translate-x-1"
             : "max-w-0 opacity-0 -translate-x-1 pointer-events-none",
         )}
@@ -224,7 +227,7 @@ export const SidebarLink = ({
     </Link>
   );
 
-  if (open) {
+  if (isExpanded) {
     return linkNode;
   }
 

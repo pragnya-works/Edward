@@ -1,4 +1,4 @@
-import { Check, Lock } from "lucide-react";
+import { Check } from "lucide-react";
 import {
   DialogDescription,
   DialogHeader,
@@ -18,7 +18,7 @@ export function BYOKHeader({
   existingKeyProvider,
 }: BYOKHeaderProps) {
   return (
-    <div className="p-6 pb-4 border-b border-border/20 dark:border-white/[0.08] bg-background/50 dark:bg-white/[0.025] backdrop-blur-sm shrink-0">
+    <div className="p-5 pb-3 border-b border-border/20 dark:border-white/[0.08] bg-background/50 dark:bg-white/[0.025] backdrop-blur-sm shrink-0">
       <DialogHeader className="gap-1">
         <DialogTitle className="text-xl font-bold tracking-tight text-foreground/90">
           {hasExistingKey ? "Manage Your API Key" : "Add Your API Key"}
@@ -29,15 +29,11 @@ export function BYOKHeader({
               ? "Update your API key to continue using the service."
               : "Select a provider and enter your API key to get started."}
           </span>
-          <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground/50 dark:text-muted-foreground/50">
-            <Lock className="h-3 w-3" aria-hidden="true" />
-            Encrypted storage • Principle-level security
-          </span>
         </DialogDescription>
       </DialogHeader>
 
       {hasExistingKey && keyPreview ? (
-        <div className="mt-4 rounded-xl border border-border/40 dark:border-white/[0.1] bg-muted/30 dark:bg-white/[0.05] p-3.5 shadow-inner">
+        <div className="mt-3 rounded-xl border border-border/40 dark:border-white/[0.1] bg-muted/30 dark:bg-white/[0.05] p-3 shadow-inner">
           <div className="flex items-center justify-between">
             <div className="space-y-1">
               <p className="text-[10px] font-bold text-muted-foreground/50 dark:text-muted-foreground/70 uppercase tracking-widest">

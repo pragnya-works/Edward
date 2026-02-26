@@ -84,6 +84,74 @@ describe("diagnostics analyzer", () => {
     expect(diagnosis.preciseFix).toContain("src/App.tsx:10");
   });
 
+  it("surfaces Node/Vite compatibility guidance for Vite internal runtime failures", () => {
+    const viteRuntimeRoot = makeError({
+      type: "runtime",
+      stage: "runtime",
+      suggestion: "The build failed in Vite internals.",
+      error: {
+        file: "/home/node/edward/node_modules/.pnpm/vite@7.3.1/node_modules/vite/dist/node/chunks/config.js",
+        line: 23974,
+        column: 30,
+        message: "TypeError: crypto.hash is not a function",
+        code: undefined,
+      },
+    });
+
+    const report = makeReport({
+      summary: {
+        totalErrors: 1,
+        criticalCount: 0,
+        errorCount: 1,
+        warningCount: 0,
+        uniqueTypes: ["runtime"],
+        stage: "runtime",
+      },
+      errors: [viteRuntimeRoot],
+      rootCause: viteRuntimeRoot,
+    });
+
+    const diagnosis = buildUserFacingDiagnosis(report);
+
+    expect(diagnosis.probableCause).toContain("Node.js runtime");
+    expect(diagnosis.preciseFix).toContain("Do not edit node_modules");
+    expect(diagnosis.preciseFix).toContain("Node.js 20.19+");
+  });
+
+  it("surfaces canonical/asset URL guidance for Vite build-html EISDIR failures", () => {
+    const viteEisdirRoot = makeError({
+      type: "config",
+      stage: "bundle",
+      suggestion: "Build failed in vite:build-html.",
+      error: {
+        file: "/home/node/edward/node_modules/.pnpm/vite@5.4.21/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js",
+        line: 35357,
+        column: 48,
+        message: "EISDIR: illegal operation on a directory, read",
+        code: undefined,
+      },
+    });
+
+    const report = makeReport({
+      summary: {
+        totalErrors: 1,
+        criticalCount: 0,
+        errorCount: 1,
+        warningCount: 0,
+        uniqueTypes: ["config"],
+        stage: "bundle",
+      },
+      errors: [viteEisdirRoot],
+      rootCause: viteEisdirRoot,
+    });
+
+    const diagnosis = buildUserFacingDiagnosis(report);
+
+    expect(diagnosis.probableCause).toContain("asset URL points to a directory");
+    expect(diagnosis.preciseFix).toContain("index.html");
+    expect(diagnosis.preciseFix).toContain("absolute http(s) URLs");
+  });
+
   it("keeps LLM context compact for high-confidence known errors", () => {
     const report = makeReport({
       rawOutput: "VERBOSE RAW LOGS SHOULD NOT BE INCLUDED FOR CLEAN CASES",

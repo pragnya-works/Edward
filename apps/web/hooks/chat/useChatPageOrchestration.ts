@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
 import { useSandboxSync } from "@/hooks/chat/useSandboxSync";
-import { getActiveRun } from "@/lib/api/chat";
+import { useActiveRunLookup } from "@/hooks/server-state/useActiveRun";
 import {
   buildNoRunLookupCooldownKey,
   clearNoRunLookupCooldown,
@@ -18,7 +18,8 @@ interface UseChatPageOrchestrationParams {
   hasActiveStreamState: boolean;
   activeRunLookupMode: "aggressive" | "single" | "defer";
   sandboxOpen: boolean;
-  openSandbox: () => void;
+  openSandbox: (chatId?: string) => void;
+  setRouteChatId: (chatId: string | null) => void;
   setActiveChatId: (id: string | null) => void;
   resumeRunStream: (chatId: string, runId: string) => void;
 }
@@ -83,17 +84,24 @@ export function useChatPageOrchestration({
   activeRunLookupMode,
   sandboxOpen,
   openSandbox,
+  setRouteChatId,
   setActiveChatId,
   resumeRunStream,
 }: UseChatPageOrchestrationParams) {
   const resumeLookupInFlightRef = useRef<string | null>(null);
   const runResumedForLookupKeyRef = useRef<string | null>(null);
+  const { fetchActiveRun, clearCachedActiveRun } = useActiveRunLookup(chatId);
+
+  useLayoutEffect(() => {
+    setRouteChatId(chatId);
+    return () => setRouteChatId(null);
+  }, [chatId, setRouteChatId]);
 
   useEffect(() => {
     if (isSandboxing && !sandboxOpen) {
-      openSandbox();
+      openSandbox(chatId);
     }
-  }, [isSandboxing, sandboxOpen, openSandbox]);
+  }, [chatId, isSandboxing, sandboxOpen, openSandbox]);
 
   useSandboxSync(chatId);
 
@@ -155,13 +163,18 @@ export function useChatPageOrchestration({
         }
 
         try {
-          const response = await getActiveRun(chatId, {
+          const response = await fetchActiveRun({
             signal: abortController.signal,
+            staleTimeMs: 0,
           });
+          if (!response) {
+            return;
+          }
           const activeRun = response.data.run;
 
           if (activeRun) {
             clearNoRunLookupCooldown(noRunLookupKey);
+            clearCachedActiveRun();
             runResumedForLookupKeyRef.current = noRunLookupKey;
             resumeRunStream(chatId, activeRun.id);
             return;
@@ -209,6 +222,8 @@ export function useChatPageOrchestration({
     hasResumeAttachError,
     hasActiveStreamState,
     activeRunLookupMode,
+    clearCachedActiveRun,
+    fetchActiveRun,
     resumeRunStream,
   ]);
 }

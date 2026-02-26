@@ -12,13 +12,13 @@ import {
   filesToMessageContent,
   type UploadedImage,
 } from "@/lib/api/messageContent";
-import { uploadImageToCdn } from "@/lib/api/images";
 import { useCallback, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import type { MetaEvent } from "@edward/shared/streamEvents";
 import { INITIAL_STREAM_STATE } from "@edward/shared/chat/types";
 import { toast } from "@edward/ui/components/sonner";
 import { useChatSubmissionGuards } from "@/hooks/chat/useChatSubmissionGuards";
+import { useImageUpload } from "@/hooks/server-state/useImageUpload";
 
 interface AuthenticatedPromptbarProps {
   chatId?: string;
@@ -44,6 +44,11 @@ export default function AuthenticatedPromptbar({
   const { startStream, onMetaRef, cancelStream } = useChatStreamActions();
   const { streams } = useChatStream();
   const chatSubmissionGuards = useChatSubmissionGuards();
+  const {
+    uploadImage,
+    isRateLimited: isImageUploadRateLimited,
+    rateLimitMessage: imageUploadRateLimitMessage,
+  } = useImageUpload();
 
   const { stream, activeStreamKey } = useMemo(() => {
     if (effectiveChatId) {
@@ -147,16 +152,45 @@ export default function AuthenticatedPromptbar({
   const shouldDisableImageUploads =
     chatSubmissionGuards.isChatRateLimited ||
     chatSubmissionGuards.isSubmissionLocked ||
-    stream.isStreaming;
+    stream.isStreaming ||
+    isImageUploadRateLimited;
+
+  const imageUploadDisabledReason = useMemo(() => {
+    if (imageUploadRateLimitMessage) {
+      return imageUploadRateLimitMessage;
+    }
+    if (stream.isStreaming) {
+      return "Stop generation before attaching new images.";
+    }
+    if (chatSubmissionGuards.submissionLockMessage) {
+      return chatSubmissionGuards.submissionLockMessage;
+    }
+    if (chatSubmissionGuards.chatRateLimitMessage) {
+      return chatSubmissionGuards.chatRateLimitMessage;
+    }
+    return null;
+  }, [
+    imageUploadRateLimitMessage,
+    stream.isStreaming,
+    chatSubmissionGuards.submissionLockMessage,
+    chatSubmissionGuards.chatRateLimitMessage,
+  ]);
 
   const handleSignIn = useCallback(() => {
     signIn();
   }, []);
 
   const handleImageUploadError = useCallback((message: string) => {
-    toast.error("Image upload failed", {
-      id: `image-upload-failed-${message}`,
-      description: message,
+    const normalizedMessage =
+      message.trim() || "Image upload failed. Please try again.";
+    const isRateLimitError =
+      /too many requests|rate limit|temporarily limited|upload limit|429/i.test(
+        normalizedMessage,
+      );
+
+    toast.error(isRateLimitError ? "Image uploads limited" : "Image upload failed", {
+      id: `image-upload-failed-${normalizedMessage}`,
+      description: normalizedMessage,
     });
   }, []);
 
@@ -180,9 +214,10 @@ export default function AuthenticatedPromptbar({
         submissionDisabledReason,
       },
       attachments: {
-        onImageUpload: uploadImageToCdn,
+        onImageUpload: uploadImage,
         onImageUploadError: handleImageUploadError,
         disableImageUploads: shouldDisableImageUploads,
+        imageUploadDisabledReason: imageUploadDisabledReason || undefined,
       },
       apiKey: {
         hasApiKey,
@@ -205,6 +240,8 @@ export default function AuthenticatedPromptbar({
       handleCancel,
       submissionDisabledReason,
       shouldDisableImageUploads,
+      imageUploadDisabledReason,
+      uploadImage,
       hasApiKey,
       isLoading,
       error,

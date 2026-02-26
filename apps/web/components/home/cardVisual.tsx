@@ -5,7 +5,7 @@ import {
   BlueprintAnnotations,
   BlueprintContentSections,
   BlueprintGridAndFrame,
-} from "./cardVisual.parts";
+} from "./cardVisual.blueprint";
 
 export const TechnicalBlueprint = memo(function TechnicalBlueprint({
   className,

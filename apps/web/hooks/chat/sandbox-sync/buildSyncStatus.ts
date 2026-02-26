@@ -18,7 +18,7 @@ interface BuildStatusRuntimeRefs {
 
 interface ApplyBuildStatusUpdateParams extends BuildStatusRuntimeRefs {
   build: BuildStatusPayload;
-  openSandbox: () => void;
+  openSandbox: (chatId?: string) => void;
   setMode: (mode: SandboxMode) => void;
   setPreviewUrl: (url: string | null) => void;
   setBuildStatus: (status: BuildStatus) => void;
