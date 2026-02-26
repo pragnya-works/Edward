@@ -95,4 +95,74 @@ describe('composePrompt', () => {
     expect(prompt).toContain('<skill:vanilla-compact>');
     expect(prompt).not.toContain('<skill:react-performance>');
   });
+
+  it('adds edit mode prompt and excludes fix mode prompt for edit action', async () => {
+    const { composePrompt } = await import('../../../lib/llm/compose.js');
+
+    const prompt = composePrompt({
+      framework: 'nextjs',
+      complexity: 'simple',
+      mode: 'edit',
+      userRequest: 'Update the hero section copy',
+    });
+
+    expect(prompt).toContain('You are in EDIT MODE.');
+    expect(prompt).not.toContain('You are in FIX MODE.');
+  });
+
+  it('injects verified dependencies context when provided', async () => {
+    const { composePrompt } = await import('../../../lib/llm/compose.js');
+
+    const prompt = composePrompt({
+      framework: 'vite-react',
+      mode: 'generate',
+      complexity: 'simple',
+      verifiedDependencies: ['react-query', 'zustand'],
+    });
+
+    expect(prompt).toContain('Verified packages: react-query, zustand');
+  });
+
+  it('adds react performance and code quality for complex generate without entering fix mode', async () => {
+    const { composePrompt } = await import('../../../lib/llm/compose.js');
+
+    const prompt = composePrompt({
+      framework: 'nextjs',
+      complexity: 'complex',
+      mode: 'generate',
+      userRequest: 'Build a full dashboard with charts and real-time data',
+    });
+
+    expect(prompt).toContain('<skill:react-performance>');
+    expect(prompt).toContain('<skill:code-quality-compact>');
+    expect(prompt).not.toContain('You are in FIX MODE.');
+  });
+
+  it('does not add strict compliance for default compact profile', async () => {
+    const { composePrompt } = await import('../../../lib/llm/compose.js');
+
+    const prompt = composePrompt({
+      framework: 'vite-react',
+      complexity: 'simple',
+      mode: 'generate',
+      userRequest: 'Build a dashboard UI',
+    });
+
+    expect(prompt).not.toContain('<skill:strict-compliance>');
+  });
+
+  it('adds strict compliance for strict profile in generate mode', async () => {
+    const { composePrompt } = await import('../../../lib/llm/compose.js');
+
+    const prompt = composePrompt({
+      framework: 'vite-react',
+      complexity: 'simple',
+      mode: 'generate',
+      profile: 'strict',
+      userRequest: 'Build a dashboard UI',
+    });
+
+    expect(prompt).toContain('<skill:strict-compliance>');
+    expect(prompt).not.toContain('You are in FIX MODE.');
+  });
 });

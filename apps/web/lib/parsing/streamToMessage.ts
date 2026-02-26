@@ -57,9 +57,27 @@ export function buildMessageFromStream(
     contentParts.push(`<edward_install>\n${depsList}\n</edward_install>`);
   }
   if (stream.command) {
-    const argsJson = JSON.stringify(stream.command.args);
+    const commandName = escapeHtmlAttribute(stream.command.command);
+    const argsPayload = encodeBase64Json(stream.command.args ?? []);
+    const argsAttr = argsPayload ? ` args_b64="${argsPayload}"` : "";
+    const exitCodeAttr =
+      typeof stream.command.exitCode === "number"
+        ? ` exit_code="${stream.command.exitCode}"`
+        : "";
+    const stdoutAttr = stream.command.stdout
+      ? (() => {
+          const payload = encodeBase64Json(stream.command.stdout);
+          return payload ? ` stdout_b64="${payload}"` : "";
+        })()
+      : "";
+    const stderrAttr = stream.command.stderr
+      ? (() => {
+          const payload = encodeBase64Json(stream.command.stderr);
+          return payload ? ` stderr_b64="${payload}"` : "";
+        })()
+      : "";
     contentParts.push(
-      `<edward_command command="${stream.command.command}" args='${argsJson}' />`,
+      `<edward_command command="${commandName}"${argsAttr}${exitCodeAttr}${stdoutAttr}${stderrAttr} />`,
     );
   }
   for (const webSearch of stream.webSearches) {

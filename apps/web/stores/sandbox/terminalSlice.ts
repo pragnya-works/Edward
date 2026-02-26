@@ -5,6 +5,7 @@ import type {
   SandboxTerminalEntryInput,
   SandboxTerminalSlice,
 } from "./types";
+import { sanitizeTerminalOutput } from "@/lib/parsing/terminalOutput";
 
 const MAX_TERMINAL_ENTRIES = 500;
 const MAX_TERMINAL_OUTPUT_CHARS = 8_000;
@@ -34,6 +35,17 @@ function isSameTerminalEntry(
   );
 }
 
+function normalizeTerminalEntryInput(
+  input: SandboxTerminalEntryInput,
+): SandboxTerminalEntryInput {
+  return {
+    ...input,
+    message: sanitizeTerminalOutput(input.message) ?? "",
+    stdout: sanitizeTerminalOutput(input.stdout),
+    stderr: sanitizeTerminalOutput(input.stderr),
+  };
+}
+
 function createTerminalEntry(
   input: SandboxTerminalEntryInput,
 ): SandboxTerminalEntry {
@@ -60,12 +72,13 @@ export const createSandboxTerminalSlice: StateCreator<
 > = (set) => ({
   appendTerminalEntry: (entryInput) =>
     set((state) => {
+      const normalizedInput = normalizeTerminalEntryInput(entryInput);
       const lastEntry = state.terminalEntries[state.terminalEntries.length - 1];
-      if (lastEntry && isSameTerminalEntry(lastEntry, entryInput)) {
+      if (lastEntry && isSameTerminalEntry(lastEntry, normalizedInput)) {
         return state;
       }
 
-      const nextEntries = [...state.terminalEntries, createTerminalEntry(entryInput)];
+      const nextEntries = [...state.terminalEntries, createTerminalEntry(normalizedInput)];
       if (nextEntries.length > MAX_TERMINAL_ENTRIES) {
         nextEntries.splice(0, nextEntries.length - MAX_TERMINAL_ENTRIES);
       }

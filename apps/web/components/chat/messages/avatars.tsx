@@ -20,11 +20,6 @@ export const EdwardAvatar = ({ isActive }: EdwardAvatarProps = {}) => (
         className="absolute -inset-[2px] sm:-inset-[3px] rounded-[8px] sm:rounded-[10px] border border-sky-500/40 dark:border-sky-400/30"
         animate={{
           opacity: [0.3, 0.7, 0.3],
-          boxShadow: [
-            "0 0 0 0 rgba(56, 189, 248, 0)",
-            "0 0 6px 1px rgba(56, 189, 248, 0.15)",
-            "0 0 0 0 rgba(56, 189, 248, 0)",
-          ],
         }}
         transition={{
           duration: 2.5,

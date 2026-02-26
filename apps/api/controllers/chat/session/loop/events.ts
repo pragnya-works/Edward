@@ -14,6 +14,7 @@ import {
 
 export interface TurnEventState {
   doneTagDetectedThisTurn: boolean;
+  codeOutputDetectedThisTurn: boolean;
   currentFilePath: string | undefined;
   isFirstFileChunk: boolean;
   sandboxTagDetected: boolean;
@@ -26,6 +27,7 @@ export function createTurnEventState(
 ): TurnEventState {
   return {
     doneTagDetectedThisTurn: false,
+    codeOutputDetectedThisTurn: false,
     currentFilePath: undefined,
     isFirstFileChunk: true,
     sandboxTagDetected: initialSandboxTagDetected,
@@ -78,6 +80,14 @@ export async function processParserEvents(
     turnState.currentFilePath = result.currentFilePath;
     turnState.isFirstFileChunk = result.isFirstFileChunk;
     turnState.sandboxTagDetected = result.sandboxTagDetected;
+
+    if (
+      event.type === ParserEventType.FILE_START &&
+      result.currentFilePath === event.path &&
+      result.isFirstFileChunk
+    ) {
+      turnState.codeOutputDetectedThisTurn = true;
+    }
 
     if (!result.handled) {
       sendSSEEvent(context.res, event);

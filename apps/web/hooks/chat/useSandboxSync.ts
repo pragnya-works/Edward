@@ -12,6 +12,7 @@ import {
 import { BuildStatus, SandboxMode } from "@/stores/sandbox/types";
 import { useBuildStatusSync } from "@/hooks/chat/useBuildStatusSync";
 import { useSandboxStreamFileSync } from "@/hooks/chat/sandbox-sync/useSandboxStreamFileSync";
+import { sanitizeTerminalOutput } from "@/lib/parsing/terminalOutput";
 
 function resolveStreamForChat(
   streams: Record<string, StreamState>,
@@ -37,8 +38,8 @@ function buildCommandSignature(command: CommandEvent): string {
     command: command.command,
     args: Array.isArray(command.args) ? command.args : [],
     exitCode: command.exitCode ?? null,
-    stdout: command.stdout ?? "",
-    stderr: command.stderr ?? "",
+    stdout: sanitizeTerminalOutput(command.stdout) ?? "",
+    stderr: sanitizeTerminalOutput(command.stderr) ?? "",
   });
 }
 

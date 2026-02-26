@@ -344,6 +344,7 @@ describe("chat schemas", () => {
       const result = ParserEventSchema.safeParse({
         type: ParserEventType.ERROR,
         message: "Something went wrong",
+        severity: "recoverable",
       });
 
       expect(result.success).toBe(true);

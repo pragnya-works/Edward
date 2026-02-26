@@ -86,6 +86,19 @@ export const ChatMessageList = memo(function ChatMessageList() {
   const visibleMessages = messages.filter(
     (m) => m.role === ChatRole.USER || m.role === ChatRole.ASSISTANT,
   );
+  const hasPersistedAssistantMessageForStream = Boolean(
+    stream.meta?.assistantMessageId &&
+      visibleMessages.some(
+        (message) =>
+          message.role === ChatRole.ASSISTANT &&
+          message.id === stream.meta?.assistantMessageId,
+      ),
+  );
+  const shouldSuppressStreamError =
+    hasPersistedAssistantMessageForStream &&
+    stream.error?.severity === "recoverable";
+  const showStreamError =
+    Boolean(stream.error) && !shouldSuppressStreamError;
 
   const hasStreamActivity =
     stream.isStreaming ||
@@ -99,7 +112,7 @@ export const ChatMessageList = memo(function ChatMessageList() {
     stream.webSearches.length > 0 ||
     stream.urlScrapes.length > 0 ||
     Boolean(stream.command) ||
-    Boolean(stream.error);
+    showStreamError;
 
   const isEmpty = visibleMessages.length === 0 && !hasStreamActivity;
 

@@ -603,4 +603,62 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       result.violations.some((violation) => violation.type === "orphaned-import"),
     ).toBe(false);
   });
+
+  test("should flag default imports from zustand as logic-quality violations", () => {
+    const output = {
+      framework: "vite-react",
+      mode: "generate" as const,
+      files: new Map([
+        ["README.md", "# Demo"],
+        [
+          "index.html",
+          `
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta name="description" content="Demo app" />
+    <meta name="robots" content="index, follow" />
+    <link rel="canonical" href="https://edwardd.app/" />
+    <meta property="og:title" content="Demo" />
+    <meta property="og:description" content="Demo app" />
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content="https://assets.pragnyaa.in/home/OG.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Demo" />
+    <meta name="twitter:description" content="Demo app" />
+    <meta name="twitter:image" content="https://assets.pragnyaa.in/home/OG.png" />
+    <link rel="icon" href="https://assets.pragnyaa.in/home/favicon_io/favicon.ico" />
+    <link rel="apple-touch-icon" href="https://assets.pragnyaa.in/home/favicon_io/apple-touch-icon.png" />
+    <link rel="manifest" href="https://assets.pragnyaa.in/home/favicon_io/site.webmanifest" />
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>
+`,
+        ],
+        [
+          "src/main.tsx",
+          'import { createRoot } from "react-dom/client";\nimport App from "./App";\nimport "./index.css";\ncreateRoot(document.getElementById("root")!).render(<App />);',
+        ],
+        ["src/index.css", "/* styles */"],
+        [
+          "src/App.tsx",
+          'import create from "zustand";\nexport default function App() { const useStore = create(() => ({})); return <main>{String(Boolean(useStore))}</main>; }',
+        ],
+      ]),
+      declaredPackages: ["zustand"],
+    };
+
+    const result = validateGeneratedOutput(output);
+    expect(result.valid).toBe(false);
+    expect(
+      result.violations.some(
+        (violation) =>
+          violation.type === "logic-quality" &&
+          violation.file === "src/App.tsx" &&
+          violation.message.includes('default import from "zustand"'),
+      ),
+    ).toBe(true);
+  });
 });

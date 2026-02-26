@@ -201,8 +201,8 @@ export function SandboxEmptyState() {
                         </Button>
                       </div>
                     </summary>
-                    <div className="max-h-[32vh] overflow-auto px-3 pb-3">
-                      <div className="space-y-1 font-mono text-[12px] leading-5">
+                    <div className="max-h-[32vh] overflow-auto px-3 pb-3 select-text">
+                      <div className="space-y-1 font-mono text-[12px] leading-5 select-text">
                         {logLines.length > 0 ? (
                           logLines.map(({ line, lineNumber, key }) => (
                             <div
@@ -219,7 +219,7 @@ export function SandboxEmptyState() {
                               <span className="shrink-0 text-workspace-foreground/50 w-7 text-right">
                                 {lineNumber}
                               </span>
-                              <span className="break-all whitespace-pre-wrap flex-1">
+                              <span className="break-all whitespace-pre-wrap flex-1 select-text">
                                 {line}
                               </span>
                             </div>

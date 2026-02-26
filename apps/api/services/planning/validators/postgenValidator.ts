@@ -52,6 +52,8 @@ const EMPTY_ROOT_COMPONENT_PATTERN =
 const PLACEHOLDER_PATTERN =
   /\b(?:TODO|FIXME|TBD)\b|lorem ipsum|your content here|replace with your/i;
 const EMPTY_HANDLER_PATTERN = /\bon[A-Z][A-Za-z0-9_]*=\{\s*\(\)\s*=>\s*\{\s*\}\s*\}/;
+const INVALID_ZUSTAND_DEFAULT_IMPORT_PATTERN =
+  /^\s*import\s+[A-Za-z_$][\w$]*\s*(?:,\s*\{[^}]*\})?\s+from\s+["']zustand["'];?/m;
 const LOCAL_FILE_EXTENSIONS = [
   '',
   '.tsx',
@@ -542,6 +544,15 @@ function validateLogicQualityForFile(
       type: 'logic-quality',
       severity: 'warning',
       message: `${filePath} includes no-op event handlers. Replace empty handlers with actual logic or remove them.`,
+      file: filePath,
+    });
+  }
+
+  if (isSourceFile && INVALID_ZUSTAND_DEFAULT_IMPORT_PATTERN.test(content)) {
+    violations.push({
+      type: 'logic-quality',
+      severity,
+      message: `${filePath} uses a default import from "zustand". Use named import syntax (for example: import { create } from "zustand").`,
       file: filePath,
     });
   }

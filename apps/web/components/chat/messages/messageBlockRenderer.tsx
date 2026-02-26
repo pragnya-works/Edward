@@ -40,7 +40,7 @@ function getMessageBlockBaseKey(block: MessageBlock): string {
     case MessageBlockType.FILE:
       return `file-${block.path}`;
     case MessageBlockType.COMMAND:
-      return `command-${block.command}-${block.args.join(" ")}`;
+      return `command-${block.command}-${block.args.join(" ")}-${block.exitCode ?? "pending"}-${block.stdout?.length ?? 0}-${block.stderr?.length ?? 0}`;
     case MessageBlockType.WEB_SEARCH:
       return `web-search-${block.query}-${block.maxResults ?? "default"}`;
     case MessageBlockType.URL_SCRAPE:
@@ -82,6 +82,7 @@ export function MessageBlockRenderer({
     () => buildStableKeys(blocks, getMessageBlockBaseKey),
     [blocks],
   );
+  let sandboxBlockRendered = false;
 
   return (
     <div className="flex flex-col gap-3 sm:gap-4 w-full">
@@ -121,6 +122,9 @@ export function MessageBlockRenderer({
                   version: STREAM_EVENT_VERSION,
                   command: block.command,
                   args: block.args,
+                  exitCode: block.exitCode,
+                  stdout: block.stdout,
+                  stderr: block.stderr,
                 }}
               />
             );
@@ -173,6 +177,10 @@ export function MessageBlockRenderer({
               />
             );
           case MessageBlockType.SANDBOX:
+            if (sandboxBlockRendered) {
+              return null;
+            }
+            sandboxBlockRendered = true;
             return (
               <m.div
                 key={blockKey}

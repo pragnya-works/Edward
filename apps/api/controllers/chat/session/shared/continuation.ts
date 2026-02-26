@@ -3,9 +3,15 @@ import { formatToolResults } from "../../command.utils.js";
 import type { AgentToolResult } from "@edward/shared/streamToolResults";
 
 const RESPONSE_BLOCK_PATTERN = /<Response>([\s\S]*?)<\/Response>/gi;
+const FILE_BLOCK_PATTERN = /<file\b[^>]*path="([^"]+)"[^>]*>([\s\S]*?)<\/file>/gi;
 const TOOL_BLOCK_SEPARATOR = "\n---\n";
 const MAX_PER_TOOL_RESULT_CHARS = 1_600;
 const MAX_TOOL_RESULTS_CHARS = 6_000;
+const MAX_PREVIOUS_NARRATIVE_CHARS = 1_200;
+const MAX_PREVIOUS_FILES_CHARS = 2_400;
+const MAX_PREVIOUS_SOURCE_CHARS = 120_000;
+const MAX_FILE_ENTRY_CHARS = 1_200;
+const MAX_FILE_CONTEXT_WORKING_CHARS = MAX_PREVIOUS_FILES_CHARS * 3;
 
 function truncateWithMarker(input: string, maxChars: number): string {
   if (input.length <= maxChars) {
@@ -32,6 +38,9 @@ function truncateMiddle(input: string, maxChars: number): string {
 
 function sanitizePreviousResponse(turnRawResponse: string): string {
   let source = String(turnRawResponse ?? "");
+  if (source.length > MAX_PREVIOUS_SOURCE_CHARS) {
+    source = source.slice(-MAX_PREVIOUS_SOURCE_CHARS);
+  }
 
   const responseBlocks = [...source.matchAll(RESPONSE_BLOCK_PATTERN)]
     .map((match) => match[1]?.trim() ?? "")
@@ -39,6 +48,8 @@ function sanitizePreviousResponse(turnRawResponse: string): string {
   if (responseBlocks.length > 0) {
     source = responseBlocks.join("\n\n");
   }
+
+  const fileContext = extractSandboxFileContext(source);
 
   source = source.replace(/<Thinking>[\s\S]*?<\/Thinking>/gi, " ");
   source = source.replace(/<edward_install>[\s\S]*?<\/edward_install>/gi, " ");
@@ -50,11 +61,46 @@ function sanitizePreviousResponse(turnRawResponse: string): string {
   source = source.replace(/^\s*thinking\b[:\s-]*/i, "");
 
   const cleaned = collapseWhitespace(source);
-  if (cleaned.length > 0) {
-    return cleaned;
+  const compactNarrative =
+    cleaned.length > 0
+      ? truncateMiddle(cleaned, MAX_PREVIOUS_NARRATIVE_CHARS)
+      : "No stable plain-text prior response available.";
+
+  if (!fileContext) {
+    return compactNarrative;
   }
 
-  return "No stable plain-text prior response available.";
+  return `${compactNarrative}\n\nFILES ALREADY EMITTED:\n${fileContext}`;
+}
+
+function extractSandboxFileContext(responseSource: string): string {
+  const entries: string[] = [];
+  let usedChars = 0;
+
+  for (const match of responseSource.matchAll(FILE_BLOCK_PATTERN)) {
+    const path = (match[1] ?? "").trim();
+    const content = (match[2] ?? "").trim();
+    if (!path) {
+      continue;
+    }
+    const compactContent =
+      content.length > 0 ? truncateMiddle(content, MAX_FILE_ENTRY_CHARS) : "[empty]";
+    const entry = `- ${path}\n${compactContent}`;
+
+    if (usedChars + entry.length > MAX_FILE_CONTEXT_WORKING_CHARS) {
+      entries.push("- ...[additional files omitted]");
+      break;
+    }
+
+    entries.push(entry);
+    usedChars += entry.length;
+  }
+
+  if (entries.length === 0) {
+    return "";
+  }
+
+  return truncateMiddle(entries.join("\n\n"), MAX_PREVIOUS_FILES_CHARS);
 }
 
 function compactToolResultsForContinuation(toolResults: AgentToolResult[]): string {

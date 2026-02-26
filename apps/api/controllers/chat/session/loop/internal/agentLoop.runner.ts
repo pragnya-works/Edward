@@ -51,6 +51,16 @@ import {
   processParserEvents,
 } from "../events.js";
 
+const SANDBOX_TAG_PATTERN = /<edward_sandbox\b/i;
+const FILE_TAG_PATTERN = /<file\b/i;
+
+export function hasCodeOutputInTurn(rawTurnResponse: string): boolean {
+  return (
+    SANDBOX_TAG_PATTERN.test(rawTurnResponse) ||
+    FILE_TAG_PATTERN.test(rawTurnResponse)
+  );
+}
+
 export interface RunAgentLoopParams {
   decryptedApiKey: string;
   initialMessages: LlmChatMessage[];
@@ -287,6 +297,8 @@ export async function runAgentLoop(
       ),
     );
 
+    const codeOutputDetected = turnState.codeOutputDetectedThisTurn;
+
     if (responseSizeExceededThisTurn) {
       loopStopReason = AgentLoopStopReason.RESPONSE_SIZE_EXCEEDED;
       sendSSEError(res, "Response exceeded maximum size limit", {
@@ -350,7 +362,17 @@ export async function runAgentLoop(
       break;
     }
 
-    if (toolResultsThisTurn.length > 0 && !abortController.signal.aborted) {
+    if (codeOutputDetected) {
+      emitTurnCompleteMeta(emitMeta, agentTurn, toolResultsThisTurn.length);
+      loopStopReason = AgentLoopStopReason.DONE;
+      break;
+    }
+
+    if (
+      toolResultsThisTurn.length > 0 &&
+      !codeOutputDetected &&
+      !abortController.signal.aborted
+    ) {
       if (agentTurn >= MAX_AGENT_TURNS) {
         emitTurnCompleteMeta(emitMeta, agentTurn, toolResultsThisTurn.length);
         loopStopReason = AgentLoopStopReason.MAX_TURNS_REACHED;

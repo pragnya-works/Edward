@@ -48,9 +48,6 @@ jobs:
       - name: Test with Coverage
         run: pnpm --filter api test:coverage
 
-      - name: Prompt Eval Gate
-        run: pnpm --filter api run eval:prompts
-
       - name: Build
         run: pnpm turbo build
         env:

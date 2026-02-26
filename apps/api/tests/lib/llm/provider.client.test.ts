@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { MessageRole } from "@edward/auth";
 
 const mocks = vi.hoisted(() => ({
   responsesCreateMock: vi.fn(),
@@ -41,7 +42,7 @@ describe("provider.client legacy completions fallback", () => {
 
     let output = "";
     for await (const chunk of streamResponse(OPENAI_TEST_KEY, [
-      { role: "user", content: "Say hello" },
+      { role: MessageRole.User, content: "Say hello" },
     ])) {
       output += chunk;
     }

@@ -1,7 +1,7 @@
 import type { Response } from "express";
 import { ParserEventType } from "../../../../../schemas/chat.schema.js";
 import { ensureError } from "../../../../../utils/error.js";
-import { sendSSEError, sendSSEEvent } from "../../../sse.utils.js";
+import { sendSSEEvent, sendSSERecoverableError } from "../../../sse.utils.js";
 import {
   executeWebSearchTool,
   type WebSearchToolResultItem as GatewayWebSearchResultItem,
@@ -21,13 +21,28 @@ export async function handleWebSearchEvent(
   query: string,
   maxResults?: number,
 ): Promise<void> {
-  const requestedMax = Math.min(maxResults ?? 5, 8);
+  const normalizedQuery = query.trim();
+  const requestedMax = Math.min(Math.max(maxResults ?? 5, 1), 8);
+
+  if (!normalizedQuery) {
+    sendSSERecoverableError(ctx.res, "Web search failed: empty query", {
+      code: "web_search_failed",
+      details: { query: normalizedQuery },
+    });
+    return;
+  }
+
+  sendSSEEvent(ctx.res, {
+    type: ParserEventType.WEB_SEARCH,
+    query: normalizedQuery,
+    maxResults: requestedMax,
+  });
 
   try {
     const search = await executeWebSearchTool({
       runId: ctx.runId,
       turn: ctx.turn ?? 1,
-      query,
+      query: normalizedQuery,
       maxResults: requestedMax,
     });
     const normalizedResults: WebSearchResultItem[] =
@@ -57,14 +72,20 @@ export async function handleWebSearchEvent(
     const err = ensureError(webSearchError);
     ctx.toolResultsThisTurn.push({
       tool: "web_search",
-      query,
+      query: normalizedQuery,
       maxResults: requestedMax,
       results: [],
       error: err.message,
     });
-    sendSSEError(ctx.res, `Web search failed: ${err.message}`, {
+    sendSSEEvent(ctx.res, {
+      type: ParserEventType.WEB_SEARCH,
+      query: normalizedQuery,
+      maxResults: requestedMax,
+      error: err.message,
+    });
+    sendSSERecoverableError(ctx.res, `Web search failed: ${err.message}`, {
       code: "web_search_failed",
-      details: { query },
+      details: { query: normalizedQuery },
     });
   }
 }

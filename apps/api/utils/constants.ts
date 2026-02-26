@@ -38,8 +38,8 @@ export const MAX_DEPENDENCIES = 50;
 export const MAX_PACKAGE_NAME_LENGTH = 214;
 export const MAX_RESPONSE_SIZE = 10 * 1024 * 1024;
 export const MAX_STREAM_DURATION_MS = 5 * 60 * 1000;
-export const MAX_AGENT_TURNS = 5;
-export const MAX_AGENT_TOOL_CALLS_PER_TURN = 6;
+export const MAX_AGENT_TURNS = 8;
+export const MAX_AGENT_TOOL_CALLS_PER_TURN = 10;
 
 function parsePositiveInt(name: string, fallback: number): number {
   const raw = process.env[name];

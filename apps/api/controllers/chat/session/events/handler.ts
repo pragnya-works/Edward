@@ -13,6 +13,7 @@ import {
   sanitizeSandboxFile,
 } from "../../../../services/sandbox/write/buffer.js";
 import { flushSandbox } from "../../../../services/sandbox/write/flush.js";
+import { getActiveSandbox } from "../../../../services/sandbox/lifecycle/provisioning.js";
 import { normalizeFramework } from "../../../../services/sandbox/templates/template.registry.js";
 import type { WorkflowState } from "../../../../services/planning/schemas.js";
 import {
@@ -22,7 +23,11 @@ import {
 import { formatPackageSpec } from "../../../../services/packages/packageSpec.js";
 import { ensureError } from "../../../../utils/error.js";
 import { logger } from "../../../../utils/logger.js";
-import { sendSSEError, sendSSEEvent } from "../../sse.utils.js";
+import {
+  sendSSEError,
+  sendSSEEvent,
+  sendSSERecoverableError,
+} from "../../sse.utils.js";
 import { handleFileContent } from "../../file.handlers.js";
 import type { AgentToolResult } from "@edward/shared/streamToolResults";
 import { handleCommandEvent } from "./tools/command.js";
@@ -167,7 +172,7 @@ async function handleInstallContent(
         ? ` (suggested alternatives: ${Array.from(new Set(suggestions)).join(", ")})`
         : "");
 
-    sendSSEError(ctx.res, message, {
+    sendSSERecoverableError(ctx.res, message, {
       code: "invalid_dependencies",
       details: {
         failed: resolution.failed.map((dep) => dep.name),
@@ -192,7 +197,7 @@ async function handleInstallContent(
 
   const installResult = await executeInstallPhase(ctx.workflow);
   if (!installResult.success) {
-    sendSSEError(
+    sendSSERecoverableError(
       ctx.res,
       installResult.error || "Dependency installation failed",
       {
@@ -203,6 +208,74 @@ async function handleInstallContent(
       },
     );
     return;
+  }
+}
+
+async function resolveCommandSandboxId(
+  ctx: Pick<EventHandlerContext, "workflow" | "chatId" | "isFollowUp">,
+): Promise<string | undefined> {
+  if (ctx.workflow.sandboxId) {
+    try {
+      const activeSandboxId = await getActiveSandbox(ctx.chatId);
+      if (activeSandboxId) {
+        ctx.workflow.sandboxId = activeSandboxId;
+        return activeSandboxId;
+      }
+      logger.warn(
+        {
+          chatId: ctx.chatId,
+          previousSandboxId: ctx.workflow.sandboxId,
+        },
+        "Command sandbox appears stale; attempting reprovision/restore",
+      );
+      ctx.workflow.sandboxId = undefined;
+    } catch (sandboxLookupError) {
+      logger.warn(
+        {
+          chatId: ctx.chatId,
+          error: ensureError(sandboxLookupError),
+        },
+        "Failed to validate existing sandbox for command execution; falling back to existing id",
+      );
+      return ctx.workflow.sandboxId;
+    }
+  }
+
+  try {
+    const recoveredSandboxId = await getActiveSandbox(ctx.chatId);
+    if (recoveredSandboxId) {
+      ctx.workflow.sandboxId = recoveredSandboxId;
+      return recoveredSandboxId;
+    }
+  } catch (sandboxLookupError) {
+    logger.warn(
+      {
+        chatId: ctx.chatId,
+        error: ensureError(sandboxLookupError),
+      },
+      "Failed to look up active sandbox for command execution; attempting provisioning fallback",
+    );
+  }
+
+  try {
+    const provisionedSandboxId = await ensureSandbox(
+      ctx.workflow,
+      ctx.workflow.context.framework,
+      ctx.isFollowUp,
+    );
+    if (provisionedSandboxId) {
+      ctx.workflow.sandboxId = provisionedSandboxId;
+    }
+    return provisionedSandboxId;
+  } catch (sandboxLookupError) {
+    logger.warn(
+      {
+        chatId: ctx.chatId,
+        error: ensureError(sandboxLookupError),
+      },
+      "Failed to provision sandbox for command execution fallback",
+    );
+    return undefined;
   }
 }
 
@@ -276,7 +349,7 @@ export async function handleParserEvent(
                 { err, chatId: ctx.chatId, dependencies: event.dependencies },
                 "Install execution failed",
               );
-              sendSSEError(
+              sendSSERecoverableError(
                 ctx.res,
                 `Dependency installation failed: ${err.message}`,
                 {
@@ -307,20 +380,32 @@ export async function handleParserEvent(
         break;
 
       case ParserEventType.COMMAND:
-        await handleCommandEvent(
-          {
-            res: ctx.res,
-            sandboxTagDetected: ctx.sandboxTagDetected,
-            sandboxId: ctx.workflow.sandboxId,
-            runId: ctx.runId,
-            turn: ctx.turn,
-            installTaskQueue: ctx.installTaskQueue,
-            abortSignal: ctx.abortSignal,
-            toolResultsThisTurn: ctx.toolResultsThisTurn,
-          },
-          event.command,
-          event.args ?? [],
-        );
+        {
+          await ctx.installTaskQueue?.waitForIdle();
+          if (ctx.abortSignal?.aborted) {
+            handled = true;
+            break;
+          }
+
+          const sandboxId = await resolveCommandSandboxId(ctx);
+          await handleCommandEvent(
+            {
+              res: ctx.res,
+              sandboxId,
+              recoverSandboxId: async () => {
+                ctx.workflow.sandboxId = undefined;
+                return resolveCommandSandboxId(ctx);
+              },
+              runId: ctx.runId,
+              turn: ctx.turn,
+              installTaskQueue: ctx.installTaskQueue,
+              abortSignal: ctx.abortSignal,
+              toolResultsThisTurn: ctx.toolResultsThisTurn,
+            },
+            event.command,
+            event.args ?? [],
+          );
+        }
         handled = true;
         break;
 
@@ -339,6 +424,7 @@ export async function handleParserEvent(
         break;
     }
   } catch (sandboxError) {
+    handled = true;
     logger.error(
       ensureError(sandboxError),
       "Sandbox operation failed during streaming",

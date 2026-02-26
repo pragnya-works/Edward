@@ -36,11 +36,11 @@ export type StreamAction =
     error: NonNullable<StreamState["error"]>;
   }
   | { type: "SET_META"; chatId: string; meta: MetaEvent }
-  | { type: "APPEND_TEXT"; chatId: string; text: string }
+  | { type: "APPEND_TEXT"; chatId: string; text: string; order?: number }
   | { type: "START_THINKING"; chatId: string }
   | { type: "APPEND_THINKING"; chatId: string; text: string }
   | { type: "END_THINKING"; chatId: string; duration: number | null }
-  | { type: "START_FILE"; chatId: string; file: StreamedFile }
+  | { type: "START_FILE"; chatId: string; file: StreamedFile; order?: number }
   | {
     type: "APPEND_FILE_CONTENT";
     chatId: string;
@@ -48,18 +48,25 @@ export type StreamAction =
     content: string;
   }
   | { type: "COMPLETE_FILE"; chatId: string; path: string }
-  | { type: "SET_INSTALLING_DEPS"; chatId: string; deps: string[] }
+  | { type: "SET_INSTALLING_DEPS"; chatId: string; deps: string[]; order?: number }
   | { type: "SET_SANDBOXING"; chatId: string; isSandboxing: boolean }
-  | { type: "SET_COMMAND"; chatId: string; command: StreamState["command"] }
+  | {
+    type: "SET_COMMAND";
+    chatId: string;
+    command: StreamState["command"];
+    order?: number;
+  }
   | {
     type: "SET_WEB_SEARCH";
     chatId: string;
     webSearch: NonNullable<StreamState["webSearches"][number]>;
+    order?: number;
   }
   | {
     type: "SET_URL_SCRAPE";
     chatId: string;
     urlScrape: NonNullable<StreamState["urlScrapes"][number]>;
+    order?: number;
   }
   | { type: "SET_METRICS"; chatId: string; metrics: StreamState["metrics"] }
   | { type: "SET_PREVIEW_URL"; chatId: string; url: string }

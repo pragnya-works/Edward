@@ -11,7 +11,10 @@ import type { ChatAction } from "../../../../services/planning/schemas.js";
 import { redis } from "../../../../lib/redis.js";
 import { ensureError } from "../../../../utils/error.js";
 import { logger } from "../../../../utils/logger.js";
-import { sendSSEError, sendSSEEvent } from "../../sse.utils.js";
+import {
+  sendSSEEvent,
+  sendSSERecoverableError,
+} from "../../sse.utils.js";
 import { buildPostgenValidationErrorReport } from "./postgenValidationReport.js";
 import { applyDeterministicPostgenAutofixes } from "./postgenAutofix.js";
 
@@ -72,7 +75,7 @@ export async function processBuildPipeline(
         "Post-gen validation found build-breaking issues",
       );
       for (const violation of validation.violations) {
-        sendSSEError(res, `[Validation] ${violation.message}`, {
+        sendSSERecoverableError(res, `[Validation] ${violation.message}`, {
           code: "postgen_validation",
         });
       }

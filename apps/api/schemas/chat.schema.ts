@@ -180,6 +180,7 @@ export const ParserEventSchema = z.discriminatedUnion("type", [
     message: z.string(),
     code: z.string().optional(),
     details: z.record(z.unknown()).optional(),
+    severity: z.enum(["fatal", "recoverable"]).optional(),
   }),
   z.object({
     type: z.literal(ParserEventType.META),

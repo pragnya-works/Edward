@@ -1,6 +1,6 @@
 import { MetaPhase, ParserEventType } from "@edward/shared/streamEvents";
 import type { Dispatch } from "react";
-import type { MetaEvent } from "@edward/shared/streamEvents";
+import type { ErrorEvent, MetaEvent } from "@edward/shared/streamEvents";
 import type {
   StreamState,
   StreamedFile,
@@ -31,15 +31,19 @@ interface ProcessStreamResponseParams {
 interface ProcessedStreamResult {
   meta: MetaEvent | null;
   text: string;
+  textOrder: number | null;
   thinking: string;
   completedFiles: StreamedFile[];
   installingDeps: string[];
+  installOrder: number | null;
   installingDepsTouched: boolean;
   command: StreamState["command"];
+  projectOrder: number | null;
   webSearches: StreamState["webSearches"];
   metrics: StreamState["metrics"];
   previewUrl: string | null;
   lastEventId: string | undefined;
+  fatalError: NonNullable<StreamState["error"]> | null;
 }
 
 const MAX_REPLAY_ATTEMPTS = 1;
@@ -48,7 +52,13 @@ function isSameWebSearchEvent(
   a: NonNullable<StreamState["webSearches"][number]>,
   b: NonNullable<StreamState["webSearches"][number]>,
 ): boolean {
-  return JSON.stringify(a) === JSON.stringify(b);
+  return (
+    a.query === b.query &&
+    a.maxResults === b.maxResults &&
+    a.answer === b.answer &&
+    a.error === b.error &&
+    JSON.stringify(a.results ?? []) === JSON.stringify(b.results ?? [])
+  );
 }
 
 function hasWebSearchPayload(
@@ -79,7 +89,13 @@ function mergeWebSearchEvent(
     !hasWebSearchPayload(last) &&
     hasWebSearchPayload(incoming)
   ) {
-    return [...existing.slice(0, -1), incoming];
+    return [
+      ...existing.slice(0, -1),
+      {
+        ...incoming,
+        uiOrder: last.uiOrder ?? incoming.uiOrder,
+      },
+    ];
   }
 
   if (
@@ -102,6 +118,10 @@ function schedulePerFrame(fn: () => void): void {
     return;
   }
   setTimeout(fn, 16);
+}
+
+function isFatalErrorEvent(event: ErrorEvent): boolean {
+  return event.severity !== "recoverable";
 }
 
 function mergeFiles(
@@ -130,18 +150,25 @@ function mergeStreamResults(
   return {
     meta: replay.meta ?? initial.meta,
     text: `${initial.text}${replay.text}`,
+    textOrder:
+      initial.textOrder ?? replay.textOrder ?? null,
     thinking: `${initial.thinking}${replay.thinking}`,
     completedFiles: mergeFiles(initial.completedFiles, replay.completedFiles),
     installingDeps: replay.installingDepsTouched
       ? replay.installingDeps
       : initial.installingDeps,
+    installOrder:
+      initial.installOrder ?? replay.installOrder ?? null,
     installingDepsTouched:
       initial.installingDepsTouched || replay.installingDepsTouched,
     command: replay.command ?? initial.command,
+    projectOrder:
+      initial.projectOrder ?? replay.projectOrder ?? null,
     webSearches: mergedWebSearches,
     metrics: replay.metrics ?? initial.metrics,
     previewUrl: replay.previewUrl ?? initial.previewUrl,
     lastEventId: replay.lastEventId ?? initial.lastEventId,
+    fatalError: initial.fatalError ?? replay.fatalError,
   };
 }
 
@@ -177,6 +204,8 @@ export async function processStreamResponse({
   let activeChatId = chatId;
   let sessionCompleted = false;
   let lastEventId = replayCursor;
+  let eventOrder = 0;
+  let fatalError: NonNullable<StreamState["error"]> | null = null;
 
   const pendingActions: StreamAction[] = [];
   let flushPromise: Promise<void> | null = null;
@@ -213,11 +242,14 @@ export async function processStreamResponse({
   const accumulated = {
     completedFiles: [] as StreamedFile[],
     deps: [] as string[],
+    installOrder: null as number | null,
     depsTouched: false,
     command: null as StreamState["command"],
+    projectOrder: null as number | null,
     webSearches: [] as StreamState["webSearches"],
     metrics: null as StreamState["metrics"],
     previewUrl: null as string | null,
+    textOrder: null as number | null,
   };
 
   while (true) {
@@ -229,6 +261,7 @@ export async function processStreamResponse({
     sseBuffer = remaining;
 
     for (const payload of events) {
+      eventOrder += 1;
       if (payload.id) {
         lastEventId = payload.id;
       }
@@ -256,10 +289,14 @@ export async function processStreamResponse({
           break;
         case ParserEventType.TEXT:
           textChunks.push(event.content);
+          if (accumulated.textOrder === null) {
+            accumulated.textOrder = eventOrder;
+          }
           enqueueAction({
             type: StreamActionType.APPEND_TEXT,
             chatId: activeChatId,
             text: event.content,
+            order: eventOrder,
           });
           textEventsSinceLastCursorCheckpoint += 1;
           if (
@@ -300,6 +337,9 @@ export async function processStreamResponse({
         }
         case ParserEventType.FILE_START:
           if (event.path) {
+            if (accumulated.projectOrder === null) {
+              accumulated.projectOrder = eventOrder;
+            }
             currentFile = {
               path: event.path,
               content: "",
@@ -309,6 +349,7 @@ export async function processStreamResponse({
               type: StreamActionType.START_FILE,
               chatId: activeChatId,
               file: { ...currentFile },
+              order: eventOrder,
             });
           }
           break;
@@ -337,11 +378,15 @@ export async function processStreamResponse({
           break;
         case ParserEventType.INSTALL_CONTENT:
           accumulated.deps = event.dependencies;
+          if (accumulated.installOrder === null) {
+            accumulated.installOrder = eventOrder;
+          }
           accumulated.depsTouched = true;
           enqueueAction({
             type: StreamActionType.SET_INSTALLING_DEPS,
             chatId: activeChatId,
             deps: event.dependencies,
+            order: eventOrder,
           });
           break;
         case ParserEventType.INSTALL_END:
@@ -351,6 +396,7 @@ export async function processStreamResponse({
             type: StreamActionType.SET_INSTALLING_DEPS,
             chatId: activeChatId,
             deps: [],
+            order: eventOrder,
           });
           break;
         case ParserEventType.SANDBOX_START:
@@ -369,21 +415,29 @@ export async function processStreamResponse({
           break;
         case ParserEventType.COMMAND:
           accumulated.command = event;
+          if (accumulated.projectOrder === null) {
+            accumulated.projectOrder = eventOrder;
+          }
           enqueueAction({
             type: StreamActionType.SET_COMMAND,
             chatId: activeChatId,
             command: event,
+            order: eventOrder,
           });
           break;
         case ParserEventType.WEB_SEARCH:
           accumulated.webSearches = mergeWebSearchEvent(
             accumulated.webSearches,
-            event,
+            {
+              ...event,
+              uiOrder: eventOrder,
+            },
           );
           enqueueAction({
             type: StreamActionType.SET_WEB_SEARCH,
             chatId: activeChatId,
             webSearch: event,
+            order: eventOrder,
           });
           break;
         case ParserEventType.URL_SCRAPE:
@@ -391,19 +445,27 @@ export async function processStreamResponse({
             type: StreamActionType.SET_URL_SCRAPE,
             chatId: activeChatId,
             urlScrape: event,
+            order: eventOrder,
           });
           break;
-        case ParserEventType.ERROR:
+        case ParserEventType.ERROR: {
+          if (!isFatalErrorEvent(event)) {
+            break;
+          }
+          const streamError: NonNullable<StreamState["error"]> = {
+            message: event.message,
+            code: event.code,
+            details: event.details,
+            severity: event.severity,
+          };
           enqueueAction({
             type: StreamActionType.SET_ERROR,
             chatId: activeChatId,
-            error: {
-              message: event.message,
-              code: event.code,
-              details: event.details,
-            },
+            error: streamError,
           });
+          fatalError ??= streamError;
           break;
+        }
         case ParserEventType.METRICS:
           accumulated.metrics = event;
           enqueueAction({
@@ -434,18 +496,23 @@ export async function processStreamResponse({
   const result: ProcessedStreamResult = {
     meta: metaEvent,
     text: textChunks.join(""),
+    textOrder: accumulated.textOrder,
     thinking: thinkingChunks.join(""),
     completedFiles: accumulated.completedFiles,
     installingDeps: accumulated.deps,
+    installOrder: accumulated.installOrder,
     installingDepsTouched: accumulated.depsTouched,
     command: accumulated.command,
+    projectOrder: accumulated.projectOrder,
     webSearches: accumulated.webSearches,
     metrics: accumulated.metrics,
     previewUrl: accumulated.previewUrl,
     lastEventId,
+    fatalError,
   };
 
   if (
+    !fatalError &&
     !sessionCompleted &&
     replayAttempt < MAX_REPLAY_ATTEMPTS &&
     metaEvent?.runId
@@ -472,16 +539,19 @@ export async function processStreamResponse({
         return mergeStreamResults(result, replayResult);
       }
     } catch {
+      const replayError: NonNullable<StreamState["error"]> = {
+        message:
+          "Stream disconnected before completion and replay failed. Please retry.",
+        code: "stream_replay_failed",
+        severity: "fatal",
+      };
       enqueueAction({
         type: StreamActionType.SET_ERROR,
         chatId: activeChatId,
-        error: {
-          message:
-            "Stream disconnected before completion and replay failed. Please retry.",
-          code: "stream_replay_failed",
-        },
+        error: replayError,
       });
       await flushPendingActions();
+      result.fatalError ??= replayError;
     }
   }
 

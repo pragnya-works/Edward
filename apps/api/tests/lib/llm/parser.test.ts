@@ -67,12 +67,39 @@ describe('createStreamParser', () => {
       ]);
     });
 
+    it("should parse SANDBOX tags with single-quoted attributes", () => {
+      const parser = createStreamParser();
+      const events = parser.process("<edward_sandbox project='test' base='main'>");
+
+      expect(events).toEqual([
+        { type: ParserEventType.SANDBOX_START, project: "test", base: "main" },
+      ]);
+    });
+
+    it("should parse SANDBOX tags with escaped-quote attributes", () => {
+      const parser = createStreamParser();
+      const events = parser.process('<edward_sandbox project=\\"test\\" base=\\"main\\">');
+
+      expect(events).toEqual([
+        { type: ParserEventType.SANDBOX_START, project: "test", base: "main" },
+      ]);
+    });
+
     it('should handle COMMAND tags', () => {
       const parser = createStreamParser();
       const events = parser.process('<edward_command command="ls" args=\'["-la"]\'>');
 
       expect(events).toEqual([
         { type: ParserEventType.COMMAND, command: 'ls', args: ['-la'] },
+      ]);
+    });
+
+    it("should handle COMMAND tags with single-quoted command attribute", () => {
+      const parser = createStreamParser();
+      const events = parser.process("<edward_command command='ls' args='[\"-la\"]'>");
+
+      expect(events).toEqual([
+        { type: ParserEventType.COMMAND, command: "ls", args: ["-la"] },
       ]);
     });
 
@@ -83,6 +110,142 @@ describe('createStreamParser', () => {
       expect(events).toEqual([
         { type: ParserEventType.WEB_SEARCH, query: 'latest react docs', maxResults: 3 },
       ]);
+    });
+
+    it("should handle WEB_SEARCH tags with single-quoted attributes", () => {
+      const parser = createStreamParser();
+      const events = parser.process("<edward_web_search query='latest react docs' max_results='3'>");
+
+      expect(events).toEqual([
+        { type: ParserEventType.WEB_SEARCH, query: "latest react docs", maxResults: 3 },
+      ]);
+    });
+
+    it('should ignore closing edward_web_search tags', () => {
+      const parser = createStreamParser();
+      const events = parser.process(
+        '<edward_web_search query="latest react docs" max_results="3"></edward_web_search>',
+      );
+
+      expect(events).toContainEqual({
+        type: ParserEventType.WEB_SEARCH,
+        query: 'latest react docs',
+        maxResults: 3,
+      });
+      const textEvents = events.filter((event) => event.type === ParserEventType.TEXT);
+      expect(
+        textEvents.some(
+          (event) =>
+            'content' in event && event.content.includes('</edward_web_search>'),
+        ),
+      ).toBe(false);
+    });
+
+    it('should ignore closing edward_command tags', () => {
+      const parser = createStreamParser();
+      const events = parser.process(
+        '<edward_command command="ls" args=\'["-la"]\'></edward_command>',
+      );
+
+      expect(events).toContainEqual({
+        type: ParserEventType.COMMAND,
+        command: 'ls',
+        args: ['-la'],
+      });
+      const textEvents = events.filter((event) => event.type === ParserEventType.TEXT);
+      expect(
+        textEvents.some(
+          (event) =>
+            'content' in event && event.content.includes('</edward_command>'),
+        ),
+      ).toBe(false);
+    });
+
+    it('should ignore closing tags split across chunks', () => {
+      const parser = createStreamParser();
+      const e1 = parser.process('<edward_web_search query="latest react docs" max_results="3">');
+      const e2 = parser.process('</edward_web_');
+      const e3 = parser.process('search>');
+      const all = [...e1, ...e2, ...e3, ...parser.flush()];
+
+      expect(all).toContainEqual({
+        type: ParserEventType.WEB_SEARCH,
+        query: 'latest react docs',
+        maxResults: 3,
+      });
+
+      const leakedText = all
+        .filter((event) => event.type === ParserEventType.TEXT)
+        .map((event) => ('content' in event ? event.content : ''))
+        .join('');
+      expect(leakedText.includes('</edward_web_search>')).toBe(false);
+      expect(leakedText.includes('</edward_web_')).toBe(false);
+    });
+
+    it('preserves structural closing tags in literal text content', () => {
+      const parser = createStreamParser();
+      const events = [
+        ...parser.process(
+          'before</edward_install>mid</edward_sandbox>after</file>end</Response>tail</Thinking>',
+        ),
+        ...parser.flush(),
+      ];
+
+      const textContent = events
+        .filter((event) => event.type === ParserEventType.TEXT)
+        .map((event) => ('content' in event ? event.content : ''))
+        .join('');
+      expect(textContent).toBe(
+        'before</edward_install>mid</edward_sandbox>after</file>end</Response>tail</Thinking>',
+      );
+    });
+
+    it('ignores unknown edward closing tags to prevent future tag leaks', () => {
+      const parser = createStreamParser();
+      const events = parser.process('x</edward_future_tool>y');
+
+      const textContent = events
+        .filter((event) => event.type === ParserEventType.TEXT)
+        .map((event) => ('content' in event ? event.content : ''))
+        .join('');
+      expect(textContent).toBe('xy');
+    });
+
+    it('recovers when edward_done appears before sandbox is explicitly closed', () => {
+      const parser = createStreamParser();
+      const events = [
+        ...parser.process('<edward_sandbox project="demo" base="node"><file path="src/App.tsx">export default function App(){return null;}</file>'),
+        ...parser.process('<edward_done />'),
+        ...parser.flush(),
+      ];
+
+      const sandboxStarts = events.filter((event) => event.type === ParserEventType.SANDBOX_START);
+      const sandboxEnds = events.filter((event) => event.type === ParserEventType.SANDBOX_END);
+      const dones = events.filter((event) => event.type === ParserEventType.DONE);
+
+      expect(sandboxStarts).toHaveLength(1);
+      expect(sandboxEnds.length).toBeGreaterThanOrEqual(1);
+      expect(dones).toHaveLength(1);
+    });
+
+    it('ignores nested edward_sandbox tags while sandbox is already active', () => {
+      const parser = createStreamParser();
+      const events = [
+        ...parser.process('<edward_sandbox project="demo" base="node">'),
+        ...parser.process('<file path="src/first.ts">export const first = 1;</file>'),
+        ...parser.process('<edward_sandbox project="demo" base="node"><file path="src/second.ts">export const second = 2;</file>'),
+        ...parser.process('</edward_sandbox><edward_done />'),
+        ...parser.flush(),
+      ];
+
+      const sandboxStarts = events.filter((event) => event.type === ParserEventType.SANDBOX_START);
+      const textEvents = events
+        .filter((event) => event.type === ParserEventType.TEXT)
+        .map((event) => ('content' in event ? event.content : ''))
+        .join('');
+
+      expect(sandboxStarts).toHaveLength(1);
+      expect(textEvents.includes('<edward_sandbox')).toBe(false);
     });
 
     it('should handle COMMAND tags with non-JSON args gracefully', () => {
@@ -109,6 +272,16 @@ describe('createStreamParser', () => {
 
       expect(events).toContainEqual({ type: ParserEventType.FILE_START, path: '/test/file.ts' });
       expect(events).toContainEqual({ type: ParserEventType.FILE_CONTENT, content: 'content' });
+      expect(events).toContainEqual({ type: ParserEventType.FILE_END });
+    });
+
+    it("should handle FILE tags with single-quoted path attribute", () => {
+      const parser = createStreamParser();
+      parser.process("<edward_sandbox>");
+      const events = parser.process("<file path='/test/file.ts'>content</file>");
+
+      expect(events).toContainEqual({ type: ParserEventType.FILE_START, path: "/test/file.ts" });
+      expect(events).toContainEqual({ type: ParserEventType.FILE_CONTENT, content: "content" });
       expect(events).toContainEqual({ type: ParserEventType.FILE_END });
     });
 
@@ -156,10 +329,13 @@ describe('createStreamParser', () => {
       parser.process('<edward_sandbox>');
       const events = parser.process('<file path="">content</file>');
 
-      expect(events).toContainEqual({
-        type: ParserEventType.ERROR,
-        message: 'Invalid file tag: missing or empty path',
-      });
+      expect(events).toContainEqual(
+        expect.objectContaining({
+          type: ParserEventType.ERROR,
+          message: 'Invalid file tag: missing or empty path',
+          severity: 'recoverable',
+        }),
+      );
     });
 
     it('should handle text before thinking tag', () => {
@@ -193,6 +369,24 @@ describe('createStreamParser', () => {
       const events = parser.flush();
 
       expect(events.length).toBeGreaterThanOrEqual(0);
+    });
+
+    it('strips dangling control-tag fragments from TEXT flush', () => {
+      const parser = createStreamParser();
+      const processEvents = parser.process('hello</edward_web_se');
+      expect(processEvents).toContainEqual({
+        type: ParserEventType.TEXT,
+        content: 'hello',
+      });
+      const events = parser.flush();
+      expect(
+        [...processEvents, ...events].some(
+          (event) =>
+            event.type === ParserEventType.TEXT &&
+            'content' in event &&
+            event.content.includes('</edward_web_se'),
+        ),
+      ).toBe(false);
     });
 
     it('should flush remaining content in THINKING state', () => {
@@ -295,6 +489,8 @@ describe('createStreamParser', () => {
       expect(err).toBeDefined();
       if (err && 'message' in err) {
         expect(err.message).toContain('missing required "command" attribute');
+        expect(err.severity).toBe('recoverable');
+        expect(err.code).toBe('malformed_edward_command_tag');
       }
     });
 
@@ -331,6 +527,8 @@ describe('createStreamParser', () => {
       expect(err).toBeDefined();
       if (err && 'message' in err) {
         expect(err.message).toContain('missing required "query" attribute');
+        expect(err.severity).toBe('recoverable');
+        expect(err.code).toBe('malformed_edward_web_search_tag');
       }
     });
   });

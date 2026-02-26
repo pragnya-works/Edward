@@ -1,6 +1,7 @@
 import path from "path";
 import {
   ASSISTANT_STREAM_TAGS,
+  decodeHtmlAttribute,
   parseInstallDependencies,
 } from "@edward/shared/llm/streamTagParser";
 import {
@@ -35,6 +36,8 @@ interface TagCandidate {
   tag: string;
   state: StreamState;
   event: ParserEventType | null;
+  isNoop?: boolean;
+  isDynamicNoop?: boolean;
 }
 
 interface ExitPoint {
@@ -42,7 +45,64 @@ interface ExitPoint {
   type: "end" | "sandbox" | "install" | "response" | "command" | "done";
 }
 
+type SandboxStateSignal =
+  | "file"
+  | "sandbox_start"
+  | "sandbox_end"
+  | "done_start";
+
 type AllowedFramework = Framework | "next" | "react" | "vite" | "next.js";
+const NOOP_CLOSING_TAGS = [
+  "</edward_web_search>",
+  "</edward_command>",
+  "</edward_url_scrape>",
+  "</edward_done>",
+] as const;
+const CONTROL_CLOSE_TAG_PREFIXES = ["</edward_"] as const;
+const PRESERVED_EDWARD_CLOSING_TAGS = new Set([
+  "</edward_install>",
+  "</edward_sandbox>",
+]);
+
+function extractTagAttribute(tag: string, attributeName: string): string | undefined {
+  // LLM responses occasionally emit escaped quotes in tags; normalize first.
+  const normalizedTag = tag.replace(/\\"/g, '"').replace(/\\'/g, "'");
+  const escapedName = attributeName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+  const quotedPattern = new RegExp(
+    `${escapedName}\\s*=\\s*(?:"([^"]*)"|'([^']*)')`,
+  );
+  const quotedMatch = normalizedTag.match(quotedPattern);
+  if (quotedMatch) {
+    return quotedMatch[1] ?? quotedMatch[2] ?? "";
+  }
+
+  const unquotedPattern = new RegExp(`${escapedName}\\s*=\\s*([^\\s>]+)`);
+  const unquotedMatch = normalizedTag.match(unquotedPattern);
+  return unquotedMatch?.[1];
+}
+
+function stripDanglingControlCloseFragment(content: string): string {
+  const lastCloseStart = content.lastIndexOf("</");
+  if (lastCloseStart === -1) {
+    return content;
+  }
+
+  const trailing = content.slice(lastCloseStart).toLowerCase();
+  if (trailing.includes(">")) {
+    return content;
+  }
+
+  if (
+    CONTROL_CLOSE_TAG_PREFIXES.some(
+      (prefix) => prefix.startsWith(trailing) || trailing.startsWith(prefix),
+    )
+  ) {
+    return content.slice(0, lastCloseStart);
+  }
+
+  return content;
+}
 
 export function createStreamParser() {
   let state: StreamState = StreamState.TEXT;
@@ -66,6 +126,29 @@ export function createStreamParser() {
         handleInstallState(events);
         break;
     }
+  }
+
+  function emitContentEvent(
+    events: ParserEvent[],
+    type:
+      | ParserEventType.TEXT
+      | ParserEventType.THINKING_CONTENT
+      | ParserEventType.FILE_CONTENT,
+    content: string,
+  ): void {
+    if (!content) {
+      return;
+    }
+
+    const sanitized =
+      type === ParserEventType.FILE_CONTENT
+        ? content
+        : stripDanglingControlCloseFragment(content);
+    if (!sanitized) {
+      return;
+    }
+
+    events.push({ type, content: sanitized } as ParserEvent);
   }
 
   function handleTextState(events: ParserEvent[]): void {
@@ -106,6 +189,21 @@ export function createStreamParser() {
         state: StreamState.TEXT,
         event: ParserEventType.WEB_SEARCH,
       },
+      ...NOOP_CLOSING_TAGS.map((tag) => ({
+        idx: buffer.indexOf(tag),
+        tag,
+        state: StreamState.TEXT,
+        event: null,
+        isNoop: true,
+      })),
+      {
+        idx: buffer.indexOf("</edward_"),
+        tag: "</edward_",
+        state: StreamState.TEXT,
+        event: null,
+        isNoop: true,
+        isDynamicNoop: true,
+      },
     ].filter((c) => c.idx !== -1);
 
     if (candidates.length === 0) {
@@ -117,11 +215,24 @@ export function createStreamParser() {
 
     if (next.idx > 0) {
       const textContent = buffer.slice(0, next.idx);
-      if (textContent) {
-        events.push({ type: ParserEventType.TEXT, content: textContent });
-      }
+      emitContentEvent(events, ParserEventType.TEXT, textContent);
     }
     buffer = buffer.slice(next.idx);
+
+    if (next.isNoop) {
+      if (next.isDynamicNoop) {
+        const closeAngle = buffer.indexOf(">");
+        if (closeAngle === -1) return;
+        const closingTag = buffer.slice(0, closeAngle + 1);
+        if (PRESERVED_EDWARD_CLOSING_TAGS.has(closingTag.toLowerCase())) {
+          emitContentEvent(events, ParserEventType.TEXT, closingTag);
+        }
+        buffer = buffer.slice(closeAngle + 1);
+      } else {
+        buffer = buffer.slice(next.tag.length);
+      }
+      return;
+    }
 
     if (buffer.startsWith(TAGS.THINKING_START)) {
       buffer = buffer.slice(TAGS.THINKING_START.length);
@@ -145,19 +256,20 @@ export function createStreamParser() {
       const tagContent = buffer.slice(0, closeAngle + 1);
       buffer = buffer.slice(closeAngle + 1);
 
-      const commandMatch = tagContent.match(/command="([^"]+)"/);
-      if (!commandMatch || !commandMatch[1]) {
+      const command = extractTagAttribute(tagContent, "command");
+      if (!command) {
         events.push({
           type: ParserEventType.ERROR,
           message: 'edward_command tag missing required "command" attribute',
+          code: "malformed_edward_command_tag",
+          severity: "recoverable",
         });
       } else {
-        const command = commandMatch[1];
         let args: string[] = [];
-        const argsMatch = tagContent.match(/args='([^']*)'/);
-        if (argsMatch && argsMatch[1]) {
+        const argsRaw = extractTagAttribute(tagContent, "args");
+        if (argsRaw) {
           try {
-            args = JSON.parse(argsMatch[1]);
+            args = JSON.parse(argsRaw);
           } catch {
             /* malformed JSON — keep empty args */
           }
@@ -171,18 +283,19 @@ export function createStreamParser() {
       const tagContent = buffer.slice(0, closeAngle + 1);
       buffer = buffer.slice(closeAngle + 1);
 
-      const queryMatch = tagContent.match(/query="([^"]+)"/);
-      if (!queryMatch || !queryMatch[1]?.trim()) {
+      const queryRaw = extractTagAttribute(tagContent, "query");
+      const query = decodeHtmlAttribute(queryRaw ?? "").trim();
+      if (!query) {
         events.push({
           type: ParserEventType.ERROR,
           message: 'edward_web_search tag missing required "query" attribute',
+          code: "malformed_edward_web_search_tag",
+          severity: "recoverable",
         });
       } else {
-        const query = queryMatch[1].trim();
-        const maxResultsMatch = tagContent.match(
-          /max_results="(\d+)"|maxResults="(\d+)"/,
-        );
-        const maxRaw = maxResultsMatch?.[1] ?? maxResultsMatch?.[2];
+        const maxRaw =
+          extractTagAttribute(tagContent, "max_results") ??
+          extractTagAttribute(tagContent, "maxResults");
         const maxResults = maxRaw ? Number.parseInt(maxRaw, 10) : undefined;
         events.push({
           type: ParserEventType.WEB_SEARCH,
@@ -213,9 +326,7 @@ export function createStreamParser() {
 
     if (earliest.idx > 0) {
       const content = buffer.slice(0, earliest.idx);
-      if (content) {
-        events.push({ type: ParserEventType.THINKING_CONTENT, content });
-      }
+      emitContentEvent(events, ParserEventType.THINKING_CONTENT, content);
     }
 
     if (earliest.type === "end") {
@@ -229,18 +340,51 @@ export function createStreamParser() {
   }
 
   function handleSandboxState(events: ParserEvent[]): void {
-    const fileIdx = buffer.indexOf(TAGS.FILE_START);
-    const endIdx = buffer.indexOf(TAGS.SANDBOX_END);
+    const signals: Array<{ idx: number; type: SandboxStateSignal }> = [
+      { idx: buffer.indexOf(TAGS.FILE_START), type: "file" as const },
+      {
+        idx: buffer.indexOf(TAGS.SANDBOX_START),
+        type: "sandbox_start" as const,
+      },
+      { idx: buffer.indexOf(TAGS.SANDBOX_END), type: "sandbox_end" as const },
+      { idx: buffer.indexOf(TAGS.DONE), type: "done_start" as const },
+    ].filter((signal) => signal.idx !== -1);
 
-    if (fileIdx !== -1 && (endIdx === -1 || fileIdx < endIdx)) {
-      processFileOpenTag(events, fileIdx);
-    } else if (endIdx !== -1) {
-      buffer = buffer.slice(endIdx + TAGS.SANDBOX_END.length);
+    if (signals.length === 0) {
+      flushSandboxContent(events);
+      return;
+    }
+
+    const earliest = signals.reduce((min, signal) =>
+      signal.idx < min.idx ? signal : min,
+    );
+
+    if (earliest.type === "file") {
+      processFileOpenTag(events, earliest.idx);
+      return;
+    }
+
+    if (earliest.type === "sandbox_start") {
+      const closeIdx = buffer.indexOf(">", earliest.idx);
+      if (closeIdx === -1) {
+        return;
+      }
+      buffer = buffer.slice(closeIdx + 1);
+      return;
+    }
+
+    if (earliest.type === "sandbox_end") {
+      buffer = buffer.slice(earliest.idx + TAGS.SANDBOX_END.length);
       state = StreamState.TEXT;
       events.push({ type: ParserEventType.SANDBOX_END });
-    } else {
-      flushSandboxContent(events);
+      return;
     }
+
+    // Recover from malformed outputs (e.g. missing </edward_sandbox>) by
+    // implicitly closing sandbox before parsing <edward_done />.
+    state = StreamState.TEXT;
+    events.push({ type: ParserEventType.SANDBOX_END });
+    handleTextState(events);
   }
 
   function handleFileState(events: ParserEvent[]): void {
@@ -252,7 +396,7 @@ export function createStreamParser() {
 
         if (content) {
           content = cleanFileContent(content);
-          events.push({ type: ParserEventType.FILE_CONTENT, content });
+          emitContentEvent(events, ParserEventType.FILE_CONTENT, content);
         }
       }
       buffer = buffer.slice(endIdx + TAGS.FILE_END.length);
@@ -320,8 +464,8 @@ export function createStreamParser() {
     if (closeIdx === -1) return;
 
     const tag = buffer.slice(0, closeIdx + 1);
-    const projectMatch = tag.match(/project="([^"]*)"/)?.[1];
-    const baseMatch = tag.match(/base="([^"]*)"/)?.[1];
+    const projectMatch = extractTagAttribute(tag, "project");
+    const baseMatch = extractTagAttribute(tag, "base");
 
     events.push({
       type: ParserEventType.SANDBOX_START,
@@ -339,17 +483,19 @@ export function createStreamParser() {
     if (fileIdx > 0) {
       const textContent = buffer.slice(0, fileIdx);
       if (textContent.trim()) {
-        events.push({ type: ParserEventType.TEXT, content: textContent });
+        emitContentEvent(events, ParserEventType.TEXT, textContent);
       }
     }
 
     const tag = buffer.slice(fileIdx, closeIdx + 1);
-    const rawPath = tag.match(/path="([^"]*)"/)?.[1];
+    const rawPath = extractTagAttribute(tag, "path");
 
     if (!rawPath?.trim()) {
       events.push({
         type: ParserEventType.ERROR,
         message: "Invalid file tag: missing or empty path",
+        code: "invalid_file_tag",
+        severity: "recoverable",
       });
       buffer = buffer.slice(closeIdx + 1);
       return;
@@ -363,6 +509,8 @@ export function createStreamParser() {
       events.push({
         type: ParserEventType.ERROR,
         message: `Invalid file path after normalization: ${rawPath}`,
+        code: "invalid_file_path",
+        severity: "recoverable",
       });
       buffer = buffer.slice(closeIdx + 1);
       return;
@@ -393,11 +541,11 @@ export function createStreamParser() {
 
     if (lastLt !== -1 && buffer.length - lastLt < LOOKAHEAD_LIMIT) {
       if (lastLt > 0) {
-        events.push({ type, content: buffer.slice(0, lastLt) } as ParserEvent);
+        emitContentEvent(events, type, buffer.slice(0, lastLt));
         buffer = buffer.slice(lastLt);
       }
     } else if (buffer.length > 0) {
-      events.push({ type, content: buffer } as ParserEvent);
+      emitContentEvent(events, type, buffer);
       buffer = "";
     }
   }
@@ -409,14 +557,14 @@ export function createStreamParser() {
       if (buffer.length > LOOKAHEAD_LIMIT && lastLt > 0) {
         const safeContent = buffer.slice(0, lastLt);
         if (safeContent.trim()) {
-          events.push({ type: ParserEventType.TEXT, content: safeContent });
+          emitContentEvent(events, ParserEventType.TEXT, safeContent);
         }
         buffer = buffer.slice(lastLt);
       }
     } else if (lastLt === -1 && buffer.length > LOOKAHEAD_LIMIT) {
       const safeContent = buffer;
       if (safeContent.trim()) {
-        events.push({ type: ParserEventType.TEXT, content: safeContent });
+        emitContentEvent(events, ParserEventType.TEXT, safeContent);
       }
       buffer = "";
     }
@@ -497,6 +645,8 @@ export function createStreamParser() {
         type: ParserEventType.ERROR,
         message:
           "Parser exceeded maximum iterations - possible infinite loop detected",
+        code: "parser_iterations_exceeded",
+        severity: "fatal",
       });
       buffer = "";
       state = StreamState.TEXT;
@@ -511,19 +661,17 @@ export function createStreamParser() {
     if (buffer.length > 0) {
       switch (state) {
         case StreamState.TEXT:
-          events.push({ type: ParserEventType.TEXT, content: buffer });
+          emitContentEvent(events, ParserEventType.TEXT, buffer);
           break;
 
         case StreamState.THINKING:
-          events.push(
-            { type: ParserEventType.THINKING_CONTENT, content: buffer },
-            { type: ParserEventType.THINKING_END },
-          );
+          emitContentEvent(events, ParserEventType.THINKING_CONTENT, buffer);
+          events.push({ type: ParserEventType.THINKING_END });
           break;
 
         case StreamState.FILE:
+          emitContentEvent(events, ParserEventType.FILE_CONTENT, buffer);
           events.push(
-            { type: ParserEventType.FILE_CONTENT, content: buffer },
             { type: ParserEventType.FILE_END },
             { type: ParserEventType.SANDBOX_END },
           );

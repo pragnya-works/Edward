@@ -39,10 +39,26 @@ export async function createWorkflow(
   chatId: string,
   initialContext: Partial<WorkflowContext> = {},
 ): Promise<WorkflowState> {
+  let sandboxId: string | undefined;
+  try {
+    sandboxId = await getActiveSandbox(chatId);
+  } catch (sandboxLookupError) {
+    logger.warn(
+      {
+        chatId,
+        error: sandboxLookupError instanceof Error
+          ? sandboxLookupError.message
+          : String(sandboxLookupError),
+      },
+      "Failed to hydrate active sandbox while creating workflow",
+    );
+  }
+
   const state: WorkflowState = {
     id: nanoid(16),
     userId,
     chatId,
+    sandboxId,
     status: WorkflowStatus.PENDING,
     currentStep: WorkflowStep.ANALYZE,
     context: { errors: [], ...initialContext },

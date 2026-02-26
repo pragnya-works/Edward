@@ -123,4 +123,86 @@ export const metadata = {
       'export const metadata = { openGraph: {}, twitter: {} };',
     );
   });
+
+  it("rewrites zustand default imports to named imports", async () => {
+    const files = new Map<string, string>([
+      [
+        "src/store/useCart.ts",
+        [
+          "'use client';",
+          "import create from 'zustand';",
+          "",
+          "export const useCart = create(() => ({}));",
+        ].join("\n"),
+      ],
+    ]);
+
+    const applied = await applyDeterministicPostgenAutofixes({
+      framework: "vite-react",
+      mode: ChatAction.GENERATE,
+      generatedFiles: files,
+      chatId: "chat-1",
+      runId: "run-1",
+    });
+
+    expect(applied).toContain("src/store/useCart.ts:zustand-default-import");
+    expect(files.get("src/store/useCart.ts")).toContain(
+      "import { create } from 'zustand';",
+    );
+  });
+
+  it("rewrites aliased default zustand imports alongside named imports", async () => {
+    const files = new Map<string, string>([
+      [
+        "src/store/useCart.ts",
+        [
+          "'use client';",
+          "import cartStore, { shallow } from \"zustand\";",
+          "",
+          "export const useCart = cartStore(() => ({}));",
+          "export { shallow };",
+        ].join("\n"),
+      ],
+    ]);
+
+    const applied = await applyDeterministicPostgenAutofixes({
+      framework: "nextjs",
+      mode: ChatAction.EDIT,
+      generatedFiles: files,
+      chatId: "chat-1",
+      runId: "run-1",
+    });
+
+    expect(applied).toContain("src/store/useCart.ts:zustand-default-import");
+    expect(files.get("src/store/useCart.ts")).toContain(
+      'import { create as cartStore, shallow } from "zustand";',
+    );
+  });
+
+  it("preserves default import identifier even when create is already in named imports", async () => {
+    const files = new Map<string, string>([
+      [
+        "src/store/useCart.ts",
+        [
+          "'use client';",
+          "import cartStore, { create, shallow } from \"zustand\";",
+          "",
+          "export const useCart = cartStore(() => ({}));",
+          "export { create, shallow };",
+        ].join("\n"),
+      ],
+    ]);
+
+    await applyDeterministicPostgenAutofixes({
+      framework: "nextjs",
+      mode: ChatAction.EDIT,
+      generatedFiles: files,
+      chatId: "chat-1",
+      runId: "run-1",
+    });
+
+    expect(files.get("src/store/useCart.ts")).toContain(
+      'import { create as cartStore, create, shallow } from "zustand";',
+    );
+  });
 });

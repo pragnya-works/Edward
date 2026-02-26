@@ -25,6 +25,8 @@ export enum ParserEventType {
   BUILD_STATUS = "build_status",
 }
 
+export type StreamErrorSeverity = "fatal" | "recoverable";
+
 export enum MetaPhase {
   SESSION_START = "session_start",
   TURN_START = "turn_start",
@@ -154,6 +156,7 @@ export interface ErrorEvent extends StreamEventBase {
   message: string;
   code?: string;
   details?: Record<string, unknown>;
+  severity?: StreamErrorSeverity;
 }
 
 export interface MetaEvent extends StreamEventBase {

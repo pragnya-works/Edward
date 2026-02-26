@@ -202,14 +202,20 @@ export function createStoredAssistantContent(
     webSearchResults,
   );
 
-  if (!urlScrapeTags) {
-    return contentWithWebSearchPayload;
-  }
+  const mergedContent = !urlScrapeTags
+    ? contentWithWebSearchPayload
+    : `${urlScrapeTags}\n\n${contentWithWebSearchPayload}`;
 
-  return `${urlScrapeTags}\n\n${contentWithWebSearchPayload}`;
+  return stripNoopControlCloseTags(mergedContent);
 }
 
 const WEB_SEARCH_TAG_PATTERN = /<edward_web_search\b[^>]*>/gi;
+const NOOP_CONTROL_CLOSE_TAG_PATTERN =
+  /<\/edward_(?:web_search|command|url_scrape|done)>/gi;
+
+function stripNoopControlCloseTags(content: string): string {
+  return content.replace(NOOP_CONTROL_CLOSE_TAG_PATTERN, "");
+}
 
 function escapeHtmlAttribute(value: string): string {
   return value

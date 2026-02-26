@@ -6,18 +6,15 @@ import {
   useMemo,
   useRef,
   useState,
+  type ReactNode,
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import { AnimatePresence, m } from "motion/react";
 import {
-  AlertTriangle,
-  CheckCircle2,
   ChevronDown,
   ChevronUp,
-  Info,
   Terminal,
   Trash2,
-  XCircle,
 } from "lucide-react";
 import { Button } from "@edward/ui/components/button";
 import { Badge } from "@edward/ui/components/badge";
@@ -32,6 +29,21 @@ const DESKTOP_MIN_TERMINAL_HEIGHT = 140;
 const MOBILE_MIN_TERMINAL_HEIGHT = 120;
 const MAX_TERMINAL_HEIGHT_PX = 440;
 const MAX_TERMINAL_HEIGHT_RATIO = 0.5;
+const TERMINAL_FONT_FAMILY = [
+  "JetBrains Mono",
+  "Fira Code",
+  "Cascadia Mono",
+  "Ubuntu Mono",
+  "SFMono-Regular",
+  "Menlo",
+  "Monaco",
+  "Consolas",
+  "Liberation Mono",
+  "Courier New",
+  "monospace",
+].join(", ");
+const URL_CANDIDATE_REGEX = /(https?:\/\/[^\s<>"']+)/g;
+const URL_TRAILING_PUNCTUATION = new Set([")", "]", ".", ",", ";", ":", "!", "?"]);
 
 interface TerminalResizeState {
   pointerId: number;
@@ -77,35 +89,128 @@ function formatCommandLine(entry: SandboxTerminalEntry): string {
   return [entry.command, ...args].filter(Boolean).join(" ");
 }
 
-function getKindIcon(entry: SandboxTerminalEntry) {
-  switch (entry.kind) {
-    case "warning":
-      return AlertTriangle;
-    case "error":
-      return XCircle;
-    case "success":
-      return CheckCircle2;
-    case "command":
-      return Terminal;
-    case "system":
-    default:
-      return Info;
+function isHttpUrl(value: string): boolean {
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === "http:" || parsed.protocol === "https:";
+  } catch {
+    return false;
   }
 }
 
-function getKindClasses(entry: SandboxTerminalEntry): string {
+function splitUrlAndTrailingPunctuation(candidate: string): {
+  url: string;
+  trailing: string;
+} {
+  let url = candidate;
+  let trailing = "";
+
+  while (url.length > 0 && !isHttpUrl(url)) {
+    const tail = url.at(-1);
+    if (!tail || !URL_TRAILING_PUNCTUATION.has(tail)) {
+      break;
+    }
+    trailing = `${tail}${trailing}`;
+    url = url.slice(0, -1);
+  }
+
+  return { url, trailing };
+}
+
+function linkifyTerminalText(text: string, linkClassName: string): ReactNode[] {
+  if (!text) {
+    return [text];
+  }
+
+  const nodes: ReactNode[] = [];
+  let cursor = 0;
+  let matchIndex = 0;
+
+  URL_CANDIDATE_REGEX.lastIndex = 0;
+  for (const match of text.matchAll(URL_CANDIDATE_REGEX)) {
+    const raw = match[0];
+    const start = match.index ?? 0;
+
+    if (start > cursor) {
+      nodes.push(text.slice(cursor, start));
+    }
+
+    const { url, trailing } = splitUrlAndTrailingPunctuation(raw);
+    if (isHttpUrl(url)) {
+      nodes.push(
+        <a
+          key={`terminal-link-${matchIndex}`}
+          href={url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={linkClassName}
+        >
+          {url}
+        </a>,
+      );
+      if (trailing) {
+        nodes.push(trailing);
+      }
+    } else {
+      nodes.push(raw);
+    }
+
+    cursor = start + raw.length;
+    matchIndex += 1;
+  }
+
+  if (cursor < text.length) {
+    nodes.push(text.slice(cursor));
+  }
+
+  return nodes.length > 0 ? nodes : [text];
+}
+
+function getKindLabel(entry: SandboxTerminalEntry): string {
   switch (entry.kind) {
     case "warning":
-      return "text-amber-600 dark:text-amber-300";
+      return "WARN";
     case "error":
-      return "text-rose-600 dark:text-rose-300";
+      return "ERR";
     case "success":
-      return "text-emerald-600 dark:text-emerald-300";
+      return "OK";
     case "command":
-      return "text-sky-600 dark:text-cyan-300";
+      return "CMD";
     case "system":
     default:
-      return "text-workspace-foreground/75";
+      return "INFO";
+  }
+}
+
+function getKindLabelClasses(entry: SandboxTerminalEntry): string {
+  switch (entry.kind) {
+    case "warning":
+      return "text-amber-700 dark:text-amber-400";
+    case "error":
+      return "text-rose-700 dark:text-rose-400";
+    case "success":
+      return "text-emerald-700 dark:text-emerald-400";
+    case "command":
+      return "text-sky-700 dark:text-cyan-300";
+    case "system":
+    default:
+      return "text-workspace-foreground/60";
+  }
+}
+
+function getKindMessageClasses(entry: SandboxTerminalEntry): string {
+  switch (entry.kind) {
+    case "warning":
+      return "text-amber-700 dark:text-amber-200";
+    case "error":
+      return "text-rose-700 dark:text-rose-200";
+    case "success":
+      return "text-emerald-700 dark:text-emerald-200";
+    case "command":
+      return "text-sky-700 dark:text-cyan-100";
+    case "system":
+    default:
+      return "text-workspace-foreground/80";
   }
 }
 
@@ -223,52 +328,68 @@ function TerminalEntries({ entries }: TerminalEntriesProps) {
   if (entries.length === 0) {
     return (
       <div className="py-2 text-[11px] text-workspace-foreground/60">
-        Waiting for sandbox output...
+        [ {formatTimestamp(Date.now())} ] [INFO] terminal ready, waiting for sandbox output
       </div>
     );
   }
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-1.5">
       {entries.map((entry) => {
-        const Icon = getKindIcon(entry);
+        const kindLabel = getKindLabel(entry);
         const commandLine = entry.kind === "command" ? formatCommandLine(entry) : null;
 
         return (
-          <div
-            key={entry.id}
-            className="rounded-md border border-workspace-border/70 bg-workspace-sidebar/50 px-2 py-1.5"
-          >
-            <div className="flex items-center gap-1.5">
-              <Icon className={cn("h-3.5 w-3.5", getKindClasses(entry))} />
+          <div key={entry.id} className="space-y-1">
+            <div className="flex items-start gap-1.5 leading-[1.45]">
               <span className="text-[10px] text-workspace-foreground/55">
                 {formatTimestamp(entry.createdAt)}
               </span>
-              <span className={cn("truncate", getKindClasses(entry))}>
-                {entry.message}
+              <span
+                className={cn(
+                  "mt-[1px] w-8 shrink-0 text-[10px] font-semibold tracking-wide",
+                  getKindLabelClasses(entry),
+                )}
+              >
+                {kindLabel}
+              </span>
+              <span className={cn("min-w-0 flex-1 break-words", getKindMessageClasses(entry))}>
+                {linkifyTerminalText(
+                  entry.message,
+                  "break-all underline decoration-dotted underline-offset-2 text-sky-700 hover:text-sky-800 dark:text-cyan-300 dark:hover:text-cyan-200",
+                )}
               </span>
             </div>
 
             {commandLine ? (
-              <pre className="mt-1 whitespace-pre-wrap break-all text-sky-700 dark:text-cyan-300">
-                {`$ ${commandLine}`}
+              <pre className="whitespace-pre-wrap break-all border-l border-sky-500/35 pl-3 text-sky-700 dark:border-cyan-400/35 dark:text-cyan-200">
+                {linkifyTerminalText(
+                  `$ ${commandLine}`,
+                  "break-all underline decoration-dotted underline-offset-2 text-sky-700 hover:text-sky-800 dark:text-cyan-300 dark:hover:text-cyan-200",
+                )}
               </pre>
             ) : null}
 
             {entry.stdout ? (
-              <pre className="mt-1 whitespace-pre-wrap break-all text-workspace-foreground/85">
-                {entry.stdout}
+              <pre className="whitespace-pre-wrap break-all border-l border-workspace-border pl-3 text-workspace-foreground/85">
+                {linkifyTerminalText(
+                  entry.stdout,
+                  "break-all underline decoration-dotted underline-offset-2 text-sky-700 hover:text-sky-800 dark:text-cyan-300 dark:hover:text-cyan-200",
+                )}
               </pre>
             ) : null}
 
             {entry.stderr ? (
-              <pre className="mt-1 whitespace-pre-wrap break-all text-rose-600 dark:text-rose-300">
-                {entry.stderr}
+              <pre className="whitespace-pre-wrap break-all border-l border-rose-500/35 pl-3 text-rose-700 dark:border-rose-400/45 dark:text-rose-200">
+                {linkifyTerminalText(
+                  entry.stderr,
+                  "break-all underline decoration-dotted underline-offset-2 text-rose-700 hover:text-rose-800 dark:text-rose-300 dark:hover:text-rose-200",
+                )}
               </pre>
             ) : null}
 
             {typeof entry.exitCode === "number" ? (
-              <div className="mt-1 text-[10px] text-workspace-foreground/55">
+              <div className="text-[10px] text-workspace-foreground/55">
                 exit {entry.exitCode}
               </div>
             ) : null}
@@ -478,7 +599,8 @@ export function SandboxOutputTerminal() {
                 ref={viewportRef}
                 onScroll={handleScroll}
                 aria-readonly="true"
-                className="h-full overflow-y-auto bg-workspace-bg px-2.5 py-2 font-mono text-[11px] leading-5 [scrollbar-gutter:stable]"
+                className="h-full overflow-y-auto bg-workspace-bg px-2.5 py-2 text-[11px] leading-[1.45] [scrollbar-gutter:stable]"
+                style={{ fontFamily: TERMINAL_FONT_FAMILY }}
               >
                 <TerminalEntries entries={terminalEntries} />
               </div>

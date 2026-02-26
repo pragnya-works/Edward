@@ -113,6 +113,7 @@ export function createResumeRunStream({
             resolvedChatId = realChatId;
           },
         });
+        const hasFatalStreamError = Boolean(streamResult?.fatalError);
 
         if (isLatestMutationForChat(resolvedChatId, mutationId)) {
           dispatch({
@@ -132,10 +133,12 @@ export function createResumeRunStream({
 
           if (streamResult) {
             clearCursor(resolvedChatId, runId);
-            dispatch({
-              type: StreamActionType.REMOVE_STREAM,
-              chatId: resolvedChatId,
-            });
+            if (!hasFatalStreamError) {
+              dispatch({
+                type: StreamActionType.REMOVE_STREAM,
+                chatId: resolvedChatId,
+              });
+            }
           }
         }
       } catch (error) {

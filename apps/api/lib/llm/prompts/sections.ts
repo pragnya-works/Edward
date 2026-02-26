@@ -105,25 +105,27 @@ const COMMAND_FORMAT = `
 ## COMMAND FORMAT
 Use <edward_command> for safe shell inspection/verification.
 Syntax:
-<edward_command command="COMMAND" args='["arg1", "arg2"]'>
+<edward_command command="COMMAND" args='["arg1", "arg2"]' />
 
 Available commands: ${formatAllowedSandboxCommands()}
 
 Protocol:
 - Emit tag and STOP.
 - Wait for system command results in next turn.
+- Do not emit </edward_command>.
 `;
 
 const WEB_SEARCH_FORMAT = `
 ## WEB SEARCH FORMAT
 Use <edward_web_search> only when current external info is required.
 Syntax:
-<edward_web_search query="YOUR QUERY" max_results="5">
+<edward_web_search query="YOUR QUERY" max_results="5" />
 
 Protocol:
 - Emit tag and STOP.
 - Wait for returned search results, then continue.
 - Cite source URLs when relevant.
+- Do not emit </edward_web_search>.
 `;
 
 const SANDBOX_FORMAT = `

@@ -173,6 +173,7 @@ export async function executeStartStreamMutation(
   });
 
   const metaEvent = streamResult?.meta;
+  const hasFatalStreamError = Boolean(streamResult?.fatalError);
 
   if (deps.isLatestMutationForChat(resolvedChatId, variables.mutationId)) {
     deps.dispatch({
@@ -192,25 +193,30 @@ export async function executeStartStreamMutation(
       });
     }
 
-    const augmentedStreamState: StreamState = {
-      ...INITIAL_STREAM_STATE,
-      streamingText: streamResult.text,
-      thinkingText: streamResult.thinking,
-      completedFiles: streamResult.completedFiles,
-      installingDeps: streamResult.installingDeps,
-      command: streamResult.command,
-      webSearches: streamResult.webSearches,
-      metrics: streamResult.metrics,
-      previewUrl: streamResult.previewUrl,
-      meta: metaEvent,
-    };
+    if (!hasFatalStreamError) {
+      const augmentedStreamState: StreamState = {
+        ...INITIAL_STREAM_STATE,
+        streamingText: streamResult.text,
+        textOrder: streamResult.textOrder,
+        thinkingText: streamResult.thinking,
+        completedFiles: streamResult.completedFiles,
+        installingDeps: streamResult.installingDeps,
+        installOrder: streamResult.installOrder,
+        command: streamResult.command,
+        projectOrder: streamResult.projectOrder,
+        webSearches: streamResult.webSearches,
+        metrics: streamResult.metrics,
+        previewUrl: streamResult.previewUrl,
+        meta: metaEvent,
+      };
 
-    insertAssistantMessage({
-      queryClient: deps.queryClient,
-      chatId: metaEvent.chatId,
-      streamState: augmentedStreamState,
-      retryInsertIndex: variables.retryInsertIndex,
-    });
+      insertAssistantMessage({
+        queryClient: deps.queryClient,
+        chatId: metaEvent.chatId,
+        streamState: augmentedStreamState,
+        retryInsertIndex: variables.retryInsertIndex,
+      });
+    }
 
     if (deps.isLatestMutationForChat(metaEvent.chatId, variables.mutationId)) {
       void deps.queryClient.invalidateQueries({
@@ -228,12 +234,18 @@ export async function executeStartStreamMutation(
       if (metaEvent.runId) {
         deps.clearCursor(resolvedChatId, metaEvent.runId);
       }
-      deps.dispatch({
-        type: StreamActionType.REMOVE_STREAM,
-        chatId: resolvedChatId,
-      });
+      if (!hasFatalStreamError) {
+        deps.dispatch({
+          type: StreamActionType.REMOVE_STREAM,
+          chatId: resolvedChatId,
+        });
+      }
     }
-  } else if (streamResult && deps.isLatestMutationForChat(resolvedChatId, variables.mutationId)) {
+  } else if (
+    streamResult &&
+    !hasFatalStreamError &&
+    deps.isLatestMutationForChat(resolvedChatId, variables.mutationId)
+  ) {
     deps.dispatch({
       type: StreamActionType.REMOVE_STREAM,
       chatId: resolvedChatId,

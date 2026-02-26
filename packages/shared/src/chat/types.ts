@@ -23,6 +23,7 @@ export interface StreamErrorState {
   message: string;
   code?: ErrorEvent["code"];
   details?: ErrorEvent["details"];
+  severity?: ErrorEvent["severity"];
 }
 
 interface MessageAttachment {
@@ -64,16 +65,19 @@ export interface StreamState {
   isStreaming: boolean;
   streamChatId: string | null;
   streamingText: string;
+  textOrder: number | null;
   thinkingText: string;
   isThinking: boolean;
   thinkingDuration: number | null;
   activeFiles: StreamedFile[];
   completedFiles: StreamedFile[];
   installingDeps: string[];
+  installOrder: number | null;
   isSandboxing: boolean;
   command: CommandEvent | null;
-  webSearches: WebSearchEvent[];
-  urlScrapes: UrlScrapeEvent[];
+  projectOrder: number | null;
+  webSearches: (WebSearchEvent & { uiOrder?: number })[];
+  urlScrapes: (UrlScrapeEvent & { uiOrder?: number })[];
   error: StreamErrorState | null;
   meta: MetaEvent | null;
   codeOnly: boolean;
@@ -85,14 +89,17 @@ export const INITIAL_STREAM_STATE: StreamState = {
   isStreaming: false,
   streamChatId: null,
   streamingText: "",
+  textOrder: null,
   thinkingText: "",
   isThinking: false,
   thinkingDuration: null,
   activeFiles: [],
   completedFiles: [],
   installingDeps: [],
+  installOrder: null,
   isSandboxing: false,
   command: null,
+  projectOrder: null,
   webSearches: [],
   urlScrapes: [],
   error: null,

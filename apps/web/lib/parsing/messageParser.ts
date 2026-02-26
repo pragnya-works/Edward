@@ -24,11 +24,70 @@ enum MessageParseTokenType {
   COMMAND = "command",
   WEB_SEARCH = "web_search",
   URL_SCRAPE = "url_scrape",
+  IGNORED_CLOSE = "ignored_close",
   SANDBOX = "sandbox",
   SANDBOX_END = "sandbox_end",
   DONE = "done",
   RESPONSE = "response",
   RESPONSE_END = "response_end",
+}
+
+const IGNORABLE_CLOSE_TAGS = [
+  "</edward_command>",
+  "</edward_web_search>",
+  "</edward_url_scrape>",
+  "</edward_done>",
+] as const;
+const CONTROL_CLOSE_TAG_PREFIXES = [
+  "</thinking",
+  "</response",
+  "</file",
+  "</edward_",
+] as const;
+
+function findInstallRecoveryBoundary(content: string): number {
+  const searchFrom = TAGS.INSTALL_START.length;
+  const candidates = [
+    content.indexOf(TAGS.SANDBOX_START, searchFrom),
+    content.indexOf(TAGS.FILE_START, searchFrom),
+    content.indexOf(TAGS.THINKING_START, searchFrom),
+    content.indexOf(TAGS.COMMAND_START, searchFrom),
+    content.indexOf(TAGS.WEB_SEARCH_START, searchFrom),
+    content.indexOf(TAGS.URL_SCRAPE_START, searchFrom),
+    content.indexOf(TAGS.DONE_START, searchFrom),
+    content.indexOf(TAGS.RESPONSE_START, searchFrom),
+    content.indexOf(TAGS.RESPONSE_END, searchFrom),
+    content.indexOf(TAGS.INSTALL_START, searchFrom),
+    ...IGNORABLE_CLOSE_TAGS.map((tag) => content.indexOf(tag, searchFrom)),
+  ].filter((idx) => idx !== -1);
+
+  if (candidates.length === 0) {
+    return -1;
+  }
+
+  return Math.min(...candidates);
+}
+
+function stripDanglingControlCloseFragment(content: string): string {
+  const lastCloseStart = content.lastIndexOf("</");
+  if (lastCloseStart === -1) {
+    return content;
+  }
+
+  const trailing = content.slice(lastCloseStart).toLowerCase();
+  if (trailing.includes(">")) {
+    return content;
+  }
+
+  if (
+    CONTROL_CLOSE_TAG_PREFIXES.some(
+      (prefix) => prefix.startsWith(trailing) || trailing.startsWith(prefix),
+    )
+  ) {
+    return content.slice(0, lastCloseStart);
+  }
+
+  return content;
 }
 
 function extractTagAttribute(tag: string, attributeName: string): string | undefined {
@@ -85,7 +144,14 @@ export type MessageBlock =
       content: string;
       isInternal?: boolean;
     }
-  | { type: MessageBlockType.COMMAND; command: string; args: string[] }
+  | {
+      type: MessageBlockType.COMMAND;
+      command: string;
+      args: string[];
+      exitCode?: number;
+      stdout?: string;
+      stderr?: string;
+    }
   | {
       type: MessageBlockType.WEB_SEARCH;
       query: string;
@@ -143,6 +209,11 @@ export function parseMessageContent(content: string): MessageBlock[] {
       { type: MessageParseTokenType.DONE, idx: doneStart },
       { type: MessageParseTokenType.RESPONSE, idx: responseStart },
       { type: MessageParseTokenType.RESPONSE_END, idx: responseEnd },
+      ...IGNORABLE_CLOSE_TAGS.map((tag) => ({
+        type: MessageParseTokenType.IGNORED_CLOSE,
+        idx: remaining.indexOf(tag),
+        tag,
+      })),
     ].filter((i) => i.idx !== -1);
 
     if (candidates.length === 0) {
@@ -228,25 +299,75 @@ export function parseMessageContent(content: string): MessageBlock[] {
         blocks.push({ type: MessageBlockType.INSTALL, dependencies });
         remaining = remaining.slice(endIdx + TAGS.INSTALL_END.length);
       } else {
-        break;
+        const recoveryBoundaryIdx = findInstallRecoveryBoundary(remaining);
+        if (recoveryBoundaryIdx !== -1) {
+          const installContent = remaining
+            .slice(TAGS.INSTALL_START.length, recoveryBoundaryIdx)
+            .trim();
+          const dependencies = parseInstallDependencies(installContent);
+          blocks.push({ type: MessageBlockType.INSTALL, dependencies });
+          remaining = remaining.slice(recoveryBoundaryIdx);
+        } else {
+          const installContent = remaining.slice(TAGS.INSTALL_START.length).trim();
+          const dependencies = parseInstallDependencies(installContent);
+          blocks.push({ type: MessageBlockType.INSTALL, dependencies });
+          break;
+        }
       }
     } else if (earliest.type === MessageParseTokenType.COMMAND) {
       const closeTagIdx = remaining.indexOf(">");
       if (closeTagIdx !== -1) {
         const tag = remaining.slice(0, closeTagIdx + 1);
-        const command = extractTagAttribute(tag, "command") ?? "";
+        const command = decodeHtmlAttribute(
+          extractTagAttribute(tag, "command") ?? "",
+        );
 
         let args: string[] = [];
-        const argsRaw = extractTagAttribute(tag, "args");
-        if (argsRaw) {
-          try {
-            args = JSON.parse(argsRaw);
-          } catch {
-            args = [];
+        const argsFromBase64 = decodeBase64Json<string[]>(
+          extractTagAttribute(tag, "args_b64"),
+        );
+        if (Array.isArray(argsFromBase64)) {
+          args = argsFromBase64;
+        } else {
+          const argsRaw = extractTagAttribute(tag, "args");
+          if (argsRaw) {
+            try {
+              args = JSON.parse(argsRaw);
+            } catch {
+              args = [];
+            }
           }
         }
 
-        blocks.push({ type: MessageBlockType.COMMAND, command, args });
+        const exitCodeRaw =
+          extractTagAttribute(tag, "exit_code") ??
+          extractTagAttribute(tag, "exitCode");
+        const parsedExitCode =
+          typeof exitCodeRaw === "string" && exitCodeRaw.trim().length > 0
+            ? Number.parseInt(exitCodeRaw, 10)
+            : undefined;
+        const exitCode = Number.isNaN(parsedExitCode) ? undefined : parsedExitCode;
+        const stdoutFallback = decodeHtmlAttribute(
+          extractTagAttribute(tag, "stdout") ?? "",
+        );
+        const stderrFallback = decodeHtmlAttribute(
+          extractTagAttribute(tag, "stderr") ?? "",
+        );
+        const stdout =
+          decodeBase64Json<string>(extractTagAttribute(tag, "stdout_b64")) ??
+          (stdoutFallback || undefined);
+        const stderr =
+          decodeBase64Json<string>(extractTagAttribute(tag, "stderr_b64")) ??
+          (stderrFallback || undefined);
+
+        blocks.push({
+          type: MessageBlockType.COMMAND,
+          command,
+          args,
+          exitCode,
+          stdout,
+          stderr,
+        });
         remaining = remaining.slice(closeTagIdx + 1);
       } else {
         break;
@@ -309,12 +430,15 @@ export function parseMessageContent(content: string): MessageBlock[] {
       const closeTagIdx = remaining.indexOf(">");
       if (closeTagIdx !== -1) {
         const tag = remaining.slice(0, closeTagIdx + 1);
-
-        blocks.push({
-          type: MessageBlockType.SANDBOX,
-          project: extractTagAttribute(tag, "project"),
-          base: extractTagAttribute(tag, "base"),
-        });
+        const project = extractTagAttribute(tag, "project");
+        const base = extractTagAttribute(tag, "base");
+        if (!inSandbox) {
+          blocks.push({
+            type: MessageBlockType.SANDBOX,
+            project,
+            base,
+          });
+        }
         inSandbox = true;
         remaining = remaining.slice(closeTagIdx + 1);
       } else {
@@ -327,6 +451,7 @@ export function parseMessageContent(content: string): MessageBlock[] {
       const closeTagIdx = remaining.indexOf(">");
       if (closeTagIdx !== -1) {
         blocks.push({ type: MessageBlockType.DONE });
+        inSandbox = false;
         remaining = remaining.slice(closeTagIdx + 1);
       } else {
         break;
@@ -337,10 +462,23 @@ export function parseMessageContent(content: string): MessageBlock[] {
     } else if (earliest.type === MessageParseTokenType.RESPONSE_END) {
       inResponse = false;
       remaining = remaining.slice(TAGS.RESPONSE_END.length);
+    } else if (earliest.type === MessageParseTokenType.IGNORED_CLOSE) {
+      const closeTag = "tag" in earliest ? earliest.tag : undefined;
+      if (closeTag) {
+        remaining = remaining.slice(closeTag.length);
+      } else {
+        remaining = remaining.slice(1);
+      }
     }
   }
 
-  return blocks.filter(
-    (b) => b.type !== MessageBlockType.TEXT || b.content.trim().length > 0,
-  );
+  return blocks
+    .map((block) =>
+      block.type === MessageBlockType.TEXT
+        ? { ...block, content: stripDanglingControlCloseFragment(block.content) }
+        : block,
+    )
+    .filter(
+      (b) => b.type !== MessageBlockType.TEXT || b.content.trim().length > 0,
+    );
 }

@@ -25,7 +25,13 @@ function isSameWebSearch(
   a: NonNullable<StreamState["webSearches"][number]>,
   b: NonNullable<StreamState["webSearches"][number]>,
 ): boolean {
-  return JSON.stringify(a) === JSON.stringify(b);
+  return (
+    a.query === b.query &&
+    a.maxResults === b.maxResults &&
+    a.answer === b.answer &&
+    a.error === b.error &&
+    JSON.stringify(a.results ?? []) === JSON.stringify(b.results ?? [])
+  );
 }
 
 function hasWebSearchPayload(
@@ -56,7 +62,13 @@ function mergeWebSearchEvent(
     !hasWebSearchPayload(last) &&
     hasWebSearchPayload(incoming)
   ) {
-    return [...existing.slice(0, -1), incoming];
+    return [
+      ...existing.slice(0, -1),
+      {
+        ...incoming,
+        uiOrder: last.uiOrder ?? incoming.uiOrder,
+      },
+    ];
   }
 
   if (
@@ -74,7 +86,7 @@ function isSameUrlScrape(
   a: NonNullable<StreamState["urlScrapes"][number]>,
   b: NonNullable<StreamState["urlScrapes"][number]>,
 ): boolean {
-  return JSON.stringify(a) === JSON.stringify(b);
+  return JSON.stringify(a.results) === JSON.stringify(b.results);
 }
 
 export function streamReducer(
@@ -117,6 +129,7 @@ export function streamReducer(
       return setStream(state, action.chatId, {
         ...s,
         streamingText: s.streamingText + action.text,
+        textOrder: s.textOrder ?? action.order ?? null,
       });
     }
     case StreamActionType.START_THINKING:
@@ -145,6 +158,10 @@ export function streamReducer(
           ...getStream(state, action.chatId).activeFiles,
           action.file,
         ],
+        projectOrder:
+          getStream(state, action.chatId).projectOrder ??
+          action.order ??
+          null,
       });
     case StreamActionType.APPEND_FILE_CONTENT: {
       const s = getStream(state, action.chatId);
@@ -171,6 +188,12 @@ export function streamReducer(
       return setStream(state, action.chatId, {
         ...getStream(state, action.chatId),
         installingDeps: action.deps,
+        installOrder:
+          action.deps.length > 0
+            ? (getStream(state, action.chatId).installOrder ??
+              action.order ??
+              null)
+            : getStream(state, action.chatId).installOrder,
       });
     case StreamActionType.SET_SANDBOXING:
       return setStream(state, action.chatId, {
@@ -181,13 +204,20 @@ export function streamReducer(
       return setStream(state, action.chatId, {
         ...getStream(state, action.chatId),
         command: action.command,
+        projectOrder:
+          getStream(state, action.chatId).projectOrder ??
+          action.order ??
+          null,
       });
     case StreamActionType.SET_WEB_SEARCH:
       return setStream(state, action.chatId, {
         ...getStream(state, action.chatId),
         webSearches: mergeWebSearchEvent(
           getStream(state, action.chatId).webSearches,
-          action.webSearch,
+          {
+            ...action.webSearch,
+            uiOrder: action.webSearch.uiOrder ?? action.order,
+          },
         ),
       });
     case StreamActionType.SET_URL_SCRAPE:
@@ -199,7 +229,13 @@ export function streamReducer(
           if (last && isSameUrlScrape(last, action.urlScrape)) {
             return existing;
           }
-          return [...existing, action.urlScrape];
+          return [
+            ...existing,
+            {
+              ...action.urlScrape,
+              uiOrder: action.urlScrape.uiOrder ?? action.order,
+            },
+          ];
         })(),
       });
     case StreamActionType.SET_METRICS:

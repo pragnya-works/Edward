@@ -1,11 +1,16 @@
 import type { Response } from "express";
-import type { ErrorEvent, StreamEvent } from "@edward/shared/streamEvents";
+import type {
+  ErrorEvent,
+  StreamErrorSeverity,
+  StreamEvent,
+} from "@edward/shared/streamEvents";
 import {
   configureSSEBackpressure as configureSSEBackpressureInternal,
   safeSSEWrite as safeSSEWriteInternal,
   sendSSEComment as sendSSECommentInternal,
   sendSSEDone as sendSSEDoneInternal,
   sendSSEError as sendSSEErrorInternal,
+  sendSSERecoverableError as sendSSERecoverableErrorInternal,
   sendSSEEvent as sendSSEEventInternal,
   sendSSEEventWithId as sendSSEEventWithIdInternal,
 } from "../../services/sse.utils/service.js";
@@ -51,9 +56,19 @@ export function sendSSEEventWithId(
 export function sendSSEError(
   res: Response,
   message: string,
-  options?: Partial<Pick<ErrorEvent, "code" | "details">>,
+  options?: Partial<Pick<ErrorEvent, "code" | "details">> & {
+    severity?: StreamErrorSeverity;
+  },
 ): boolean {
   return sendSSEErrorInternal(res, message, options);
+}
+
+export function sendSSERecoverableError(
+  res: Response,
+  message: string,
+  options?: Partial<Pick<ErrorEvent, "code" | "details">>,
+): boolean {
+  return sendSSERecoverableErrorInternal(res, message, options);
 }
 
 export function sendSSEComment(res: Response, comment: string): boolean {

@@ -109,6 +109,16 @@ describe('WorkflowEngine', () => {
             expect(workflow.currentStep).toBe('ANALYZE');
             expect(redis.set).toHaveBeenCalled();
         });
+
+        it('hydrates sandboxId from active sandbox when available', async () => {
+            const provisioning = await import('../../../../services/sandbox/lifecycle/provisioning.js');
+            vi.mocked(provisioning.getActiveSandbox).mockResolvedValueOnce('sb-active-1');
+
+            const workflow = await createWorkflow(mockUserId, mockChatId);
+
+            expect(provisioning.getActiveSandbox).toHaveBeenCalledWith(mockChatId);
+            expect(workflow.sandboxId).toBe('sb-active-1');
+        });
     });
 
     describe('advanceWorkflow', () => {
