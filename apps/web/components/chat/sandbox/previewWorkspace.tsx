@@ -25,7 +25,8 @@ export function PreviewWorkspace({
   onPreviewLoad,
   onPreviewError,
 }: PreviewWorkspaceProps) {
-  const { chatId } = useChatWorkspaceContext();
+  const { chatId, stream } = useChatWorkspaceContext();
+  const isInstallingDependencies = stream.installingDeps.length > 0;
 
   if (previewUrl) {
     if (previewFrameState === PreviewFrameState.FAILED) {
@@ -88,9 +89,11 @@ export function PreviewWorkspace({
         <div className="flex flex-col items-center gap-3">
           <RefreshCw className="h-8 w-8 animate-spin-slow opacity-30 text-workspace-accent" />
           <span className="text-[11px] font-medium">
-            {buildStatus === BuildStatus.QUEUED
-              ? "Queued for build..."
-              : "Wait for build..."}
+            {isInstallingDependencies
+              ? "Installing dependencies..."
+              : buildStatus === BuildStatus.QUEUED
+                ? "Queued for build..."
+                : "Wait for build..."}
           </span>
         </div>
       )}

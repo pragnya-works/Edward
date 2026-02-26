@@ -7,10 +7,14 @@ import { Button } from "@edward/ui/components/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@edward/ui/components/card";
 import { copyTextToClipboard } from "@edward/ui/lib/clipboard";
 import { useSandbox } from "@/contexts/sandboxContext";
+import { useOptionalChatWorkspaceContext } from "@/components/chat/chatWorkspaceContext";
 import { BuildStatus } from "@/stores/sandbox/types";
 
 export function SandboxEmptyState() {
   const { buildStatus, isStreaming, fullErrorReport } = useSandbox();
+  const workspace = useOptionalChatWorkspaceContext();
+  const isInstallingDependencies =
+    (workspace?.stream.installingDeps.length ?? 0) > 0;
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
   const handleCopy = useCallback(async (key: string, text: string) => {
@@ -233,6 +237,7 @@ export function SandboxEmptyState() {
             </Card>
           </div>
         ) : isStreaming ||
+          isInstallingDependencies ||
           buildStatus === BuildStatus.QUEUED ||
           buildStatus === BuildStatus.BUILDING ? (
           <div className="flex flex-col items-center gap-4">
@@ -248,6 +253,8 @@ export function SandboxEmptyState() {
               <span className="text-[12px] font-bold tracking-tight text-workspace-accent uppercase">
                 {isStreaming
                   ? "Coding..."
+                  : isInstallingDependencies
+                    ? "Installing..."
                   : buildStatus === BuildStatus.QUEUED
                     ? "Queued..."
                     : "Deploying..."}
@@ -255,6 +262,8 @@ export function SandboxEmptyState() {
               <p className="text-[11px] text-muted-foreground">
                 {isStreaming
                   ? "Edward is typing..."
+                  : isInstallingDependencies
+                    ? "Installing project dependencies"
                   : "Spinning up your application environment"}
               </p>
             </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useSandbox } from "@/contexts/sandboxContext";
+import { useOptionalChatWorkspaceContext } from "@/components/chat/chatWorkspaceContext";
 import { BuildStatus } from "@/stores/sandbox/types";
 import {
   CheckCircle2,
@@ -15,13 +16,18 @@ import { Separator } from "@edward/ui/components/separator";
 
 export function SandboxStatusBar() {
   const { activeFilePath, buildStatus, files } = useSandbox();
+  const workspace = useOptionalChatWorkspaceContext();
+  const isInstallingDependencies =
+    (workspace?.stream.installingDeps.length ?? 0) > 0;
 
   const activeFile = activeFilePath
     ? files.find((f) => f.path === activeFilePath)
     : null;
 
   const buildLabel =
-    buildStatus === BuildStatus.BUILDING
+    isInstallingDependencies
+      ? "Installing"
+      : buildStatus === BuildStatus.BUILDING
       ? "Building"
       : buildStatus === BuildStatus.FAILED
         ? "Failed"
@@ -52,7 +58,9 @@ export function SandboxStatusBar() {
           variant="secondary"
           className="h-4 rounded-sm border-0 bg-workspace-status-fg/15 text-workspace-status-fg hover:bg-workspace-status-fg/15 px-1.5 gap-1"
         >
-          {buildStatus === BuildStatus.SUCCESS ? (
+          {isInstallingDependencies ? (
+            <RefreshCw className="h-3 w-3 animate-spin" />
+          ) : buildStatus === BuildStatus.SUCCESS ? (
             <CheckCircle2 className="h-3 w-3" />
           ) : buildStatus === BuildStatus.FAILED ? (
             <XCircle className="h-3 w-3" />
