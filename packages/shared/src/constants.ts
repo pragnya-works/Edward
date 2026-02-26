@@ -125,7 +125,7 @@ export const RATE_LIMIT_POLICY_BY_SCOPE: Record<
   },
   [RATE_LIMIT_SCOPE.CHAT_DAILY]: {
     windowMs: 24 * 60 * 60 * 1000,
-    max: 1000,
+    max: 10,
     redisPrefix: "chat-daily",
     securityScope: "chat_daily",
     limitExceededMessage: "Daily message quota exceeded (10 messages/24h)",
