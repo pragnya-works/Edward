@@ -67,7 +67,7 @@ function notifyBrowser(chatId: string, chatTitle: string, status: BuildRecordSta
 
   notification.onclick = () => {
     window.focus();
-    window.location.href = `/chat/${chatId}`;
+    window.location.href = `/chat/${encodeURIComponent(chatId)}`;
     notification.close();
   };
 }
@@ -165,7 +165,7 @@ export function useNotificationManager() {
         action: {
           label: "Open",
           onClick: () => {
-            window.location.href = `/chat/${chatId}`;
+            window.location.href = `/chat/${encodeURIComponent(chatId)}`;
           },
         },
       });
@@ -259,7 +259,7 @@ export function useNotificationManager() {
         sourcesRef.current.delete(chatId);
       }
 
-      const url = buildApiUrl(`/chat/${chatId}/build-events`);
+      const url = buildApiUrl(`/chat/${encodeURIComponent(chatId)}/build-events`);
       const source = new EventSource(url, { withCredentials: true });
       initialFrameSeenRef.current.set(chatId, false);
       sourcesRef.current.set(chatId, source);

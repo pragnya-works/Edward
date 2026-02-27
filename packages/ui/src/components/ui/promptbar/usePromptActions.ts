@@ -114,7 +114,7 @@ export function usePromptActions({
         setInputValue(nextValue.slice(0, PROMPT_INPUT_CONFIG.MAX_CHARS));
     }, [setInputValue]);
 
-    const handleProtectedAction = useCallback(() => {
+    const handleProtectedAction = useCallback(async () => {
         if (submissionDisabledReason) return;
         if (hasPendingUploads) return;
 
@@ -130,12 +130,19 @@ export function usePromptActions({
             return;
         }
 
-        onProtectedAction?.(inputValue, uploadedImages);
-        if (isVoiceRecording) {
-            voiceRecognitionRef.current?.stop();
+        try {
+            await onProtectedAction?.(inputValue, uploadedImages);
+            if (isVoiceRecording) {
+                voiceRecognitionRef.current?.stop();
+            }
+            setInputValue("");
+            handleClearAllFiles();
+        } catch (error) {
+            toast.error("Failed to submit prompt", {
+                description: error instanceof Error ? error.message : "An unexpected error occurred. Please try again.",
+                id: "protected-action-error",
+            });
         }
-        setInputValue("");
-        handleClearAllFiles();
     }, [
         hasApiKey,
         hasPendingUploads,
@@ -229,17 +236,24 @@ export function usePromptActions({
         }
     }, [inputValue, isSubmissionBlocked, isVoiceRecording, voiceBaseTextRef, voiceFinalTranscriptRef, voiceRecognitionRef]);
 
-    const handleByokValidate = useCallback(() => {
+    const handleByokValidate = useCallback(async () => {
         if (submissionDisabledReason || isStreaming) return;
         if (hasPendingUploads) return;
 
-        onProtectedAction?.(inputValue, uploadedImages);
-        if (isVoiceRecording) {
-            voiceRecognitionRef.current?.stop();
+        try {
+            await onProtectedAction?.(inputValue, uploadedImages);
+            if (isVoiceRecording) {
+                voiceRecognitionRef.current?.stop();
+            }
+            setInputValue("");
+            handleClearAllFiles();
+            setShowBYOK(false);
+        } catch (error) {
+            toast.error("Failed to submit prompt", {
+                description: error instanceof Error ? error.message : "An unexpected error occurred. Please try again.",
+                id: "byok-validate-error",
+            });
         }
-        setInputValue("");
-        handleClearAllFiles();
-        setShowBYOK(false);
     }, [
         handleClearAllFiles,
         hasPendingUploads,

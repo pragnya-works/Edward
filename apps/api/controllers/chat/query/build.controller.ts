@@ -12,6 +12,7 @@ import {
   run,
   updateBuild,
 } from "@edward/auth";
+import { acquireDistributedLock, releaseDistributedLock } from "../../../lib/distributedLock.js";
 import { subscribeToRedisChannel } from "../../../lib/redisPubSub.js";
 import { redis } from "../../../lib/redis.js";
 import type { AuthenticatedRequest } from "../../../middleware/auth.js";
@@ -119,6 +120,18 @@ export async function triggerRebuild(
       return;
     }
 
+    const lockKey = `lock:rebuild:${chatId}`;
+    const lock = await acquireDistributedLock(lockKey, { ttlMs: 30_000 });
+    if (!lock) {
+      sendStandardError(
+        res,
+        HttpStatus.CONFLICT,
+        "A rebuild is already in progress for this chat.",
+      );
+      return;
+    }
+
+    try {
     const [activeRun] = await db
       .select({ id: run.id })
       .from(run)
@@ -209,15 +222,6 @@ export async function triggerRebuild(
     const runId = `manual-rebuild-${queuedBuild.id}`;
     const buildStatusChannel = `edward:build-status:${chatId}`;
 
-    await redis.publish(
-      buildStatusChannel,
-      JSON.stringify({
-        buildId: queuedBuild.id,
-        runId,
-        status: BuildRecordStatus.QUEUED,
-      }),
-    );
-
     try {
       await enqueueBuildJob({
         sandboxId,
@@ -267,6 +271,22 @@ export async function triggerRebuild(
       return;
     }
 
+    await redis
+      .publish(
+        buildStatusChannel,
+        JSON.stringify({
+          buildId: queuedBuild.id,
+          runId,
+          status: BuildRecordStatus.QUEUED,
+        }),
+      )
+      .catch((publishError) => {
+        logger.warn(
+          { err: ensureError(publishError), chatId, buildId: queuedBuild.id },
+          "Failed to publish QUEUED build status notification",
+        );
+      });
+
     sendSuccess(res, HttpStatus.OK, "Rebuild started successfully", {
       chatId,
       build: {
@@ -278,6 +298,9 @@ export async function triggerRebuild(
         createdAt: queuedBuild.createdAt,
       },
     });
+    } finally {
+      await releaseDistributedLock(lock).catch(() => {});
+    }
   } catch (error) {
     logger.error(ensureError(error), "triggerRebuild error");
     sendStandardError(
