@@ -1,10 +1,13 @@
 import type { MessageContent } from "@edward/shared/llm/types";
 
+const TRUNCATE_SUFFIX = "\n...[truncated]";
+
 export function truncateUtf8(input: string, maxBytes: number): string {
   if (maxBytes <= 0) return "";
   const buf = Buffer.from(input, "utf8");
   if (buf.byteLength <= maxBytes) return input;
-  return buf.subarray(0, maxBytes).toString("utf8") + "\n...[truncated]";
+  const limit = Math.max(0, maxBytes - TRUNCATE_SUFFIX.length);
+  return buf.subarray(0, limit).toString("utf8") + TRUNCATE_SUFFIX;
 }
 
 export function stripAssistantArtifacts(content: string): string {

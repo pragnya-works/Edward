@@ -25,14 +25,12 @@ function isPrivateIPv4(address: string): boolean {
   const parts = address.split(".").map((part) => Number.parseInt(part, 10));
   if (
     parts.length !== 4 ||
-    parts.some(
-      (value) => Number.isNaN(value) || value < 0 || value > 255,
-    )
+    parts.some((value) => Number.isNaN(value) || value < 0 || value > 255)
   ) {
     return false;
   }
 
-  const [a, b] = parts as [number, number, number, number];
+  const [a, b, c] = parts as [number, number, number, number];
   if (a === 10) return true;
   if (a === 127) return true;
   if (a === 0) return true;
@@ -41,6 +39,8 @@ function isPrivateIPv4(address: string): boolean {
   if (a === 172 && b >= 16 && b <= 31) return true;
   if (a === 100 && b >= 64 && b <= 127) return true;
   if (a === 198 && (b === 18 || b === 19)) return true;
+  if (a >= 240) return true;
+  if (a === 192 && b === 0 && c === 0) return true;
   return false;
 }
 

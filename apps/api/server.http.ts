@@ -35,28 +35,10 @@ const isDev = config.server.isDevelopment();
 const isProd = config.server.isProduction();
 const ALLOWED_ORIGINS = config.cors.origins;
 
+import { registerProcessHandlerOnce } from "./utils/processHandlers.js";
+
 const logger = createLogger("API");
 const app = express();
-const processHandlerState = globalThis as typeof globalThis & {
-  __edwardProcessHandlers?: Map<string, (...args: unknown[]) => void>;
-};
-
-function registerProcessHandlerOnce(
-  key: string,
-  event: "SIGINT" | "SIGTERM" | "uncaughtException" | "unhandledRejection",
-  handler: (...args: unknown[]) => void,
-): void {
-  const registry = processHandlerState.__edwardProcessHandlers ?? new Map();
-  processHandlerState.__edwardProcessHandlers = registry;
-
-  const existing = registry.get(key);
-  if (existing) {
-    process.off(event, existing as never);
-  }
-
-  process.on(event, handler as never);
-  registry.set(key, handler);
-}
 
 app.set("trust proxy", config.server.trustProxy);
 
@@ -88,7 +70,8 @@ if (isProd) {
     res: Response,
     next: NextFunction,
   ) {
-    const forwardedProto = req.header("x-forwarded-proto")
+    const forwardedProto = req
+      .header("x-forwarded-proto")
       ?.split(",")
       .map((value) => value.trim().toLowerCase())[0];
     const isSecure = req.secure || forwardedProto === "https";
@@ -259,14 +242,22 @@ registerProcessHandlerOnce("api:SIGTERM", "SIGTERM", () => {
   void handleGracefulShutdown("SIGTERM");
 });
 
-registerProcessHandlerOnce("api:uncaughtException", "uncaughtException", (error) => {
-  logger.fatal(error, "Uncaught Exception");
-  Sentry.captureException(error);
-  void handleGracefulShutdown("uncaughtException");
-});
+registerProcessHandlerOnce(
+  "api:uncaughtException",
+  "uncaughtException",
+  (error) => {
+    logger.fatal(error, "Uncaught Exception");
+    Sentry.captureException(error);
+    void handleGracefulShutdown("uncaughtException");
+  },
+);
 
-registerProcessHandlerOnce("api:unhandledRejection", "unhandledRejection", (reason) => {
-  logger.fatal({ reason }, "Unhandled Rejection");
-  Sentry.captureException(reason);
-  void handleGracefulShutdown("unhandledRejection");
-});
+registerProcessHandlerOnce(
+  "api:unhandledRejection",
+  "unhandledRejection",
+  (reason) => {
+    logger.fatal({ reason }, "Unhandled Rejection");
+    Sentry.captureException(reason);
+    void handleGracefulShutdown("unhandledRejection");
+  },
+);

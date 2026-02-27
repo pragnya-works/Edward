@@ -1,31 +1,10 @@
 import { getSandboxState } from "./services/sandbox/state.service.js";
 import { createErrorReport } from "./services/diagnostics/errorReport.js";
 
-const processHandlerState = globalThis as typeof globalThis & {
-  __edwardProcessHandlers?: Map<string, (...args: unknown[]) => void>;
-};
-
 type WorkerLogger = {
   info(payload: unknown, message: string): void;
   warn(payload: unknown, message: string): void;
 };
-
-export function registerProcessHandlerOnce(
-  key: string,
-  event: "SIGINT" | "SIGTERM",
-  handler: (...args: unknown[]) => void,
-): void {
-  const registry = processHandlerState.__edwardProcessHandlers ?? new Map();
-  processHandlerState.__edwardProcessHandlers = registry;
-
-  const existing = registry.get(key);
-  if (existing) {
-    process.off(event, existing as never);
-  }
-
-  process.on(event, handler as never);
-  registry.set(key, handler);
-}
 
 export async function createErrorReportIfPossible(
   sandboxId: string,

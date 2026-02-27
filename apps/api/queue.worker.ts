@@ -29,10 +29,8 @@ import { createRedisClient } from "./lib/redis.js";
 import { processAgentRunJob } from "./services/runs/agentRun.worker.js";
 import { processScheduledFlushes } from "./services/sandbox/write/flush.scheduler.js";
 import { reapStaleRuns } from "./services/runs/staleRunReaper.service.js";
-import {
-  createErrorReportIfPossible,
-  registerProcessHandlerOnce,
-} from "./queue.worker.helpers.js";
+import { createErrorReportIfPossible } from "./queue.worker.helpers.js";
+import { registerProcessHandlerOnce } from "./utils/processHandlers.js";
 
 const logger = createLogger("WORKER");
 const pubClient = createRedisClient();
@@ -110,10 +108,7 @@ async function processBuildJob(payload: BuildJobPayload): Promise<void> {
       );
       handled = true;
     } else {
-      logger.warn(
-        { sandboxId, error: result.error },
-        "[Worker] Build failed",
-      );
+      logger.warn({ sandboxId, error: result.error }, "[Worker] Build failed");
 
       const { errorReport } = await createErrorReportIfPossible(
         sandboxId,
@@ -237,7 +232,9 @@ const buildWorker = new Worker<JobPayload>(
           { type: (payload as JobPayload).type },
           "[Worker] Unsupported payload type on build queue",
         );
-        throw new Error(`Unsupported build queue job type: ${(payload as JobPayload).type}`);
+        throw new Error(
+          `Unsupported build queue job type: ${(payload as JobPayload).type}`,
+        );
     }
   },
   {
@@ -256,7 +253,9 @@ const agentRunWorker = new Worker<JobPayload>(
         { type: (payload as JobPayload).type },
         "[Worker] Unsupported payload type on agent-run queue",
       );
-      throw new Error(`Unsupported agent-run queue job type: ${(payload as JobPayload).type}`);
+      throw new Error(
+        `Unsupported agent-run queue job type: ${(payload as JobPayload).type}`,
+      );
     }
 
     return processAgentRun(payload);
@@ -269,7 +268,10 @@ const agentRunWorker = new Worker<JobPayload>(
 
 const scheduledFlushInterval = setInterval(() => {
   void processScheduledFlushes().catch((error: unknown) =>
-    logger.error({ error }, "[Worker] Scheduled sandbox flush processing failed"),
+    logger.error(
+      { error },
+      "[Worker] Scheduled sandbox flush processing failed",
+    ),
   );
 }, 250);
 scheduledFlushInterval.unref();

@@ -8,7 +8,7 @@ export type DiagnosisGuidance = {
 };
 
 function buildLocation(error: BuildError): string {
-  return `${error.error.file}:${error.error.line}${error.error.column ? `:${error.error.column}` : ""}`;
+  return `${error.error.file}:${error.error.line}${error.error.column != null ? `:${error.error.column}` : ""}`;
 }
 
 function firstLine(text: string): string {
@@ -31,7 +31,9 @@ function isViteInternalCompatibilityFailure(error: BuildError): boolean {
 
 export function buildDiagnosisGuidance(error: BuildError): DiagnosisGuidance {
   const location = buildLocation(error);
-  const target = error.error.target ? `'${error.error.target}'` : "the referenced symbol";
+  const target = error.error.target
+    ? `'${error.error.target}'`
+    : "the referenced symbol";
   const importHint = error.context.importChain?.[0];
   const relatedHint = error.relatedFiles?.[0];
 
@@ -43,29 +45,35 @@ export function buildDiagnosisGuidance(error: BuildError): DiagnosisGuidance {
           ? `Related usage was also detected in ${relatedHint.path}.`
           : `No valid import/provider was found for ${target}.`;
       return {
-        probableCause: "A dependency or import path is missing, invalid, or unresolved.",
+        probableCause:
+          "A dependency or import path is missing, invalid, or unresolved.",
         pinpointContext: `At ${location}, the compiler cannot resolve ${target}. ${importContext}`,
         preciseFix: importHint
           ? `Edit ${importHint.file}:${importHint.line} and correct the import path/package '${importHint.importPath}'. If it is an external package, install it in the sandbox and rerun the build there.`
           : `Open ${error.error.file}:${error.error.line}, add/correct the import for ${target}, ensure the source exports it, then rerun the build in the sandbox.`,
-        nextStep: "Correct the import/dependency resolution at the pinpointed location and rerun the build in the sandbox.",
+        nextStep:
+          "Correct the import/dependency resolution at the pinpointed location and rerun the build in the sandbox.",
       };
     }
     case "type_mismatch": {
       const msg = firstLine(error.error.message);
       if (error.error.code === "TS2304") {
         return {
-          probableCause: "A referenced name is used without a valid declaration or import.",
+          probableCause:
+            "A referenced name is used without a valid declaration or import.",
           pinpointContext: `At ${location}, TypeScript cannot find ${target}. This stops typecheck before bundling.`,
           preciseFix: `In ${error.error.file}:${error.error.line}, either import ${target} from the correct module or declare it in scope, then rerun the build in the sandbox.`,
-          nextStep: "Restore symbol visibility (import/declaration) at the pinpointed line and rerun the build in the sandbox.",
+          nextStep:
+            "Restore symbol visibility (import/declaration) at the pinpointed line and rerun the build in the sandbox.",
         };
       }
       return {
-        probableCause: "TypeScript found a mismatch between expected and actual types.",
+        probableCause:
+          "TypeScript found a mismatch between expected and actual types.",
         pinpointContext: `At ${location}, typecheck fails with: ${msg}`,
         preciseFix: `Open ${error.error.file}:${error.error.line} and align the value/prop/function signature to the expected type, then rerun the build in the sandbox.`,
-        nextStep: "Fix the type mismatch at the pinpointed line and rerun the build in the sandbox.",
+        nextStep:
+          "Fix the type mismatch at the pinpointed line and rerun the build in the sandbox.",
       };
     }
     case "syntax": {
@@ -76,7 +84,8 @@ export function buildDiagnosisGuidance(error: BuildError): DiagnosisGuidance {
           ? `At ${location}, parsing failed near: ${snippet}`
           : `At ${location}, parsing failed due to invalid token/structure.`,
         preciseFix: `Open ${error.error.file}:${error.error.line}, fix bracket/quote/operator structure around the pinpoint, then rerun the build in the sandbox.`,
-        nextStep: "Correct syntax exactly at the pinpoint and rerun the build in the sandbox.",
+        nextStep:
+          "Correct syntax exactly at the pinpoint and rerun the build in the sandbox.",
       };
     }
     case "config": {
@@ -89,8 +98,7 @@ export function buildDiagnosisGuidance(error: BuildError): DiagnosisGuidance {
         return {
           probableCause:
             "An HTML asset URL points to a directory path, so Vite is trying to read a directory as a file during build-html.",
-          pinpointContext:
-            `At ${location}, Vite reported directory-read failure (${msg}). This commonly happens when index.html uses canonical/asset href values like '/'.`,
+          pinpointContext: `At ${location}, Vite reported directory-read failure (${msg}). This commonly happens when index.html uses canonical/asset href values like '/'.`,
           preciseFix:
             "Edit index.html and make canonical/asset href values absolute http(s) URLs (for example, https://edwardd.app/), not '/'. Then rerun the build in the sandbox.",
           nextStep:
@@ -98,10 +106,12 @@ export function buildDiagnosisGuidance(error: BuildError): DiagnosisGuidance {
         };
       }
       return {
-        probableCause: "A framework/build configuration key or value is invalid.",
+        probableCause:
+          "A framework/build configuration key or value is invalid.",
         pinpointContext: `At ${location}, config validation failed: ${msg}`,
         preciseFix: `Edit ${error.error.file}${error.error.line > 0 ? `:${error.error.line}` : ""} and replace/remove the invalid config option causing the failure, then rerun the build in the sandbox.`,
-        nextStep: "Update the invalid config key/value and rerun the build in the sandbox.",
+        nextStep:
+          "Update the invalid config key/value and rerun the build in the sandbox.",
       };
     }
     case "runtime": {
@@ -110,8 +120,7 @@ export function buildDiagnosisGuidance(error: BuildError): DiagnosisGuidance {
         return {
           probableCause:
             "Vite crashed inside its own runtime bundle because the Node.js runtime and installed Vite version are incompatible.",
-          pinpointContext:
-            `At ${location}, execution failed inside Vite internals (${msg}). This is usually environment/toolchain mismatch, not an application source bug.`,
+          pinpointContext: `At ${location}, execution failed inside Vite internals (${msg}). This is usually environment/toolchain mismatch, not an application source bug.`,
           preciseFix:
             "Do not edit node_modules. Use Node.js 20.19+ (or 22+), and keep Vite on a compatible major (for older runtimes, pin vite@^6 with matching plugins), then reinstall dependencies and rerun the build in the sandbox.",
           nextStep:
@@ -119,24 +128,30 @@ export function buildDiagnosisGuidance(error: BuildError): DiagnosisGuidance {
         };
       }
       return {
-        probableCause: "A runtime execution path failed during build or prerender.",
+        probableCause:
+          "A runtime execution path failed during build or prerender.",
         pinpointContext: `At ${location}, runtime execution failed with: ${msg}`,
         preciseFix: `Open ${error.error.file}:${error.error.line}, guard unsafe runtime assumptions (null/undefined/env/path), then rerun the build in the sandbox.`,
-        nextStep: "Harden runtime path at pinpoint and rerun the build in the sandbox.",
+        nextStep:
+          "Harden runtime path at pinpoint and rerun the build in the sandbox.",
       };
     }
     case "resource":
       return {
         probableCause: "Build process exceeded available compute resources.",
         pinpointContext: `Build failed around ${location} while processing a resource-heavy step.`,
-        preciseFix: "Reduce bundle/build load (heavy plugins/assets), or increase memory limits, then rerun the build in the sandbox.",
-        nextStep: "Lower build resource pressure and rerun the build in the sandbox.",
+        preciseFix:
+          "Reduce bundle/build load (heavy plugins/assets), or increase memory limits, then rerun the build in the sandbox.",
+        nextStep:
+          "Lower build resource pressure and rerun the build in the sandbox.",
       };
     case "network":
       return {
-        probableCause: "Required network access failed during dependency/build operations.",
+        probableCause:
+          "Required network access failed during dependency/build operations.",
         pinpointContext: `Failure surfaced near ${location} because registry/network requests did not complete.`,
-        preciseFix: "Retry when network/registry is healthy; if reproducible, pin/fix registry configuration and rerun the build in the sandbox.",
+        preciseFix:
+          "Retry when network/registry is healthy; if reproducible, pin/fix registry configuration and rerun the build in the sandbox.",
         nextStep: "Restore connectivity and rerun the build in the sandbox.",
       };
     case "environment":
@@ -144,8 +159,7 @@ export function buildDiagnosisGuidance(error: BuildError): DiagnosisGuidance {
         return {
           probableCause:
             "The build runtime does not satisfy the installed Vite toolchain requirements.",
-          pinpointContext:
-            `Failure surfaced at ${location} inside Vite internals, indicating runtime/tooling mismatch rather than user code failure.`,
+          pinpointContext: `Failure surfaced at ${location} inside Vite internals, indicating runtime/tooling mismatch rather than user code failure.`,
           preciseFix:
             "Upgrade Node.js in the sandbox/runtime (20.19+ or 22+), or pin Vite to a compatible major, then reinstall dependencies and rerun the build in the sandbox.",
           nextStep:
@@ -153,10 +167,13 @@ export function buildDiagnosisGuidance(error: BuildError): DiagnosisGuidance {
         };
       }
       return {
-        probableCause: "Tooling/runtime environment is missing required command, permission, or configuration.",
+        probableCause:
+          "Tooling/runtime environment is missing required command, permission, or configuration.",
         pinpointContext: `Build stopped near ${location} due to environment prerequisites not being met.`,
-        preciseFix: "Verify required build tools/versions/permissions in the environment, then rerun the build in the sandbox.",
-        nextStep: "Fix environment prerequisites and rerun the build in the sandbox.",
+        preciseFix:
+          "Verify required build tools/versions/permissions in the environment, then rerun the build in the sandbox.",
+        nextStep:
+          "Fix environment prerequisites and rerun the build in the sandbox.",
       };
     default: {
       const msg = firstLine(error.error.message);
@@ -164,7 +181,8 @@ export function buildDiagnosisGuidance(error: BuildError): DiagnosisGuidance {
         probableCause: "An unclassified build error blocked compilation.",
         pinpointContext: `At ${location}, build failed with: ${msg}`,
         preciseFix: `Start with ${error.error.file}:${error.error.line}, resolve the first error completely, then rerun the build in the sandbox to reveal any next blocker.`,
-        nextStep: "Resolve the first pinpointed blocker and rerun the build in the sandbox.",
+        nextStep:
+          "Resolve the first pinpointed blocker and rerun the build in the sandbox.",
       };
     }
   }
