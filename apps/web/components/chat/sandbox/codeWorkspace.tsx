@@ -78,11 +78,11 @@ export function CodeWorkspace({
         <>
           <SandboxActivityBar />
 
-          <PanelGroup orientation="horizontal" className="flex-1 min-h-0 bg-workspace-bg select-none">
+          <PanelGroup orientation="horizontal" className="flex-1 min-h-0 bg-workspace-bg">
             <Panel
               minSize={100}
               maxSize={200}
-              className="bg-workspace-sidebar"
+              className="bg-workspace-sidebar select-none"
             >
               <SandboxFileSidebar />
             </Panel>

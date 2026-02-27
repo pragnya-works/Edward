@@ -1,7 +1,10 @@
 import type { Response } from "express";
 import { ParserEventType } from "../../../../../schemas/chat.schema.js";
 import { ensureError } from "../../../../../utils/error.js";
-import { sendSSEError, sendSSEEvent } from "../../../sse.utils.js";
+import {
+  sendSSEEvent,
+  sendSSERecoverableError,
+} from "../../../sse.utils.js";
 import {
   executeCommandTool,
 } from "../../../../../services/tools/toolGateway.service.js";
@@ -9,8 +12,8 @@ import type { AgentToolResult } from "@edward/shared/streamToolResults";
 
 interface CommandEventContext {
   res: Response;
-  sandboxTagDetected: boolean;
   sandboxId: string | undefined;
+  recoverSandboxId?: () => Promise<string | undefined>;
   runId?: string;
   turn?: number;
   installTaskQueue?: {
@@ -20,17 +23,45 @@ interface CommandEventContext {
   toolResultsThisTurn: AgentToolResult[];
 }
 
+function isRetryableSandboxCommandError(message: string): boolean {
+  const retryablePatterns = [
+    /\bsandbox not found\b/i,
+    /\bsandbox state not found\b/i,
+    /\bno such container\b/i,
+    /\bcontainer not found\b/i,
+  ];
+  return retryablePatterns.some((pattern) => pattern.test(message));
+}
+
 export async function handleCommandEvent(
   ctx: CommandEventContext,
   command: string,
   args: string[],
 ): Promise<void> {
-  if (!ctx.sandboxTagDetected || !ctx.sandboxId) {
-    sendSSEError(
-      ctx.res,
-      "Command skipped: no active sandbox session. Emit <edward_sandbox> first.",
-      { code: "command_without_sandbox" },
-    );
+  const sandboxId = ctx.sandboxId;
+
+  if (!sandboxId) {
+    const message =
+      "Command skipped: no active sandbox session. Emit <edward_sandbox> first.";
+    ctx.toolResultsThisTurn.push({
+      tool: "command",
+      command,
+      args,
+      stdout: "",
+      stderr: message,
+    });
+    sendSSEEvent(ctx.res, {
+      type: ParserEventType.COMMAND,
+      command,
+      args,
+      exitCode: 1,
+      stdout: "",
+      stderr: message,
+    });
+    sendSSERecoverableError(ctx.res, message, {
+      code: "command_without_sandbox",
+      details: { command, args },
+    });
     return;
   }
 
@@ -43,7 +74,7 @@ export async function handleCommandEvent(
     const result = await executeCommandTool({
       runId: ctx.runId,
       turn: ctx.turn ?? 1,
-      sandboxId: ctx.sandboxId,
+      sandboxId,
       command,
       args,
     });
@@ -65,15 +96,83 @@ export async function handleCommandEvent(
       stderr: result.stderr,
     });
   } catch (cmdError) {
-    const err = ensureError(cmdError);
+    const initialError = ensureError(cmdError);
+
+    if (ctx.recoverSandboxId && isRetryableSandboxCommandError(initialError.message)) {
+      try {
+        const recoveredSandboxId = await ctx.recoverSandboxId();
+        if (recoveredSandboxId) {
+          const retriedResult = await executeCommandTool({
+            runId: ctx.runId,
+            turn: ctx.turn ?? 1,
+            sandboxId: recoveredSandboxId,
+            command,
+            args,
+          });
+
+          ctx.toolResultsThisTurn.push({
+            tool: "command",
+            command,
+            args,
+            stdout: retriedResult.stdout,
+            stderr: retriedResult.stderr,
+          });
+
+          sendSSEEvent(ctx.res, {
+            type: ParserEventType.COMMAND,
+            command,
+            args,
+            exitCode: retriedResult.exitCode,
+            stdout: retriedResult.stdout,
+            stderr: retriedResult.stderr,
+          });
+          return;
+        }
+      } catch (retryError) {
+        const retryErr = ensureError(retryError);
+        ctx.toolResultsThisTurn.push({
+          tool: "command",
+          command,
+          args,
+          stdout: "",
+          stderr: `Command failed: ${initialError.message} | retry failed: ${retryErr.message}`,
+        });
+        sendSSEEvent(ctx.res, {
+          type: ParserEventType.COMMAND,
+          command,
+          args,
+          exitCode: 1,
+          stdout: "",
+          stderr: `Command failed: ${initialError.message} | retry failed: ${retryErr.message}`,
+        });
+        sendSSERecoverableError(
+          ctx.res,
+          `Command failed: ${initialError.message} | retry failed: ${retryErr.message}`,
+          {
+            code: "command_failed",
+            details: { command, args },
+          },
+        );
+        return;
+      }
+    }
+
     ctx.toolResultsThisTurn.push({
       tool: "command",
       command,
       args,
       stdout: "",
-      stderr: `Command failed: ${err.message}`,
+      stderr: `Command failed: ${initialError.message}`,
     });
-    sendSSEError(ctx.res, `Command failed: ${err.message}`, {
+    sendSSEEvent(ctx.res, {
+      type: ParserEventType.COMMAND,
+      command,
+      args,
+      exitCode: 1,
+      stdout: "",
+      stderr: `Command failed: ${initialError.message}`,
+    });
+    sendSSERecoverableError(ctx.res, `Command failed: ${initialError.message}`, {
       code: "command_failed",
       details: { command, args },
     });

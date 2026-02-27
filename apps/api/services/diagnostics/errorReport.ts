@@ -18,6 +18,7 @@ import {
   findRootCause,
   groupRelatedErrors,
   generateSuggestion,
+  buildUserFacingDiagnosis,
 } from "./analyzer.js";
 
 function compressBuildOutput(
@@ -258,7 +259,11 @@ export async function createErrorReport(
     "Error report created",
   );
 
-  return {
+  const rawOutputCompressed = compressBuildOutput(rawOutput, 8000, 2000);
+  const processedAt = new Date().toISOString();
+  const duration = Date.now() - startTime;
+
+  const baseReport: BuildErrorReport = {
     failed: true,
     headline,
     summary: {
@@ -273,8 +278,13 @@ export async function createErrorReport(
     rootCause,
     framework,
     command,
-    rawOutput: compressBuildOutput(rawOutput, 8000, 2000),
-    processedAt: new Date().toISOString(),
-    duration: Date.now() - startTime,
+    rawOutput: rawOutputCompressed,
+    processedAt,
+    duration,
+  };
+
+  return {
+    ...baseReport,
+    userFacing: buildUserFacingDiagnosis(baseReport),
   };
 }

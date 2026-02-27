@@ -18,7 +18,7 @@ interface BuildStatusRuntimeRefs {
 
 interface ApplyBuildStatusUpdateParams extends BuildStatusRuntimeRefs {
   build: BuildStatusPayload;
-  openSandbox: () => void;
+  openSandbox: (chatId?: string) => void;
   setMode: (mode: SandboxMode) => void;
   setPreviewUrl: (url: string | null) => void;
   setBuildStatus: (status: BuildStatus) => void;
@@ -68,6 +68,7 @@ export function applyBuildStatusUpdate({
     setBuildStatus(BuildStatus.FAILED);
     const report = build.errorReport as BuildErrorReport | null;
     const laymanReason =
+      report?.userFacing?.shortMessage ||
       report?.rootCause?.suggestion ||
       report?.errors?.[0]?.suggestion ||
       report?.headline ||

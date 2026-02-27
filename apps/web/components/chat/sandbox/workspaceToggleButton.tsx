@@ -5,10 +5,22 @@ import { m, useReducedMotion } from "motion/react";
 import {
     LoaderIcon,
     Code2,
+    Terminal,
+    FolderOpen,
+    Search,
+    FileText,
+    GitBranch,
+    Package,
+    FolderPlus,
+    FilePlus,
+    Copy,
+    Trash2,
+    type LucideIcon,
 } from "lucide-react";
 import { cn } from "@edward/ui/lib/utils";
 import { useSandbox } from "@/contexts/sandboxContext";
 import { FrameworkIcon, detectFramework } from "@/components/chat/editor/frameworkIcons";
+import type { CommandEvent } from "@edward/shared/streamEvents";
 
 interface ProjectButtonProps {
     isStreaming: boolean;
@@ -16,10 +28,112 @@ interface ProjectButtonProps {
     activeFilePath: string | null;
     projectName?: string;
     onBeforeToggle?: () => void;
+    command?: CommandEvent | null;
 }
 
 const ENTER_KEY = "Enter";
 const SPACE_KEY = " ";
+const GENERIC_ROOT_SEGMENTS = new Set([
+    "src",
+    "app",
+    "pages",
+    "components",
+    "lib",
+    "public",
+    "assets",
+    "styles",
+]);
+
+function formatCommandLine(command: CommandEvent): string {
+    const args = Array.isArray(command.args) ? command.args : [];
+    return [command.command, ...args].filter(Boolean).join(" ");
+}
+
+function getTargetFromArgs(args: string[]): string | null {
+    const target = args.find((arg) => arg && !arg.startsWith("-"));
+    if (!target) return null;
+    const parts = target.split("/");
+    const last = parts[parts.length - 1];
+    return last || target;
+}
+
+function getCommandActivity(command: CommandEvent): string {
+    const args = Array.isArray(command.args) ? command.args : [];
+    const target = getTargetFromArgs(args);
+
+    switch (command.command) {
+        case "cat":
+        case "head":
+        case "tail":
+        case "wc":
+            return target ? `Reading ${target}` : "Reading files";
+        case "ls":
+        case "find":
+            return target && target !== "." ? `Exploring ${target}` : "Exploring workspace";
+        case "grep":
+            return "Searching project";
+        case "pnpm":
+        case "npm":
+            return "Running package script";
+        case "tsc":
+            return "Type checking project";
+        case "git":
+            return "Inspecting git state";
+        case "mkdir":
+            return target ? `Creating ${target}` : "Creating folder";
+        case "touch":
+            return target ? `Creating ${target}` : "Creating file";
+        case "cp":
+            return "Copying files";
+        case "mv":
+            return "Moving files";
+        case "rm":
+            return "Removing files";
+        case "pwd":
+            return "Checking current directory";
+        case "date":
+            return "Checking system time";
+        case "echo":
+            return "Echoing command output";
+        default:
+            return `Running ${command.command}`;
+    }
+}
+
+function getCommandIcon(command: CommandEvent): LucideIcon {
+    switch (command.command) {
+        case "cat":
+        case "head":
+        case "tail":
+        case "wc":
+            return FileText;
+        case "ls":
+        case "find":
+            return FolderOpen;
+        case "grep":
+            return Search;
+        case "pnpm":
+        case "npm":
+        case "tsc":
+            return Package;
+        case "git":
+            return GitBranch;
+        case "mkdir":
+            return FolderPlus;
+        case "touch":
+            return FilePlus;
+        case "cp":
+        case "mv":
+            return Copy;
+        case "rm":
+            return Trash2;
+        case "pwd":
+        case "date":
+        case "echo":
+        default:
+            return Terminal;
+    }
+}
 
 export const ProjectButton = memo(function ProjectButton({
     isStreaming,
@@ -27,9 +141,11 @@ export const ProjectButton = memo(function ProjectButton({
     activeFilePath,
     projectName: customProjectName,
     onBeforeToggle,
+    command = null,
 }: ProjectButtonProps) {
     const prefersReducedMotion = useReducedMotion();
     const { isOpen: sandboxOpen, toggleSandbox, previewUrl } = useSandbox();
+    const framework = useMemo(() => detectFramework(files), [files]);
 
     const activeFile = activeFilePath
         ? files.find((f) => f.path === activeFilePath)
@@ -43,12 +159,38 @@ export const ProjectButton = memo(function ProjectButton({
         const firstFile = files[0];
         if (!firstFile) return null;
         const parts = firstFile.path.split("/");
-        return parts.length > 1 ? parts[0] : "Project";
-    }, [files, customProjectName]);
-
-    const framework = useMemo(() => detectFramework(files), [files]);
+        const firstSegment = parts[0]?.trim() || "";
+        if (
+            parts.length > 1 &&
+            firstSegment &&
+            !GENERIC_ROOT_SEGMENTS.has(firstSegment.toLowerCase())
+        ) {
+            return firstSegment;
+        }
+        if (framework === "next") return "Next.js App";
+        if (framework === "vite") return "React App";
+        if (framework === "javascript") return "JavaScript App";
+        return "Workspace";
+    }, [files, customProjectName, framework]);
+    const commandActivity = useMemo(
+        () => (command ? getCommandActivity(command) : null),
+        [command],
+    );
+    const commandLine = useMemo(
+        () => (command ? formatCommandLine(command) : null),
+        [command],
+    );
+    const commandIcon = useMemo(
+        () => (command ? getCommandIcon(command) : null),
+        [command],
+    );
+    const CommandIcon = commandIcon;
+    const showCommandActivity = isStreaming && Boolean(command);
 
     const getButtonText = () => {
+        if (showCommandActivity && commandActivity) {
+            return commandActivity;
+        }
         if (isStreaming && activeFileName) {
             return `Writing ${activeFileName}...`;
         }
@@ -94,14 +236,20 @@ export const ProjectButton = memo(function ProjectButton({
         >
             <m.div
                 className="h-8 w-8 rounded-lg flex items-center justify-center shrink-0 transition-transform duration-500"
-                animate={isStreaming && !prefersReducedMotion ? { rotate: 360 } : {}}
+                animate={
+                    isStreaming && !showCommandActivity && !prefersReducedMotion
+                        ? { rotate: 360 }
+                        : {}
+                }
                 transition={{
                     duration: 2,
-                    repeat: isStreaming && !prefersReducedMotion ? Infinity : 0,
+                    repeat: isStreaming && !showCommandActivity && !prefersReducedMotion ? Infinity : 0,
                     ease: "linear",
                 }}
             >
-                {isStreaming ? (
+                {showCommandActivity && CommandIcon ? (
+                    <CommandIcon className="h-4 w-4 text-primary" />
+                ) : isStreaming ? (
                     <LoaderIcon className={cn("h-4 w-4 text-primary", !prefersReducedMotion && "animate-spin")} />
                 ) : framework ? (
                     <FrameworkIcon framework={framework} />
@@ -114,7 +262,16 @@ export const ProjectButton = memo(function ProjectButton({
                 <span className="text-[11px] font-semibold truncate max-w-[220px]">
                     {getButtonText()}
                 </span>
-                {isStreaming && (
+                {showCommandActivity && commandLine ? (
+                    <m.span
+                        initial={prefersReducedMotion ? false : { opacity: 0, y: 4 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: prefersReducedMotion ? 0 : 0.15 }}
+                        className="text-[9px] text-primary/70 font-mono truncate max-w-[220px]"
+                    >
+                        {commandLine}
+                    </m.span>
+                ) : isStreaming ? (
                     <m.span
                         initial={prefersReducedMotion ? false : { opacity: 0, y: 4 }}
                         animate={{ opacity: 1, y: 0 }}
@@ -123,7 +280,7 @@ export const ProjectButton = memo(function ProjectButton({
                     >
                         {files.length} file{files.length !== 1 ? "s" : ""} streaming
                     </m.span>
-                )}
+                ) : null}
                 {!isStreaming && (
                     <span className="text-[9px] text-muted-foreground/70">
                         {previewUrl ? "Build complete" : `${files.length} files in workspace`}

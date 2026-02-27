@@ -1,7 +1,9 @@
 import {
+  ACTIVE_RUN_STATUSES,
   createRunWithUserLimit,
   type RunAdmissionResult,
   type RunAdmissionRejectionReason,
+  RUN_STATUS,
   count,
   db,
   inArray,
@@ -28,7 +30,7 @@ export async function getRunAdmissionWindow(): Promise<RunAdmissionWindow> {
   const [activeRunCountResult] = await db
     .select({ value: count() })
     .from(runTable)
-    .where(inArray(runTable.status, ["queued", "running"]));
+    .where(inArray(runTable.status, ACTIVE_RUN_STATUSES));
   const activeRunDepth = Number(activeRunCountResult?.value ?? 0);
   const userRunLimit = Math.min(
     MAX_ACTIVE_RUNS_PER_USER,
@@ -88,7 +90,7 @@ export async function enqueueAdmittedRun(runId: string): Promise<{
   } catch (enqueueError) {
     const errorMessage = ensureError(enqueueError).message;
     await updateRun(runId, {
-      status: "failed",
+      status: RUN_STATUS.FAILED,
       state: "FAILED",
       errorMessage,
       completedAt: new Date(),

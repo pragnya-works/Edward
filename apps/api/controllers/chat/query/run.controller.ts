@@ -1,15 +1,18 @@
 import type { Response } from "express";
 import {
   and,
+  ACTIVE_RUN_STATUSES,
   db,
   desc,
   eq,
   getRunById,
+  isTerminalRunStatus,
   inArray,
+  RUN_STATUS,
   run,
   updateRun,
 } from "@edward/auth";
-import { createRedisClient } from "../../../lib/redis.js";
+import { redis } from "../../../lib/redis.js";
 import type { AuthenticatedRequest } from "../../../middleware/auth.js";
 import { getAuthenticatedUserId } from "../../../middleware/auth.js";
 import {
@@ -66,7 +69,7 @@ export async function getActiveRun(
         and(
           eq(run.chatId, chatId),
           eq(run.userId, userId),
-          inArray(run.status, ["queued", "running"]),
+          inArray(run.status, ACTIVE_RUN_STATUSES),
         ),
       )
       .orderBy(desc(run.createdAt))
@@ -128,11 +131,7 @@ export async function cancelRunHandler(
       return;
     }
 
-    if (
-      runRecord.status === "completed" ||
-      runRecord.status === "failed" ||
-      runRecord.status === "cancelled"
-    ) {
+    if (isTerminalRunStatus(runRecord.status)) {
       sendSuccess(res, HttpStatus.OK, "Run already in terminal state", {
         cancelled: false,
         reason: "already_terminal",
@@ -141,19 +140,14 @@ export async function cancelRunHandler(
     }
 
     await updateRun(runId, {
-      status: "cancelled",
+      status: RUN_STATUS.CANCELLED,
       state: "CANCELLED",
       completedAt: new Date(),
     });
-    const pubClient = createRedisClient();
-    try {
-      await pubClient.publish(
-        `${RUN_CANCEL_CHANNEL_PREFIX}${runId}`,
-        JSON.stringify({ cancelled: true }),
-      );
-    } finally {
-      await pubClient.quit().catch(() => { });
-    }
+    await redis.publish(
+      `${RUN_CANCEL_CHANNEL_PREFIX}${runId}`,
+      JSON.stringify({ cancelled: true }),
+    );
 
     logger.info({ runId, chatId, userId }, "Run cancelled by user");
     sendSuccess(res, HttpStatus.OK, "Run cancelled", { cancelled: true });

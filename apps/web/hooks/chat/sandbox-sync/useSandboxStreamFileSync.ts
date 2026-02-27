@@ -9,7 +9,6 @@ interface UseSandboxStreamFileSyncParams {
   startStreaming: (filePath: string) => void;
   stopStreaming: () => void;
   updateFile: (file: { path: string; content: string; isComplete: boolean }) => void;
-  setFiles: (files: { path: string; content: string; isComplete: boolean }[]) => void;
 }
 
 export function useSandboxStreamFileSync({
@@ -20,10 +19,9 @@ export function useSandboxStreamFileSync({
   startStreaming,
   stopStreaming,
   updateFile,
-  setFiles,
 }: UseSandboxStreamFileSyncParams): void {
-  const prevActiveFilesRef = useRef<StreamedFile[]>([]);
-  const prevCompletedFilesRef = useRef<StreamedFile[]>([]);
+  const prevActiveContentsRef = useRef<Map<string, string>>(new Map());
+  const prevCompletedContentsRef = useRef<Map<string, string>>(new Map());
   const wasStreamingRef = useRef(false);
 
   const isNowStreaming = activeFiles.length > 0;
@@ -42,14 +40,11 @@ export function useSandboxStreamFileSync({
       stopStreaming();
     }
 
-    wasStreamingRef.current = isNowStreaming;
-
-    const prevActiveFiles = prevActiveFilesRef.current;
-    const prevCompletedFiles = prevCompletedFilesRef.current;
-
+    const prevActiveContents = prevActiveContentsRef.current;
+    const nextActiveContents = new Map<string, string>();
     for (const file of activeFiles) {
-      const prevFile = prevActiveFiles.find((candidate) => candidate.path === file.path);
-      if (!prevFile || prevFile.content !== file.content) {
+      nextActiveContents.set(file.path, file.content);
+      if (prevActiveContents.get(file.path) !== file.content) {
         updateFile({
           path: file.path,
           content: file.content,
@@ -58,53 +53,28 @@ export function useSandboxStreamFileSync({
       }
     }
 
-    const newCompletedFiles = completedFiles.filter((file) => {
-      const prevFile = prevCompletedFiles.find((candidate) => candidate.path === file.path);
-      return !prevFile || prevFile.content !== file.content;
-    });
-
-    if (
-      newCompletedFiles.length > 0 ||
-      (completedFiles.length > 0 &&
-        completedFiles.length !== prevCompletedFiles.length)
-    ) {
-      const allFiles: { path: string; content: string; isComplete: boolean }[] = [
-        ...activeFiles.map((file) => ({
-          path: file.path,
-          content: file.content,
-          isComplete: false,
-        })),
-        ...completedFiles.map((file) => ({
+    const prevCompletedContents = prevCompletedContentsRef.current;
+    const nextCompletedContents = new Map<string, string>();
+    for (const file of completedFiles) {
+      nextCompletedContents.set(file.path, file.content);
+      if (prevCompletedContents.get(file.path) !== file.content) {
+        updateFile({
           path: file.path,
           content: file.content,
           isComplete: true,
-        })),
-      ];
-
-      const uniqueFiles = new Map<
-        string,
-        { path: string; content: string; isComplete: boolean }
-      >();
-
-      for (const file of allFiles) {
-        const existing = uniqueFiles.get(file.path);
-        if (!existing || (!existing.isComplete && file.isComplete)) {
-          uniqueFiles.set(file.path, file);
-        }
+        });
       }
-
-      setFiles(Array.from(uniqueFiles.values()));
     }
 
-    prevActiveFilesRef.current = activeFiles;
-    prevCompletedFilesRef.current = completedFiles;
+    prevActiveContentsRef.current = nextActiveContents;
+    prevCompletedContentsRef.current = nextCompletedContents;
+    wasStreamingRef.current = isNowStreaming;
   }, [
     activeFiles,
     completedFiles,
     isNowStreaming,
     openSandbox,
     switchToCodeMode,
-    setFiles,
     startStreaming,
     stopStreaming,
     updateFile,

@@ -17,6 +17,7 @@ import { SandboxEditorTabs } from "@/components/chat/sandbox/sandboxEditorTabs";
 import { SandboxEmptyState } from "@/components/chat/sandbox/sandboxEmptyState";
 import { SandboxErrorBoundary } from "@/components/chat/sandbox/sandboxErrorBoundary";
 import { SandboxHeader } from "@/components/chat/sandbox/sandboxHeader";
+import { SandboxOutputTerminal } from "@/components/chat/sandbox/sandboxOutputTerminal";
 import { SandboxPreviewBar } from "@/components/chat/sandbox/sandboxPreviewBar";
 import { SandboxStatusBar } from "@/components/chat/sandbox/sandboxStatusBar";
 import { CodeWorkspace } from "@/components/chat/sandbox/codeWorkspace";
@@ -317,6 +318,7 @@ export function SandboxPanel() {
           )}
         </div>
 
+        <SandboxOutputTerminal />
         <SandboxStatusBar />
         <FileSearchModal />
       </div>

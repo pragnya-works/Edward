@@ -2,6 +2,10 @@
   "name": "edward-nextjs",
   "version": "1.0.0",
   "private": true,
+  "packageManager": "pnpm@10.4.1",
+  "engines": {
+    "node": ">=22.0.0"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",

@@ -9,6 +9,7 @@ export interface CommandResult {
 
 export interface WebSearchResult {
   query: string;
+  maxResults?: number;
   answer?: string;
   results: WebSearchResultItem[];
   error?: string;

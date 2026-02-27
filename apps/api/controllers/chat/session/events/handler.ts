@@ -4,28 +4,29 @@ import {
   type ParserEvent,
 } from "../../../../schemas/chat.schema.js";
 import {
-  executeInstallPhase,
   ensureSandbox,
 } from "../../../../services/planning/workflow/steps.js";
-import { addSandboxPackages } from "../../../../services/sandbox/lifecycle/packages.js";
 import {
   prepareSandboxFile,
   sanitizeSandboxFile,
 } from "../../../../services/sandbox/write/buffer.js";
 import { flushSandbox } from "../../../../services/sandbox/write/flush.js";
-import { normalizeFramework } from "../../../../services/sandbox/templates/template.registry.js";
 import type { WorkflowState } from "../../../../services/planning/schemas.js";
-import {
-  resolveDependencies,
-  suggestAlternatives,
-} from "../../../../services/planning/resolvers/dependency.resolver.js";
 import { ensureError } from "../../../../utils/error.js";
 import { logger } from "../../../../utils/logger.js";
-import { sendSSEError, sendSSEEvent } from "../../sse.utils.js";
+import {
+  sendSSEError,
+  sendSSEEvent,
+  sendSSERecoverableError,
+} from "../../sse.utils.js";
 import { handleFileContent } from "../../file.handlers.js";
 import type { AgentToolResult } from "@edward/shared/streamToolResults";
 import { handleCommandEvent } from "./tools/command.js";
 import { handleWebSearchEvent } from "./tools/webSearch.js";
+import {
+  handleInstallContent,
+  resolveCommandSandboxId,
+} from "./handler.helpers.js";
 
 export interface EventHandlerContext {
   workflow: WorkflowState;
@@ -68,6 +69,7 @@ async function handleFileStart(
     throw new Error("FILE_START received without an active sandbox session");
   }
   await prepareSandboxFile(ctx.workflow.sandboxId, filePath);
+  ctx.generatedFiles.set(filePath, "");
   return { currentFilePath: filePath, isFirstFileChunk: true };
 }
 
@@ -100,105 +102,6 @@ async function handleSandboxEnd(ctx: EventHandlerContext): Promise<void> {
         `Flush failed during SANDBOX_END: ${ctx.workflow.sandboxId}`,
       ),
     );
-  }
-}
-
-async function handleInstallContent(
-  ctx: Pick<
-    EventHandlerContext,
-    "workflow" | "res" | "chatId" | "isFollowUp" | "declaredPackages" | "abortSignal"
-  >,
-  dependencies: string[] | undefined,
-  framework: string | undefined,
-): Promise<void> {
-  if (ctx.abortSignal?.aborted) {
-    return;
-  }
-
-  if (dependencies) {
-    ctx.declaredPackages.push(...dependencies);
-  }
-  if (framework) {
-    const normalized = normalizeFramework(framework);
-    if (normalized) {
-      ctx.workflow.context.framework = normalized;
-    }
-  }
-  if (!ctx.workflow.sandboxId) {
-    await ensureSandbox(
-      ctx.workflow,
-      ctx.workflow.context.framework,
-      ctx.isFollowUp,
-    );
-  }
-
-  if (!ctx.workflow.sandboxId) {
-    logger.warn(
-      { chatId: ctx.chatId },
-      "INSTALL_CONTENT received without an active sandbox; skipping install",
-    );
-    return;
-  }
-
-  const rawDependencies = dependencies || [];
-  if (rawDependencies.length === 0) return;
-  if (ctx.abortSignal?.aborted) return;
-
-  const frameworkForResolution = ctx.workflow.context.framework || "vanilla";
-  const resolution = await resolveDependencies(
-    rawDependencies,
-    frameworkForResolution,
-  );
-  const validDeps = resolution.resolved.map((dep) => dep.name);
-
-  if (resolution.failed.length > 0) {
-    const failures = resolution.failed.map((dep) => dep.name).join(", ");
-    const suggestions = resolution.failed
-      .flatMap((dep) => suggestAlternatives(dep.name))
-      .filter(Boolean);
-
-    const message =
-      `Invalid dependencies detected: ${failures}` +
-      (suggestions.length > 0
-        ? ` (suggested alternatives: ${Array.from(new Set(suggestions)).join(", ")})`
-        : "");
-
-    sendSSEError(ctx.res, message, {
-      code: "invalid_dependencies",
-      details: {
-        failed: resolution.failed.map((dep) => dep.name),
-      },
-    });
-  }
-
-  if (validDeps.length === 0) {
-    return;
-  }
-
-  ctx.workflow.context.resolvedPackages = resolution.resolved.map((dep) => ({
-    name: dep.name,
-    version: dep.version || "latest",
-    valid: true,
-    peerDependencies: dep.peerDependencies,
-  }));
-  if (ctx.workflow.sandboxId) {
-    await addSandboxPackages(ctx.workflow.sandboxId, validDeps);
-  }
-  if (ctx.abortSignal?.aborted) return;
-
-  const installResult = await executeInstallPhase(ctx.workflow);
-  if (!installResult.success) {
-    sendSSEError(
-      ctx.res,
-      installResult.error || "Dependency installation failed",
-      {
-        code: "dependency_install_failed",
-        details: {
-          dependencies: validDeps,
-        },
-      },
-    );
-    return;
   }
 }
 
@@ -272,7 +175,7 @@ export async function handleParserEvent(
                 { err, chatId: ctx.chatId, dependencies: event.dependencies },
                 "Install execution failed",
               );
-              sendSSEError(
+              sendSSERecoverableError(
                 ctx.res,
                 `Dependency installation failed: ${err.message}`,
                 {
@@ -303,20 +206,32 @@ export async function handleParserEvent(
         break;
 
       case ParserEventType.COMMAND:
-        await handleCommandEvent(
-          {
-            res: ctx.res,
-            sandboxTagDetected: ctx.sandboxTagDetected,
-            sandboxId: ctx.workflow.sandboxId,
-            runId: ctx.runId,
-            turn: ctx.turn,
-            installTaskQueue: ctx.installTaskQueue,
-            abortSignal: ctx.abortSignal,
-            toolResultsThisTurn: ctx.toolResultsThisTurn,
-          },
-          event.command,
-          event.args ?? [],
-        );
+        {
+          await ctx.installTaskQueue?.waitForIdle();
+          if (ctx.abortSignal?.aborted) {
+            handled = true;
+            break;
+          }
+
+          const sandboxId = await resolveCommandSandboxId(ctx);
+          await handleCommandEvent(
+            {
+              res: ctx.res,
+              sandboxId,
+              recoverSandboxId: async () => {
+                ctx.workflow.sandboxId = undefined;
+                return resolveCommandSandboxId(ctx);
+              },
+              runId: ctx.runId,
+              turn: ctx.turn,
+              installTaskQueue: ctx.installTaskQueue,
+              abortSignal: ctx.abortSignal,
+              toolResultsThisTurn: ctx.toolResultsThisTurn,
+            },
+            event.command,
+            event.args ?? [],
+          );
+        }
         handled = true;
         break;
 
@@ -335,6 +250,7 @@ export async function handleParserEvent(
         break;
     }
   } catch (sandboxError) {
+    handled = true;
     logger.error(
       ensureError(sandboxError),
       "Sandbox operation failed during streaming",

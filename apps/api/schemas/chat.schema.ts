@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { MessageRole } from "@edward/auth";
 import { Model } from "@edward/shared/schema";
+import { PROMPT_INPUT_CONFIG } from "@edward/shared/constants";
 import {
   AgentLoopStopReason,
   MetaPhase,
@@ -42,7 +43,13 @@ export const RunStreamParamsSchema = z.object({
 export const UnifiedSendMessageSchema = z
   .object({
     content: z.union([
-      z.string().min(1, "Message content cannot be empty"),
+      z
+        .string()
+        .min(1, "Message content cannot be empty")
+        .max(
+          PROMPT_INPUT_CONFIG.MAX_CHARS,
+          `Message exceeds ${PROMPT_INPUT_CONFIG.MAX_CHARS} characters`,
+        ),
       MultimodalContentSchema,
     ]),
     chatId: z.string().optional(),
@@ -173,6 +180,7 @@ export const ParserEventSchema = z.discriminatedUnion("type", [
     message: z.string(),
     code: z.string().optional(),
     details: z.record(z.unknown()).optional(),
+    severity: z.enum(["fatal", "recoverable"]).optional(),
   }),
   z.object({
     type: z.literal(ParserEventType.META),

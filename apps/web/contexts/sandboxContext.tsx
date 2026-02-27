@@ -62,6 +62,9 @@ export function useSandbox() {
       streamingFilePath: state.streamingFilePath,
       localEdits: state.localEdits,
       isSearchOpen: state.isSearchOpen,
+      terminalEntries: state.terminalEntries,
+      isTerminalOpen: state.isTerminalOpen,
+      setRouteChatId: state.setRouteChatId,
       openSandbox: state.openSandbox,
       closeSandbox: state.closeSandbox,
       toggleSandbox: state.toggleSandbox,
@@ -83,6 +86,10 @@ export function useSandbox() {
       setBuildStatus: state.setBuildStatus,
       setBuildError: state.setBuildError,
       setFullErrorReport: state.setFullErrorReport,
+      appendTerminalEntry: state.appendTerminalEntry,
+      clearTerminalEntries: state.clearTerminalEntries,
+      setTerminalOpen: state.setTerminalOpen,
+      toggleTerminalOpen: state.toggleTerminalOpen,
     })),
   );
 }

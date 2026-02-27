@@ -10,6 +10,7 @@ import {
   shutdownSandboxService,
 } from "./services/sandbox/lifecycle/control.js";
 import { redis } from "./lib/redis.js";
+import { shutdownRedisPubSub } from "./lib/redisPubSub.js";
 import { apiKeyRouter } from "./routes/apiKey.routes.js";
 import { chatRouter } from "./routes/chat.routes.js";
 import { githubRouter } from "./routes/github.routes.js";
@@ -26,12 +27,15 @@ import {
 } from "./utils/constants.js";
 import { ensureError } from "./utils/error.js";
 import { config } from "./app.config.js";
+import { ensureChatSeoColumns } from "./services/db/schemaCompatibility.service.js";
 
 const PORT = config.server.port;
 const ENV = config.server.environment as Environment;
 const isDev = config.server.isDevelopment();
 const isProd = config.server.isProduction();
 const ALLOWED_ORIGINS = config.cors.origins;
+
+import { registerProcessHandlerOnce } from "./utils/processHandlers.js";
 
 const logger = createLogger("API");
 const app = express();
@@ -66,7 +70,8 @@ if (isProd) {
     res: Response,
     next: NextFunction,
   ) {
-    const forwardedProto = req.header("x-forwarded-proto")
+    const forwardedProto = req
+      .header("x-forwarded-proto")
       ?.split(",")
       .map((value) => value.trim().toLowerCase())[0];
     const isSecure = req.secure || forwardedProto === "https";
@@ -189,6 +194,7 @@ const serverInstance = app.listen(PORT, async function onServerStarted() {
   );
 
   try {
+    await ensureChatSeoColumns();
     await initSandboxService();
     logger.info("Sandbox Service initialized.");
   } catch (err) {
@@ -212,7 +218,11 @@ async function handleGracefulShutdown(signal: string) {
 
   serverInstance.close(async function onServerClosed() {
     try {
-      await Promise.all([shutdownSandboxService(), redis.quit()]);
+      await Promise.all([
+        shutdownSandboxService(),
+        shutdownRedisPubSub(),
+        redis.quit(),
+      ]);
 
       logger.info("Graceful shutdown successful.");
       clearTimeout(shutdownTimeout);
@@ -224,17 +234,30 @@ async function handleGracefulShutdown(signal: string) {
   });
 }
 
-process.on("SIGINT", () => handleGracefulShutdown("SIGINT"));
-process.on("SIGTERM", () => handleGracefulShutdown("SIGTERM"));
-
-process.on("uncaughtException", (error) => {
-  logger.fatal(error, "Uncaught Exception");
-  Sentry.captureException(error);
-  handleGracefulShutdown("uncaughtException");
+registerProcessHandlerOnce("api:SIGINT", "SIGINT", () => {
+  void handleGracefulShutdown("SIGINT");
 });
 
-process.on("unhandledRejection", (reason) => {
-  logger.fatal({ reason }, "Unhandled Rejection");
-  Sentry.captureException(reason);
-  handleGracefulShutdown("unhandledRejection");
+registerProcessHandlerOnce("api:SIGTERM", "SIGTERM", () => {
+  void handleGracefulShutdown("SIGTERM");
 });
+
+registerProcessHandlerOnce(
+  "api:uncaughtException",
+  "uncaughtException",
+  (error) => {
+    logger.fatal(error, "Uncaught Exception");
+    Sentry.captureException(error);
+    void handleGracefulShutdown("uncaughtException");
+  },
+);
+
+registerProcessHandlerOnce(
+  "api:unhandledRejection",
+  "unhandledRejection",
+  (reason) => {
+    logger.fatal({ reason }, "Unhandled Rejection");
+    Sentry.captureException(reason);
+    void handleGracefulShutdown("unhandledRejection");
+  },
+);

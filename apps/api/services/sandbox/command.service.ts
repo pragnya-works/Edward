@@ -7,6 +7,7 @@ import {
   execCommand,
 } from "./docker.service.js";
 import { logger } from "../../utils/logger.js";
+import { SANDBOX_COMMAND_TIMEOUT_MS } from "../../utils/constants.js";
 import { ExecResult } from "./types.service.js";
 import { SANDBOX_ALLOWED_COMMANDS } from "./command/allowedCommands.js";
 
@@ -23,6 +24,16 @@ const MAX_TOTAL_ARGS_CHARS = 8 * 1024;
 const MAX_OUTPUT_CAT = 512 * 1024;
 const MAX_OUTPUT_DEFAULT = 1024 * 1024;
 const NORMALIZED_WORKDIR = path.posix.normalize(CONTAINER_WORKDIR);
+const LOW_NOISE_COMMANDS = new Set([
+  "cat",
+  "find",
+  "ls",
+  "head",
+  "tail",
+  "wc",
+  "pwd",
+  "date",
+]);
 
 function isWithinWorkdir(resolvedPath: string): boolean {
   return (
@@ -164,17 +175,23 @@ export async function executeSandboxCommand(
   const container = getContainer(sandbox.containerId);
   await ensureContainerRunning(container);
 
-  logger.info(
-    { sandboxId, command: params.command, args: params.args },
-    "Executing sandbox command",
-  );
+  const commandLogContext = {
+    sandboxId,
+    command: params.command,
+    args: params.args,
+  };
+  if (LOW_NOISE_COMMANDS.has(params.command)) {
+    logger.debug(commandLogContext, "Executing sandbox command");
+  } else {
+    logger.info(commandLogContext, "Executing sandbox command");
+  }
 
   try {
     const result = await execCommand(
       container,
       [params.command, ...params.args],
       false,
-      options?.timeout ?? 15000,
+      options?.timeout ?? SANDBOX_COMMAND_TIMEOUT_MS,
       "node",
       CONTAINER_WORKDIR,
     );

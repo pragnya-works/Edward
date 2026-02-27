@@ -25,6 +25,8 @@ export enum ParserEventType {
   BUILD_STATUS = "build_status",
 }
 
+export type StreamErrorSeverity = "fatal" | "recoverable";
+
 export enum MetaPhase {
   SESSION_START = "session_start",
   TURN_START = "turn_start",
@@ -65,7 +67,9 @@ export interface TokenUsageBreakdown {
   method: "openai-tiktoken" | "gemini-countTokens" | "approx";
   contextWindowTokens: number;
   reservedOutputTokens: number;
+  /** Tokens for the current user prompt only (latest turn input), not full context. */
   inputTokens: number;
+  /** Full request context tokens (system prompt + conversation/context messages). */
   totalContextTokens: number;
   remainingInputTokens: number;
   perMessage: Array<{
@@ -152,6 +156,7 @@ export interface ErrorEvent extends StreamEventBase {
   message: string;
   code?: string;
   details?: Record<string, unknown>;
+  severity?: StreamErrorSeverity;
 }
 
 export interface MetaEvent extends StreamEventBase {

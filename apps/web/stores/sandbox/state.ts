@@ -5,6 +5,7 @@ import {
 } from "./types";
 
 export const INITIAL_SANDBOX_STATE: SandboxDataState = {
+  routeChatId: null,
   isOpen: false,
   mode: SandboxMode.CODE,
   files: [],
@@ -17,6 +18,8 @@ export const INITIAL_SANDBOX_STATE: SandboxDataState = {
   streamingFilePath: null,
   localEdits: new Map(),
   isSearchOpen: false,
+  terminalEntries: [],
+  isTerminalOpen: true,
 };
 
 export function sanitizePreviewUrl(url: string | null): string | null {

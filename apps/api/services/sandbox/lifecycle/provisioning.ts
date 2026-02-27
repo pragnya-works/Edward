@@ -12,6 +12,8 @@ import {
   createContainer,
   getContainer,
   listContainers,
+  execCommand,
+  CONTAINER_WORKDIR,
 } from "../docker.service.js";
 import { restoreSandboxInstance } from "../backup.service.js";
 import { redis } from "../../../lib/redis.js";
@@ -32,6 +34,71 @@ import {
   getContainerStatus,
   setContainerStatus,
 } from "./runtimeState.store.js";
+
+const DEFAULT_GITIGNORE_CONTENT = `node_modules
+.pnpm-store
+.next
+dist
+build
+out
+.output
+coverage
+.turbo
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.env
+.env.*
+!.env.example
+!.env.sample
+!.env.template
+!.env.dist
+.DS_Store
+`;
+
+async function ensureScaffoldGitignore(
+  containerId: string,
+  sandboxId: string,
+  framework?: string,
+): Promise<void> {
+  if (framework === "vanilla") {
+    return;
+  }
+
+  const container = getContainer(containerId);
+  const existsResult = await execCommand(
+    container,
+    ["test", "-f", ".gitignore"],
+    false,
+    5000,
+    undefined,
+    CONTAINER_WORKDIR,
+  );
+
+  if (existsResult.exitCode === 0) {
+    return;
+  }
+
+  const encoded = Buffer.from(DEFAULT_GITIGNORE_CONTENT, "utf8").toString("base64");
+  const writeResult = await execCommand(
+    container,
+    ["sh", "-c", `echo '${encoded}' | base64 -d > .gitignore`],
+    false,
+    5000,
+    undefined,
+    CONTAINER_WORKDIR,
+  );
+
+  if (writeResult.exitCode !== 0) {
+    throw new Error(
+      `Failed to scaffold .gitignore: ${writeResult.stderr || writeResult.stdout}`,
+    );
+  }
+
+  logger.info({ sandboxId }, "Scaffolded default .gitignore");
+}
 
 
 async function waitForProvisioning(chatId: string): Promise<string | null> {
@@ -140,8 +207,9 @@ export async function provisionSandbox(
 ): Promise<string> {
   const lockKey = `edward:locking:provision:${chatId}`;
   const MAX_ATTEMPTS = 10;
+  const normalizedFramework = framework?.toLowerCase();
 
-  if (framework && !isValidFramework(framework)) {
+  if (normalizedFramework && !isValidFramework(normalizedFramework)) {
     throw new Error(`Unsupported framework: ${framework}`);
   }
 
@@ -166,8 +234,8 @@ export async function provisionSandbox(
         }
 
         const sandboxId = nanoid(12);
-        const image = framework
-          ? getTemplateConfig(framework)?.image || getDefaultImage()
+        const image = normalizedFramework
+          ? getTemplateConfig(normalizedFramework)?.image || getDefaultImage()
           : getDefaultImage();
         const container = await createContainer(
           userId,
@@ -182,7 +250,7 @@ export async function provisionSandbox(
           expiresAt: Date.now() + SANDBOX_TTL,
           userId,
           chatId,
-          scaffoldedFramework: framework?.toLowerCase(),
+          scaffoldedFramework: normalizedFramework,
         };
 
         if (shouldRestore) {
@@ -195,6 +263,17 @@ export async function provisionSandbox(
             );
           }
         }
+
+        await ensureScaffoldGitignore(
+          container.id,
+          sandboxId,
+          normalizedFramework,
+        ).catch((error) =>
+          logger.warn(
+            { sandboxId, framework: normalizedFramework, error: ensureError(error) },
+            "Failed to scaffold .gitignore (non-fatal)",
+          ),
+        );
 
         await saveSandboxState(sandbox);
 

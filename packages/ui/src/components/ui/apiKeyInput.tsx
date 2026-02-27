@@ -74,7 +74,7 @@ export function ApiKeyInput({
       </div>
 
       {error && (
-        <p className="text-sm font-medium text-destructive">{error}</p>
+        <p className="text-xs font-medium leading-snug text-destructive">{error}</p>
       )}
     </div>
   );

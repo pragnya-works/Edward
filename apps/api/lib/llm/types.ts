@@ -62,6 +62,41 @@ export function formatContentForOpenAI(
   });
 }
 
+export type OpenAIResponsesContentPart =
+  | {
+      type: "input_text";
+      text: string;
+    }
+  | {
+      type: "input_image";
+      image_url: string;
+      detail: "auto";
+    };
+
+export function formatContentForOpenAIResponses(
+  content: string | MessageContentPart[],
+): OpenAIResponsesContentPart[] {
+  if (typeof content === "string") {
+    return [{ type: "input_text", text: content }];
+  }
+
+  return content.map((part) => {
+    if (part.type === "image") {
+      const image = part as VisionImage;
+      return {
+        type: "input_image" as const,
+        image_url: `data:${image.mimeType};base64,${image.base64}`,
+        detail: "auto" as const,
+      };
+    }
+
+    return {
+      type: "input_text" as const,
+      text: part.text,
+    };
+  });
+}
+
 export type GeminiContentPart =
   | { text: string }
   | { inlineData: { mimeType: string; data: string } };

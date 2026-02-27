@@ -18,6 +18,7 @@ interface ValidationResult {
 
 interface FrameworkContract {
     framework: Framework;
+    minimumNodeVersion: string;
     runtimeDependencies: string[];
     developmentDependencies: string[];
     requiredScripts: string[];
@@ -28,15 +29,27 @@ interface FrameworkContract {
 const FRAMEWORK_CONTRACTS: Record<Framework, FrameworkContract> = {
     nextjs: {
         framework: 'nextjs',
-        runtimeDependencies: ['react', 'react-dom', 'next', 'next-themes', 'framer-motion', 'lucide-react', 'clsx', 'tailwind-merge', 'class-variance-authority', '@radix-ui/react-slot'],
+        minimumNodeVersion: '20.0.0',
+        runtimeDependencies: [
+            'react@^19.2.3',
+            'react-dom@^19.2.3',
+            'next@^16.1.6',
+            'next-themes@^0.4.6',
+            'framer-motion@^12.28.1',
+            'lucide-react@^0.475.0',
+            'clsx@^2.1.1',
+            'tailwind-merge@^3.4.0',
+            'class-variance-authority@^0.7.1',
+            '@radix-ui/react-slot@^1.2.3'
+        ],
         developmentDependencies: [
-            'typescript',
-            '@types/node',
-            '@types/react',
-            '@types/react-dom',
-            'postcss',
-            'tailwindcss',
-            '@tailwindcss/postcss'
+            'typescript@^5.9.3',
+            '@types/node@^20.19.30',
+            '@types/react@^19.2.9',
+            '@types/react-dom@^19.2.3',
+            'postcss@^8.5.6',
+            'tailwindcss@^4.1.18',
+            '@tailwindcss/postcss@^4.1.18'
         ],
         requiredScripts: ['dev', 'build', 'start'],
         templateDir: 'nextjs',
@@ -63,15 +76,23 @@ const FRAMEWORK_CONTRACTS: Record<Framework, FrameworkContract> = {
 
     'vite-react': {
         framework: 'vite-react',
-        runtimeDependencies: ['react', 'react-dom', 'framer-motion', 'lucide-react', 'clsx', 'tailwind-merge'],
+        minimumNodeVersion: '20.0.0',
+        runtimeDependencies: [
+            'react@^19.2.3',
+            'react-dom@^19.2.3',
+            'framer-motion@^12.28.1',
+            'lucide-react@^0.475.0',
+            'clsx@^2.1.1',
+            'tailwind-merge@^3.4.0'
+        ],
         developmentDependencies: [
-            'typescript',
-            '@types/react',
-            '@types/react-dom',
-            'vite',
-            '@vitejs/plugin-react',
-            'tailwindcss',
-            '@tailwindcss/vite'
+            'typescript@^5.9.3',
+            '@types/react@^19.2.9',
+            '@types/react-dom@^19.2.3',
+            'vite@^5.4.21',
+            '@vitejs/plugin-react@^4.3.4',
+            'tailwindcss@^4.1.18',
+            '@tailwindcss/vite@^4.1.18'
         ],
         requiredScripts: ['dev', 'build', 'preview'],
         templateDir: 'vite-react',
@@ -103,6 +124,7 @@ const FRAMEWORK_CONTRACTS: Record<Framework, FrameworkContract> = {
 
     vanilla: {
         framework: 'vanilla',
+        minimumNodeVersion: '18.0.0',
         runtimeDependencies: [],
         developmentDependencies: [],
         requiredScripts: [],

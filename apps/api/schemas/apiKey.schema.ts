@@ -63,11 +63,6 @@ export type UpdateApiKeyResponse = {
   timestamp: string;
 };
 
-export type DeleteApiKeyResponse = {
-  message: string;
-  timestamp: string;
-};
-
 export type ErrorResponse = {
   error: string;
   details?: Array<{

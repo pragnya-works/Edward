@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { PROMPT_INPUT_CONFIG } from "@edward/shared/constants";
 import {
   ParserEventType,
   ChatIdParamSchema,
@@ -53,6 +54,14 @@ describe("chat schemas", () => {
     it("should reject empty content", () => {
       const result = UnifiedSendMessageSchema.safeParse({
         content: "",
+      });
+
+      expect(result.success).toBe(false);
+    });
+
+    it("should reject string content longer than prompt max chars", () => {
+      const result = UnifiedSendMessageSchema.safeParse({
+        content: "a".repeat(PROMPT_INPUT_CONFIG.MAX_CHARS + 1),
       });
 
       expect(result.success).toBe(false);
@@ -144,6 +153,19 @@ describe("chat schemas", () => {
     it("should reject empty multimodal content array", () => {
       const result = UnifiedSendMessageSchema.safeParse({
         content: [],
+      });
+
+      expect(result.success).toBe(false);
+    });
+
+    it("should reject multimodal text longer than prompt max chars", () => {
+      const result = UnifiedSendMessageSchema.safeParse({
+        content: [
+          {
+            type: "text",
+            text: "a".repeat(PROMPT_INPUT_CONFIG.MAX_CHARS + 1),
+          },
+        ],
       });
 
       expect(result.success).toBe(false);
@@ -322,6 +344,7 @@ describe("chat schemas", () => {
       const result = ParserEventSchema.safeParse({
         type: ParserEventType.ERROR,
         message: "Something went wrong",
+        severity: "recoverable",
       });
 
       expect(result.success).toBe(true);

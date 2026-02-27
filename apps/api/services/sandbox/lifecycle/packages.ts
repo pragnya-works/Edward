@@ -1,5 +1,6 @@
 import { logger } from "../../../utils/logger.js";
 import { getSandboxState, saveSandboxState } from "../state.service.js";
+import { normalizePackageSpecs } from "../../packages/packageSpec.js";
 
 export async function addSandboxPackages(sandboxId: string, packages: string[]): Promise<void> {
   try {
@@ -7,7 +8,7 @@ export async function addSandboxPackages(sandboxId: string, packages: string[]):
     if (!sandbox) return;
 
     const existing = sandbox.requestedPackages || [];
-    const updated = [...new Set([...existing, ...packages])];
+    const updated = normalizePackageSpecs([...existing, ...packages]);
 
     if (updated.length !== existing.length) {
       sandbox.requestedPackages = updated;

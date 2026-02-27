@@ -6,6 +6,35 @@ export interface SandboxFile {
   isComplete: boolean;
 }
 
+export type SandboxTerminalEntryKind =
+  | "system"
+  | "command"
+  | "warning"
+  | "error"
+  | "success";
+
+export interface SandboxTerminalEntry {
+  id: string;
+  createdAt: number;
+  kind: SandboxTerminalEntryKind;
+  message: string;
+  command?: string;
+  args?: string[];
+  exitCode?: number;
+  stdout?: string;
+  stderr?: string;
+}
+
+export interface SandboxTerminalEntryInput {
+  kind: SandboxTerminalEntryKind;
+  message: string;
+  command?: string;
+  args?: string[];
+  exitCode?: number;
+  stdout?: string;
+  stderr?: string;
+}
+
 export enum SandboxMode {
   CODE = "code",
   PREVIEW = "preview",
@@ -20,6 +49,7 @@ export enum BuildStatus {
 }
 
 export interface SandboxDataState {
+  routeChatId: string | null;
   isOpen: boolean;
   mode: SandboxMode;
   files: SandboxFile[];
@@ -32,12 +62,15 @@ export interface SandboxDataState {
   streamingFilePath: string | null;
   localEdits: Map<string, string>;
   isSearchOpen: boolean;
+  terminalEntries: SandboxTerminalEntry[];
+  isTerminalOpen: boolean;
 }
 
 export interface SandboxUiSlice {
-  openSandbox: () => void;
+  setRouteChatId: (chatId: string | null) => void;
+  openSandbox: (chatId?: string) => void;
   closeSandbox: () => void;
-  toggleSandbox: () => void;
+  toggleSandbox: (chatId?: string) => void;
   openSearch: () => void;
   closeSearch: () => void;
   toggleSearch: () => void;
@@ -64,8 +97,16 @@ export interface SandboxBuildSlice {
   setFullErrorReport: (report: BuildErrorReport | null) => void;
 }
 
+export interface SandboxTerminalSlice {
+  appendTerminalEntry: (entry: SandboxTerminalEntryInput) => void;
+  clearTerminalEntries: () => void;
+  setTerminalOpen: (open: boolean) => void;
+  toggleTerminalOpen: () => void;
+}
+
 export interface SandboxStoreState
   extends SandboxDataState,
     SandboxUiSlice,
     SandboxFileSlice,
-    SandboxBuildSlice {}
+    SandboxBuildSlice,
+    SandboxTerminalSlice {}

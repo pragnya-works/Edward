@@ -23,57 +23,17 @@ import { buildAndUploadUnified } from "./services/sandbox/builder/unified.build.
 import { backupSandboxInstance } from "./services/sandbox/backup.service.js";
 import { getSandboxState } from "./services/sandbox/state.service.js";
 import { createBuild, updateBuild } from "@edward/auth";
+import { BuildRecordStatus } from "@edward/shared/api/contracts";
 import { enqueueBackupJob } from "./services/queue/enqueue.js";
 import { createRedisClient } from "./lib/redis.js";
-import { createErrorReport } from "./services/diagnostics/errorReport.js";
 import { processAgentRunJob } from "./services/runs/agentRun.worker.js";
 import { processScheduledFlushes } from "./services/sandbox/write/flush.scheduler.js";
 import { reapStaleRuns } from "./services/runs/staleRunReaper.service.js";
+import { createErrorReportIfPossible } from "./queue.worker.helpers.js";
+import { registerProcessHandlerOnce } from "./utils/processHandlers.js";
 
 const logger = createLogger("WORKER");
 const pubClient = createRedisClient();
-
-async function createErrorReportIfPossible(
-  sandboxId: string,
-  error: string | undefined,
-): Promise<{ errorReport: unknown }> {
-  if (!error) {
-    return { errorReport: null };
-  }
-
-  const sandbox = await getSandboxState(sandboxId);
-  const containerId = sandbox?.containerId;
-
-  if (!containerId) {
-    return { errorReport: null };
-  }
-
-  try {
-    const report = await createErrorReport(
-      containerId,
-      error,
-      sandbox?.scaffoldedFramework,
-    );
-
-    logger.info(
-      {
-        sandboxId,
-        errorCount: report.summary.totalErrors,
-        processed: report.errors.length,
-        types: report.summary.uniqueTypes,
-      },
-      "[Worker] Error report created",
-    );
-
-    return { errorReport: report as unknown };
-  } catch (err) {
-    logger.warn(
-      { error: err, sandboxId },
-      "[Worker] Error report creation failed",
-    );
-    return { errorReport: null };
-  }
-}
 
 async function processBuildJob(payload: BuildJobPayload): Promise<void> {
   const { sandboxId, chatId, messageId, userId, buildId, runId } = payload;
@@ -85,11 +45,11 @@ async function processBuildJob(payload: BuildJobPayload): Promise<void> {
     : await createBuild({
         chatId,
         messageId,
-        status: "queued",
+        status: BuildRecordStatus.QUEUED,
       });
 
   await updateBuild(buildRecord.id, {
-    status: "building",
+    status: BuildRecordStatus.BUILDING,
   });
 
   await pubClient.publish(
@@ -97,7 +57,7 @@ async function processBuildJob(payload: BuildJobPayload): Promise<void> {
     JSON.stringify({
       buildId: buildRecord.id,
       runId: correlationRunId,
-      status: "building",
+      status: BuildRecordStatus.BUILDING,
     }),
   );
 
@@ -120,7 +80,7 @@ async function processBuildJob(payload: BuildJobPayload): Promise<void> {
 
     if (result.success) {
       await updateBuild(buildRecord.id, {
-        status: "success",
+        status: BuildRecordStatus.SUCCESS,
         previewUrl: result.previewUrl,
         buildDuration: duration,
       });
@@ -130,7 +90,7 @@ async function processBuildJob(payload: BuildJobPayload): Promise<void> {
         JSON.stringify({
           buildId: buildRecord.id,
           runId: correlationRunId,
-          status: "success",
+          status: BuildRecordStatus.SUCCESS,
           previewUrl: result.previewUrl,
         }),
       );
@@ -148,18 +108,16 @@ async function processBuildJob(payload: BuildJobPayload): Promise<void> {
       );
       handled = true;
     } else {
-      logger.warn(
-        { sandboxId, error: result.error },
-        "[Worker] Build failed",
-      );
+      logger.warn({ sandboxId, error: result.error }, "[Worker] Build failed");
 
       const { errorReport } = await createErrorReportIfPossible(
         sandboxId,
         result.error,
+        logger,
       );
 
       await updateBuild(buildRecord.id, {
-        status: "failed",
+        status: BuildRecordStatus.FAILED,
         errorReport: errorReport as Record<string, unknown> | null,
         buildDuration: duration,
       } as Parameters<typeof updateBuild>[1]);
@@ -169,7 +127,7 @@ async function processBuildJob(payload: BuildJobPayload): Promise<void> {
         JSON.stringify({
           buildId: buildRecord.id,
           runId: correlationRunId,
-          status: "failed",
+          status: BuildRecordStatus.FAILED,
           errorReport,
         }),
       );
@@ -206,10 +164,14 @@ async function processBuildJob(payload: BuildJobPayload): Promise<void> {
   } catch (error) {
     if (!handled) {
       const err = error instanceof Error ? error.message : String(error);
-      const { errorReport } = await createErrorReportIfPossible(sandboxId, err);
+      const { errorReport } = await createErrorReportIfPossible(
+        sandboxId,
+        err,
+        logger,
+      );
 
       await updateBuild(buildRecord.id, {
-        status: "failed",
+        status: BuildRecordStatus.FAILED,
         errorReport: errorReport as Record<string, unknown> | null,
       } as Parameters<typeof updateBuild>[1]).catch(() => {});
 
@@ -219,7 +181,7 @@ async function processBuildJob(payload: BuildJobPayload): Promise<void> {
           JSON.stringify({
             buildId: buildRecord.id,
             runId: correlationRunId,
-            status: "failed",
+            status: BuildRecordStatus.FAILED,
             errorReport,
           }),
         )
@@ -270,7 +232,9 @@ const buildWorker = new Worker<JobPayload>(
           { type: (payload as JobPayload).type },
           "[Worker] Unsupported payload type on build queue",
         );
-        throw new Error(`Unsupported build queue job type: ${(payload as JobPayload).type}`);
+        throw new Error(
+          `Unsupported build queue job type: ${(payload as JobPayload).type}`,
+        );
     }
   },
   {
@@ -289,7 +253,9 @@ const agentRunWorker = new Worker<JobPayload>(
         { type: (payload as JobPayload).type },
         "[Worker] Unsupported payload type on agent-run queue",
       );
-      throw new Error(`Unsupported agent-run queue job type: ${(payload as JobPayload).type}`);
+      throw new Error(
+        `Unsupported agent-run queue job type: ${(payload as JobPayload).type}`,
+      );
     }
 
     return processAgentRun(payload);
@@ -302,7 +268,10 @@ const agentRunWorker = new Worker<JobPayload>(
 
 const scheduledFlushInterval = setInterval(() => {
   void processScheduledFlushes().catch((error: unknown) =>
-    logger.error({ error }, "[Worker] Scheduled sandbox flush processing failed"),
+    logger.error(
+      { error },
+      "[Worker] Scheduled sandbox flush processing failed",
+    ),
   );
 }, 250);
 scheduledFlushInterval.unref();
@@ -355,8 +324,12 @@ async function gracefulShutdown() {
   process.exit(0);
 }
 
-process.on("SIGINT", gracefulShutdown);
-process.on("SIGTERM", gracefulShutdown);
+registerProcessHandlerOnce("worker:SIGINT", "SIGINT", () => {
+  void gracefulShutdown();
+});
+registerProcessHandlerOnce("worker:SIGTERM", "SIGTERM", () => {
+  void gracefulShutdown();
+});
 
 logger.info(
   {

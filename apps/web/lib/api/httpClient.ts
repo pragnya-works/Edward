@@ -183,10 +183,11 @@ function inferRateLimitScope(params: {
     return scopeFromMessage;
   }
 
-  if (
-    normalizedEndpoint === "/chat/message" ||
-    normalizedEndpoint === "/chat/image-upload"
-  ) {
+  if (normalizedEndpoint === "/chat/image-upload") {
+    return RATE_LIMIT_SCOPE.IMAGE_UPLOAD_BURST;
+  }
+
+  if (normalizedEndpoint === "/chat/message") {
     if (params.retryAfterMs > CHAT_BURST_WINDOW_MS) {
       return RATE_LIMIT_SCOPE.CHAT_DAILY;
     }

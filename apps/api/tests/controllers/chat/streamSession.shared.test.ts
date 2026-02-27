@@ -17,9 +17,10 @@ describe("buildAgentContinuationPrompt", () => {
     expect(result.truncated).toBe(false);
     expect(result.prompt).toContain("ORIGINAL REQUEST");
     expect(result.prompt).toContain("TOOL RESULTS");
+    expect(result.prompt).toContain("Do not ask the user to run commands");
   });
 
-  it("marks continuation as truncated when payload exceeds budget", () => {
+  it("keeps continuation prompt within budget for oversized payloads", () => {
     const veryLargeStdout = "x".repeat(MAX_AGENT_CONTINUATION_PROMPT_CHARS);
     const veryLargeUserText = "u".repeat(MAX_AGENT_CONTINUATION_PROMPT_CHARS);
     const veryLargePreviousResponse = "r".repeat(
@@ -39,10 +40,43 @@ describe("buildAgentContinuationPrompt", () => {
       ],
     );
 
-    expect(result.truncated).toBe(true);
+    expect(result.truncated).toBe(false);
     expect(result.prompt.length).toBeLessThanOrEqual(
       MAX_AGENT_CONTINUATION_PROMPT_CHARS + 20,
     );
     expect(result.prompt).toContain("...[truncated]");
+  });
+
+  it("sanitizes prior response tags before building continuation prompt", () => {
+    const result = buildAgentContinuationPrompt(
+      "fix the failing build",
+      `<Thinking>internal details</Thinking>
+<Response>I will check the logs next.</Response>
+<edward_command command="pnpm" args='["build"]'>`,
+      [],
+    );
+
+    expect(result.truncated).toBe(false);
+    expect(result.prompt).toContain("YOUR PREVIOUS RESPONSE (SANITIZED)");
+    expect(result.prompt).toContain("I will check the logs next.");
+    expect(result.prompt).not.toContain("<edward_command");
+    expect(result.prompt).not.toContain("internal details");
+  });
+
+  it("compacts oversized tool outputs in continuation prompt", () => {
+    const noisyOutput = `${"line\n".repeat(2_000)}end`;
+    const result = buildAgentContinuationPrompt("fix build", "Done", [
+      {
+        tool: "command",
+        command: "pnpm",
+        args: ["build"],
+        stdout: noisyOutput,
+        stderr: "",
+      },
+    ]);
+
+    expect(result.truncated).toBe(false);
+    expect(result.prompt).toContain("$ pnpm build");
+    expect(result.prompt).toContain("...[truncated]...");
   });
 });

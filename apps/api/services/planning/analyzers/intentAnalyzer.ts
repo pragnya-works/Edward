@@ -2,48 +2,53 @@ import { IntentAnalysisSchema, IntentAnalysis } from '../schemas.js';
 import { generateResponse } from '../../../lib/llm/provider.client.js';
 import { logger } from '../../../utils/logger.js';
 
-const ANALYSIS_SYSTEM_PROMPT = `You are a technical architect for a FRONTEND-ONLY development assistant. Analyze the user request and return a JSON object with this exact structure:
+const ANALYSIS_SYSTEM_PROMPT = `You are the intent classifier for a FRONTEND-ONLY assistant.
 
+Return ONLY a valid JSON object (no markdown, no commentary) with this exact shape:
 {
-  "action": "generate" | "fix" | "edit",
-  "type": "landing" | "dashboard" | "portfolio" | "ecommerce" | "blog" | "custom",
-  "complexity": "simple" | "moderate" | "complex",
-  "features": ["feature1", "feature2"],
-  "recommendedPackages": ["package-name"],
-  "suggestedFramework": "nextjs" | "vite-react" | "vanilla",
-  "reasoning": "Brief explanation"
+    "action": "generate" | "fix" | "edit",
+    "type": "landing" | "dashboard" | "portfolio" | "ecommerce" | "blog" | "custom",
+    "complexity": "simple" | "moderate" | "complex",
+    "features": ["frontend-feature"],
+    "recommendedPackages": ["package-name"],
+    "suggestedFramework": "nextjs" | "vite-react" | "vanilla",
+    "reasoning": "brief reason"
 }
 
-Action Rules:
-- "fix": If the user reports an error, bug, build failure, or something not working.
-- "edit": If the user wants to change, update, or add features to an existing project.
-- "generate": Default for new projects or complete regenerations.
+Rules (strict):
+1) Action:
+- fix: user reports bug/error/failure/not working
+- edit: user asks to modify existing project
+- generate: otherwise/default
 
-Framework Selection Rules (CRITICAL — follow strictly):
-- "vite-react": Use when the user says "react", "in react", "using react", "react app", or requests a component-driven SPA without mentioning Next.js. This is the DEFAULT for most apps.
-- "nextjs": Use ONLY when the user explicitly mentions "next", "next.js", "nextjs", or requests features that specifically require Next.js (SSR, server components, file-based routing with API routes).
-- "vanilla": Use when the user wants plain HTML/CSS/JS, no framework, or a simple static page without components.
-- When in doubt, prefer "vite-react" — it is lighter, faster, and sufficient for most frontend apps.
+2) Framework:
+- vite-react: default for most requests, especially when user says React without explicit Next.js
+- nextjs: ONLY when user explicitly asks Next.js/Next/nextjs OR needs Next-specific features (SSR, Server Components, file-based routing + API routes)
+- vanilla: plain HTML/CSS/JS or simple static page without framework
+- If unsure, choose vite-react
 
-CRITICAL RESTRICTIONS — REJECT if the request includes:
-- Backend/API development (API routes, GraphQL servers, REST endpoints)
-- Database setup (Prisma schema, migrations, queries)
-- Authentication backends (JWT generation, password hashing)
-- Server configuration (Express, Fastify, Node servers)
-- Infrastructure (Docker, CI/CD, deployment pipelines, Kubernetes)
-- DevOps tasks (GitHub Actions, Vercel deployment, server provisioning)
+3) Hard reject backend/infrastructure scope:
+- Backend APIs/servers (REST, GraphQL, Express, Fastify, Node server setup)
+- Databases (schema/migrations/queries, Prisma)
+- Auth backends (JWT issuing, password hashing)
+- Infra/DevOps (Docker, CI/CD, deployment pipelines, Kubernetes, provisioning)
 
-If the request is for backend/infrastructure work, set reasoning to "BACKEND_REQUEST_REJECTED" and use defaults for other fields.
+If backend/infrastructure is requested, return:
+- action: "generate"
+- type: "custom"
+- complexity: "moderate"
+- features: []
+- recommendedPackages: []
+- suggestedFramework: "vite-react"
+- reasoning: "BACKEND_REQUEST_REJECTED"
 
-Features should ONLY include frontend capabilities:
-- UI components, layouts, pages
-- Client-side state management
-- Forms and client-side validation
-- API consumption (fetching from external APIs)
-- Routing, navigation
-- Styling, animations, responsive design
-
-Respond with ONLY the JSON object.`;
+4) features must include ONLY frontend capabilities:
+- UI/layout/components/pages
+- client state
+- forms + client validation
+- consuming external APIs from frontend
+- routing/navigation
+- styling/animation/responsive behavior`;
 
 export async function analyzeIntent(input: string, apiKey: string): Promise<IntentAnalysis> {
     try {
@@ -52,7 +57,6 @@ export async function analyzeIntent(input: string, apiKey: string): Promise<Inte
             `Analyze this request: "${input}"`,
             [],
             ANALYSIS_SYSTEM_PROMPT,
-            { jsonMode: true }
         );
 
         const jsonMatch = response.match(/\{[\s\S]*\}/);
@@ -63,6 +67,7 @@ export async function analyzeIntent(input: string, apiKey: string): Promise<Inte
     } catch (error) {
         logger.warn(error, 'Intent analysis failed, using fallback');
         return IntentAnalysisSchema.parse({
+            action: 'generate',
             type: 'custom',
             complexity: 'moderate',
             features: [],

@@ -1,4 +1,4 @@
-import { IMAGE_UPLOAD_CONFIG } from "@edward/shared/constants";
+import { IMAGE_UPLOAD_CONFIG, PROMPT_INPUT_CONFIG } from "@edward/shared/constants";
 import { normalizeUserMessageText } from "@/lib/userMessageText";
 
 export type UploadableImageMimeType =
@@ -43,7 +43,10 @@ export async function filesToMessageContent(
   text: string,
   images: UploadedImage[],
 ): Promise<MessageContent> {
-  const normalizedText = normalizeUserMessageText(text);
+  const normalizedText = normalizeUserMessageText(text).slice(
+    0,
+    PROMPT_INPUT_CONFIG.MAX_CHARS,
+  );
   const uploadedImages = images
     .slice(0, IMAGE_UPLOAD_CONFIG.MAX_FILES)
     .map((image) => ({

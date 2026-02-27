@@ -38,4 +38,19 @@ describe("Agent loop command helpers", () => {
     expect(output).toContain("Answer: Official docs");
     expect(output).toContain("https://react.dev");
   });
+
+  it("formatCommandResults strips ANSI sequences from tool output", () => {
+    const output = formatCommandResults([
+      {
+        command: "pnpm",
+        args: ["build"],
+        stdout: "\u001b[31mfailed\u001b[39m",
+        stderr: "\u001b[90mline 1\u001b[39m",
+      },
+    ]);
+
+    expect(output).toContain("failed");
+    expect(output).toContain("line 1");
+    expect(output).not.toContain("\u001b[");
+  });
 });

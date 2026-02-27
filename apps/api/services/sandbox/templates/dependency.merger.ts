@@ -4,24 +4,28 @@ import { TIMEOUT_DEPENDENCY_INSTALL_MS } from '../utils.service.js';
 import { getSandboxState } from '../state.service.js';
 import { getFrameworkContract, validateFrameworkContract, type PackageJson } from './framework.contracts.js';
 import { Framework } from '../../planning/schemas.js';
+import {
+    normalizePackageSpecs,
+    toPackageName,
+} from '../../packages/packageSpec.js';
 
 function uniquePackages(packages: string[]): string[] {
-    return [...new Set(packages.map((pkg) => pkg.trim()).filter(Boolean))];
+    return normalizePackageSpecs(packages);
 }
 
 function hasRuntimeDependency(
     packageJson: PackageJson | null,
-    dep: string,
+    depName: string,
 ): boolean {
     if (!packageJson) return false;
 
-    return Boolean(packageJson.dependencies?.[dep]);
+    return Boolean(packageJson.dependencies?.[depName]);
 }
 
-function hasAnyDependency(packageJson: PackageJson | null, dep: string): boolean {
+function hasAnyDependency(packageJson: PackageJson | null, depName: string): boolean {
     if (!packageJson) return false;
 
-    return Boolean(packageJson.dependencies?.[dep] || packageJson.devDependencies?.[dep]);
+    return Boolean(packageJson.dependencies?.[depName] || packageJson.devDependencies?.[depName]);
 }
 
 function filterMissingDependencies(
@@ -32,9 +36,12 @@ function filterMissingDependencies(
 ): string[] {
     const dependencyExists = mode === 'runtime' ? hasRuntimeDependency : hasAnyDependency;
 
-    return packages.filter(
-        (dep) => !alreadyScheduled.has(dep) && !dependencyExists(packageJson, dep),
-    );
+    return packages.filter((depSpec) => {
+        const depName = toPackageName(depSpec);
+        if (!depName) return false;
+
+        return !alreadyScheduled.has(depName) && !dependencyExists(packageJson, depName);
+    });
 }
 
 async function readPackageJson(
@@ -96,7 +103,11 @@ export async function mergeAndInstallDependencies(
             new Set<string>(),
             'runtime',
         );
-        const runtimeInstallSet = new Set(runtimeDepsToInstall);
+        const runtimeInstallSet = new Set(
+            runtimeDepsToInstall
+                .map((dep) => toPackageName(dep))
+                .filter((name): name is string => Boolean(name)),
+        );
         const devDepsToInstall = filterMissingDependencies(
             allDevDeps,
             packageJsonBeforeInstall,
@@ -124,7 +135,11 @@ export async function mergeAndInstallDependencies(
                 TIMEOUT_DEPENDENCY_INSTALL_MS,
                 undefined,
                 CONTAINER_WORKDIR,
-                ['NEXT_TELEMETRY_DISABLED=1', 'CI=true']
+                [
+                    'NEXT_TELEMETRY_DISABLED=1',
+                    'CI=true',
+                    'NPM_CONFIG_ENGINE_STRICT=true',
+                ]
             );
 
             if (depsResult.exitCode !== 0) {
@@ -152,7 +167,11 @@ export async function mergeAndInstallDependencies(
                 TIMEOUT_DEPENDENCY_INSTALL_MS,
                 undefined,
                 CONTAINER_WORKDIR,
-                ['NEXT_TELEMETRY_DISABLED=1', 'CI=true']
+                [
+                    'NEXT_TELEMETRY_DISABLED=1',
+                    'CI=true',
+                    'NPM_CONFIG_ENGINE_STRICT=true',
+                ]
             );
 
             if (devResult.exitCode !== 0) {

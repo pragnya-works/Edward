@@ -68,6 +68,7 @@ export interface PromptbarAttachmentController {
   ) => Promise<{ url: string; mimeType: string; sizeBytes?: number }>;
   onImageUploadError?: (message: string) => void;
   disableImageUploads?: boolean;
+  imageUploadDisabledReason?: string;
 }
 
 export interface PromptbarApiKeyController {
@@ -126,6 +127,7 @@ export interface PromptbarLegacyProps {
   onCancel?: () => void;
   submissionDisabledReason?: string;
   disableImageUploads?: boolean;
+  imageUploadDisabledReason?: string;
 }
 
 export interface PromptbarControllerProps {

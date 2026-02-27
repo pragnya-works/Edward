@@ -13,7 +13,6 @@ import {
   CreateApiKeyResponse,
   UpdateApiKeyResponse,
   GetApiKeyResponse,
-  DeleteApiKeyResponse,
   ErrorResponse,
 } from "../../schemas/apiKey.schema.js";
 import { encrypt, decrypt } from "../../utils/encryption.js";
@@ -235,27 +234,6 @@ async function updateApiKeyHandler(
   });
 }
 
-async function deleteApiKeyHandler(
-  req: AuthenticatedRequest,
-  res: Response<DeleteApiKeyResponse | ErrorResponse>,
-): Promise<void> {
-  const userId = getAuthenticatedUserId(req);
-  const userData = await getUserWithApiKey(userId);
-
-  if (!userData) {
-    sendError(res, HttpStatus.NOT_FOUND, "User not found");
-    return;
-  }
-
-  await db
-    .update(user)
-    .set({ apiKey: null, updatedAt: new Date() })
-    .where(eq(user.id, userData.id));
-
-  sendSuccess(res, HttpStatus.OK, "API key deleted successfully");
-}
-
 export const getApiKey = asyncHandler(getApiKeyHandler);
 export const createApiKey = asyncHandler(createApiKeyHandler);
 export const updateApiKey = asyncHandler(updateApiKeyHandler);
-export const deleteApiKey = asyncHandler(deleteApiKeyHandler);

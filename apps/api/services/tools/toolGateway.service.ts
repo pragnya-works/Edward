@@ -179,6 +179,77 @@ function truncateWithMarker(content: string, maxChars: number): string {
   return `${content.slice(0, maxChars)}\n...[truncated]`;
 }
 
+const ANSI_ESCAPE_SEQUENCE_PATTERN = new RegExp(
+  `[${String.fromCharCode(0x1b)}${String.fromCharCode(0x9b)}][[\\]()#;?]*(?:(?:(?:[a-zA-Z\\d]*(?:;[a-zA-Z\\d]*)*)?${String.fromCharCode(0x07)})|(?:(?:\\d{1,4}(?:;\\d{0,4})*)?[\\dA-PRZcf-ntqry=><~]))`,
+  "g"
+);
+const MAX_STDIO_SANITIZE_INPUT_CHARS = MAX_TOOL_STDIO_CHARS * 2;
+
+function collapseRepeatedLines(input: string, maxConsecutive = 3): string {
+  const lines = input.split("\n");
+  const compacted: string[] = [];
+
+  for (let index = 0; index < lines.length;) {
+    const currentLine = lines[index] ?? "";
+    let runLength = 1;
+    while (
+      index + runLength < lines.length &&
+      lines[index + runLength] === currentLine
+    ) {
+      runLength += 1;
+    }
+
+    if (runLength <= maxConsecutive) {
+      for (let offset = 0; offset < runLength; offset += 1) {
+        compacted.push(currentLine);
+      }
+    } else {
+      for (let offset = 0; offset < maxConsecutive; offset += 1) {
+        compacted.push(currentLine);
+      }
+      compacted.push(`...[line repeated ${runLength - maxConsecutive} more times]`);
+    }
+
+    index += runLength;
+  }
+
+  return compacted.join("\n");
+}
+
+function sanitizeCommandOutput(content: string): string {
+  if (!content) {
+    return "";
+  }
+
+  const withoutAnsi = content.replace(ANSI_ESCAPE_SEQUENCE_PATTERN, "");
+  const normalizedNewlines = withoutAnsi.replace(/\r\n?/g, "\n");
+  return collapseRepeatedLines(normalizedNewlines).trimEnd();
+}
+
+function dedupeStdStreams(
+  stdout: string,
+  stderr: string,
+  exitCode: number,
+): { stdout: string; stderr: string } {
+  if (!stdout || !stderr) {
+    return { stdout, stderr };
+  }
+
+  if (stdout === stderr) {
+    return exitCode === 0 ? { stdout, stderr: "" } : { stdout: "", stderr };
+  }
+
+  if (stdout.length >= 120 && stderr.includes(stdout)) {
+    return exitCode === 0 ? { stdout, stderr: "" } : { stdout: "", stderr };
+  }
+
+  if (stderr.length >= 120 && stdout.includes(stderr)) {
+    return exitCode === 0 ? { stdout, stderr: "" } : { stdout: "", stderr };
+  }
+
+  return { stdout, stderr };
+}
+
 export interface CommandToolOutput {
   exitCode: number;
   stdout: string;
@@ -206,10 +277,21 @@ export async function executeCommandTool(params: {
         command: params.command,
         args: params.args,
       });
+      const boundedStdout = truncateWithMarker(
+        raw.stdout ?? "",
+        MAX_STDIO_SANITIZE_INPUT_CHARS,
+      );
+      const boundedStderr = truncateWithMarker(
+        raw.stderr ?? "",
+        MAX_STDIO_SANITIZE_INPUT_CHARS,
+      );
+      const stdout = sanitizeCommandOutput(boundedStdout);
+      const stderr = sanitizeCommandOutput(boundedStderr);
+      const deduped = dedupeStdStreams(stdout, stderr, raw.exitCode ?? 0);
       return {
         exitCode: raw.exitCode ?? 0,
-        stdout: truncateWithMarker(raw.stdout ?? "", MAX_TOOL_STDIO_CHARS),
-        stderr: truncateWithMarker(raw.stderr ?? "", MAX_TOOL_STDIO_CHARS),
+        stdout: truncateWithMarker(deduped.stdout, MAX_TOOL_STDIO_CHARS),
+        stderr: truncateWithMarker(deduped.stderr, MAX_TOOL_STDIO_CHARS),
       };
     },
   });

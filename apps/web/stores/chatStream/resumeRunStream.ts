@@ -113,6 +113,7 @@ export function createResumeRunStream({
             resolvedChatId = realChatId;
           },
         });
+        const hasFatalStreamError = Boolean(streamResult?.fatalError);
 
         if (isLatestMutationForChat(resolvedChatId, mutationId)) {
           dispatch({
@@ -124,15 +125,20 @@ export function createResumeRunStream({
             queryKey: queryKeys.chatHistory.byChatId(resolvedChatId),
           });
           void queryClient.invalidateQueries({
+            queryKey: queryKeys.activeRun.byChatId(resolvedChatId),
+          });
+          void queryClient.invalidateQueries({
             queryKey: queryKeys.recentChats.all,
           });
 
           if (streamResult) {
             clearCursor(resolvedChatId, runId);
-            dispatch({
-              type: StreamActionType.REMOVE_STREAM,
-              chatId: resolvedChatId,
-            });
+            if (!hasFatalStreamError) {
+              dispatch({
+                type: StreamActionType.REMOVE_STREAM,
+                chatId: resolvedChatId,
+              });
+            }
           }
         }
       } catch (error) {

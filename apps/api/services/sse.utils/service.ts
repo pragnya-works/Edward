@@ -3,6 +3,7 @@ import {
   ParserEventType,
   STREAM_EVENT_VERSION,
   type ErrorEvent,
+  type StreamErrorSeverity,
   type StreamEvent,
 } from "@edward/shared/streamEvents";
 
@@ -209,13 +210,27 @@ export function sendSSEEventWithId(
 export function sendSSEError(
   res: Response,
   message: string,
-  options?: Partial<Pick<ErrorEvent, "code" | "details">>,
+  options?: Partial<Pick<ErrorEvent, "code" | "details">> & {
+    severity?: StreamErrorSeverity;
+  },
 ): boolean {
   return sendSSEEvent(res, {
     type: ParserEventType.ERROR,
     message,
     code: options?.code,
     details: options?.details,
+    severity: options?.severity,
+  });
+}
+
+export function sendSSERecoverableError(
+  res: Response,
+  message: string,
+  options?: Partial<Pick<ErrorEvent, "code" | "details">>,
+): boolean {
+  return sendSSEError(res, message, {
+    ...options,
+    severity: "recoverable",
   });
 }
 

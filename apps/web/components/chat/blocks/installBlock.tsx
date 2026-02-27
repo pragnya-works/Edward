@@ -14,6 +14,7 @@ export const InstallBlock = memo(function InstallBlock({
   isActive = false,
 }: InstallBlockProps) {
   if (dependencies.length === 0) return null;
+  const seenDependencyOccurrences = new Map<string, number>();
 
   return (
     <m.div
@@ -54,17 +55,23 @@ export const InstallBlock = memo(function InstallBlock({
       </div>
 
       <div className="flex flex-wrap gap-1 sm:gap-1.5">
-        {dependencies.map((dep, i) => (
-          <m.div
-            key={dep}
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: i * 0.05, duration: 0.15 }}
-            className="px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-md bg-foreground/[0.08] dark:bg-foreground/[0.04] border border-border/30 text-[10px] sm:text-[11px] font-mono text-foreground/70 dark:text-muted-foreground/70"
-          >
-            {dep}
-          </m.div>
-        ))}
+        {dependencies.map((dep, i) => {
+          const occurrence = seenDependencyOccurrences.get(dep) ?? 0;
+          seenDependencyOccurrences.set(dep, occurrence + 1);
+          const stableKey = occurrence === 0 ? dep : `${dep}::${occurrence}`;
+
+          return (
+            <m.div
+              key={stableKey}
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: i * 0.05, duration: 0.15 }}
+              className="px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-md bg-foreground/[0.08] dark:bg-foreground/[0.04] border border-border/30 text-[10px] sm:text-[11px] font-mono text-foreground/70 dark:text-muted-foreground/70"
+            >
+              {dep}
+            </m.div>
+          );
+        })}
       </div>
     </m.div>
   );

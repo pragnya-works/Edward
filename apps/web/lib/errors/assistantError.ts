@@ -92,6 +92,24 @@ function buildFallbackError(
   }
 
   if (
+    normalizedCode.includes("temporarily_unavailable") ||
+    normalizedCode.includes("service_unavailable") ||
+    /\b(503|service unavailable|high demand|temporarily unavailable|try again later|overloaded|capacity)\b/i.test(
+      normalizedMessage,
+    )
+  ) {
+    return {
+      code: code || "provider_temporarily_unavailable",
+      title: "Provider temporarily unavailable",
+      message:
+        "The model provider is currently under high demand. Wait a moment and retry.",
+      severity: "caution",
+      cta: { type: "retry_generation", label: "Try again" },
+      rawMessage: normalizedMessage,
+    };
+  }
+
+  if (
     normalizedCode.includes("auth") ||
     normalizedCode.includes("api_key") ||
     /\b(401|403|unauthorized|forbidden|authentication|invalid api key|api key)\b/i.test(
@@ -202,7 +220,7 @@ function shouldTreatAsLegacyError(content: string): boolean {
   const providerErrorSignature =
     /\[(googlegenerativeai|openai)[^\]]*error\]/i.test(trimmed);
   const hasActionableSignal =
-    /\b(429|rate limit|quota|api key|unauthorized|forbidden|context window|max tokens|timeout|timed out)\b/i.test(
+    /\b(429|503|rate limit|quota|high demand|service unavailable|temporarily unavailable|api key|unauthorized|forbidden|context window|max tokens|timeout|timed out)\b/i.test(
       trimmed,
     );
 

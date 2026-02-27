@@ -10,9 +10,10 @@ import { BuildStatus, SandboxMode } from "@/stores/sandbox/types";
 import { GithubIntegrationBar } from "@/components/chat/sandbox/githubIntegrationBar";
 
 export function SandboxHeader() {
-  const { projectName } = useChatWorkspaceContext();
+  const { projectName, stream } = useChatWorkspaceContext();
   const { mode, files, buildStatus, isStreaming, setMode, closeSandbox } =
     useSandbox();
+  const isInstallingDependencies = stream.installingDeps.length > 0;
 
   return (
     <div className="flex items-center justify-between gap-2.5 px-3 md:px-4 py-2.5 border-b border-workspace-border bg-workspace-sidebar text-workspace-header-fg shrink-0">
@@ -55,6 +56,7 @@ export function SandboxHeader() {
           </span>
           <div className="flex items-center gap-1.5 leading-none">
             {isStreaming ||
+              isInstallingDependencies ||
               buildStatus === BuildStatus.QUEUED ||
               buildStatus === BuildStatus.BUILDING ||
               (files.length === 0 && buildStatus === BuildStatus.IDLE) ||
@@ -93,6 +95,8 @@ export function SandboxHeader() {
                     ? "Error"
                     : isStreaming
                       ? "Coding"
+                      : isInstallingDependencies
+                        ? "Installing"
                       : buildStatus === BuildStatus.QUEUED
                         ? "Queued"
                         : buildStatus === BuildStatus.BUILDING

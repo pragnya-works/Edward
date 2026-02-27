@@ -1,133 +1,68 @@
 "use client";
 
-import { useCallback, useMemo } from "react";
+import { useCallback } from "react";
 import { m } from "motion/react";
-import { User } from "lucide-react";
 import { EdwardAvatar } from "./avatars";
-import { MessageMetrics } from "./streamMetrics";
-import { cn } from "@edward/ui/lib/utils";
+import {
+  CopyMessageButton,
+  MessageFooter,
+  UserAvatar,
+  UserMessageBody,
+} from "./chatMessage.parts";
+import {
+  USER_MESSAGE_COLLAPSE_MAX_HEIGHT_PX,
+  useMessageCopy,
+  useParsedChatMessage,
+  useUserMessageVisibility,
+} from "./chatMessage.model";
 import { useChatWorkspaceContext } from "@/components/chat/chatWorkspaceContext";
+import { AssistantErrorCard } from "@/components/chat/blocks/assistantErrorCard";
+import { MessageBlockRenderer } from "@/components/chat/messages/messageBlockRenderer";
 import type { ChatMessage as ChatMessageType } from "@edward/shared/chat/types";
 import { ChatRole } from "@edward/shared/chat/types";
-import { MessageContentPartType } from "@/lib/api/messageContent";
-import {
-  MessageBlockType,
-  parseMessageContent,
-  type MessageBlock,
-} from "@/lib/parsing/messageParser";
-import { parseAssistantErrorMessage } from "@/lib/errors/assistantError";
-import { AssistantErrorCard } from "@/components/chat/blocks/assistantErrorCard";
-import { ImageAttachmentGrid } from "@/components/chat/messages/imageAttachmentGrid";
-import { MarkdownRenderer } from "@/components/chat/messages/markdownRenderer";
-import { MessageBlockRenderer } from "@/components/chat/messages/messageBlockRenderer";
-import {
-  isImageOnlyPlaceholderText,
-  normalizeUserMessageText,
-} from "@/lib/userMessageText";
+import { cn } from "@edward/ui/lib/utils";
 
 interface ChatMessageProps {
   message: ChatMessageType;
   index: number;
 }
 
-function formatTime(dateStr: string): string {
-  const date = new Date(dateStr);
-  return date.toLocaleTimeString("en-US", {
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: true,
-  });
-}
-
-function UserAvatar() {
-  return (
-    <div className="h-6 w-6 sm:h-7 sm:w-7 rounded-lg bg-foreground/[0.08] flex items-center justify-center shrink-0">
-      <User className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-muted-foreground" />
-    </div>
-  );
-}
-
 export function ChatMessage({
   message,
   index,
 }: ChatMessageProps) {
-  const {
-    onRetryAssistantMessage,
-    retryDisabled,
-  } = useChatWorkspaceContext();
+  const { onRetryAssistantMessage, retryDisabled } = useChatWorkspaceContext();
 
   const isUser = message.role === ChatRole.USER;
-  const time = useMemo(
-    () => formatTime(message.createdAt),
-    [message.createdAt],
-  );
-  const content = message.content || "";
-
-  const displayContent = useMemo(() => {
-    if (!isUser) {
-      return content;
-    }
-
-    let normalized = content;
-    if (content.startsWith("[")) {
-      try {
-        const parsed = JSON.parse(content) as Array<{
-          type: string;
-          text?: string;
-        }>;
-        if (Array.isArray(parsed)) {
-          normalized = parsed
-            .filter((p) => p.type === MessageContentPartType.TEXT && p.text)
-            .map((p) => p.text)
-            .join("\n");
-        }
-      } catch {
-        normalized = content;
-      }
-    }
-
-    return normalizeUserMessageText(normalized);
-  }, [content, isUser]);
-
-  const shouldShowUserText = useMemo(() => {
-    if (!isUser || !displayContent) {
-      return false;
-    }
-
-    const hasAttachments = (message.attachments?.length ?? 0) > 0;
-    if (hasAttachments && isImageOnlyPlaceholderText(displayContent)) {
-      return false;
-    }
-
-    return true;
-  }, [displayContent, isUser, message.attachments]);
-
-  const assistantError = useMemo(() => {
-    if (isUser) return null;
-    return parseAssistantErrorMessage(displayContent);
-  }, [displayContent, isUser]);
-
-  const blocks = useMemo(() => {
-    if (isUser || assistantError) return null;
-    return parseMessageContent(displayContent ?? "");
-  }, [assistantError, displayContent, isUser]);
-
-  const sandboxBlock = useMemo(
-    () => blocks?.find((b) => b.type === MessageBlockType.SANDBOX),
-    [blocks],
-  );
-  const fileBlocks = useMemo(
-    () =>
-      blocks?.filter(
-        (
-          block,
-        ): block is Extract<MessageBlock, { type: MessageBlockType.FILE }> =>
-          block.type === MessageBlockType.FILE,
-      ) ?? [],
-    [blocks],
-  );
-  const hasFiles = fileBlocks.length > 0 || !!sandboxBlock;
-  const showFooterButton = hasFiles && !sandboxBlock;
+  const {
+    time,
+    displayContent,
+    shouldShowUserText,
+    assistantError,
+    blocks,
+    fileBlocks,
+    showFooterButton,
+  } = useParsedChatMessage(message, isUser);
+  const {
+    userMessageContentRef,
+    isUserMessageExpanded,
+    setIsUserMessageExpanded,
+    canToggleUserMessage,
+    shouldClampUserMessage,
+  } = useUserMessageVisibility({
+    messageId: message.id,
+    displayContent,
+    isUser,
+    shouldShowUserText,
+  });
+  const { isCopied, canCopyMessage, handleCopyMessage } = useMessageCopy({
+    isUser,
+    displayContent,
+    shouldShowUserText,
+    attachments: message.attachments,
+    assistantError,
+    blocks,
+  });
 
   const handleRetry = useCallback((): boolean => {
     if (!onRetryAssistantMessage || message.role !== ChatRole.ASSISTANT) {
@@ -135,6 +70,14 @@ export function ChatMessage({
     }
     return onRetryAssistantMessage(message.id);
   }, [message.id, message.role, onRetryAssistantMessage]);
+
+  const copyButton = (
+    <CopyMessageButton
+      isCopied={isCopied}
+      canCopyMessage={canCopyMessage}
+      onCopy={handleCopyMessage}
+    />
+  );
 
   return (
     <m.div
@@ -169,17 +112,19 @@ export function ChatMessage({
           )}
         >
           {isUser ? (
-            <div className="flex flex-col gap-2">
-              {message.attachments && message.attachments.length > 0 && (
-                <ImageAttachmentGrid attachments={message.attachments} />
-              )}
-              {shouldShowUserText && (
-                <MarkdownRenderer
-                  content={displayContent}
-                  className="text-[14px] sm:text-[15px] leading-[1.7] sm:leading-[1.8] tracking-tight font-medium [&_p]:mb-0"
-                />
-              )}
-            </div>
+            <UserMessageBody
+              attachments={message.attachments}
+              shouldShowUserText={shouldShowUserText}
+              shouldClampUserMessage={shouldClampUserMessage}
+              canToggleUserMessage={canToggleUserMessage}
+              isUserMessageExpanded={isUserMessageExpanded}
+              displayContent={displayContent}
+              userMessageContentRef={userMessageContentRef}
+              collapseMaxHeightPx={USER_MESSAGE_COLLAPSE_MAX_HEIGHT_PX}
+              onToggleExpanded={() =>
+                setIsUserMessageExpanded((prev) => !prev)
+              }
+            />
           ) : assistantError ? (
             <AssistantErrorCard
               error={assistantError}
@@ -195,34 +140,14 @@ export function ChatMessage({
           )}
         </div>
 
-        <div
-          className={cn(
-            "flex flex-wrap items-center gap-x-2 gap-y-1 mt-1.5 sm:mt-2 px-1",
-            isUser ? "flex-row-reverse" : "flex-row",
-          )}
-        >
-          {isUser && (
-            <span className="text-[9px] sm:text-[10px] font-bold text-foreground/40 uppercase tracking-widest select-none leading-none shrink-0">
-              You
-            </span>
-          )}
-          {!isUser && (
-            <span className="text-[9px] sm:text-[10px] font-bold text-foreground/40 uppercase tracking-widest select-none leading-none shrink-0">
-              Edward
-            </span>
-          )}
-          <span className="w-1 h-1 rounded-full bg-foreground/[0.05] shrink-0" />
-          <span className="text-[9px] sm:text-[10px] font-mono text-muted-foreground/40 select-none leading-none shrink-0">
-            {time}
-          </span>
-          {!isUser && (
-            <MessageMetrics
-              completionTime={message.completionTime}
-              inputTokens={message.inputTokens}
-              outputTokens={message.outputTokens}
-            />
-          )}
-        </div>
+        <MessageFooter
+          isUser={isUser}
+          time={time}
+          copyButton={copyButton}
+          completionTime={message.completionTime}
+          inputTokens={message.inputTokens}
+          outputTokens={message.outputTokens}
+        />
       </div>
     </m.div>
   );

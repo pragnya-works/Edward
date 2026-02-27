@@ -2,42 +2,50 @@ import OpenAI from "openai";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { Provider, API_KEY_REGEX } from "@edward/shared/constants";
 import { composePrompt, type ComposeOptions } from "./compose.js";
-import { createLogger } from "../../utils/logger.js";
 import { ensureError } from "../../utils/error.js";
+import { createLogger } from "../../utils/logger.js";
 import type { ChatAction } from "../../services/planning/schemas.js";
 import type { LlmChatMessage } from "./context.js";
 import { MessageRole } from "@edward/auth";
-import { normalizeConversationRole, toGeminiRole } from "./messageRole.js";
-import {
-  DEFAULT_OPENAI_MODEL,
-  DEFAULT_GEMINI_MODEL,
-} from "@edward/shared/schema";
-import type { LlmConversationRole } from "./messageRole.js";
+import { toGeminiRole } from "./messageRole.js";
 import {
   isMultimodalContent,
-  formatContentForOpenAI,
   formatContentForGemini,
 } from "./types.js";
-import type { MessageContent } from "@edward/shared/llm/types";
-
-const logger = createLogger("LLM");
+import {
+  buildJsonModeInput,
+  buildLegacyCompletionPrompt,
+  buildOpenAIResponseInput,
+  extractOpenAIOutputTextDelta,
+  getLegacyCompletionsMaxTokens,
+  hasTrimmedText,
+  isAbortSignalError,
+  isLegacyCompletionsHint,
+  normalizeMessages,
+  resolveModelForProvider,
+} from "./provider.helpers.js";
 
 const GENERATION_CONFIG = {
   temperature: 0.2,
   topP: 0.95,
   geminiMaxOutputTokens: 65536,
 } as const;
+const logger = createLogger("LLM");
+const IS_OPENAI_PROVIDER: Record<Provider, boolean> = {
+  [Provider.OPENAI]: true,
+  [Provider.GEMINI]: false,
+};
 
 function getClient(apiKey: string, modelOverride?: string) {
   if (API_KEY_REGEX[Provider.OPENAI].test(apiKey)) {
-    const model = modelOverride || DEFAULT_OPENAI_MODEL;
+    const model = resolveModelForProvider(Provider.OPENAI, modelOverride);
     return {
       type: Provider.OPENAI,
       client: new OpenAI({ apiKey }),
       model,
     };
   } else if (API_KEY_REGEX[Provider.GEMINI].test(apiKey)) {
-    const model = modelOverride || DEFAULT_GEMINI_MODEL;
+    const model = resolveModelForProvider(Provider.GEMINI, modelOverride);
     return {
       type: Provider.GEMINI,
       client: new GoogleGenerativeAI(apiKey),
@@ -50,27 +58,6 @@ function getClient(apiKey: string, modelOverride?: string) {
   }
 }
 
-interface NormalizedMessage {
-  role: LlmConversationRole;
-  content: MessageContent;
-}
-
-function normalizeMessages(messages: LlmChatMessage[]): NormalizedMessage[] {
-  const result: NormalizedMessage[] = [];
-
-  for (const m of messages || []) {
-    if (!m) continue;
-    const role = normalizeConversationRole((m as { role?: unknown }).role);
-    if (!role) continue;
-
-    const content = m.content;
-    if (typeof content === "string" && content.trim().length === 0) continue;
-    if (Array.isArray(content) && content.length === 0) continue;
-    result.push({ role, content });
-  }
-
-  return result;
-}
 
 export async function* streamResponse(
   apiKey: string,
@@ -81,9 +68,10 @@ export async function* streamResponse(
   framework?: string,
   complexity?: string,
   mode?: ChatAction,
+  promptProfile?: ComposeOptions["profile"],
   modelOverride?: string,
 ): AsyncGenerator<string> {
-  if (!apiKey || typeof apiKey !== "string" || apiKey.trim().length === 0) {
+  if (!hasTrimmedText(apiKey)) {
     throw new Error("Invalid API key: API key must be a non-empty string");
   }
 
@@ -103,52 +91,58 @@ export async function* streamResponse(
       complexity: (complexity || "moderate") as ComposeOptions["complexity"],
       verifiedDependencies,
       mode,
+      profile: promptProfile,
     });
 
   try {
-    if (type === Provider.OPENAI) {
+    if (IS_OPENAI_PROVIDER[type]) {
       const openai = client as OpenAI;
+      const input = buildOpenAIResponseInput(normalized);
 
-      const openaiMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] =
-        [{ role: MessageRole.System, content: fullSystemPrompt }];
+      try {
+        const stream = await openai.responses.create(
+          {
+            model,
+            instructions: fullSystemPrompt,
+            input,
+            stream: true,
+          },
+          { signal },
+        );
 
-      for (const msg of normalized) {
-        const openaiRole = msg.role as "user" | "assistant";
-        const formattedContent = isMultimodalContent(msg.content)
-          ? formatContentForOpenAI(msg.content)
-          : msg.content;
-
-        if (openaiRole === "user") {
-          openaiMessages.push({
-            role: "user",
-            content: formattedContent,
-          });
-        } else {
-          openaiMessages.push({
-            role: "assistant",
-            content:
-              typeof formattedContent === "string"
-                ? formattedContent
-                : formattedContent
-                    .map((p) => (p.type === "text" ? p.text : ""))
-                    .join(""),
-          });
+        for await (const event of stream) {
+          if (signal?.aborted) break;
+          const delta = extractOpenAIOutputTextDelta(event);
+          if (delta) {
+            yield delta;
+          }
         }
-      }
+      } catch (error) {
+        if (!isLegacyCompletionsHint(error)) {
+          throw error;
+        }
 
-      const stream = await openai.chat.completions.create(
-        {
-          model,
-          messages: openaiMessages,
-          stream: true,
-        },
-        { signal },
-      );
+        logger.warn(
+          { model },
+          "Falling back to OpenAI legacy completions endpoint for this model",
+        );
 
-      for await (const chunk of stream) {
-        if (signal?.aborted) break;
-        const text = chunk.choices[0]?.delta?.content || "";
-        if (text) yield text;
+        const prompt = buildLegacyCompletionPrompt(fullSystemPrompt, normalized);
+        const stream = await openai.completions.create(
+          {
+            model,
+            prompt,
+            max_tokens: getLegacyCompletionsMaxTokens(model),
+            stream: true,
+          },
+          { signal },
+        );
+
+        for await (const chunk of stream) {
+          if (signal?.aborted) break;
+          const text = chunk.choices[0]?.text || "";
+          if (text) yield text;
+        }
       }
     } else {
       const genAI = client as GoogleGenerativeAI;
@@ -189,7 +183,7 @@ export async function* streamResponse(
     }
   } catch (error: unknown) {
     const err = ensureError(error);
-    if (err.name === "AbortError" || signal?.aborted) {
+    if (isAbortSignalError(err, signal)) {
       logger.info("LLM stream aborted by client");
       return;
     }
@@ -205,11 +199,11 @@ export async function generateResponse(
   customSystemPrompt?: string,
   options?: { jsonMode?: boolean; model?: string },
 ): Promise<string> {
-  if (!apiKey || typeof apiKey !== "string" || apiKey.trim().length === 0) {
+  if (!hasTrimmedText(apiKey)) {
     throw new Error("Invalid API key: API key must be a non-empty string");
   }
 
-  if (!content || typeof content !== "string" || content.trim().length === 0) {
+  if (!hasTrimmedText(content)) {
     throw new Error("Invalid content: Content must be a non-empty string");
   }
 
@@ -224,17 +218,49 @@ export async function generateResponse(
   const jsonMode = options?.jsonMode ?? false;
 
   try {
-    if (type === Provider.OPENAI) {
+    if (IS_OPENAI_PROVIDER[type]) {
       const openai = client as OpenAI;
-      const completion = await openai.chat.completions.create({
-        model,
-        messages: [
-          { role: MessageRole.System, content: fullSystemPrompt },
-          { role: MessageRole.User, content },
-        ],
-        ...(jsonMode && { response_format: { type: "json_object" } }),
-      });
-      return completion.choices[0]?.message?.content || "";
+      const inputText = jsonMode ? buildJsonModeInput(content) : content;
+
+      try {
+        const response = await openai.responses.create({
+          model,
+          instructions: fullSystemPrompt,
+          input: [
+            {
+              type: "message",
+              role: "user",
+              content: [{ type: "input_text", text: inputText }],
+            },
+          ],
+          ...(jsonMode && { text: { format: { type: "json_object" } } }),
+        });
+
+        return response.output_text || "";
+      } catch (error) {
+        if (!isLegacyCompletionsHint(error)) {
+          throw error;
+        }
+
+        logger.warn(
+          { model },
+          "Falling back to OpenAI legacy completions endpoint for this model",
+        );
+
+        const prompt = buildLegacyCompletionPrompt(
+          fullSystemPrompt,
+          [{ role: MessageRole.User, content }],
+          { jsonMode },
+        );
+
+        const completion = await openai.completions.create({
+          model,
+          prompt,
+          max_tokens: getLegacyCompletionsMaxTokens(model),
+        });
+
+        return completion.choices[0]?.text || "";
+      }
     } else {
       const genAI = client as GoogleGenerativeAI;
 

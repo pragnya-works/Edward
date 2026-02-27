@@ -171,7 +171,7 @@ export function BYOK(props: BYOKProps) {
         if (!open) onClose();
       }}
     >
-      <DialogContent className="max-w-[440px] w-[95vw] p-0 overflow-hidden border-border/40 dark:border-white/[0.1] gap-0 max-h-[calc(100dvh-2rem)] flex flex-col shadow-2xl dark:shadow-black/60 dark:bg-[oklch(0.185_0_0)]">
+      <DialogContent className="max-w-[440px] w-[95vw] p-0 overflow-hidden border-border/40 dark:border-white/[0.1] gap-0 h-[calc(100dvh-2rem)] max-h-[760px] flex flex-col shadow-2xl dark:shadow-black/60 dark:bg-[oklch(0.185_0_0)]">
         <BYOKHeader
           hasExistingKey={hasExistingKey}
           keyPreview={keyPreview}

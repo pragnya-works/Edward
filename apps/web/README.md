@@ -28,6 +28,7 @@ pnpm --filter web typecheck
 Copy `apps/web/.env.example` to `.env.local` and set values.
 
 Common keys:
+- `NEXT_PUBLIC_SITE_URL` (recommended for canonical metadata/sitemap host)
 - `NEXT_PUBLIC_API_URL`
 - `NEXT_PUBLIC_BETTER_AUTH_URL`
 - `DATABASE_URL`

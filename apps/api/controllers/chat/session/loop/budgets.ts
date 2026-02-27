@@ -36,12 +36,12 @@ export function updateToolBudgetState(
   toolResultsThisTurn: AgentToolResult[],
   totalToolCallsInRun: number,
 ): void {
-  if (toolResultsThisTurn.length >= MAX_AGENT_TOOL_CALLS_PER_TURN) {
+  if (toolResultsThisTurn.length > MAX_AGENT_TOOL_CALLS_PER_TURN) {
     state.toolBudgetExceededThisTurn = true;
     return;
   }
 
-  if (totalToolCallsInRun >= MAX_AGENT_TOOL_CALLS_PER_RUN) {
+  if (totalToolCallsInRun > MAX_AGENT_TOOL_CALLS_PER_RUN) {
     state.toolRunBudgetExceededThisTurn = true;
     return;
   }
