@@ -7,6 +7,7 @@ import { LazyMotion, MotionConfig, domAnimation } from "motion/react";
 import { ChatStreamProvider } from "@/contexts/chatStreamContext";
 import { SandboxProvider } from "@/contexts/sandboxContext";
 import { Toaster } from "@edward/ui/components/sonner";
+import { NotificationManagerProvider } from "@/components/notifications/notificationManagerProvider";
 
 function makeQueryClient() {
   return new QueryClient({
@@ -37,8 +38,10 @@ export function Providers({ children }: { children: ReactNode }) {
           <QueryClientProvider client={queryClient}>
             <ChatStreamProvider>
               <SandboxProvider>
-                {children}
-                <Toaster />
+                <NotificationManagerProvider>
+                  {children}
+                  <Toaster />
+                </NotificationManagerProvider>
               </SandboxProvider>
             </ChatStreamProvider>
           </QueryClientProvider>
@@ -47,3 +50,4 @@ export function Providers({ children }: { children: ReactNode }) {
     </NextThemesProvider>
   );
 }
+

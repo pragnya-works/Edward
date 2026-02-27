@@ -6,6 +6,12 @@ import {
 } from "./skills/index.js";
 import { Framework, ChatAction } from "../../services/planning/schemas.js";
 import {
+  REQUIRED_CSS_IMPORTS,
+  REQUIRED_ENTRY_POINTS,
+  REQUIRED_GENERATE_PROJECT_FILES,
+  REQUIRED_GENERATE_PROJECT_FILES_BY_FRAMEWORK,
+} from "../../services/planning/validators/postgenValidator.constants.js";
+import {
   PromptProfile,
   type PromptProfile as PromptProfileType,
 } from "./prompts/sections.js";
@@ -39,6 +45,57 @@ function buildSkillContext(options: ComposeOptions): SkillSelectionContext {
   };
 }
 
+function buildPostgenOutputContract(
+  framework: Framework,
+  mode: (typeof ChatAction)[keyof typeof ChatAction],
+): string | null {
+  const requiredEntrypoints = REQUIRED_ENTRY_POINTS[framework] ?? [];
+  const cssRule = REQUIRED_CSS_IMPORTS[framework];
+  const requiredGenerateFiles =
+    mode === ChatAction.GENERATE
+      ? [
+          ...REQUIRED_GENERATE_PROJECT_FILES,
+          ...(REQUIRED_GENERATE_PROJECT_FILES_BY_FRAMEWORK[framework] ?? []),
+        ]
+      : [];
+
+  if (
+    requiredEntrypoints.length === 0 &&
+    !cssRule &&
+    requiredGenerateFiles.length === 0
+  ) {
+    return null;
+  }
+
+  const lines: string[] = [
+    "[POSTGEN OUTPUT CONTRACT - HARD REQUIREMENT]",
+    "Do not rely on template defaults. Required files must be explicitly present in <edward_sandbox> output.",
+  ];
+
+  if (requiredEntrypoints.length > 0) {
+    lines.push("Required entry files:");
+    for (const filePath of requiredEntrypoints) {
+      lines.push(`- ${filePath}`);
+    }
+  }
+
+  if (cssRule) {
+    lines.push("Required CSS wiring:");
+    lines.push(
+      `- ${cssRule.file} must import the framework CSS entry file (validated postgen).`,
+    );
+  }
+
+  if (requiredGenerateFiles.length > 0) {
+    lines.push("Required project files in generate mode:");
+    for (const filePath of requiredGenerateFiles) {
+      lines.push(`- ${filePath}`);
+    }
+  }
+
+  return lines.join("\n");
+}
+
 export function composePrompt(options: ComposeOptions = {}): string {
   const {
     framework,
@@ -70,8 +127,12 @@ export function composePrompt(options: ComposeOptions = {}): string {
           ? "Vite React"
           : "Vanilla HTML/CSS/JS";
     parts.push(
-      `\n[ENVIRONMENT] You are working in a ${frameworkLabel} project. Include required entry files.`,
+      `\n[ENVIRONMENT] You are working in a ${frameworkLabel} project.`,
     );
+    const postgenOutputContract = buildPostgenOutputContract(framework, mode);
+    if (postgenOutputContract) {
+      parts.push(`\n${postgenOutputContract}`);
+    }
 
     const templateConfig = getTemplateConfig(framework);
     if (templateConfig?.protectedFiles.length) {

@@ -1,11 +1,22 @@
 "use client";
 
+import { useState } from "react";
 import { m } from "motion/react";
 import { RefreshCw, X, Code2, AlertCircle, Monitor } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@edward/ui/components/button";
 import { toast } from "@edward/ui/components/sonner";
 import { cn } from "@edward/ui/lib/utils";
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogFooter,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogAction,
+  AlertDialogCancel,
+} from "@edward/ui/components/alert-dialog";
 import { useSandbox } from "@/contexts/sandboxContext";
 import { useChatWorkspaceContext } from "@/components/chat/chatWorkspaceContext";
 import { BuildStatus, SandboxMode } from "@/stores/sandbox/types";
@@ -27,6 +38,8 @@ export function SandboxHeader() {
     setFullErrorReport,
   } = useSandbox();
   const queryClient = useQueryClient();
+  const [rebuildDialogOpen, setRebuildDialogOpen] = useState(false);
+
   const isInstallingDependencies = stream.installingDeps.length > 0;
   const canTriggerRebuild =
     Boolean(chatId) &&
@@ -67,7 +80,7 @@ export function SandboxHeader() {
     },
   });
 
-  const handleRebuild = () => {
+  const handleRebuildConfirm = () => {
     if (!canTriggerRebuild || rebuildMutation.isPending) {
       return;
     }
@@ -178,22 +191,61 @@ export function SandboxHeader() {
 
       <div className="flex items-center gap-2 shrink-0">
         <GithubIntegrationBar />
+
         {canTriggerRebuild ? (
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={handleRebuild}
-            disabled={rebuildMutation.isPending}
-            className="h-8 rounded-lg border border-workspace-border bg-workspace-bg/80 px-2.5 text-[11px] font-semibold text-workspace-foreground hover:bg-workspace-hover"
-          >
-            <RefreshCw
-              className={cn(
-                "mr-1.5 h-3.5 w-3.5",
-                rebuildMutation.isPending && "animate-spin",
-              )}
-            />
-            {rebuildMutation.isPending ? "Rebuilding" : "Rebuild"}
-          </Button>
+          <AlertDialog open={rebuildDialogOpen} onOpenChange={setRebuildDialogOpen}>
+            {/* Icon-only on small screens, icon + text on md+ */}
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => setRebuildDialogOpen(true)}
+              disabled={rebuildMutation.isPending}
+              aria-label="Rebuild"
+              className="h-8 rounded-lg border border-workspace-border bg-workspace-bg/80 text-workspace-foreground hover:bg-workspace-hover px-2 md:px-2.5"
+            >
+              <RefreshCw
+                className={cn(
+                  "h-3.5 w-3.5 shrink-0",
+                  rebuildMutation.isPending && "animate-spin",
+                )}
+              />
+              <span className="hidden md:inline text-[11px] font-semibold">
+                {rebuildMutation.isPending ? "Rebuilding" : "Rebuild"}
+              </span>
+            </Button>
+
+            <AlertDialogContent className="bg-workspace-sidebar border-workspace-border shadow-2xl">
+              <AlertDialogHeader>
+                <div className="flex items-center gap-3 mb-1">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-workspace-accent/10 border border-workspace-accent/20">
+                    <RefreshCw className="h-4 w-4 text-workspace-accent" />
+                  </div>
+                  <AlertDialogTitle className="text-[13px] font-semibold text-workspace-foreground">
+                    Rebuild app?
+                  </AlertDialogTitle>
+                </div>
+                <AlertDialogDescription className="text-[12px] leading-relaxed text-workspace-foreground/55">
+                  This will re-deploy{" "}
+                  <span className="font-medium text-workspace-foreground/80">
+                    &ldquo;{projectName ?? "this project"}&rdquo;
+                  </span>{" "}
+                  from scratch. The existing preview will be replaced once the
+                  new build finishes.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter className="mt-2">
+                <AlertDialogCancel className="h-8 rounded-lg border-workspace-border bg-transparent px-3.5 text-[12px] font-medium text-workspace-foreground/60 hover:bg-workspace-hover hover:text-workspace-foreground hover:border-workspace-border">
+                  Cancel
+                </AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={handleRebuildConfirm}
+                  className="h-8 rounded-lg bg-workspace-accent/90 px-3.5 text-[12px] font-semibold text-white hover:bg-workspace-accent active:scale-[0.98]"
+                >
+                  Rebuild
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         ) : null}
 
         <Button

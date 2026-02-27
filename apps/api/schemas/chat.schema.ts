@@ -56,7 +56,7 @@ export const UnifiedSendMessageSchema = z
     chatId: z.string().optional(),
     title: z.string().optional(),
     description: z.string().optional(),
-    visibility: z.boolean().optional(),
+
     model: z.enum(ModelValues).optional(),
     retryTargetUserMessageId: z.string().min(1).optional(),
     retryTargetAssistantMessageId: z.string().min(1).optional(),
@@ -116,22 +116,7 @@ export const CancelRunRequestSchema = z.object({
   params: RunStreamParamsSchema,
 });
 
-export const UpdateShareSettingsBodySchema = z.object({
-  enabled: z.boolean(),
-});
 
-export const ShareStatusRequestSchema = z.object({
-  params: ChatIdParamSchema,
-});
-
-export const UpdateShareSettingsRequestSchema = z.object({
-  params: ChatIdParamSchema,
-  body: UpdateShareSettingsBodySchema,
-});
-
-export const SharedChatHistoryRequestSchema = z.object({
-  params: ChatIdParamSchema,
-});
 
 export const RecentChatsQuerySchema = z.object({
   query: z.object({

@@ -27,7 +27,7 @@ function isMissingChatSeoColumnError(error: unknown): boolean {
 export async function getOrCreateChat(
   userId: string,
   chatId: string | undefined,
-  chatData: { title?: string; description?: string; visibility?: boolean },
+  chatData: { title?: string; description?: string },
 ): Promise<{
   chatId: string;
   isNewChat: boolean;
@@ -46,10 +46,10 @@ export async function getOrCreateChat(
         userId,
         title,
         description,
-        visibility: chatData.visibility || false,
         createdAt: now,
         updatedAt: now,
       };
+
 
       try {
         await db.insert(chat).values({

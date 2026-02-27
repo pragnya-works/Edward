@@ -411,20 +411,22 @@ export function useSandboxBuildSync({
   }, [buildStatus, openSandbox, setActiveFile, setMode]);
 
   useEffect(() => {
-    if (
-      !chatIdFromUrl ||
-      chatIdFromUrl === loadedChatIdRef.current ||
-      !shouldHydrateSandboxFiles
-    ) {
+    if (!chatIdFromUrl) {
       return;
     }
 
-    loadAllSandboxFiles(chatIdFromUrl, {
-      activeFiles: stream.activeFiles,
-      completedFiles: stream.completedFiles,
-    }, {
-      force: hasStreamBuildSignals || buildInFlightRef.current,
-    });
+    if (chatIdFromUrl !== loadedChatIdRef.current && shouldHydrateSandboxFiles) {
+      loadAllSandboxFiles(
+        chatIdFromUrl,
+        {
+          activeFiles: stream.activeFiles,
+          completedFiles: stream.completedFiles,
+        },
+        {
+          force: hasStreamBuildSignals || buildInFlightRef.current,
+        },
+      );
+    }
 
     if (!pushConnectedRef.current && lastPolledChatIdRef.current !== chatIdFromUrl) {
       pollAttemptsRef.current = 0;

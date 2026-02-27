@@ -57,6 +57,7 @@ export interface PromptbarSubmissionController {
     images?: UploadedImageRef[],
   ) => void | Promise<void>;
   onEnhancePrompt?: (text: string) => string | Promise<string>;
+  onTopContextVisibilityChange?: (visible: boolean) => void;
   hideSuggestions?: boolean;
   isStreaming?: boolean;
   onCancel?: () => void;
@@ -105,6 +106,7 @@ export interface PromptbarLegacyProps {
     images?: UploadedImageRef[],
   ) => void | Promise<void>;
   onEnhancePrompt?: (text: string) => string | Promise<string>;
+  onTopContextVisibilityChange?: (visible: boolean) => void;
   onImageUpload?: (
     file: File,
   ) => Promise<{ url: string; mimeType: string; sizeBytes?: number }>;

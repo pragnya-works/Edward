@@ -13,7 +13,7 @@ import {
   type UploadedImage,
 } from "@/lib/api/messageContent";
 import { enhancePrompt } from "@/lib/api/chat";
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import type { MetaEvent } from "@edward/shared/streamEvents";
 import { INITIAL_STREAM_STATE } from "@edward/shared/chat/types";
@@ -24,10 +24,12 @@ import { getBestGuessProvider } from "@edward/shared/schema";
 
 interface AuthenticatedPromptbarProps {
   chatId?: string;
+  onTopContextVisibilityChange?: (visible: boolean) => void;
 }
 
 export default function AuthenticatedPromptbar({
   chatId,
+  onTopContextVisibilityChange,
 }: AuthenticatedPromptbarProps) {
   const workspaceContext = useOptionalChatWorkspaceContext();
   const effectiveChatId = chatId ?? workspaceContext?.chatId;
@@ -51,6 +53,7 @@ export default function AuthenticatedPromptbar({
     isRateLimited: isImageUploadRateLimited,
     rateLimitMessage: imageUploadRateLimitMessage,
   } = useImageUpload();
+  const shouldAutoNavigateToNewChatRef = useRef(false);
 
   const { stream, activeStreamKey } = useMemo(() => {
     if (effectiveChatId) {
@@ -84,7 +87,12 @@ export default function AuthenticatedPromptbar({
 
   const handleMeta = useCallback(
     (meta: MetaEvent) => {
-      if (!effectiveChatId && meta.chatId) {
+      if (
+        !effectiveChatId &&
+        meta.chatId &&
+        shouldAutoNavigateToNewChatRef.current
+      ) {
+        shouldAutoNavigateToNewChatRef.current = false;
         router.push(`/chat/${meta.chatId}`);
       }
     },
@@ -103,6 +111,7 @@ export default function AuthenticatedPromptbar({
   const handleProtectedAction = useCallback(
     async (text: string, images?: UploadedImage[]) => {
       if (stream.isStreaming && activeStreamKey) {
+        shouldAutoNavigateToNewChatRef.current = false;
         cancelStream(activeStreamKey);
         return;
       }
@@ -118,6 +127,7 @@ export default function AuthenticatedPromptbar({
         return;
       }
 
+      shouldAutoNavigateToNewChatRef.current = !effectiveChatId;
       const content = await filesToMessageContent(text, uploadedImages);
       startStream(content, {
         chatId: effectiveChatId,
@@ -198,6 +208,7 @@ export default function AuthenticatedPromptbar({
 
   const handleCancel = useCallback(() => {
     if (activeStreamKey) {
+      shouldAutoNavigateToNewChatRef.current = false;
       cancelStream(activeStreamKey);
     }
   }, [activeStreamKey, cancelStream]);
@@ -235,6 +246,7 @@ export default function AuthenticatedPromptbar({
       submission: {
         onProtectedAction: handleProtectedAction,
         onEnhancePrompt: handleEnhancePrompt,
+        onTopContextVisibilityChange,
         hideSuggestions: Boolean(effectiveChatId),
         isStreaming: stream.isStreaming,
         onCancel: handleCancel,
@@ -263,6 +275,7 @@ export default function AuthenticatedPromptbar({
       handleSignIn,
       handleProtectedAction,
       handleEnhancePrompt,
+      onTopContextVisibilityChange,
       effectiveChatId,
       stream.isStreaming,
       handleCancel,

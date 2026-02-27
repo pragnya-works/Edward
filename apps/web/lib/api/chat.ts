@@ -1,8 +1,6 @@
 import {
   type ActiveRunResponse,
-  type ChatShareStatusResponse,
   type PromptEnhanceResponse,
-  type SharedChatHistoryResponse,
 } from "@edward/shared/api/contracts";
 import { type Provider } from "@edward/shared/constants";
 import { fetchApi, fetchApiResponse } from "@/lib/api/httpClient";
@@ -12,11 +10,11 @@ export interface SendMessageRequest {
   content: MessageContent;
   chatId?: string;
   title?: string;
-  visibility?: boolean;
   model?: string;
   retryTargetUserMessageId?: string;
   retryTargetAssistantMessageId?: string;
 }
+
 
 export async function postChatMessageStream(
   body: SendMessageRequest,
@@ -78,31 +76,7 @@ export async function deleteChat(chatId: string): Promise<void> {
   await fetchApi(`/chat/${chatId}`, { method: "DELETE" });
 }
 
-export async function getChatShareStatus(
-  chatId: string,
-): Promise<ChatShareStatusResponse> {
-  return fetchApi<ChatShareStatusResponse>(`/chat/${chatId}/share`, {
-    method: "GET",
-  });
-}
 
-export async function updateChatShareSettings(
-  chatId: string,
-  enabled: boolean,
-): Promise<ChatShareStatusResponse> {
-  return fetchApi<ChatShareStatusResponse>(`/chat/${chatId}/share`, {
-    method: "PATCH",
-    body: JSON.stringify({ enabled }),
-  });
-}
-
-export async function getSharedChatHistory(
-  chatId: string,
-): Promise<SharedChatHistoryResponse> {
-  return fetchApi<SharedChatHistoryResponse>(`/share/chats/${chatId}/history`, {
-    method: "GET",
-  });
-}
 
 export async function enhancePrompt(
   text: string,

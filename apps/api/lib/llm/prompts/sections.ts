@@ -163,7 +163,8 @@ Rules:
 7. In GENERATE mode include root README.md. Do not generate .gitignore unless the user explicitly asks.
 8. README.md must be project-specific and non-boilerplate.
 9. Forbidden file targets: /app/api/**, /pages/api/**, /server/**, /backend/**.
-10. Close with </edward_sandbox> then emit <edward_done />.
+10. In GENERATE mode, always emit required framework entry files in <edward_sandbox>, even if unchanged from template defaults.
+11. Close with </edward_sandbox> then emit <edward_done />.
 </edward_sandbox_format>`;
 
 const CODE_BLOCKS = `
@@ -182,7 +183,7 @@ If routing/multiple files are needed, use <edward_sandbox>.
 const QUICK_REFERENCE = `
 <quick_reference>
 Preflight checklist:
-1. Entry points must exist (Next: src/app/layout.tsx + page.tsx + globals.css; Vite: src/main.tsx + App.tsx + index.css).
+1. Never omit required entry files from emitted <file> blocks. Postgen hard-fails missing entry files (Next.js: src/app/layout.tsx + src/app/page.tsx, Vite React: src/main.tsx + src/App.tsx, Vanilla: index.html).
 2. <edward_install> comes before <edward_sandbox> when adding packages.
 3. Use relative imports only; no extension suffixes.
 4. Output complete, runnable code (no placeholders, no truncation).

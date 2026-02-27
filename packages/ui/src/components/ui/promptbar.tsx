@@ -1,4 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type Dispatch,
+  type SetStateAction,
+} from "react";
 import { useIsMobile } from "@edward/ui/hooks/useMobile";
 import { modelSupportsVision } from "@edward/shared/schema";
 import { PROMPT_INPUT_CONFIG } from "@edward/shared/constants";
@@ -31,6 +38,7 @@ export default function Promptbar(props: PromptbarProps) {
     onSignIn,
     onProtectedAction,
     onEnhancePrompt,
+    onTopContextVisibilityChange,
     hasApiKey,
     isApiKeyLoading,
     apiKeyError,
@@ -52,9 +60,38 @@ export default function Promptbar(props: PromptbarProps) {
 
   const [inputValue, setInputValue] = useState("");
   const [suggestionIndex, setSuggestionIndex] = useState(0);
-  const [showLoginModal, setShowLoginModal] = useState(false);
-  const [showBYOK, setShowBYOK] = useState(false);
+  const [modalState, setModalState] = useState({
+    showLoginModal: false,
+    showBYOK: false,
+  });
   const [isEnhancingPrompt, setIsEnhancingPrompt] = useState(false);
+  const { showLoginModal, showBYOK } = modalState;
+
+  const setShowLoginModal: Dispatch<SetStateAction<boolean>> = useCallback(
+    (nextValue) => {
+      setModalState((previous) => ({
+        ...previous,
+        showLoginModal:
+          typeof nextValue === "function"
+            ? nextValue(previous.showLoginModal)
+            : nextValue,
+      }));
+    },
+    [],
+  );
+
+  const setShowBYOK: Dispatch<SetStateAction<boolean>> = useCallback(
+    (nextValue) => {
+      setModalState((previous) => ({
+        ...previous,
+        showBYOK:
+          typeof nextValue === "function"
+            ? nextValue(previous.showBYOK)
+            : nextValue,
+      }));
+    },
+    [],
+  );
 
   const isMobile = useIsMobile();
   const supportsVision = !selectedModelId || modelSupportsVision(selectedModelId);
@@ -105,11 +142,8 @@ export default function Promptbar(props: PromptbarProps) {
     [attachedFiles],
   );
 
-  const hasPendingUploads = useMemo(
-    () => attachedFiles.some((file) => isUploading(file)),
-    [attachedFiles],
-  );
-  const trimmedInputLength = useMemo(() => inputValue.trim().length, [inputValue]);
+  const hasPendingUploads = attachedFiles.some((file) => isUploading(file));
+  const trimmedInputLength = inputValue.trim().length;
   const canEnhancePrompt =
     !isSubmissionBlocked &&
     trimmedInputLength >= ENHANCE_PROMPT_MIN_CHARS &&
@@ -130,6 +164,18 @@ export default function Promptbar(props: PromptbarProps) {
   const detectedSourceUrls = useMemo(
     () => extractUrlsFromPrompt(inputValue),
     [inputValue],
+  );
+  const hasTopContext = detectedSourceUrls.length > 0;
+
+  useEffect(() => {
+    onTopContextVisibilityChange?.(hasTopContext);
+  }, [hasTopContext, onTopContextVisibilityChange]);
+
+  useEffect(
+    () => () => {
+      onTopContextVisibilityChange?.(false);
+    },
+    [onTopContextVisibilityChange],
   );
 
   useSuggestionRotation(setSuggestionIndex);

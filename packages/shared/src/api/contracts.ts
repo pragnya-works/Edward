@@ -4,7 +4,7 @@ import type {
   GithubRepoStatusData,
   SyncGithubData,
 } from "@edward/shared/github/types";
-import type { ChatMessage } from "../chat/types.js";
+
 
 export interface ApiSuccessResponse<TData = unknown> {
   message: string;
@@ -177,21 +177,7 @@ export interface UpdateSubdomainResponse {
   };
 }
 
-export interface ChatShareStatusData {
-  chatId: string;
-  enabled: boolean;
-  sharePath: string | null;
-}
 
-export type ChatShareStatusResponse = ApiSuccessResponse<ChatShareStatusData>;
-
-export interface SharedChatHistoryData {
-  chatId: string;
-  shared: true;
-  messages: ChatMessage[];
-}
-
-export type SharedChatHistoryResponse = ApiSuccessResponse<SharedChatHistoryData>;
 
 export type GithubRepoStatusResponse = ApiSuccessResponse<GithubRepoStatusData>;
 export type ConnectGithubResponse = ApiSuccessResponse<ConnectGithubData>;
