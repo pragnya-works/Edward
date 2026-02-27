@@ -129,7 +129,8 @@ export default function AuthenticatedPromptbar({
         return;
       }
 
-      shouldAutoNavigateToNewChatRef.current = !effectiveChatId;
+      const isNewChat = !effectiveChatId;
+      shouldAutoNavigateToNewChatRef.current = isNewChat;
       const content = await filesToMessageContent(text, uploadedImages);
       startStream(content, {
         chatId: effectiveChatId,

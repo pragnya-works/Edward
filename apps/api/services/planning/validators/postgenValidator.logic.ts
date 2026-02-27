@@ -1,11 +1,17 @@
 import {
+  COMMENT_STUB_PATTERN,
   EMPTY_HANDLER_PATTERN,
   EMPTY_ROOT_COMPONENT_PATTERN,
   INVALID_ZUSTAND_DEFAULT_IMPORT_PATTERN,
   PLACEHOLDER_PATTERN,
+  SAMPLE_CONTENT_PATTERN,
   SOURCE_FILE_PATTERN,
 } from './postgenValidator.constants.js';
 import type { GeneratedOutput, ValidationViolation } from './postgenValidator.types.js';
+import {
+  VALIDATION_VIOLATION_TYPE,
+  VALIDATION_SEVERITY,
+} from './postgenValidator.types.js';
 
 export function validateFrameworkEntrypoints(output: GeneratedOutput): ValidationViolation[] {
   const violations: ValidationViolation[] = [];
@@ -62,6 +68,24 @@ export function validateLogicQualityForFile(
   const isSourceFile = SOURCE_FILE_PATTERN.test(filePath);
   const severity = mode === 'generate' ? 'error' : 'warning';
 
+  if (isSourceFile && COMMENT_STUB_PATTERN.test(content)) {
+    violations.push({
+      type: VALIDATION_VIOLATION_TYPE.LOGIC_QUALITY,
+      severity,
+      message: `${filePath} contains stub comments (TODO/implement/placeholder). Provide a complete implementation.`,
+      file: filePath,
+    });
+  }
+
+  if (isSourceFile && SAMPLE_CONTENT_PATTERN.test(content)) {
+    violations.push({
+      type: VALIDATION_VIOLATION_TYPE.LOGIC_QUALITY,
+      severity,
+      message: `${filePath} contains placeholder content (e.g. "Sample Product", "Product 1"). Use realistic data.`,
+      file: filePath,
+    });
+  }
+
   if (isSourceFile && PLACEHOLDER_PATTERN.test(content)) {
     violations.push({
       type: 'logic-quality',
@@ -102,4 +126,46 @@ export function validateLogicQualityForFile(
   }
 
   return violations;
+}
+
+const FEATURE_PRESENCE_RULES: Record<string, { patterns: RegExp[]; message: string }> = {
+  ecommerce: {
+    patterns: [/addToCart|removeFromCart|cartItems|useCart|cartState|CartContext/],
+    message: 'E-commerce app appears to have no cart implementation. Cart add/remove/quantity must be fully wired.',
+  },
+  dashboard: {
+    patterns: [/useState\s*\(\[|useReducer|data\s*=\s*\[|=\s*\[\s*\{/],
+    message: 'Dashboard app has no data state. Charts/tables must use real typed data, not empty arrays.',
+  },
+};
+
+export function validateFeatureSkeletonForOutput(
+  output: GeneratedOutput,
+): ValidationViolation[] {
+  if (output.mode !== 'generate' || !output.intentType) {
+    return [];
+  }
+
+  const rule = FEATURE_PRESENCE_RULES[output.intentType];
+  if (!rule) {
+    return [];
+  }
+
+  const combined = [...output.files.entries()]
+    .filter(([path]) => SOURCE_FILE_PATTERN.test(path))
+    .map(([, content]) => content)
+    .join('\n');
+
+  const hasAnyPattern = rule.patterns.some((p) => p.test(combined));
+  if (hasAnyPattern) {
+    return [];
+  }
+
+  return [
+    {
+      type: VALIDATION_VIOLATION_TYPE.FEATURE_SKELETON,
+      severity: VALIDATION_SEVERITY.ERROR,
+      message: rule.message,
+    },
+  ];
 }

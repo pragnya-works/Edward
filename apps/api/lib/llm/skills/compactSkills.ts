@@ -7,6 +7,7 @@ Design quality rules:
 - Add meaningful motion (entry/reveal/feedback), not noisy micro-animation spam.
 - Ensure responsive behavior on mobile and desktop.
 - Keep style consistent across all generated files.
+- UI must feel human-crafted and brand-specific, never AI-template-like.
 </skill:ui-design-core>
 `;
 
@@ -19,6 +20,7 @@ When task is design-heavy (landing page, portfolio, marketing, rebrand):
 4. Define a section hierarchy with one focal element per section.
 5. Include hover/active/focus states and polished transitions (150-400ms).
 6. Avoid AI-cliche patterns: purple-pink default gradients, identical cards, default system look.
+7. Avoid cookie-cutter hero/feature/testimonial blocks unless they are materially customized.
 </skill:ui-design-expanded>
 `;
 
@@ -111,11 +113,18 @@ Vanilla requirements:
 
 export const CODE_QUALITY_COMPACT_SKILL = `
 <skill:code-quality-compact>
-Code quality rules:
-- Output complete, runnable code with no placeholders.
-- Keep changes minimal and task-focused.
-- Ensure imports resolve and files are syntactically valid.
-- Prefer simple, maintainable abstractions over unnecessary indirection.
+Production completeness rules (non-negotiable):
+- Treat every generation task as production-ready by default; never output POC/MVP quality unless explicitly requested.
+- E-commerce: cart add/remove/quantity/total wired; checkout form submits with validation.
+- Dashboard: charts/tables use real typed mock data — never empty arrays or undefined placeholders.
+- Auth/SaaS: login, signup, reset forms all have field validation, error states, and working submit handlers.
+- Portfolio/landing: all sections present with real content — no "My Project 1" or lorem ipsum.
+- All nav links route to distinct, implemented pages; no dead links or blank routes.
+- No component returns null, <></>, or an empty fragment as its sole output.
+- No stub functions: const fn = () => {}, onClick={() => {}}, // TODO, // implement are forbidden.
+- Primary user journeys must work end-to-end before finishing output.
+- Scale files to the task: multi-feature apps require separate files per feature/domain.
+- Ensure imports resolve and code is syntactically valid.
 </skill:code-quality-compact>
 `;
 

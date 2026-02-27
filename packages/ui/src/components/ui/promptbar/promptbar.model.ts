@@ -15,7 +15,6 @@ import {
 
 const URL_PATTERN = /https?:\/\/[^\s<>"'`]+/gi;
 const URL_SOURCE_PREVIEW_LIMIT = 6;
-const PROMPT_INPUT_SELECTOR = "textarea[data-edward-prompt-input='true']";
 
 export interface ResolvedPromptbarProps {
   isAuthenticated: boolean;

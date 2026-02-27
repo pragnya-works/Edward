@@ -193,6 +193,7 @@ export async function runStreamSession(
       framework,
       declaredPackages,
       mode,
+      intentType: workflow.context.intent?.type,
     });
 
     const strictRetryResult = await maybeRunStrictPostgenRetry({

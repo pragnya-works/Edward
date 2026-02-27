@@ -32,7 +32,7 @@ export function LoginModal({ isOpen, onClose, onSignIn }: LoginModalProps) {
     } finally {
       setIsLoading(false);
     }
-  }, [onSignIn, onClose]);
+  }, [onSignIn]);
 
   return (
     <Dialog

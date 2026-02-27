@@ -319,4 +319,6 @@ const Promptbar = forwardRef<PromptbarRef, PromptbarProps>((props, ref) => {
   return <PromptbarLayout model={model} />;
 });
 
+Promptbar.displayName = "Promptbar";
+
 export default Promptbar;

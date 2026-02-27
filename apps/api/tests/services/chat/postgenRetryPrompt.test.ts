@@ -19,7 +19,7 @@ describe('buildPostgenRetryPrompt', () => {
 
     expect(prompt).toContain('Original user request: Build a Next.js landing page');
     expect(prompt).toContain('Missing required entry point: src/app/layout.tsx');
-    expect(prompt).toContain('Regenerate a complete, buildable project output');
+    expect(prompt).toContain('Regenerate with ALL features fully implemented');
   });
 
   it('builds edit/fix retry prompt with targeted fix instruction', () => {
