@@ -1,5 +1,4 @@
 import {
-  ParserEventType,
   MetaPhase,
 } from "@edward/shared/streamEvents";
 import { composePrompt } from "../../../../lib/llm/compose.js";
@@ -10,42 +9,24 @@ import {
   type TokenUsage,
 } from "../../../../lib/llm/tokens.js";
 import {
-  saveMessage,
-} from "../../../../services/chat.service.js";
-import { logger } from "../../../../utils/logger.js";
-import { MessageRole } from "@edward/auth";
-import {
   ChatAction,
   type Framework,
 } from "../../../../services/planning/schemas.js";
-import {
-  formatUrlScrapeAssistantTags,
-} from "../../../../services/websearch/urlScraper.service.js";
-import {
-  sendSSEEvent,
-  sendSSEDone,
-} from "../../sse.utils.js";
 import { runAgentLoop } from "../loop/agent.loop.js";
 import {
   createMetaEmitter,
   type EmitMeta,
 } from "../shared/meta.js";
-import {
-  LOOP_STOP_REASON_TO_TERMINATION,
-} from "./loopStopReasons.js";
-import { processBuildPipeline } from "./buildPipeline.js";
 import { resolveFramework } from "./frameworkResolution.js";
 import { prepareBaseMessages } from "./messagePreparation.js";
 import { setupStreamGuards } from "./streamGuards.js";
-import { scheduleChatMetaGeneration } from "./chatMetaGeneration.js";
 import { applyDeterministicPostgenAutofixes } from "./postgenAutofix.js";
+import { finalizeStreamSession } from "./runStreamSession.finalize.js";
 import {
   resolveMode,
   getBlockingPostgenViolations,
   handleContextLimitExceeded,
   handleAbortedLoop,
-  createSessionMetrics,
-  createStoredAssistantContent,
   handleStreamSessionError,
   type LoopState,
 } from "./runStreamSession.helpers.js";
@@ -249,98 +230,28 @@ export async function runStreamSession(
       runId,
     });
 
-    const terminationReason =
-      LOOP_STOP_REASON_TO_TERMINATION[loopState.loopStopReason];
-
-    logger.info(
-      {
-        chatId,
-        runId,
-        agentTurn: loopState.agentTurn,
-        loopStopReason: loopState.loopStopReason,
-      },
-      "Agent loop ended",
-    );
-
-    const metrics = createSessionMetrics(
+    const finalized = await finalizeStreamSession({
       messageStartTime,
-      tokenUsage.inputTokens,
+      tokenUsage,
       fullRawResponse,
-    );
-
-    logger.info(
-      {
-        chatId,
-        runId,
-        assistantMessageId,
-        completionTime: metrics.completionTime,
-        inputTokens: metrics.inputTokens,
-        outputTokens: metrics.outputTokens,
-        totalTokens: metrics.inputTokens + metrics.outputTokens,
-      },
-      "Assistant message completed with metrics",
-    );
-
-    sendSSEEvent(res, {
-      type: ParserEventType.METRICS,
-      completionTime: metrics.completionTime,
-      inputTokens: metrics.inputTokens,
-      outputTokens: metrics.outputTokens,
-    });
-
-    const urlScrapeTags = formatUrlScrapeAssistantTags(urlScrapeResults);
-    const storedAssistantContent = createStoredAssistantContent(
-      fullRawResponse,
-      urlScrapeTags,
-      loopState.webSearchResults,
-      loopState.loopStopReason,
-    );
-
-    await saveMessage(
-      chatId,
+      loopState,
+      urlScrapeResults,
       userId,
-      MessageRole.Assistant,
-      storedAssistantContent,
+      chatId,
       assistantMessageId,
-      metrics.messageMetadata,
-    );
-    committedMessageContent = storedAssistantContent;
-
-    scheduleChatMetaGeneration({
+      runId,
+      userContent,
       isFollowUp,
       decryptedApiKey,
-      userContent,
-      chatId,
+      workflow,
+      res,
+      framework,
+      mode,
+      generatedFiles,
+      declaredPackages,
+      emitMeta,
     });
-
-    if (workflow.sandboxId) {
-      await processBuildPipeline({
-        sandboxId: workflow.sandboxId,
-        chatId,
-        userId,
-        assistantMessageId,
-        runId,
-        res,
-        framework,
-        mode,
-        generatedFiles,
-        declaredPackages,
-      });
-    } else {
-      logger.warn(
-        { chatId, runId },
-        "[Chat] No sandbox ID available, skipping build",
-      );
-    }
-
-    emitMeta({
-      turn: loopState.agentTurn,
-      phase: MetaPhase.SESSION_COMPLETE,
-      loopStopReason: loopState.loopStopReason,
-      terminationReason,
-    });
-
-    sendSSEDone(res);
+    committedMessageContent = finalized.storedAssistantContent;
   } catch (streamError) {
     await handleStreamSessionError({
       streamError,

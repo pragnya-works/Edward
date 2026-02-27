@@ -74,4 +74,26 @@ describe("toolGateway command output sanitation", () => {
     expect(result.stdout).toBe("Build completed successfully");
     expect(result.stderr).toBe("");
   });
+
+  it("bounds sanitation work for very large repeated outputs", async () => {
+    const repeatedOutput = "line repeated\n".repeat(20_000);
+
+    executeSandboxCommandMock.mockResolvedValue({
+      exitCode: 0,
+      stdout: repeatedOutput,
+      stderr: "",
+    });
+
+    const result = await executeCommandTool({
+      turn: 1,
+      sandboxId: "sb-1",
+      command: "pnpm",
+      args: ["build"],
+    });
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain("...[line repeated");
+    expect(result.stdout).toContain("...[truncated]");
+    expect(result.stderr).toBe("");
+  });
 });

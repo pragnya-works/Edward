@@ -40,7 +40,7 @@ function getMessageBlockBaseKey(block: MessageBlock): string {
     case MessageBlockType.FILE:
       return `file-${block.path}`;
     case MessageBlockType.COMMAND:
-      return `command-${block.command}-${block.args.join(" ")}-${block.exitCode ?? "pending"}-${block.stdout?.length ?? 0}-${block.stderr?.length ?? 0}`;
+      return `command-${block.command}-${block.args.join(" ")}`;
     case MessageBlockType.WEB_SEARCH:
       return `web-search-${block.query}-${block.maxResults ?? "default"}`;
     case MessageBlockType.URL_SCRAPE:

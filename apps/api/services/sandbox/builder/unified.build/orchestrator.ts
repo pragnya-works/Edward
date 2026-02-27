@@ -1,9 +1,4 @@
-import {
-  connectToNetwork,
-  getContainer,
-  execCommand,
-  CONTAINER_WORKDIR,
-} from "../../docker.service.js";
+import { connectToNetwork, getContainer, execCommand, CONTAINER_WORKDIR } from "../../docker.service.js";
 import { getSandboxState, saveSandboxState } from "../../state.service.js";
 import { logger } from "../../../../utils/logger.js";
 import { ensureError } from "../../../../utils/error.js";
@@ -13,17 +8,13 @@ import { buildPreviewUrl } from "../../../preview.service.js";
 import { cleanupS3FolderExcept } from "../../../storage.service.js";
 import { buildS3Key } from "../../../storage/key.utils.js";
 import { config, DEPLOYMENT_TYPES } from "../../../../app.config.js";
-import {
-  disconnectContainerFromNetwork,
-  TIMEOUT_DEPENDENCY_INSTALL_MS,
-} from "../../utils.service.js";
+import { disconnectContainerFromNetwork, TIMEOUT_DEPENDENCY_INSTALL_MS } from "../../utils.service.js";
 import { Framework } from "../../../planning/schemas.js";
 import { mergeAndInstallDependencies } from "../../templates/dependency.merger.js";
 import { invalidatePreviewCache } from "../../../storage/cdn.js";
-import { normalizeFramework } from "../../templates/template.registry.js";
 import { registerPreviewSubdomain } from "../../../previewRouting/registration.js";
 import { db, chat, eq } from "@edward/auth";
-
+import { appendWarning, detectFrameworkFromPackageJson } from "./helpers.js";
 export interface BuildResult {
   success: boolean;
   buildDirectory: string | null;
@@ -31,21 +22,10 @@ export interface BuildResult {
   previewUploaded: boolean;
   previewUrl: string | null;
 }
-
-function appendWarning(
-  existingWarning: string | undefined,
-  nextWarning: string,
-): string {
-  return existingWarning
-    ? `${existingWarning}; ${nextWarning}`
-    : nextWarning;
-}
-
 export async function buildAndUploadUnified(
   sandboxId: string,
 ): Promise<BuildResult> {
   const sandbox = await getSandboxState(sandboxId);
-
   if (!sandbox) {
     return {
       success: false,
@@ -366,43 +346,5 @@ export async function buildAndUploadUnified(
       previewUploaded: false,
       previewUrl: null,
     };
-  }
-}
-
-async function detectFrameworkFromPackageJson(
-  container: ReturnType<typeof getContainer>,
-  sandboxId: string,
-): Promise<string | undefined> {
-  try {
-    const pkgResult = await execCommand(
-      container,
-      ["cat", "package.json"],
-      false,
-      5000,
-      undefined,
-      CONTAINER_WORKDIR,
-    );
-
-    if (pkgResult.exitCode !== 0) return undefined;
-
-    const pkg = JSON.parse(pkgResult.stdout);
-    const buildScript: string = pkg.scripts?.build || "";
-    const deps = { ...pkg.dependencies, ...pkg.devDependencies };
-
-    if (buildScript.includes("next") || deps["next"]) {
-      return normalizeFramework("nextjs");
-    }
-
-    if (buildScript.includes("vite") || deps["vite"]) {
-      return normalizeFramework("vite-react");
-    }
-
-    return undefined;
-  } catch (error) {
-    logger.warn(
-      { error, sandboxId },
-      "Failed to detect framework from package.json",
-    );
-    return undefined;
   }
 }

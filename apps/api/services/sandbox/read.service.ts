@@ -2,6 +2,7 @@ import { CONTAINER_WORKDIR, isContainerAlive } from "./docker.service.js";
 import { createLogger } from "../../utils/logger.js";
 import { getSandboxState } from "./state.service.js";
 import { executeSandboxCommand } from "./command.service.js";
+import type { SandboxInstance } from "./types.service.js";
 import {
   MAX_FILES,
   MAX_TOTAL_BYTES,
@@ -26,8 +27,9 @@ export async function isSandboxAlive(sandboxId: string): Promise<boolean> {
 async function readSandboxFile(
   sandboxId: string,
   filePath: string,
+  sandboxState?: SandboxInstance,
 ): Promise<string> {
-  const sandbox = await getSandboxState(sandboxId);
+  const sandbox = sandboxState ?? await getSandboxState(sandboxId);
   if (!sandbox) return "";
 
   try {
@@ -46,7 +48,7 @@ async function readSandboxFile(
       return "";
     }
   } catch (err) {
-    if (await isSandboxAlive(sandboxId)) {
+    if (await isContainerAlive(sandbox.containerId)) {
       logger.warn(
         { sandboxId, filePath, err },
         "Failed to read file from live container, skipping S3 fallback",
@@ -176,7 +178,7 @@ export async function readAllProjectFiles(
   for (const fullPath of selected) {
     if (totalBytes >= MAX_TOTAL_BYTES) break;
 
-    const content = await readSandboxFile(sandboxId, fullPath);
+    const content = await readSandboxFile(sandboxId, fullPath, sandbox);
     if (!content) continue;
 
     const contentBytes = Buffer.byteLength(content, "utf8");
@@ -195,12 +197,15 @@ export async function readSpecificFiles(
   filePaths: string[],
 ): Promise<Map<string, string>> {
   const files = new Map<string, string>();
+  const sandbox = await getSandboxState(sandboxId);
+  if (!sandbox) return files;
+
   let totalBytes = 0;
 
   for (const filePath of filePaths) {
     if (totalBytes >= MAX_TOTAL_BYTES) break;
 
-    const content = await readSandboxFile(sandboxId, filePath);
+    const content = await readSandboxFile(sandboxId, filePath, sandbox);
     if (!content) continue;
 
     const contentBytes = Buffer.byteLength(content, "utf8");

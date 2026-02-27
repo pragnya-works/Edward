@@ -15,6 +15,7 @@ export interface BuildStatusPayload {
 
 export interface UseSandboxBuildSyncParams {
   chatIdFromUrl: string | undefined;
+  isSandboxOpen: boolean;
   stream: StreamState;
   buildStatus: BuildStatus;
   setFiles: (files: { path: string; content: string; isComplete: boolean }[]) => void;

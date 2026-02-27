@@ -17,6 +17,7 @@ describe("buildAgentContinuationPrompt", () => {
     expect(result.truncated).toBe(false);
     expect(result.prompt).toContain("ORIGINAL REQUEST");
     expect(result.prompt).toContain("TOOL RESULTS");
+    expect(result.prompt).toContain("Do not ask the user to run commands");
   });
 
   it("keeps continuation prompt within budget for oversized payloads", () => {

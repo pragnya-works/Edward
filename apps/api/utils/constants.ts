@@ -37,9 +37,15 @@ export const NPM_PACKAGE_REGEX =
 export const MAX_DEPENDENCIES = 50;
 export const MAX_PACKAGE_NAME_LENGTH = 214;
 export const MAX_RESPONSE_SIZE = 10 * 1024 * 1024;
-export const MAX_STREAM_DURATION_MS = 5 * 60 * 1000;
-export const MAX_AGENT_TURNS = 8;
-export const MAX_AGENT_TOOL_CALLS_PER_TURN = 10;
+export const MAX_STREAM_DURATION_MS = parsePositiveInt(
+  "MAX_STREAM_DURATION_MS",
+  20 * 60 * 1000,
+);
+export const MAX_AGENT_TURNS = parsePositiveInt("MAX_AGENT_TURNS", 12);
+export const MAX_AGENT_TOOL_CALLS_PER_TURN = parsePositiveInt(
+  "MAX_AGENT_TOOL_CALLS_PER_TURN",
+  12,
+);
 
 function parsePositiveInt(name: string, fallback: number): number {
   const raw = process.env[name];
@@ -53,15 +59,25 @@ function parsePositiveInt(name: string, fallback: number): number {
 
 export const MAX_AGENT_TOOL_CALLS_PER_RUN = parsePositiveInt(
   "MAX_AGENT_TOOL_CALLS_PER_RUN",
-  18,
+  24,
 );
-export const MAX_AGENT_CONTINUATION_PROMPT_CHARS = 18_000;
-export const MAX_AGENT_TOOL_RESULT_PAYLOAD_CHARS = 24_000;
-export const MAX_TOOL_STDIO_CHARS = 4_000;
+export const MAX_AGENT_CONTINUATION_PROMPT_CHARS = parsePositiveInt(
+  "MAX_AGENT_CONTINUATION_PROMPT_CHARS",
+  14_000,
+);
+export const MAX_AGENT_TOOL_RESULT_PAYLOAD_CHARS = parsePositiveInt(
+  "MAX_AGENT_TOOL_RESULT_PAYLOAD_CHARS",
+  28_000,
+);
+export const MAX_TOOL_STDIO_CHARS = parsePositiveInt("MAX_TOOL_STDIO_CHARS", 6_000);
 export const MAX_WEB_SEARCH_SNIPPET_CHARS = 700;
 export const TOOL_GATEWAY_TIMEOUT_MS = parsePositiveInt(
   "TOOL_GATEWAY_TIMEOUT_MS",
-  15_000,
+  45_000,
+);
+export const SANDBOX_COMMAND_TIMEOUT_MS = parsePositiveInt(
+  "SANDBOX_COMMAND_TIMEOUT_MS",
+  45_000,
 );
 export const TOOL_GATEWAY_RETRY_ATTEMPTS = parsePositiveInt(
   "TOOL_GATEWAY_RETRY_ATTEMPTS",

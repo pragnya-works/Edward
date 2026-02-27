@@ -26,75 +26,16 @@ import { createBuild, updateBuild } from "@edward/auth";
 import { BuildRecordStatus } from "@edward/shared/api/contracts";
 import { enqueueBackupJob } from "./services/queue/enqueue.js";
 import { createRedisClient } from "./lib/redis.js";
-import { createErrorReport } from "./services/diagnostics/errorReport.js";
 import { processAgentRunJob } from "./services/runs/agentRun.worker.js";
 import { processScheduledFlushes } from "./services/sandbox/write/flush.scheduler.js";
 import { reapStaleRuns } from "./services/runs/staleRunReaper.service.js";
+import {
+  createErrorReportIfPossible,
+  registerProcessHandlerOnce,
+} from "./queue.worker.helpers.js";
 
 const logger = createLogger("WORKER");
 const pubClient = createRedisClient();
-const processHandlerState = globalThis as typeof globalThis & {
-  __edwardProcessHandlers?: Map<string, (...args: unknown[]) => void>;
-};
-
-function registerProcessHandlerOnce(
-  key: string,
-  event: "SIGINT" | "SIGTERM",
-  handler: (...args: unknown[]) => void,
-): void {
-  const registry = processHandlerState.__edwardProcessHandlers ?? new Map();
-  processHandlerState.__edwardProcessHandlers = registry;
-
-  const existing = registry.get(key);
-  if (existing) {
-    process.off(event, existing as never);
-  }
-
-  process.on(event, handler as never);
-  registry.set(key, handler);
-}
-
-async function createErrorReportIfPossible(
-  sandboxId: string,
-  error: string | undefined,
-): Promise<{ errorReport: unknown }> {
-  if (!error) {
-    return { errorReport: null };
-  }
-
-  const sandbox = await getSandboxState(sandboxId);
-  const containerId = sandbox?.containerId;
-
-  if (!containerId) {
-    return { errorReport: null };
-  }
-
-  try {
-    const report = await createErrorReport(
-      containerId,
-      error,
-      sandbox?.scaffoldedFramework,
-    );
-
-    logger.info(
-      {
-        sandboxId,
-        errorCount: report.summary.totalErrors,
-        processed: report.errors.length,
-        types: report.summary.uniqueTypes,
-      },
-      "[Worker] Error report created",
-    );
-
-    return { errorReport: report as unknown };
-  } catch (err) {
-    logger.warn(
-      { error: err, sandboxId },
-      "[Worker] Error report creation failed",
-    );
-    return { errorReport: null };
-  }
-}
 
 async function processBuildJob(payload: BuildJobPayload): Promise<void> {
   const { sandboxId, chatId, messageId, userId, buildId, runId } = payload;
@@ -177,6 +118,7 @@ async function processBuildJob(payload: BuildJobPayload): Promise<void> {
       const { errorReport } = await createErrorReportIfPossible(
         sandboxId,
         result.error,
+        logger,
       );
 
       await updateBuild(buildRecord.id, {
@@ -227,7 +169,11 @@ async function processBuildJob(payload: BuildJobPayload): Promise<void> {
   } catch (error) {
     if (!handled) {
       const err = error instanceof Error ? error.message : String(error);
-      const { errorReport } = await createErrorReportIfPossible(sandboxId, err);
+      const { errorReport } = await createErrorReportIfPossible(
+        sandboxId,
+        err,
+        logger,
+      );
 
       await updateBuild(buildRecord.id, {
         status: BuildRecordStatus.FAILED,

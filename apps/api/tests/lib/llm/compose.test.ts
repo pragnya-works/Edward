@@ -29,6 +29,7 @@ describe('composePrompt', () => {
     });
 
     expect(prompt).toContain('<scope_restrictions>');
+    expect(prompt).toContain('<execution_ownership>');
     expect(prompt).toContain('<edward_sandbox_format>');
     expect(prompt).toContain('<skill:nextjs-compact>');
     expect(prompt).not.toContain('<skill:react-performance>');

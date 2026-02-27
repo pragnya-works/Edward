@@ -2,7 +2,7 @@ import {
   ChatAction,
   type ChatAction as ChatActionType,
 } from "../../../../services/planning/schemas.js";
-import type { ValidationViolation } from "../../../../services/planning/validators/postgenValidator.js";
+import type { ValidationViolation } from "../../../../services/planning/validators/postgenValidator.types.js";
 
 interface BuildPostgenRetryPromptOptions {
   originalUserRequest: string;

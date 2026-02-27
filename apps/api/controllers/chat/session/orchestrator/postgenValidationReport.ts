@@ -1,24 +1,19 @@
-import type { ValidationViolation } from "../../../../services/planning/validators/postgenValidator.js";
+import {
+  isErrorSeverity,
+  type ValidationViolation,
+} from "../../../../services/planning/validators/postgenValidator.types.js";
 
 function violationTypeToErrorType(type: ValidationViolation["type"]): string {
-  switch (type) {
-    case "missing-entry-point":
-      return "missing_import";
-    case "missing-project-file":
-      return "config";
-    case "import-placement":
-      return "syntax";
-    case "logic-quality":
-      return "runtime";
-    case "orphaned-import":
-      return "missing_import";
-    case "missing-package":
-      return "missing_import";
-    case "markdown-fence":
-      return "syntax";
-    default:
-      return "unknown";
-  }
+  const ERROR_TYPE_BY_VIOLATION: Partial<Record<ValidationViolation["type"], string>> = {
+    "missing-entry-point": "missing_import",
+    "missing-project-file": "config",
+    "import-placement": "syntax",
+    "logic-quality": "runtime",
+    "orphaned-import": "missing_import",
+    "missing-package": "missing_import",
+    "markdown-fence": "syntax",
+  };
+  return ERROR_TYPE_BY_VIOLATION[type] ?? "unknown";
 }
 
 export function buildPostgenValidationErrorReport(
@@ -29,7 +24,7 @@ export function buildPostgenValidationErrorReport(
     id: `postgen-${index + 1}`,
     headline: violation.message,
     type: violationTypeToErrorType(violation.type),
-    severity: violation.severity === "warning" ? "warning" : "error",
+    severity: violation.severity,
     stage: "compile",
     confidence: 95,
     error: {
@@ -46,11 +41,11 @@ export function buildPostgenValidationErrorReport(
   }));
 
   const warningCount = errors.filter(
-    (error) => error.severity === "warning",
+    (error) => !isErrorSeverity(error.severity),
   ).length;
   const errorCount = errors.length - warningCount;
   const rootCause =
-    errors.find((error) => error.severity !== "warning") || errors[0];
+    errors.find((error) => isErrorSeverity(error.severity)) || errors[0];
 
   return {
     failed: true,

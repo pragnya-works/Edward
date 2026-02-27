@@ -24,6 +24,13 @@ import {
 } from "./messageRole.js";
 import type { MessageContentPart, MessageContent } from "@edward/shared/llm/types";
 import { buildAttachedImageUrlContextFromUrls } from "../../utils/imageContext.js";
+import {
+  getTextBytes,
+  isHttpUrl,
+  stripAssistantArtifacts,
+  toTimestampMs,
+  truncateUtf8,
+} from "./context.helpers.js";
 
 const MAX_CONTEXT_BYTES = 150 * 1024;
 const MAX_HISTORY_BYTES = 35 * 1024;
@@ -37,24 +44,6 @@ export type LlmChatMessage = {
   content: MessageContent;
 };
 
-function truncateUtf8(input: string, maxBytes: number): string {
-  if (maxBytes <= 0) return "";
-  const buf = Buffer.from(input, "utf8");
-  if (buf.byteLength <= maxBytes) return input;
-  return buf.subarray(0, maxBytes).toString("utf8") + "\n...[truncated]";
-}
-
-function stripAssistantArtifacts(content: string): string {
-  let out = String(content ?? "");
-  out = out.replace(/<Thinking>[\s\S]*?<\/Thinking>/g, "");
-  out = out.replace(/<edward_install>[\s\S]*?<\/edward_install>/g, "");
-  out = out.replace(/<edward_sandbox[\s\S]*?<\/edward_sandbox>/g, "");
-  out = out.replace(/<edward_url_scrape[^>]*\/>/g, "");
-  out = out.replace(/<\/?Response>/g, "");
-  out = out.replace(/<\/?Thinking>/g, "");
-  return out.trim();
-}
-
 interface BuildConversationMessagesOptions {
   excludeMessageIds?: string[];
   maxCreatedAt?: Date;
@@ -64,43 +53,6 @@ type HistoryAttachment = {
   type: string;
   url: string;
 };
-
-function toTimestampMs(value: unknown): number | null {
-  if (value instanceof Date && Number.isFinite(value.getTime())) {
-    return value.getTime();
-  }
-
-  if (typeof value === "string" || typeof value === "number") {
-    const date = new Date(value);
-    if (Number.isFinite(date.getTime())) {
-      return date.getTime();
-    }
-  }
-
-  return null;
-}
-
-function isHttpUrl(value: string): boolean {
-  try {
-    const parsed = new URL(value);
-    return parsed.protocol === "http:" || parsed.protocol === "https:";
-  } catch {
-    return false;
-  }
-}
-
-function getTextBytes(content: MessageContent): number {
-  if (typeof content === "string") {
-    return Buffer.byteLength(content, "utf8");
-  }
-
-  return content.reduce((total, part) => {
-    if (part.type !== "text") {
-      return total;
-    }
-    return total + Buffer.byteLength(part.text, "utf8");
-  }, 0);
-}
 
 export async function buildConversationMessages(
   chatId: string,

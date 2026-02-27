@@ -11,7 +11,7 @@ import {
   type ChatAction as ChatActionType,
   type Framework,
 } from "../../../../services/planning/schemas.js";
-import type { ValidationViolation } from "../../../../services/planning/validators/postgenValidator.js";
+import type { ValidationViolation } from "../../../../services/planning/validators/postgenValidator.types.js";
 import { logger } from "../../../../utils/logger.js";
 import type { LlmChatMessage } from "../../../../lib/llm/context.js";
 import { runAgentLoop } from "../loop/agent.loop.js";

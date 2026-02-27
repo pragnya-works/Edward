@@ -59,6 +59,7 @@ export function useSandboxSync(chatIdFromUrl: string | undefined) {
   );
 
   const {
+    isOpen: sandboxIsOpen,
     updateFile,
     setFiles,
     startStreaming,
@@ -125,6 +126,7 @@ export function useSandboxSync(chatIdFromUrl: string | undefined) {
 
   useBuildStatusSync({
     chatIdFromUrl,
+    isSandboxOpen: sandboxIsOpen,
     stream,
     buildStatus,
     setFiles,

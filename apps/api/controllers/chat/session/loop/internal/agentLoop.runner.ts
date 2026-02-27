@@ -21,6 +21,7 @@ import {
   MAX_AGENT_TURNS,
   MAX_RESPONSE_SIZE,
 } from "../../../../../utils/constants.js";
+import { ensureError } from "../../../../../utils/error.js";
 import { logger } from "../../../../../utils/logger.js";
 import type { LlmChatMessage } from "../../../../../lib/llm/context.js";
 import {
@@ -35,7 +36,10 @@ import type {
   AgentToolResult,
   WebSearchToolResult,
 } from "@edward/shared/streamToolResults";
-import { sendSSEError } from "../../../sse.utils.js";
+import {
+  sendSSEError,
+  sendSSERecoverableError,
+} from "../../../sse.utils.js";
 import { buildAgentContinuationPrompt } from "../../shared/continuation.js";
 import {
   emitTurnCompleteMeta,
@@ -53,6 +57,39 @@ import {
 
 const SANDBOX_TAG_PATTERN = /<edward_sandbox\b/i;
 const FILE_TAG_PATTERN = /<file\b/i;
+const MAX_NO_PROGRESS_CONTINUATIONS = 1;
+const MAX_STREAM_ATTEMPTS_PER_TURN = 2;
+
+function trimForContinuationPrefix(input: string, maxChars: number): string {
+  if (input.length <= maxChars) {
+    return input;
+  }
+  return input.slice(0, maxChars);
+}
+
+function buildNoProgressContinuationPrompt(params: {
+  fullUserContent: string;
+  turnRawResponse: string;
+  attempt: number;
+}): { prompt: string; truncated: boolean } {
+  const base = buildAgentContinuationPrompt(
+    params.fullUserContent,
+    params.turnRawResponse,
+    [],
+  );
+  const directive = `\n\nNo actionable tool/file output was produced in the previous turn (attempt ${params.attempt}/${MAX_NO_PROGRESS_CONTINUATIONS}). Continue execution now:
+- To inspect/debug project state, emit one or more <edward_command ...> tags.
+- To gather external info, emit <edward_web_search ...>.
+- To implement changes, emit <edward_sandbox> with complete <file> blocks, then <edward_done />.
+Do not stop at narration-only output.`;
+  const availableForBase = Math.max(
+    0,
+    MAX_AGENT_CONTINUATION_PROMPT_CHARS - directive.length,
+  );
+  const prompt = `${trimForContinuationPrefix(base.prompt, availableForBase)}${directive}`;
+  const truncated = base.truncated || base.prompt.length > availableForBase;
+  return { prompt, truncated };
+}
 
 export function hasCodeOutputInTurn(rawTurnResponse: string): boolean {
   return (
@@ -159,6 +196,7 @@ export async function runAgentLoop(
   let sandboxTagDetected = resumeCheckpoint?.sandboxTagDetected ?? false;
   const webSearchResults: WebSearchToolResult[] = [];
   let loopStopReason: AgentLoopStopReason = AgentLoopStopReason.NO_TOOL_RESULTS;
+  let noProgressContinuations = 0;
 
   agentLoop: while (agentTurn < MAX_AGENT_TURNS) {
     agentTurn += 1;
@@ -205,54 +243,98 @@ export async function runAgentLoop(
     let turnRawResponse = "";
     let responseSizeExceededThisTurn = false;
 
-    const stream = streamResponse(
-      decryptedApiKey,
-      agentMessages,
-      abortController.signal,
-      preVerifiedDeps,
-      systemPrompt,
-      framework,
-      complexity,
-      mode,
-      promptProfile,
-      model,
-    );
+    for (
+      let streamAttempt = 1;
+      streamAttempt <= MAX_STREAM_ATTEMPTS_PER_TURN;
+      streamAttempt += 1
+    ) {
+      try {
+        const stream = streamResponse(
+          decryptedApiKey,
+          agentMessages,
+          abortController.signal,
+          preVerifiedDeps,
+          systemPrompt,
+          framework,
+          complexity,
+          mode,
+          promptProfile,
+          model,
+        );
 
-    for await (const chunk of stream) {
-      if (abortController.signal.aborted) {
+        for await (const chunk of stream) {
+          if (abortController.signal.aborted) {
+            break;
+          }
+
+          if (fullRawResponse.length + chunk.length > MAX_RESPONSE_SIZE) {
+            responseSizeExceededThisTurn = true;
+            break;
+          }
+
+          fullRawResponse += chunk;
+          turnRawResponse += chunk;
+
+          await processParserEvents({
+            events: parser.process(chunk),
+            turnState,
+            budgetState,
+            toolResultsThisTurn,
+            context: {
+              workflow,
+              res,
+              chatId,
+              isFollowUp,
+              generatedFiles,
+              declaredPackages,
+              toolResultsThisTurn,
+              runId,
+              turn: agentTurn,
+              installTaskQueue,
+              abortSignal: abortController.signal,
+            },
+          });
+
+          if (hasAnyTurnBudgetExceeded(budgetState)) {
+            break;
+          }
+        }
+
         break;
-      }
+      } catch (streamError) {
+        const error = ensureError(streamError);
+        const shouldRetry =
+          streamAttempt < MAX_STREAM_ATTEMPTS_PER_TURN &&
+          !abortController.signal.aborted &&
+          turnRawResponse.length === 0 &&
+          toolResultsThisTurn.length === 0 &&
+          !hasAnyTurnBudgetExceeded(budgetState);
 
-      if (fullRawResponse.length + chunk.length > MAX_RESPONSE_SIZE) {
-        responseSizeExceededThisTurn = true;
-        break;
-      }
+        if (!shouldRetry) {
+          throw error;
+        }
 
-      fullRawResponse += chunk;
-      turnRawResponse += chunk;
-
-      await processParserEvents({
-        events: parser.process(chunk),
-        turnState,
-        budgetState,
-        toolResultsThisTurn,
-        context: {
-          workflow,
+        logger.warn(
+          {
+            chatId,
+            runId,
+            turn: agentTurn,
+            attempt: streamAttempt,
+            message: error.message,
+          },
+          "Agent loop stream interrupted before output; retrying turn",
+        );
+        sendSSERecoverableError(
           res,
-          chatId,
-          isFollowUp,
-          generatedFiles,
-          declaredPackages,
-          toolResultsThisTurn,
-          runId,
-          turn: agentTurn,
-          installTaskQueue,
-          abortSignal: abortController.signal,
-        },
-      });
-
-      if (hasAnyTurnBudgetExceeded(budgetState)) {
-        break;
+          "Model stream was interrupted before output; retrying turn once",
+          {
+            code: "stream_retry",
+            details: {
+              turn: agentTurn,
+              attempt: streamAttempt,
+            },
+          },
+        );
       }
     }
 
@@ -363,6 +445,7 @@ export async function runAgentLoop(
     }
 
     if (codeOutputDetected) {
+      noProgressContinuations = 0;
       emitTurnCompleteMeta(emitMeta, agentTurn, toolResultsThisTurn.length);
       loopStopReason = AgentLoopStopReason.DONE;
       break;
@@ -389,22 +472,20 @@ export async function runAgentLoop(
         toolResultsThisTurn,
       );
       if (continuationResult.truncated) {
-        loopStopReason = AgentLoopStopReason.CONTINUATION_BUDGET_EXCEEDED;
-        sendSSEError(
+        sendSSERecoverableError(
           res,
-          `Continuation prompt exceeded limit (${MAX_AGENT_CONTINUATION_PROMPT_CHARS} chars)`,
+          `Continuation context was compacted to stay within ${MAX_AGENT_CONTINUATION_PROMPT_CHARS} characters`,
           {
-            code: "continuation_budget_exceeded",
+            code: "continuation_prompt_truncated",
             details: {
               limitChars: MAX_AGENT_CONTINUATION_PROMPT_CHARS,
               turn: agentTurn,
             },
           },
         );
-        emitTurnCompleteMeta(emitMeta, agentTurn, toolResultsThisTurn.length);
-        break;
       }
 
+      noProgressContinuations = 0;
       agentMessages = [
         { role: MessageRole.User, content: continuationResult.prompt },
       ];
@@ -431,9 +512,64 @@ export async function runAgentLoop(
     }
 
     if (turnState.doneTagDetectedThisTurn) {
+      noProgressContinuations = 0;
       emitTurnCompleteMeta(emitMeta, agentTurn, toolResultsThisTurn.length);
       loopStopReason = AgentLoopStopReason.DONE;
       break;
+    }
+
+    if (
+      toolResultsThisTurn.length === 0 &&
+      !codeOutputDetected &&
+      !turnState.doneTagDetectedThisTurn &&
+      !abortController.signal.aborted &&
+      agentTurn < MAX_AGENT_TURNS &&
+      noProgressContinuations < MAX_NO_PROGRESS_CONTINUATIONS
+    ) {
+      noProgressContinuations += 1;
+      const userTextContent =
+        typeof userContent === "string"
+          ? userContent
+          : getTextFromContent(userContent);
+      const continuationResult = buildNoProgressContinuationPrompt({
+        fullUserContent: userTextContent,
+        turnRawResponse,
+        attempt: noProgressContinuations,
+      });
+      if (continuationResult.truncated) {
+        sendSSERecoverableError(
+          res,
+          `Continuation context was compacted to stay within ${MAX_AGENT_CONTINUATION_PROMPT_CHARS} characters`,
+          {
+            code: "continuation_prompt_truncated",
+            details: {
+              limitChars: MAX_AGENT_CONTINUATION_PROMPT_CHARS,
+              turn: agentTurn,
+            },
+          },
+        );
+      }
+
+      agentMessages = [{ role: MessageRole.User, content: continuationResult.prompt }];
+      await onCheckpoint?.({
+        turn: agentTurn,
+        fullRawResponse,
+        agentMessages,
+        sandboxTagDetected,
+        totalToolCallsInRun,
+        updatedAt: Date.now(),
+      });
+      logger.warn(
+        {
+          chatId,
+          runId,
+          turn: agentTurn,
+          attempt: noProgressContinuations,
+        },
+        "Agent loop: no actionable output detected; issuing continuation nudge",
+      );
+      emitTurnCompleteMeta(emitMeta, agentTurn, 0);
+      continue agentLoop;
     }
 
     emitTurnCompleteMeta(emitMeta, agentTurn, toolResultsThisTurn.length);

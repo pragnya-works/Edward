@@ -183,6 +183,7 @@ const ANSI_ESCAPE_SEQUENCE_PATTERN = new RegExp(
   `[${String.fromCharCode(0x1b)}${String.fromCharCode(0x9b)}][[\\]()#;?]*(?:(?:(?:[a-zA-Z\\d]*(?:;[a-zA-Z\\d]*)*)?${String.fromCharCode(0x07)})|(?:(?:\\d{1,4}(?:;\\d{0,4})*)?[\\dA-PRZcf-ntqry=><~]))`,
   "g"
 );
+const MAX_STDIO_SANITIZE_INPUT_CHARS = MAX_TOOL_STDIO_CHARS * 2;
 
 function collapseRepeatedLines(input: string, maxConsecutive = 3): string {
   const lines = input.split("\n");
@@ -276,8 +277,16 @@ export async function executeCommandTool(params: {
         command: params.command,
         args: params.args,
       });
-      const stdout = sanitizeCommandOutput(raw.stdout ?? "");
-      const stderr = sanitizeCommandOutput(raw.stderr ?? "");
+      const boundedStdout = truncateWithMarker(
+        raw.stdout ?? "",
+        MAX_STDIO_SANITIZE_INPUT_CHARS,
+      );
+      const boundedStderr = truncateWithMarker(
+        raw.stderr ?? "",
+        MAX_STDIO_SANITIZE_INPUT_CHARS,
+      );
+      const stdout = sanitizeCommandOutput(boundedStdout);
+      const stderr = sanitizeCommandOutput(boundedStderr);
       const deduped = dedupeStdStreams(stdout, stderr, raw.exitCode ?? 0);
       return {
         exitCode: raw.exitCode ?? 0,

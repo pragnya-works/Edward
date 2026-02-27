@@ -79,4 +79,43 @@ describe("provider.client legacy completions fallback", () => {
       max_tokens: 4096,
     });
   });
+
+  it("does not swallow AbortError unless caller signal is aborted", async () => {
+    const { streamResponse } = await import("../../../lib/llm/provider.client.js");
+
+    const transportAbort = new Error("transport aborted");
+    transportAbort.name = "AbortError";
+    mocks.responsesCreateMock.mockRejectedValueOnce(transportAbort);
+
+    const collect = async () => {
+      for await (const _chunk of streamResponse(OPENAI_TEST_KEY, [
+        { role: MessageRole.User, content: "Say hello" },
+      ])) {
+        // no-op
+      }
+    };
+
+    await expect(collect()).rejects.toThrow("transport aborted");
+  });
+
+  it("handles AbortError as cancellation when caller signal is already aborted", async () => {
+    const { streamResponse } = await import("../../../lib/llm/provider.client.js");
+    const abortController = new AbortController();
+    abortController.abort();
+
+    const abortedError = new Error("request aborted");
+    abortedError.name = "AbortError";
+    mocks.responsesCreateMock.mockRejectedValueOnce(abortedError);
+
+    let output = "";
+    for await (const chunk of streamResponse(
+      OPENAI_TEST_KEY,
+      [{ role: MessageRole.User, content: "Say hello" }],
+      abortController.signal,
+    )) {
+      output += chunk;
+    }
+
+    expect(output).toBe("");
+  });
 });

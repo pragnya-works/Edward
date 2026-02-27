@@ -28,6 +28,7 @@ import { useSandboxDataFetchers } from "@/hooks/server-state/useSandboxData";
 
 export function useSandboxBuildSync({
   chatIdFromUrl,
+  isSandboxOpen,
   stream,
   buildStatus,
   setFiles,
@@ -52,7 +53,6 @@ export function useSandboxBuildSync({
   const routeEpochRef = useRef(0);
   const filesRequestSeqRef = useRef(0);
   const filesLoadInFlightChatIdRef = useRef<string | null>(null);
-  const filesLoadRequestedChatIdRef = useRef<string | null>(null);
   const lastPolledChatIdRef = useRef<string | null>(null);
   const isPollingInFlightRef = useRef(false);
   const buildEventsSourceRef = useRef<EventSource | null>(null);
@@ -114,6 +114,9 @@ export function useSandboxBuildSync({
         activeFiles: StreamedFile[];
         completedFiles: StreamedFile[];
       },
+      options?: {
+        force?: boolean;
+      },
     ) => {
       if (filesLoadInFlightChatIdRef.current === chatId) {
         return;
@@ -126,7 +129,7 @@ export function useSandboxBuildSync({
       try {
         const response = await fetchSandboxFiles({
           chatId,
-          force: true,
+          force: options?.force,
         });
         if (!response) {
           return;
@@ -227,7 +230,6 @@ export function useSandboxBuildSync({
     pushTerminalRef.current = false;
     buildInFlightRef.current = false;
     filesLoadInFlightChatIdRef.current = null;
-    filesLoadRequestedChatIdRef.current = null;
     pollAttemptsRef.current = 0;
     setSseErrorCount(0);
 
@@ -316,6 +318,13 @@ export function useSandboxBuildSync({
     stream.isSandboxing ||
     stream.installingDeps.length > 0 ||
     stream.completedFiles.length > 0;
+  const shouldHydrateSandboxFiles =
+    isSandboxOpen ||
+    hasStreamBuildSignals ||
+    buildStatus === BuildStatus.QUEUED ||
+    buildStatus === BuildStatus.BUILDING ||
+    buildStatus === BuildStatus.FAILED ||
+    buildInFlightRef.current;
 
   useEffect(() => {
     if (!hasStreamBuildSignals) {
@@ -405,15 +414,16 @@ export function useSandboxBuildSync({
     if (
       !chatIdFromUrl ||
       chatIdFromUrl === loadedChatIdRef.current ||
-      filesLoadRequestedChatIdRef.current === chatIdFromUrl
+      !shouldHydrateSandboxFiles
     ) {
       return;
     }
 
-    filesLoadRequestedChatIdRef.current = chatIdFromUrl;
     loadAllSandboxFiles(chatIdFromUrl, {
       activeFiles: stream.activeFiles,
       completedFiles: stream.completedFiles,
+    }, {
+      force: hasStreamBuildSignals || buildInFlightRef.current,
     });
 
     if (!pushConnectedRef.current && lastPolledChatIdRef.current !== chatIdFromUrl) {
@@ -423,6 +433,8 @@ export function useSandboxBuildSync({
     }
   }, [
     chatIdFromUrl,
+    shouldHydrateSandboxFiles,
+    hasStreamBuildSignals,
     loadAllSandboxFiles,
     pollBuildStatus,
     stream.activeFiles,
