@@ -6,7 +6,10 @@ export function truncateUtf8(input: string, maxBytes: number): string {
   if (maxBytes <= 0) return "";
   const buf = Buffer.from(input, "utf8");
   if (buf.byteLength <= maxBytes) return input;
-  const limit = Math.max(0, maxBytes - TRUNCATE_SUFFIX.length);
+  if (maxBytes < TRUNCATE_SUFFIX.length) {
+    return buf.subarray(0, maxBytes).toString("utf8");
+  }
+  const limit = maxBytes - TRUNCATE_SUFFIX.length;
   return buf.subarray(0, limit).toString("utf8") + TRUNCATE_SUFFIX;
 }
 

@@ -39,7 +39,7 @@ function isPrivateIPv4(address: string): boolean {
   if (a === 172 && b >= 16 && b <= 31) return true;
   if (a === 100 && b >= 64 && b <= 127) return true;
   if (a === 198 && (b === 18 || b === 19)) return true;
-  if (a >= 240) return true;
+  if (a >= 224) return true;
   if (a === 192 && b === 0 && c === 0) return true;
   return false;
 }
