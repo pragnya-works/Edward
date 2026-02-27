@@ -1,8 +1,10 @@
 import {
   type ActiveRunResponse,
   type ChatShareStatusResponse,
+  type PromptEnhanceResponse,
   type SharedChatHistoryResponse,
 } from "@edward/shared/api/contracts";
+import { type Provider } from "@edward/shared/constants";
 import { fetchApi, fetchApiResponse } from "@/lib/api/httpClient";
 import type { MessageContent } from "@/lib/api/messageContent";
 
@@ -99,5 +101,15 @@ export async function getSharedChatHistory(
 ): Promise<SharedChatHistoryResponse> {
   return fetchApi<SharedChatHistoryResponse>(`/share/chats/${chatId}/history`, {
     method: "GET",
+  });
+}
+
+export async function enhancePrompt(
+  text: string,
+  provider?: Provider,
+): Promise<PromptEnhanceResponse> {
+  return fetchApi<PromptEnhanceResponse>("/chat/prompt-enhance", {
+    method: "POST",
+    body: JSON.stringify({ text, provider }),
   });
 }

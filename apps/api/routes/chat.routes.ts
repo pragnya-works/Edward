@@ -3,6 +3,7 @@ import {
   uploadChatImage,
 } from "../controllers/chat/image.controller.js";
 import { unifiedSendMessage } from "../controllers/chat/message.controller.js";
+import { enhancePrompt } from "../controllers/chat/promptEnhance.controller.js";
 import {
   getChatHistory,
   getChatMeta,
@@ -11,6 +12,7 @@ import {
 } from "../controllers/chat/query/history.controller.js";
 import {
   getBuildStatus,
+  triggerRebuild,
   streamBuildEvents,
 } from "../controllers/chat/query/build.controller.js";
 import {
@@ -30,6 +32,8 @@ import {
 import { validateRequest } from "../middleware/validateRequest.js";
 import {
   GetChatHistoryRequestSchema,
+  PromptEnhanceRequestSchema,
+  RebuildRequestSchema,
   UnifiedSendMessageRequestSchema,
   StreamRunEventsRequestSchema,
   CancelRunRequestSchema,
@@ -40,6 +44,7 @@ import {
   chatRateLimiter,
   dailyChatRateLimiter,
   imageUploadRateLimiter,
+  promptEnhanceRateLimiter,
 } from "../middleware/rateLimit.js";
 import { IMAGE_UPLOAD_CONFIG } from "@edward/shared/constants";
 
@@ -61,6 +66,12 @@ chatRouter.post(
   validateRequest(UnifiedSendMessageRequestSchema),
   unifiedSendMessage,
 );
+chatRouter.post(
+  "/prompt-enhance",
+  promptEnhanceRateLimiter,
+  validateRequest(PromptEnhanceRequestSchema),
+  enhancePrompt,
+);
 chatRouter.get(
   "/recent",
   getRecentChats,
@@ -79,6 +90,11 @@ chatRouter.get(
   "/:chatId/build-status",
   validateRequest(GetChatHistoryRequestSchema),
   getBuildStatus,
+);
+chatRouter.post(
+  "/:chatId/rebuild",
+  validateRequest(RebuildRequestSchema),
+  triggerRebuild,
 );
 chatRouter.get(
   "/:chatId/active-run",

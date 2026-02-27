@@ -2,18 +2,77 @@
 
 import { m } from "motion/react";
 import { RefreshCw, X, Code2, AlertCircle, Monitor } from "lucide-react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@edward/ui/components/button";
+import { toast } from "@edward/ui/components/sonner";
 import { cn } from "@edward/ui/lib/utils";
 import { useSandbox } from "@/contexts/sandboxContext";
 import { useChatWorkspaceContext } from "@/components/chat/chatWorkspaceContext";
 import { BuildStatus, SandboxMode } from "@/stores/sandbox/types";
 import { GithubIntegrationBar } from "@/components/chat/sandbox/githubIntegrationBar";
+import { triggerRebuild } from "@/lib/api/build";
+import { queryKeys } from "@/lib/queryKeys";
 
 export function SandboxHeader() {
-  const { projectName, stream } = useChatWorkspaceContext();
-  const { mode, files, buildStatus, isStreaming, setMode, closeSandbox } =
-    useSandbox();
+  const { projectName, stream, chatId } = useChatWorkspaceContext();
+  const {
+    mode,
+    files,
+    buildStatus,
+    isStreaming,
+    setMode,
+    closeSandbox,
+    setBuildStatus,
+    setBuildError,
+    setFullErrorReport,
+  } = useSandbox();
+  const queryClient = useQueryClient();
   const isInstallingDependencies = stream.installingDeps.length > 0;
+  const canTriggerRebuild =
+    Boolean(chatId) &&
+    !isStreaming &&
+    !isInstallingDependencies &&
+    (buildStatus === BuildStatus.SUCCESS || buildStatus === BuildStatus.FAILED);
+
+  const rebuildMutation = useMutation({
+    mutationFn: async () => {
+      if (!chatId) {
+        throw new Error("Chat ID unavailable for rebuild.");
+      }
+      return triggerRebuild(chatId);
+    },
+    onMutate: () => {
+      setBuildStatus(BuildStatus.QUEUED);
+      setBuildError(null);
+      setFullErrorReport(null);
+    },
+    onSuccess: (response) => {
+      const queuedBuildId = response.data.build.id;
+      toast.success("Rebuild started", {
+        description: `Build ${queuedBuildId} queued.`,
+      });
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.sandbox.buildStatusByChatId(chatId),
+      });
+    },
+    onError: (error) => {
+      const description =
+        error instanceof Error ? error.message : "Failed to start rebuild.";
+      toast.error("Rebuild failed", {
+        description,
+      });
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.sandbox.buildStatusByChatId(chatId),
+      });
+    },
+  });
+
+  const handleRebuild = () => {
+    if (!canTriggerRebuild || rebuildMutation.isPending) {
+      return;
+    }
+    rebuildMutation.mutate();
+  };
 
   return (
     <div className="flex items-center justify-between gap-2.5 px-3 md:px-4 py-2.5 border-b border-workspace-border bg-workspace-sidebar text-workspace-header-fg shrink-0">
@@ -119,6 +178,23 @@ export function SandboxHeader() {
 
       <div className="flex items-center gap-2 shrink-0">
         <GithubIntegrationBar />
+        {canTriggerRebuild ? (
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={handleRebuild}
+            disabled={rebuildMutation.isPending}
+            className="h-8 rounded-lg border border-workspace-border bg-workspace-bg/80 px-2.5 text-[11px] font-semibold text-workspace-foreground hover:bg-workspace-hover"
+          >
+            <RefreshCw
+              className={cn(
+                "mr-1.5 h-3.5 w-3.5",
+                rebuildMutation.isPending && "animate-spin",
+              )}
+            />
+            {rebuildMutation.isPending ? "Rebuilding" : "Rebuild"}
+          </Button>
+        ) : null}
 
         <Button
           variant="ghost"

@@ -12,6 +12,7 @@ import {
   filesToMessageContent,
   type UploadedImage,
 } from "@/lib/api/messageContent";
+import { enhancePrompt } from "@/lib/api/chat";
 import { useCallback, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import type { MetaEvent } from "@edward/shared/streamEvents";
@@ -19,6 +20,7 @@ import { INITIAL_STREAM_STATE } from "@edward/shared/chat/types";
 import { toast } from "@edward/ui/components/sonner";
 import { useChatSubmissionGuards } from "@/hooks/chat/useChatSubmissionGuards";
 import { useImageUpload } from "@/hooks/server-state/useImageUpload";
+import { getBestGuessProvider } from "@edward/shared/schema";
 
 interface AuthenticatedPromptbarProps {
   chatId?: string;
@@ -200,6 +202,30 @@ export default function AuthenticatedPromptbar({
     }
   }, [activeStreamKey, cancelStream]);
 
+  const enhancementProvider = useMemo(
+    () => getBestGuessProvider(preferredModel ?? null, keyPreview ?? null),
+    [keyPreview, preferredModel],
+  );
+
+  const handleEnhancePrompt = useCallback(
+    async (text: string) => {
+      try {
+        const response = await enhancePrompt(text, enhancementProvider);
+        const enhanced = response.data.enhancedPrompt?.trim();
+        if (!enhanced) {
+          return text;
+        }
+        return enhanced;
+      } catch (error) {
+        const description =
+          error instanceof Error ? error.message : "Unable to enhance prompt.";
+        toast.error("Prompt enhancement failed", { description });
+        return text;
+      }
+    },
+    [enhancementProvider],
+  );
+
   const promptbarController = useMemo(
     () => ({
       auth: {
@@ -208,6 +234,7 @@ export default function AuthenticatedPromptbar({
       },
       submission: {
         onProtectedAction: handleProtectedAction,
+        onEnhancePrompt: handleEnhancePrompt,
         hideSuggestions: Boolean(effectiveChatId),
         isStreaming: stream.isStreaming,
         onCancel: handleCancel,
@@ -235,6 +262,7 @@ export default function AuthenticatedPromptbar({
       session?.user,
       handleSignIn,
       handleProtectedAction,
+      handleEnhancePrompt,
       effectiveChatId,
       stream.isStreaming,
       handleCancel,

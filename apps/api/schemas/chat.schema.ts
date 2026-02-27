@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { MessageRole } from "@edward/auth";
 import { Model } from "@edward/shared/schema";
+import { Provider } from "@edward/shared/constants";
 import { PROMPT_INPUT_CONFIG } from "@edward/shared/constants";
 import {
   AgentLoopStopReason,
@@ -82,6 +83,26 @@ export const UnifiedSendMessageRequestSchema = z.object({
 
 export const GetChatHistoryRequestSchema = z.object({
   params: ChatIdParamSchema,
+});
+
+export const RebuildRequestSchema = z.object({
+  params: ChatIdParamSchema,
+});
+
+export const PromptEnhanceSchema = z.object({
+  text: z
+    .string()
+    .trim()
+    .min(30, "Prompt enhancement requires at least 30 characters")
+    .max(
+      PROMPT_INPUT_CONFIG.MAX_CHARS,
+      `Prompt enhancement supports up to ${PROMPT_INPUT_CONFIG.MAX_CHARS} characters`,
+    ),
+  provider: z.nativeEnum(Provider).optional(),
+});
+
+export const PromptEnhanceRequestSchema = z.object({
+  body: PromptEnhanceSchema,
 });
 
 export const StreamRunEventsRequestSchema = z.object({

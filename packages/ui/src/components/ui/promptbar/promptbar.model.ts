@@ -24,6 +24,7 @@ export interface ResolvedPromptbarProps {
     text: string,
     images?: UploadedImageRef[],
   ) => void | Promise<void>;
+  onEnhancePrompt?: (text: string) => string | Promise<string>;
   hasApiKey: boolean | null;
   isApiKeyLoading: boolean;
   apiKeyError: string;
@@ -97,6 +98,7 @@ export function resolvePromptbarProps(props: PromptbarProps): ResolvedPromptbarP
       isAuthenticated: controller.auth?.isAuthenticated ?? false,
       onSignIn: controller.auth?.onSignIn,
       onProtectedAction: controller.submission?.onProtectedAction,
+      onEnhancePrompt: controller.submission?.onEnhancePrompt,
       hasApiKey: controller.apiKey?.hasApiKey ?? null,
       isApiKeyLoading: controller.apiKey?.isApiKeyLoading ?? false,
       apiKeyError: controller.apiKey?.apiKeyError ?? "",
@@ -121,6 +123,7 @@ export function resolvePromptbarProps(props: PromptbarProps): ResolvedPromptbarP
     isAuthenticated: props.isAuthenticated ?? false,
     onSignIn: props.onSignIn,
     onProtectedAction: props.onProtectedAction,
+    onEnhancePrompt: props.onEnhancePrompt,
     hasApiKey: props.hasApiKey ?? null,
     isApiKeyLoading: props.isApiKeyLoading ?? false,
     apiKeyError: props.apiKeyError ?? "",

@@ -103,6 +103,30 @@ export interface BuildStatusResponse {
   };
 }
 
+export interface PromptEnhanceResponse {
+  message: string;
+  data: {
+    enhancedPrompt: string;
+    provider: "openai" | "gemini";
+    model: string;
+  };
+}
+
+export interface RebuildResponse {
+  message: string;
+  data: {
+    chatId: string;
+    build: {
+      id: string;
+      status: BuildRecordStatus;
+      previewUrl: string | null;
+      buildDuration: number | null;
+      errorReport: BuildErrorReport | null;
+      createdAt: string;
+    };
+  };
+}
+
 export interface ActiveRunResponse {
   message: string;
   data: {

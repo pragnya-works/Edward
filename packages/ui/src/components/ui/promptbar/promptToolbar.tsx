@@ -1,4 +1,14 @@
-import { ArrowRight, PaperclipIcon, EyeOff, X, Square, CornerDownLeft } from "lucide-react";
+import {
+  ArrowRight,
+  PaperclipIcon,
+  EyeOff,
+  X,
+  Square,
+  CornerDownLeft,
+  WandSparkles,
+  Mic,
+  LoaderIcon,
+} from "lucide-react";
 import { Button } from "@edward/ui/components/button";
 import {
   Tooltip,
@@ -10,7 +20,7 @@ import { cn } from "@edward/ui/lib/utils";
 import {
   type AttachedFile,
 } from "./promptbar.constants";
-import { IMAGE_UPLOAD_CONFIG } from "@edward/shared/constants";
+import { IMAGE_UPLOAD_CONFIG, PROMPT_INPUT_CONFIG } from "@edward/shared/constants";
 
 interface PromptToolbarProps {
   isMobile: boolean;
@@ -23,6 +33,15 @@ interface PromptToolbarProps {
   onFileInputChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onClearAllFiles: () => void;
   onProtectedAction: () => void;
+  onEnhancePrompt: () => void;
+  isEnhancingPrompt: boolean;
+  canEnhancePrompt: boolean;
+  enhancePromptMinChars: number;
+  isAtPromptLimit: boolean;
+  onToggleVoiceInput: () => void;
+  isVoiceSupported: boolean;
+  isVoiceRecording: boolean;
+  isSubmissionBlocked: boolean;
   isStreaming?: boolean;
   onCancel?: () => void;
   disabled?: boolean;
@@ -41,6 +60,15 @@ export function PromptToolbar({
   onFileInputChange,
   onClearAllFiles,
   onProtectedAction,
+  onEnhancePrompt,
+  isEnhancingPrompt,
+  canEnhancePrompt,
+  enhancePromptMinChars,
+  isAtPromptLimit,
+  onToggleVoiceInput,
+  isVoiceSupported,
+  isVoiceRecording,
+  isSubmissionBlocked,
   isStreaming,
   onCancel,
   disabled,
@@ -113,10 +141,83 @@ export function PromptToolbar({
       : disableAttachmentActions
         ? attachmentDisabledReason || "Image uploads are currently unavailable."
         : `Attach images${attachedFiles.length > 0 ? ` (${attachedFiles.length}/${IMAGE_UPLOAD_CONFIG.MAX_FILES})` : ""}`;
+  const promptEnhanceTooltip = disabled
+    ? "Prompt enhancement unavailable right now."
+    : isEnhancingPrompt
+      ? "Enhancing prompt..."
+      : isAtPromptLimit
+        ? `Prompt is at the ${PROMPT_INPUT_CONFIG.MAX_CHARS}-character limit. Shorten it to enhance.`
+        : !canEnhancePrompt
+          ? `Write at least ${enhancePromptMinChars} characters to enhance prompt.`
+          : "Enhance prompt";
+  const voiceTooltip = !isVoiceSupported
+    ? "Voice input is not supported in this browser."
+    : isSubmissionBlocked
+      ? "Voice input is unavailable while generation is blocked."
+      : isVoiceRecording
+        ? "Listening... tap to stop"
+        : "Start voice input";
 
   return (
     <div className="flex items-center justify-between px-3 py-3 sm:px-4 sm:py-3 md:px-6 md:py-4 bg-transparent relative z-20">
       <div className="flex items-center gap-2 sm:gap-3">
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className={cn(
+                  "h-8 w-8 sm:h-9 sm:w-9 shrink-0 rounded-full bg-foreground/5 hover:bg-foreground/8 transition-all duration-200 border border-border/50",
+                  disabled && "opacity-60",
+                )}
+                onClick={onEnhancePrompt}
+                disabled={
+                  disabled || isEnhancingPrompt || !canEnhancePrompt
+                }
+                aria-label="Enhance prompt"
+              >
+                {isEnhancingPrompt ? (
+                  <LoaderIcon className="h-4 w-4 text-foreground/70 animate-spin" />
+                ) : (
+                  <WandSparkles className="h-4 w-4 text-foreground/70" />
+                )}
+              </Button>
+            }
+          />
+          <TooltipPositioner side="top" align="center">
+            <TooltipContent>{promptEnhanceTooltip}</TooltipContent>
+          </TooltipPositioner>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className={cn(
+                  "relative h-8 w-8 sm:h-9 sm:w-9 shrink-0 rounded-full bg-foreground/5 hover:bg-foreground/8 transition-all duration-200 border border-border/50",
+                  isVoiceRecording &&
+                    "bg-sky-500/15 border-sky-500/30 text-sky-500 hover:bg-sky-500/20",
+                )}
+                onClick={onToggleVoiceInput}
+                disabled={!isVoiceSupported || isSubmissionBlocked}
+                aria-label={isVoiceRecording ? "Stop voice input" : "Start voice input"}
+              >
+                {isVoiceRecording ? (
+                  <Square className="h-3 w-3 fill-current" />
+                ) : (
+                  <Mic className="h-4 w-4 text-foreground/70" />
+                )}
+              </Button>
+            }
+          />
+          <TooltipPositioner side="top" align="center">
+            <TooltipContent>{voiceTooltip}</TooltipContent>
+          </TooltipPositioner>
+        </Tooltip>
         <Tooltip>
           <TooltipTrigger
             render={

@@ -1,10 +1,31 @@
 import type { Response } from "express";
 import { ParserEventType } from "@edward/shared/streamEvents";
 import { BuildRecordStatus } from "@edward/shared/api/contracts";
-import { getLatestBuildByChatId } from "@edward/auth";
+import {
+  ACTIVE_RUN_STATUSES,
+  and,
+  createBuild,
+  db,
+  eq,
+  getLatestBuildByChatId,
+  inArray,
+  run,
+  updateBuild,
+} from "@edward/auth";
 import { subscribeToRedisChannel } from "../../../lib/redisPubSub.js";
+import { redis } from "../../../lib/redis.js";
 import type { AuthenticatedRequest } from "../../../middleware/auth.js";
 import { getAuthenticatedUserId } from "../../../middleware/auth.js";
+import { enqueueBuildJob } from "../../../services/queue/enqueue.js";
+import {
+  getActiveSandbox,
+  provisionSandbox,
+} from "../../../services/sandbox/lifecycle/provisioning.js";
+import {
+  hasBackup,
+  hasBackupOnS3,
+} from "../../../services/sandbox/backup.service.js";
+import { getChatFramework } from "../../../services/sandbox/state.service.js";
 import {
   ERROR_MESSAGES,
   HttpStatus,
@@ -68,6 +89,197 @@ export async function getBuildStatus(
     });
   } catch (error) {
     logger.error(ensureError(error), "getBuildStatus error");
+    sendStandardError(
+      res,
+      HttpStatus.INTERNAL_SERVER_ERROR,
+      ERROR_MESSAGES.INTERNAL_SERVER_ERROR,
+    );
+  }
+}
+
+export async function triggerRebuild(
+  req: AuthenticatedRequest,
+  res: Response,
+): Promise<void> {
+  try {
+    const userId = getAuthenticatedUserId(req);
+    const chatId = getChatIdOrRespond(req.params.chatId, res, sendStandardError);
+
+    if (!chatId) {
+      return;
+    }
+
+    const hasAccess = await assertChatOwnedOrRespond(
+      chatId,
+      userId,
+      res,
+      sendStandardError,
+    );
+    if (!hasAccess) {
+      return;
+    }
+
+    const [activeRun] = await db
+      .select({ id: run.id })
+      .from(run)
+      .where(
+        and(
+          eq(run.chatId, chatId),
+          eq(run.userId, userId),
+          inArray(run.status, ACTIVE_RUN_STATUSES),
+        ),
+      )
+      .limit(1);
+
+    if (activeRun) {
+      sendStandardError(
+        res,
+        HttpStatus.CONFLICT,
+        "Cannot rebuild while a run is in progress.",
+      );
+      return;
+    }
+
+    const latestBuild = await getLatestBuildByChatId(chatId);
+    if (!latestBuild) {
+      sendStandardError(
+        res,
+        HttpStatus.CONFLICT,
+        "Rebuild is available only after a completed build.",
+      );
+      return;
+    }
+
+    if (
+      latestBuild.status !== BuildRecordStatus.SUCCESS &&
+      latestBuild.status !== BuildRecordStatus.FAILED
+    ) {
+      sendStandardError(
+        res,
+        HttpStatus.CONFLICT,
+        "Rebuild is allowed only after the latest build has succeeded or failed.",
+      );
+      return;
+    }
+
+    let sandboxId = await getActiveSandbox(chatId);
+    if (!sandboxId) {
+      const cachedFramework = await getChatFramework(chatId);
+      let shouldRestoreFromBackup = await hasBackup(chatId);
+      if (!shouldRestoreFromBackup) {
+        shouldRestoreFromBackup = await hasBackupOnS3(chatId, userId);
+      }
+
+      try {
+        sandboxId = await provisionSandbox(
+          userId,
+          chatId,
+          cachedFramework ?? undefined,
+          shouldRestoreFromBackup,
+        );
+      } catch (provisionError) {
+        if (cachedFramework) {
+          logger.warn(
+            {
+              err: ensureError(provisionError),
+              chatId,
+              cachedFramework,
+              shouldRestoreFromBackup,
+            },
+            "Sandbox reprovision with cached framework failed; retrying without framework",
+          );
+          sandboxId = await provisionSandbox(
+            userId,
+            chatId,
+            undefined,
+            shouldRestoreFromBackup,
+          );
+        } else {
+          throw provisionError;
+        }
+      }
+    }
+
+    const queuedBuild = await createBuild({
+      chatId,
+      messageId: latestBuild.messageId,
+      status: BuildRecordStatus.QUEUED,
+      forceNew: true,
+    });
+    const runId = `manual-rebuild-${queuedBuild.id}`;
+    const buildStatusChannel = `edward:build-status:${chatId}`;
+
+    await redis.publish(
+      buildStatusChannel,
+      JSON.stringify({
+        buildId: queuedBuild.id,
+        runId,
+        status: BuildRecordStatus.QUEUED,
+      }),
+    );
+
+    try {
+      await enqueueBuildJob({
+        sandboxId,
+        userId,
+        chatId,
+        messageId: latestBuild.messageId,
+        buildId: queuedBuild.id,
+        runId,
+      });
+    } catch (queueError) {
+      const enqueueErrorReport = {
+        failed: true,
+        headline: "Failed to enqueue rebuild job",
+        details:
+          queueError instanceof Error
+            ? queueError.message
+            : String(queueError),
+      };
+
+      await updateBuild(queuedBuild.id, {
+        status: BuildRecordStatus.FAILED,
+        errorReport: enqueueErrorReport as Record<string, unknown>,
+      }).catch(() => {});
+
+      await redis
+        .publish(
+          buildStatusChannel,
+          JSON.stringify({
+            buildId: queuedBuild.id,
+            runId,
+            status: BuildRecordStatus.FAILED,
+            errorReport: enqueueErrorReport,
+          }),
+        )
+        .catch(() => {});
+
+      logger.error(
+        { err: ensureError(queueError), chatId, buildId: queuedBuild.id },
+        "Failed to enqueue manual rebuild",
+      );
+
+      sendStandardError(
+        res,
+        HttpStatus.INTERNAL_SERVER_ERROR,
+        "Failed to start rebuild job",
+      );
+      return;
+    }
+
+    sendSuccess(res, HttpStatus.OK, "Rebuild started successfully", {
+      chatId,
+      build: {
+        id: queuedBuild.id,
+        status: queuedBuild.status,
+        previewUrl: queuedBuild.previewUrl,
+        buildDuration: queuedBuild.buildDuration,
+        errorReport: queuedBuild.errorReport,
+        createdAt: queuedBuild.createdAt,
+      },
+    });
+  } catch (error) {
+    logger.error(ensureError(error), "triggerRebuild error");
     sendStandardError(
       res,
       HttpStatus.INTERNAL_SERVER_ERROR,

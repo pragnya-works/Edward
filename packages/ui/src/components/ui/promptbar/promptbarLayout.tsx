@@ -60,6 +60,12 @@ interface PromptbarViewModel {
   isMobile: boolean;
   showLoginModal: boolean;
   showBYOK: boolean;
+  isEnhancingPrompt: boolean;
+  canEnhancePrompt: boolean;
+  enhancePromptMinChars: number;
+  isAtPromptLimit: boolean;
+  isVoiceSupported: boolean;
+  isVoiceRecording: boolean;
   disableAttachmentActions: boolean;
   attachmentDisabledReason: string | null;
   submissionDisabledReason?: string;
@@ -84,6 +90,8 @@ interface PromptbarFilesModel {
 interface PromptbarActionsModel {
   onInputValueChange: (nextValue: string) => void;
   onProtectedAction: () => void;
+  onEnhancePrompt: () => void;
+  onToggleVoiceInput: () => void;
   onByokValidate: () => void;
   onShowLoginModalChange: (open: boolean) => void;
   onShowBYOKChange: (open: boolean) => void;
@@ -136,8 +144,8 @@ export function PromptbarLayout({ model }: PromptbarLayoutProps) {
 
           <div className="relative">
             {!view.inputValue.trim() &&
-            files.attachedFiles.length === 0 &&
-            !view.hideSuggestions ? (
+              files.attachedFiles.length === 0 &&
+              !view.hideSuggestions ? (
               <div className="absolute inset-0 pointer-events-none z-0">
                 <TextAnimate
                   key={view.suggestionIndex}
@@ -259,6 +267,15 @@ export function PromptbarLayout({ model }: PromptbarLayoutProps) {
             onFileInputChange={files.handleFileInputChange}
             onClearAllFiles={files.handleClearAllFiles}
             onProtectedAction={actions.onProtectedAction}
+            onEnhancePrompt={actions.onEnhancePrompt}
+            isEnhancingPrompt={view.isEnhancingPrompt}
+            canEnhancePrompt={view.canEnhancePrompt}
+            enhancePromptMinChars={view.enhancePromptMinChars}
+            isAtPromptLimit={view.isAtPromptLimit}
+            onToggleVoiceInput={actions.onToggleVoiceInput}
+            isVoiceSupported={view.isVoiceSupported}
+            isVoiceRecording={view.isVoiceRecording}
+            isSubmissionBlocked={view.isSubmissionBlocked}
             isStreaming={view.isStreaming}
             onCancel={actions.onCancel}
             disabled={view.isSubmitDisabled || Boolean(view.submissionDisabledReason)}
