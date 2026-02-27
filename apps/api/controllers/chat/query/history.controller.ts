@@ -192,7 +192,7 @@ export async function getRecentChats(
         res,
         HttpStatus.BAD_REQUEST,
         parsedQuery.error.errors[0]?.message ??
-          'Query parameter "limit"/"offset" must be non-negative integers',
+        'Query parameter "limit"/"offset" must be non-negative integers',
       );
       return;
     }
@@ -205,7 +205,6 @@ export async function getRecentChats(
         userId: chat.userId,
         title: chat.title,
         description: chat.description,
-        visibility: chat.visibility,
         githubRepoFullName: chat.githubRepoFullName,
         customSubdomain: chat.customSubdomain,
         createdAt: chat.createdAt,
@@ -273,12 +272,12 @@ export async function getChatMeta(
 
     let metaRow:
       | {
-          title: string | null;
-          description: string | null;
-          seoTitle: string | null;
-          seoDescription: string | null;
-          updatedAt: Date;
-        }
+        title: string | null;
+        description: string | null;
+        seoTitle: string | null;
+        seoDescription: string | null;
+        updatedAt: Date;
+      }
       | undefined;
 
     try {
@@ -310,10 +309,10 @@ export async function getChatMeta(
 
       metaRow = fallbackRow
         ? {
-            ...fallbackRow,
-            seoTitle: fallbackRow.title,
-            seoDescription: fallbackRow.description,
-          }
+          ...fallbackRow,
+          seoTitle: fallbackRow.title,
+          seoDescription: fallbackRow.description,
+        }
         : undefined;
     }
 

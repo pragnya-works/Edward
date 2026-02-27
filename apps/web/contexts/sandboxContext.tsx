@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, type ReactNode } from "react";
+import { usePathname } from "next/navigation";
 import { useShallow } from "zustand/react/shallow";
 import {
   useSandboxStore,
@@ -21,7 +22,24 @@ function isEditableEventTarget(target: EventTarget | null): boolean {
 
 export function SandboxProvider({ children }: { children: ReactNode }) {
   const isOpen = useSandboxStore((state) => state.isOpen);
+  const closeSandbox = useSandboxStore((state) => state.closeSandbox);
   const toggleSearch = useSandboxStore((state) => state.toggleSearch);
+  const setRouteChatId = useSandboxStore((state) => state.setRouteChatId);
+  const pathname = usePathname();
+
+  useLayoutEffect(() => {
+    const match = pathname.match(/^\/chat\/([^/?#]+)/);
+    let nextChatId: string | null = null;
+    if (match?.[1]) {
+      try {
+        nextChatId = decodeURIComponent(match[1]);
+      } catch {
+        nextChatId = match[1];
+      }
+    }
+    closeSandbox();
+    setRouteChatId(nextChatId);
+  }, [closeSandbox, pathname, setRouteChatId]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {

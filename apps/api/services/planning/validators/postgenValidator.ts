@@ -14,6 +14,7 @@ import {
 import {
   validateFrameworkEntrypoints,
   validateLogicQualityForFile,
+  validateFeatureSkeletonForOutput,
 } from './postgenValidator.logic.js';
 import { validateSeoBranding } from './postgenValidator.seo.js';
 import type {
@@ -114,6 +115,7 @@ export function validateGeneratedOutput(output: GeneratedOutput): ValidationResu
 
   violations.push(...validateFrameworkEntrypoints(output));
   violations.push(...validateSeoBranding(output));
+  violations.push(...validateFeatureSkeletonForOutput(output));
 
   const errorCount = countErrorViolations(violations);
   const warningCount = violations.length - errorCount;

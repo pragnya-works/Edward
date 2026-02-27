@@ -327,7 +327,7 @@ function TerminalHeader({
 function TerminalEntries({ entries }: TerminalEntriesProps) {
   if (entries.length === 0) {
     return (
-      <div className="py-2 text-[11px] text-workspace-foreground/60">
+      <div className="py-2 text-[12.5px] text-workspace-foreground/60">
         [ {formatTimestamp(Date.now())} ] [INFO] terminal ready, waiting for sandbox output
       </div>
     );
@@ -342,12 +342,12 @@ function TerminalEntries({ entries }: TerminalEntriesProps) {
         return (
           <div key={entry.id} className="space-y-1">
             <div className="flex items-start gap-1.5 leading-[1.45]">
-              <span className="text-[10px] text-workspace-foreground/55">
+              <span className="text-[11px] text-workspace-foreground/55">
                 {formatTimestamp(entry.createdAt)}
               </span>
               <span
                 className={cn(
-                  "mt-[1px] w-8 shrink-0 text-[10px] font-semibold tracking-wide",
+                  "mt-[1px] w-8 shrink-0 text-[11px] font-semibold tracking-wide",
                   getKindLabelClasses(entry),
                 )}
               >
@@ -389,7 +389,7 @@ function TerminalEntries({ entries }: TerminalEntriesProps) {
             ) : null}
 
             {typeof entry.exitCode === "number" ? (
-              <div className="text-[10px] text-workspace-foreground/55">
+              <div className="text-[11px] text-workspace-foreground/55">
                 exit {entry.exitCode}
               </div>
             ) : null}
@@ -599,7 +599,7 @@ export function SandboxOutputTerminal() {
                 ref={viewportRef}
                 onScroll={handleScroll}
                 aria-readonly="true"
-                className="h-full overflow-y-auto bg-workspace-bg px-2.5 py-2 text-[11px] leading-[1.45] [scrollbar-gutter:stable]"
+                className="h-full overflow-y-auto bg-workspace-bg px-2.5 py-2 text-[12.5px] leading-[1.45] [scrollbar-gutter:stable]"
                 style={{ fontFamily: TERMINAL_FONT_FAMILY }}
               >
                 <TerminalEntries entries={terminalEntries} />

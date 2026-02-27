@@ -75,6 +75,7 @@ interface BlockingViolationsParams {
   framework: Framework | undefined;
   declaredPackages: string[];
   mode: ChatActionType;
+  intentType?: string;
 }
 
 interface AbortedLoopHandlingParams {
@@ -115,6 +116,7 @@ export function getBlockingPostgenViolations({
   framework,
   declaredPackages,
   mode,
+  intentType,
 }: BlockingViolationsParams): ValidationViolation[] {
   if (generatedFiles.size === 0) {
     return [];
@@ -122,6 +124,7 @@ export function getBlockingPostgenViolations({
 
   const validation = validateGeneratedOutput({
     framework,
+    intentType,
     files: generatedFiles,
     declaredPackages,
     mode,

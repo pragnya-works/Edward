@@ -98,7 +98,7 @@ export async function unifiedSendMessage(
     const chatResult = await getOrCreateChat(userId, body.chatId, {
       title: body.title,
       description: body.description,
-      visibility: body.visibility,
+
     });
 
     if (chatResult.error) {

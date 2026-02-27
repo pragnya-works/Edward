@@ -1,4 +1,14 @@
-import { useCallback, useMemo, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  forwardRef,
+  useImperativeHandle,
+  type Dispatch,
+  type SetStateAction,
+} from "react";
 import { useIsMobile } from "@edward/ui/hooks/useMobile";
 import { modelSupportsVision } from "@edward/shared/schema";
 import { PROMPT_INPUT_CONFIG } from "@edward/shared/constants";
@@ -7,6 +17,7 @@ import {
   isUploading,
   type PromptbarProps,
   type UploadedImageRef,
+  type PromptbarRef,
 } from "./promptbar/promptbar.constants";
 import { useFileAttachments } from "./promptbar/useFileAttachments";
 import {
@@ -22,12 +33,16 @@ import {
   PromptbarLayout,
   type PromptbarLayoutModel,
 } from "./promptbar/promptbarLayout";
+import { useVoiceInput } from "./promptbar/useVoiceInput";
+import { ENHANCE_PROMPT_MIN_CHARS, usePromptActions } from "./promptbar/usePromptActions";
 
-export default function Promptbar(props: PromptbarProps) {
+const Promptbar = forwardRef<PromptbarRef, PromptbarProps>((props, ref) => {
   const {
     isAuthenticated,
     onSignIn,
     onProtectedAction,
+    onEnhancePrompt,
+    onTopContextVisibilityChange,
     hasApiKey,
     isApiKeyLoading,
     apiKeyError,
@@ -49,24 +64,64 @@ export default function Promptbar(props: PromptbarProps) {
 
   const [inputValue, setInputValue] = useState("");
   const [suggestionIndex, setSuggestionIndex] = useState(0);
-  const [showLoginModal, setShowLoginModal] = useState(false);
-  const [showBYOK, setShowBYOK] = useState(false);
+  const [modalState, setModalState] = useState({
+    showLoginModal: false,
+    showBYOK: false,
+  });
+  const [isEnhancingPrompt, setIsEnhancingPrompt] = useState(false);
+  const { showLoginModal, showBYOK } = modalState;
+  const promptInputRef = useRef<HTMLTextAreaElement>(null);
+
+  const prefillTriggerRef = useRef({ text: "", trigger: 0 });
+
+  useImperativeHandle(ref, () => ({
+    prefill: (text: string) => {
+      prefillTriggerRef.current = { text, trigger: Date.now() };
+      setInputValue(text.slice(0, PROMPT_INPUT_CONFIG.MAX_CHARS));
+      queueMicrotask(() => {
+        promptInputRef.current?.focus();
+      });
+    },
+  }));
+
+  const setShowLoginModal: Dispatch<SetStateAction<boolean>> = useCallback(
+    (nextValue) => {
+      setModalState((previous) => ({
+        ...previous,
+        showLoginModal:
+          typeof nextValue === "function"
+            ? nextValue(previous.showLoginModal)
+            : nextValue,
+      }));
+    },
+    [],
+  );
+
+  const setShowBYOK: Dispatch<SetStateAction<boolean>> = useCallback(
+    (nextValue) => {
+      setModalState((previous) => ({
+        ...previous,
+        showBYOK:
+          typeof nextValue === "function"
+            ? nextValue(previous.showBYOK)
+            : nextValue,
+      }));
+    },
+    [],
+  );
 
   const isMobile = useIsMobile();
   const supportsVision = !selectedModelId || modelSupportsVision(selectedModelId);
   const isSubmissionBlocked = Boolean(submissionDisabledReason) || isStreaming;
 
-  const {
-    areImageUploadsBlocked,
-    attachmentDisabledReason,
-    promptHelperMessage,
-  } = useAttachmentState({
-    disableImageUploads,
-    isSubmissionBlocked,
-    imageUploadDisabledReason,
-    submissionDisabledReason,
-    isStreaming,
-  });
+  const { areImageUploadsBlocked, attachmentDisabledReason, promptHelperMessage } =
+    useAttachmentState({
+      disableImageUploads,
+      isSubmissionBlocked,
+      imageUploadDisabledReason,
+      submissionDisabledReason,
+      isStreaming,
+    });
 
   const {
     attachedFiles,
@@ -91,21 +146,25 @@ export default function Promptbar(props: PromptbarProps) {
     onImageUploadError,
   );
 
-  const uploadedImages = useMemo<UploadedImageRef[]>(() => {
-    return attachedFiles
-      .filter((file) => isUploaded(file) && file.cdnUrl)
-      .map((file) => ({
-        url: file.cdnUrl!,
-        mimeType: file.mimeType || file.file.type || "image/jpeg",
-        name: file.file.name,
-        sizeBytes: file.file.size,
-      }));
-  }, [attachedFiles]);
-
-  const hasPendingUploads = useMemo(
-    () => attachedFiles.some((file) => isUploading(file)),
+  const uploadedImages = useMemo<UploadedImageRef[]>(
+    () =>
+      attachedFiles
+        .filter((file) => isUploaded(file) && file.cdnUrl)
+        .map((file) => ({
+          url: file.cdnUrl!,
+          mimeType: file.mimeType || file.file.type || "image/jpeg",
+          name: file.file.name,
+          sizeBytes: file.file.size,
+        })),
     [attachedFiles],
   );
+
+  const hasPendingUploads = attachedFiles.some((file) => isUploading(file));
+  const trimmedInputLength = inputValue.trim().length;
+  const canEnhancePrompt =
+    !isSubmissionBlocked &&
+    trimmedInputLength >= ENHANCE_PROMPT_MIN_CHARS &&
+    inputValue.length < PROMPT_INPUT_CONFIG.MAX_CHARS;
 
   const {
     promptCharCount,
@@ -117,83 +176,72 @@ export default function Promptbar(props: PromptbarProps) {
     promptTooltipTextToneClass,
     promptProgressTrackClass,
     promptProgressClass,
-  } = usePromptMetrics({
-    inputValue,
-    uploadedImageCount: uploadedImages.length,
-    hasPendingUploads,
-  });
+  } = usePromptMetrics({ inputValue, uploadedImageCount: uploadedImages.length, hasPendingUploads });
 
   const detectedSourceUrls = useMemo(
     () => extractUrlsFromPrompt(inputValue),
     [inputValue],
   );
+  const hasTopContext = detectedSourceUrls.length > 0;
+
+  useEffect(() => {
+    onTopContextVisibilityChange?.(hasTopContext);
+  }, [hasTopContext, onTopContextVisibilityChange]);
+
+  useEffect(
+    () => () => {
+      onTopContextVisibilityChange?.(false);
+    },
+    [onTopContextVisibilityChange],
+  );
 
   useSuggestionRotation(setSuggestionIndex);
-  useInitialByokPrompt(
+  useInitialByokPrompt(isAuthenticated, hasApiKey, isApiKeyLoading, setShowBYOK);
+  usePromptbarGlobalEvents(isAuthenticated, isApiKeyLoading, setShowLoginModal, setShowBYOK, promptInputRef);
+
+  const {
+    isVoiceSupported,
+    isVoiceRecording,
+    voiceRecognitionRef,
+    voiceBaseTextRef,
+    voiceFinalTranscriptRef,
+  } = useVoiceInput(setInputValue);
+
+  useEffect(() => {
+    if (!isSubmissionBlocked || !isVoiceRecording) return;
+    voiceRecognitionRef.current?.stop();
+  }, [isSubmissionBlocked, isVoiceRecording, voiceRecognitionRef]);
+
+  const {
+    handleInputValueChange,
+    handleProtectedAction,
+    handleEnhancePrompt,
+    handleToggleVoiceInput,
+    handleByokValidate,
+  } = usePromptActions({
+    inputValue,
+    setInputValue,
+    uploadedImages,
+    hasPendingUploads,
+    canEnhancePrompt,
+    isEnhancingPrompt,
+    setIsEnhancingPrompt,
     isAuthenticated,
     hasApiKey,
     isApiKeyLoading,
-    setShowBYOK,
-  );
-  usePromptbarGlobalEvents(
-    isAuthenticated,
-    isApiKeyLoading,
+    isStreaming,
+    isVoiceRecording,
+    isSubmissionBlocked,
+    submissionDisabledReason,
+    onProtectedAction,
+    onEnhancePrompt,
     setShowLoginModal,
     setShowBYOK,
-  );
-
-  const handleProtectedAction = useCallback(() => {
-    if (submissionDisabledReason) return;
-    if (hasPendingUploads) return;
-
-    if (!isAuthenticated) {
-      setShowLoginModal(true);
-      return;
-    }
-
-    if (hasApiKey !== true) {
-      if (!isApiKeyLoading) {
-        setShowBYOK(true);
-      }
-      return;
-    }
-
-    onProtectedAction?.(inputValue, uploadedImages);
-    setInputValue("");
-    handleClearAllFiles();
-  }, [
-    hasApiKey,
-    hasPendingUploads,
-    inputValue,
-    isApiKeyLoading,
-    isAuthenticated,
-    onProtectedAction,
-    submissionDisabledReason,
-    uploadedImages,
     handleClearAllFiles,
-  ]);
-
-  const handleInputValueChange = useCallback((nextValue: string) => {
-    setInputValue(nextValue.slice(0, PROMPT_INPUT_CONFIG.MAX_CHARS));
-  }, []);
-
-  const handleByokValidate = useCallback(() => {
-    if (submissionDisabledReason || isStreaming) return;
-    if (hasPendingUploads) return;
-
-    onProtectedAction?.(inputValue, uploadedImages);
-    setInputValue("");
-    handleClearAllFiles();
-    setShowBYOK(false);
-  }, [
-    handleClearAllFiles,
-    hasPendingUploads,
-    inputValue,
-    isStreaming,
-    onProtectedAction,
-    submissionDisabledReason,
-    uploadedImages,
-  ]);
+    voiceRecognitionRef,
+    voiceBaseTextRef,
+    voiceFinalTranscriptRef,
+  });
 
   const model: PromptbarLayoutModel = {
     auth: {
@@ -228,6 +276,12 @@ export default function Promptbar(props: PromptbarProps) {
       isMobile,
       showLoginModal,
       showBYOK,
+      isEnhancingPrompt,
+      canEnhancePrompt,
+      enhancePromptMinChars: ENHANCE_PROMPT_MIN_CHARS,
+      isAtPromptLimit: inputValue.length >= PROMPT_INPUT_CONFIG.MAX_CHARS,
+      isVoiceSupported,
+      isVoiceRecording,
       disableAttachmentActions: areImageUploadsBlocked,
       attachmentDisabledReason,
       submissionDisabledReason,
@@ -250,12 +304,21 @@ export default function Promptbar(props: PromptbarProps) {
     actions: {
       onInputValueChange: handleInputValueChange,
       onProtectedAction: handleProtectedAction,
+      onEnhancePrompt: handleEnhancePrompt,
+      onToggleVoiceInput: handleToggleVoiceInput,
       onByokValidate: handleByokValidate,
       onShowLoginModalChange: setShowLoginModal,
       onShowBYOKChange: setShowBYOK,
       onCancel,
     },
+    refs: {
+      promptInputRef,
+    },
   };
 
   return <PromptbarLayout model={model} />;
-}
+});
+
+Promptbar.displayName = "Promptbar";
+
+export default Promptbar;

@@ -8,6 +8,7 @@ export const VALIDATION_VIOLATION_TYPE = {
   MISSING_PACKAGE: 'missing-package',
   MISSING_SEO_BRANDING: 'missing-seo-branding',
   INVALID_CANONICAL_URL: 'invalid-canonical-url',
+  FEATURE_SKELETON: 'feature-skeleton',
 } as const;
 
 export type ValidationViolationType =
@@ -44,6 +45,7 @@ export interface ValidationResult {
 
 export interface GeneratedOutput {
   framework?: string;
+  intentType?: string;
   files: Map<string, string>;
   declaredPackages: string[];
   mode?: GeneratedOutputMode;

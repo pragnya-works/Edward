@@ -8,13 +8,16 @@ export async function createBuild(data: {
   chatId: string;
   messageId: string;
   status?: BuildRecordStatus;
+  forceNew?: boolean;
 }) {
-  const existing = await db.query.build.findFirst({
-    where: eq(build.messageId, data.messageId),
-    orderBy: [desc(build.createdAt)],
-  });
-  if (existing) {
-    return existing;
+  if (!data.forceNew) {
+    const existing = await db.query.build.findFirst({
+      where: eq(build.messageId, data.messageId),
+      orderBy: [desc(build.createdAt)],
+    });
+    if (existing) {
+      return existing;
+    }
   }
 
   const id = nanoid();

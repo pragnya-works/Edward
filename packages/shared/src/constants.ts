@@ -77,6 +77,7 @@ export const RATE_LIMIT_SCOPE = {
   IMAGE_UPLOAD_BURST: "imageUploadRateLimiter",
   GITHUB_BURST: "githubRateLimiter",
   GITHUB_DAILY: "dailyGithubRateLimiter",
+  PROMPT_ENHANCE_BURST: "promptEnhanceRateLimiter",
 } as const;
 
 export const KNOWN_RATE_LIMIT_SCOPES = [
@@ -86,6 +87,7 @@ export const KNOWN_RATE_LIMIT_SCOPES = [
   RATE_LIMIT_SCOPE.IMAGE_UPLOAD_BURST,
   RATE_LIMIT_SCOPE.GITHUB_BURST,
   RATE_LIMIT_SCOPE.GITHUB_DAILY,
+  RATE_LIMIT_SCOPE.PROMPT_ENHANCE_BURST,
 ] as const;
 
 export type KnownRateLimitScope = (typeof KNOWN_RATE_LIMIT_SCOPES)[number];
@@ -100,7 +102,8 @@ export interface RateLimitPolicy {
     | "chat_daily"
     | "image_upload_burst"
     | "github_burst"
-    | "github_daily";
+    | "github_daily"
+    | "prompt_enhance_burst";
   limitExceededMessage: string;
 }
 
@@ -152,5 +155,13 @@ export const RATE_LIMIT_POLICY_BY_SCOPE: Record<
     redisPrefix: "github-daily",
     securityScope: "github_daily",
     limitExceededMessage: "Daily GitHub quota exceeded (400 requests/24h).",
+  },
+  [RATE_LIMIT_SCOPE.PROMPT_ENHANCE_BURST]: {
+    windowMs: 60 * 1000,
+    max: 3,
+    redisPrefix: "prompt-enhance",
+    securityScope: "prompt_enhance_burst",
+    limitExceededMessage:
+      "Prompt enhancement limit reached. Maximum 3 enhancements per minute.",
   },
 } as const;

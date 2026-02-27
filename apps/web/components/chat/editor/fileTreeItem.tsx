@@ -149,7 +149,7 @@ const FileTreeItem = memo(function FileTreeItem({
           <VscodeFileIcon path={node.path} />
         )}
 
-        <span className="text-[11px] font-medium truncate flex-1 min-w-0">{node.name}</span>
+        <span className="text-[12.5px] font-medium truncate flex-1 min-w-0">{node.name}</span>
 
         {isStreaming && (
           <m.div

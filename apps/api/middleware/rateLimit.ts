@@ -125,3 +125,8 @@ export const dailyGithubRateLimiter = createRateLimiterForScope(
   RATE_LIMIT_SCOPE.GITHUB_DAILY,
   { keyGenerator: getAuthenticatedRateLimitKey },
 );
+
+export const promptEnhanceRateLimiter = createRateLimiterForScope(
+  RATE_LIMIT_SCOPE.PROMPT_ENHANCE_BURST,
+  { keyGenerator: getAuthenticatedRateLimitKey },
+);

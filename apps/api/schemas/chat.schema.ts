@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { MessageRole } from "@edward/auth";
 import { Model } from "@edward/shared/schema";
+import { Provider } from "@edward/shared/constants";
 import { PROMPT_INPUT_CONFIG } from "@edward/shared/constants";
 import {
   AgentLoopStopReason,
@@ -55,7 +56,7 @@ export const UnifiedSendMessageSchema = z
     chatId: z.string().optional(),
     title: z.string().optional(),
     description: z.string().optional(),
-    visibility: z.boolean().optional(),
+
     model: z.enum(ModelValues).optional(),
     retryTargetUserMessageId: z.string().min(1).optional(),
     retryTargetAssistantMessageId: z.string().min(1).optional(),
@@ -84,6 +85,26 @@ export const GetChatHistoryRequestSchema = z.object({
   params: ChatIdParamSchema,
 });
 
+export const RebuildRequestSchema = z.object({
+  params: ChatIdParamSchema,
+});
+
+export const PromptEnhanceSchema = z.object({
+  text: z
+    .string()
+    .trim()
+    .min(30, "Prompt enhancement requires at least 30 characters")
+    .max(
+      PROMPT_INPUT_CONFIG.MAX_CHARS,
+      `Prompt enhancement supports up to ${PROMPT_INPUT_CONFIG.MAX_CHARS} characters`,
+    ),
+  provider: z.nativeEnum(Provider).optional(),
+});
+
+export const PromptEnhanceRequestSchema = z.object({
+  body: PromptEnhanceSchema,
+});
+
 export const StreamRunEventsRequestSchema = z.object({
   params: RunStreamParamsSchema,
   query: z.object({
@@ -95,22 +116,7 @@ export const CancelRunRequestSchema = z.object({
   params: RunStreamParamsSchema,
 });
 
-export const UpdateShareSettingsBodySchema = z.object({
-  enabled: z.boolean(),
-});
 
-export const ShareStatusRequestSchema = z.object({
-  params: ChatIdParamSchema,
-});
-
-export const UpdateShareSettingsRequestSchema = z.object({
-  params: ChatIdParamSchema,
-  body: UpdateShareSettingsBodySchema,
-});
-
-export const SharedChatHistoryRequestSchema = z.object({
-  params: ChatIdParamSchema,
-});
 
 export const RecentChatsQuerySchema = z.object({
   query: z.object({

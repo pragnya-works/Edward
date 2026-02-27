@@ -32,6 +32,11 @@ describe('composePrompt', () => {
     expect(prompt).toContain('<execution_ownership>');
     expect(prompt).toContain('<edward_sandbox_format>');
     expect(prompt).toContain('<skill:nextjs-compact>');
+    expect(prompt).toContain('[POSTGEN OUTPUT CONTRACT - HARD REQUIREMENT]');
+    expect(prompt).toContain('Required entry files:');
+    expect(prompt).toContain('- src/app/layout.tsx');
+    expect(prompt).toContain('Required project files in generate mode:');
+    expect(prompt).toContain('- README.md');
     expect(prompt).not.toContain('<skill:react-performance>');
 
     const approxTokens = estimatePromptTokensApprox(prompt);
@@ -109,6 +114,7 @@ describe('composePrompt', () => {
 
     expect(prompt).toContain('You are in EDIT MODE.');
     expect(prompt).not.toContain('You are in FIX MODE.');
+    expect(prompt).not.toContain('Required project files in generate mode:');
   });
 
   it('injects verified dependencies context when provided', async () => {

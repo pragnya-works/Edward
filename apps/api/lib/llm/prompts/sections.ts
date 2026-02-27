@@ -97,6 +97,29 @@ For Next.js and Vite React:
 9. Do NOT add new global CSS imports unless creating a brand-new project entrypoint.
 </react_styling_guardrails>`;
 
+const DELIVERY_COMPLETENESS = `
+<delivery_completeness>
+Shipping standard (non-negotiable):
+1. Never treat requests as POC/MVP unless the user explicitly asks for a prototype.
+2. Build feature-complete implementations for the requested scope; never ship half-wired flows.
+3. Core user journeys must work end-to-end before finalizing output.
+4. For e-commerce requests, the minimum functional bar is: add to cart, remove from cart, quantity increase/decrease, live subtotal/total updates, working cart/checkout routes, and checkout form validation with submit handling.
+5. Every visible navigation link and major CTA must route to an implemented screen (no dead links).
+6. Primary interactions must have real stateful handlers and user feedback states where applicable.
+7. No placeholder behavior: no fake buttons, empty handlers, TODO stubs, or non-functional shells.
+8. Deliver maintainable code structure for the requested scope, not a demo-only layout.
+</delivery_completeness>`;
+
+const UI_ORIGINALITY = `
+<ui_originality>
+UI quality standard (very strict):
+1. Generated UI must not look generic or AI-template-like.
+2. Avoid cliche defaults such as purple-pink gradient hero clones, repetitive identical cards, and default system-looking typography.
+3. Establish a deliberate visual system per project: clear typography hierarchy, explicit color tokens, spacing rhythm, and cohesive component styling.
+4. Provide polished interaction states (hover/focus/active/loading) with restrained, purposeful motion.
+5. Ensure visual polish and responsiveness on both desktop and mobile; no unfinished or rough sections.
+</ui_originality>`;
+
 const INSTALL_FORMAT = `
 <edward_install_format>
 If new npm packages are imported, emit <edward_install> BEFORE <edward_sandbox>.
@@ -163,7 +186,8 @@ Rules:
 7. In GENERATE mode include root README.md. Do not generate .gitignore unless the user explicitly asks.
 8. README.md must be project-specific and non-boilerplate.
 9. Forbidden file targets: /app/api/**, /pages/api/**, /server/**, /backend/**.
-10. Close with </edward_sandbox> then emit <edward_done />.
+10. In GENERATE mode, always emit required framework entry files in <edward_sandbox>, even if unchanged from template defaults.
+11. Close with </edward_sandbox> then emit <edward_done />.
 </edward_sandbox_format>`;
 
 const CODE_BLOCKS = `
@@ -182,15 +206,19 @@ If routing/multiple files are needed, use <edward_sandbox>.
 const QUICK_REFERENCE = `
 <quick_reference>
 Preflight checklist:
-1. Entry points must exist (Next: src/app/layout.tsx + page.tsx + globals.css; Vite: src/main.tsx + App.tsx + index.css).
+1. Never omit required entry files from emitted <file> blocks. Postgen hard-fails missing entry files (Next.js: src/app/layout.tsx + src/app/page.tsx, Vite React: src/main.tsx + src/App.tsx, Vanilla: index.html).
 2. <edward_install> comes before <edward_sandbox> when adding packages.
 3. Use relative imports only; no extension suffixes.
-4. Output complete, runnable code (no placeholders, no truncation).
-5. Never wrap <file> content in markdown fences.
-6. In generate mode, include Edward favicon/manifest branding assets.
-7. For Next.js, keep Open Graph/Twitter images wired to STATIC_OG_IMAGE_URL from src/lib/seo.
-8. For Vite React/Vanilla index.html, set both og:image and twitter:image to https://assets.pragnyaa.in/home/OG.png (no stock/external random image URLs).
-9. For Vite React/Vanilla index.html, canonical href must be an absolute http(s) URL (never "/", "./", or relative-only paths).
+4. Output fully implemented, production-grade code. Treat requests as shipping quality by default (not POC/MVP) unless the user explicitly asks for prototype behavior.
+5. Every feature named in the request must be wired end-to-end: working state, real event handlers, navigable routes, and complete primary user journeys.
+6. For e-commerce requests, do not finish unless cart add/remove, quantity controls, total calculations, and cart/checkout route flow are functional.
+7. No \`// TODO\`, no \`onClick={() => {}}\` stubs, no fake buttons, and no placeholder-only data for primary UI surfaces.
+8. UI must be intentional and distinctive, never generic AI-template output.
+9. Never wrap <file> content in markdown fences.
+10. In generate mode, include Edward favicon/manifest branding assets.
+11. For Next.js, keep Open Graph/Twitter images wired to STATIC_OG_IMAGE_URL from src/lib/seo.
+12. For Vite React/Vanilla index.html, set both og:image and twitter:image to https://assets.pragnyaa.in/home/OG.png (no stock/external random image URLs).
+13. For Vite React/Vanilla index.html, canonical href must be an absolute http(s) URL (never "/", "./", or relative-only paths).
 </quick_reference>`;
 
 const FIX_MODE_PROMPT = `
@@ -232,6 +260,8 @@ export const CORE_SYSTEM_PROMPT = [
   EXECUTION_OWNERSHIP,
   FRAMEWORK_SELECTION,
   REACT_STYLING_GUARDRAILS,
+  DELIVERY_COMPLETENESS,
+  UI_ORIGINALITY,
   INSTALL_FORMAT,
   COMMAND_FORMAT,
   WEB_SEARCH_FORMAT,
