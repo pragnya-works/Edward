@@ -103,6 +103,9 @@ export interface PromptbarLayoutModel {
   view: PromptbarViewModel;
   files: PromptbarFilesModel;
   actions: PromptbarActionsModel;
+  refs: {
+    promptInputRef: RefObject<HTMLTextAreaElement | null>;
+  };
 }
 
 interface PromptbarLayoutProps {
@@ -227,6 +230,7 @@ export function PromptbarLayout({ model }: PromptbarLayoutProps) {
               </Tooltip>
             </div>
             <Textarea
+              ref={model.refs.promptInputRef}
               data-edward-prompt-input="true"
               placeholder={view.hideSuggestions ? "Ask Edward anything..." : ""}
               value={view.inputValue}
@@ -252,7 +256,7 @@ export function PromptbarLayout({ model }: PromptbarLayoutProps) {
                 actions.onProtectedAction();
               }}
               onPaste={files.handlePaste}
-              className="min-h-[4.5rem] sm:min-h-[5.5rem] md:min-h-[6.5rem] max-h-40 sm:max-h-52 md:max-h-64 overflow-y-auto resize-none border-0 bg-transparent p-3 pr-16 sm:p-4 sm:pr-20 md:p-6 md:pr-24 text-sm sm:text-[15px] text-foreground placeholder:text-muted-foreground/70 focus-visible:ring-0 focus-visible:ring-offset-0 relative z-10 font-medium leading-relaxed tracking-tight"
+              className="min-h-[6rem] sm:min-h-[7rem] md:min-h-[8rem] max-h-40 sm:max-h-52 md:max-h-64 overflow-y-auto resize-none border-0 bg-transparent p-3 pr-16 sm:p-4 sm:pr-20 md:p-6 md:pr-24 text-sm sm:text-[15px] text-foreground placeholder:text-muted-foreground/70 focus-visible:ring-0 focus-visible:ring-offset-0 relative z-10 font-medium leading-relaxed tracking-tight"
             />
           </div>
 

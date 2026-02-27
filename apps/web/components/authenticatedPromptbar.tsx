@@ -21,6 +21,8 @@ import { toast } from "@edward/ui/components/sonner";
 import { useChatSubmissionGuards } from "@/hooks/chat/useChatSubmissionGuards";
 import { useImageUpload } from "@/hooks/server-state/useImageUpload";
 import { getBestGuessProvider } from "@edward/shared/schema";
+import { PromptTablets } from "@/components/promptTablets";
+import type { PromptbarRef } from "@edward/ui/components/ui/promptbar/promptbar.constants";
 
 interface AuthenticatedPromptbarProps {
   chatId?: string;
@@ -237,6 +239,12 @@ export default function AuthenticatedPromptbar({
     [enhancementProvider],
   );
 
+  const promptbarRef = useRef<PromptbarRef>(null);
+
+  const handleSelectPrompt = useCallback((prompt: string) => {
+    promptbarRef.current?.prefill(prompt);
+  }, []);
+
   const promptbarController = useMemo(
     () => ({
       auth: {
@@ -295,9 +303,16 @@ export default function AuthenticatedPromptbar({
     ],
   );
 
+  const showTablets = Boolean(session?.user) && !effectiveChatId && !stream.isStreaming;
+
   return (
     <div className="w-full">
-      <Promptbar controller={promptbarController} />
+      <Promptbar ref={promptbarRef} controller={promptbarController} />
+      {showTablets && (
+        <div className="mt-3 flex justify-center">
+          <PromptTablets onSelectPrompt={handleSelectPrompt} />
+        </div>
+      )}
     </div>
   );
 }

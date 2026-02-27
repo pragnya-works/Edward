@@ -51,6 +51,10 @@ export interface PromptbarAuthController {
   onSignIn?: () => void | Promise<void>;
 }
 
+export interface PromptbarRef {
+  prefill: (text: string) => void;
+}
+
 export interface PromptbarSubmissionController {
   onProtectedAction?: (
     text: string,

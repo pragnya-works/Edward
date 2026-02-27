@@ -2,7 +2,10 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
+  forwardRef,
+  useImperativeHandle,
   type Dispatch,
   type SetStateAction,
 } from "react";
@@ -14,6 +17,7 @@ import {
   isUploading,
   type PromptbarProps,
   type UploadedImageRef,
+  type PromptbarRef,
 } from "./promptbar/promptbar.constants";
 import { useFileAttachments } from "./promptbar/useFileAttachments";
 import {
@@ -32,7 +36,7 @@ import {
 import { useVoiceInput } from "./promptbar/useVoiceInput";
 import { ENHANCE_PROMPT_MIN_CHARS, usePromptActions } from "./promptbar/usePromptActions";
 
-export default function Promptbar(props: PromptbarProps) {
+const Promptbar = forwardRef<PromptbarRef, PromptbarProps>((props, ref) => {
   const {
     isAuthenticated,
     onSignIn,
@@ -66,6 +70,19 @@ export default function Promptbar(props: PromptbarProps) {
   });
   const [isEnhancingPrompt, setIsEnhancingPrompt] = useState(false);
   const { showLoginModal, showBYOK } = modalState;
+  const promptInputRef = useRef<HTMLTextAreaElement>(null);
+
+  const prefillTriggerRef = useRef({ text: "", trigger: 0 });
+
+  useImperativeHandle(ref, () => ({
+    prefill: (text: string) => {
+      prefillTriggerRef.current = { text, trigger: Date.now() };
+      setInputValue(text.slice(0, PROMPT_INPUT_CONFIG.MAX_CHARS));
+      queueMicrotask(() => {
+        promptInputRef.current?.focus();
+      });
+    },
+  }));
 
   const setShowLoginModal: Dispatch<SetStateAction<boolean>> = useCallback(
     (nextValue) => {
@@ -180,7 +197,7 @@ export default function Promptbar(props: PromptbarProps) {
 
   useSuggestionRotation(setSuggestionIndex);
   useInitialByokPrompt(isAuthenticated, hasApiKey, isApiKeyLoading, setShowBYOK);
-  usePromptbarGlobalEvents(isAuthenticated, isApiKeyLoading, setShowLoginModal, setShowBYOK);
+  usePromptbarGlobalEvents(isAuthenticated, isApiKeyLoading, setShowLoginModal, setShowBYOK, promptInputRef);
 
   const {
     isVoiceSupported,
@@ -294,7 +311,12 @@ export default function Promptbar(props: PromptbarProps) {
       onShowBYOKChange: setShowBYOK,
       onCancel,
     },
+    refs: {
+      promptInputRef,
+    },
   };
 
   return <PromptbarLayout model={model} />;
-}
+});
+
+export default Promptbar;

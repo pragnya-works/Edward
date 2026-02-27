@@ -27,7 +27,6 @@ export function LoginModal({ isOpen, onClose, onSignIn }: LoginModalProps) {
     setIsLoading(true);
     try {
       await onSignIn?.();
-      onClose();
     } catch (error) {
       console.error("Login failed:", error);
     } finally {

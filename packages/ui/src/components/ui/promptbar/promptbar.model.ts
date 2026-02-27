@@ -303,6 +303,7 @@ export function usePromptbarGlobalEvents(
   isApiKeyLoading: boolean,
   setShowLoginModal: Dispatch<SetStateAction<boolean>>,
   setShowBYOK: Dispatch<SetStateAction<boolean>>,
+  promptInputRef: React.RefObject<HTMLTextAreaElement | null>,
 ) {
   useEffect(() => {
     const openApiKeyModal = () => {
@@ -317,9 +318,7 @@ export function usePromptbarGlobalEvents(
     };
 
     const focusPromptInput = () => {
-      const input = document.querySelector(
-        PROMPT_INPUT_SELECTOR,
-      ) as HTMLTextAreaElement | null;
+      const input = promptInputRef.current;
       if (!input) {
         return;
       }
@@ -335,5 +334,5 @@ export function usePromptbarGlobalEvents(
       window.removeEventListener(UI_EVENTS.OPEN_API_KEY_MODAL, openApiKeyModal);
       window.removeEventListener(UI_EVENTS.FOCUS_PROMPT_INPUT, focusPromptInput);
     };
-  }, [isApiKeyLoading, isAuthenticated, setShowBYOK, setShowLoginModal]);
+  }, [isApiKeyLoading, isAuthenticated, setShowBYOK, setShowLoginModal, promptInputRef]);
 }
