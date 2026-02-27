@@ -45,6 +45,8 @@ const mockRefs = vi.hoisted(() => {
       unsubscribe: vi.fn(async () => 1),
       quit: vi.fn(async () => undefined),
     })),
+    acquireDistributedLock: vi.fn(),
+    releaseDistributedLock: vi.fn(),
     sendSuccess: vi.fn(),
     sendStandardError: vi.fn(),
     logger: {
@@ -72,6 +74,11 @@ vi.mock("@edward/auth", async (importOriginal) => {
     updateBuild: mockRefs.updateBuild,
   };
 });
+
+vi.mock("../../../lib/distributedLock.js", () => ({
+  acquireDistributedLock: mockRefs.acquireDistributedLock,
+  releaseDistributedLock: mockRefs.releaseDistributedLock,
+}));
 
 vi.mock("../../../middleware/auth.js", () => ({
   getAuthenticatedUserId: mockRefs.getAuthenticatedUserId,
@@ -142,6 +149,8 @@ describe("build controller triggerRebuild", () => {
     });
     mockRefs.updateBuild.mockResolvedValue(undefined);
     mockRefs.enqueueBuildJob.mockResolvedValue("job-1");
+    mockRefs.acquireDistributedLock.mockResolvedValue({ key: "lock:rebuild:chat-1", id: "lock-id" });
+    mockRefs.releaseDistributedLock.mockResolvedValue(undefined);
     mockRefs.getActiveSandbox.mockResolvedValue("sandbox-live");
     mockRefs.hasBackup.mockResolvedValue(false);
     mockRefs.hasBackupOnS3.mockResolvedValue(false);
