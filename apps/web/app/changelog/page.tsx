@@ -93,7 +93,7 @@ async function ChangelogContent() {
 
 export default function ChangelogPage() {
   return (
-    <main>
+    <main className="min-h-[100dvh] bg-background text-foreground">
       <div className="container max-w-3xl mx-auto px-4 sm:px-6 py-12 md:py-16 lg:py-20">
         <ChangelogHeader />
         

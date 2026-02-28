@@ -285,6 +285,7 @@ export function SandboxPanel() {
             url={previewAddress ?? normalizePreviewAddress(previewUrl)}
             canGoBack={canGoBack}
             canGoForward={canGoForward}
+            isRefreshing={previewFrameState === PreviewFrameState.LOADING}
             onBack={navigatePreviewBack}
             onForward={navigatePreviewForward}
             onOpenInNewTab={openPreviewInNewTab}

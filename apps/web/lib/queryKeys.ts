@@ -3,6 +3,10 @@ export const queryKeys = {
     all: ["chatHistory"] as const,
     byChatId: (chatId: string | undefined) => ["chatHistory", chatId] as const,
   },
+  chatMeta: {
+    all: ["chatMeta"] as const,
+    byChatId: (chatId: string | undefined) => ["chatMeta", chatId] as const,
+  },
   activeRun: {
     all: ["activeRun"] as const,
     byChatId: (chatId: string | undefined) => ["activeRun", chatId] as const,

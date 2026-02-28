@@ -30,8 +30,8 @@ export default function ConditionalSidebarLayout({
 
   if (isPending && !isChatConversationRoute) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <LoaderIcon className="h-8 w-8 animate-spin text-primary/70" />
+      <div className="dark min-h-screen flex items-center justify-center bg-background">
+        <LoaderIcon className="h-8 w-8 animate-spin text-foreground/60" />
       </div>
     );
   }
@@ -64,5 +64,9 @@ export default function ConditionalSidebarLayout({
       </SidebarProvider>
     );
   }
-  return <div className="min-h-[100dvh] sm:min-h-screen">{children}</div>;
+  return (
+    <div className="min-h-[100dvh] sm:min-h-screen dark text-foreground">
+      {children}
+    </div>
+  );
 }

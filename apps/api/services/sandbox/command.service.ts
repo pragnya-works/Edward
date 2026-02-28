@@ -21,8 +21,6 @@ const DISALLOWED_PATTERNS = [
 const MAX_ARG_COUNT = 60;
 const MAX_ARG_LENGTH = 1024;
 const MAX_TOTAL_ARGS_CHARS = 8 * 1024;
-const MAX_OUTPUT_CAT = 512 * 1024;
-const MAX_OUTPUT_DEFAULT = 1024 * 1024;
 const NORMALIZED_WORKDIR = path.posix.normalize(CONTAINER_WORKDIR);
 const LOW_NOISE_COMMANDS = new Set([
   "cat",
@@ -143,12 +141,6 @@ function validateCommandArgs(command: string, args: string[]): void {
   }
 }
 
-function truncateOutput(output: string | undefined, maxBytes: number): string {
-  if (!output) return "";
-  if (Buffer.byteLength(output, "utf8") <= maxBytes) return output;
-  return output.slice(0, maxBytes) + "\n...[truncated]";
-}
-
 export async function executeSandboxCommand(
   sandboxId: string,
   params: { command: string; args: string[] },
@@ -195,11 +187,6 @@ export async function executeSandboxCommand(
       "node",
       CONTAINER_WORKDIR,
     );
-
-    const maxOut =
-      params.command === "cat" ? MAX_OUTPUT_CAT : MAX_OUTPUT_DEFAULT;
-    result.stdout = truncateOutput(result.stdout, maxOut);
-    result.stderr = truncateOutput(result.stderr, maxOut);
 
     return result;
   } catch (error) {

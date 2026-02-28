@@ -7,7 +7,8 @@ import { LazyMotion, MotionConfig, domAnimation } from "motion/react";
 import { ChatStreamProvider } from "@/contexts/chatStreamContext";
 import { SandboxProvider } from "@/contexts/sandboxContext";
 import { Toaster } from "@edward/ui/components/sonner";
-import { NotificationManagerProvider } from "@/components/notifications/notificationManagerProvider";
+import { useNotificationManager } from "@/hooks/useNotificationManager";
+import { useSession } from "@/lib/auth-client";
 
 function makeQueryClient() {
   return new QueryClient({
@@ -24,11 +25,15 @@ function makeQueryClient() {
 
 export function Providers({ children }: { children: ReactNode }) {
   const [queryClient] = useState(makeQueryClient);
+  const { data: session, isPending } = useSession();
+  useNotificationManager();
+  const forcedTheme = !isPending && !session?.user ? "dark" : undefined;
 
   return (
     <NextThemesProvider
       attribute="class"
       defaultTheme="system"
+      forcedTheme={forcedTheme}
       enableSystem
       disableTransitionOnChange
       enableColorScheme
@@ -38,10 +43,8 @@ export function Providers({ children }: { children: ReactNode }) {
           <QueryClientProvider client={queryClient}>
             <ChatStreamProvider>
               <SandboxProvider>
-                <NotificationManagerProvider>
-                  {children}
-                  <Toaster />
-                </NotificationManagerProvider>
+                {children}
+                <Toaster />
               </SandboxProvider>
             </ChatStreamProvider>
           </QueryClientProvider>
@@ -50,4 +53,3 @@ export function Providers({ children }: { children: ReactNode }) {
     </NextThemesProvider>
   );
 }
-

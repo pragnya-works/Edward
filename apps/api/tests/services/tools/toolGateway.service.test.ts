@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { MAX_TOOL_STDIO_CHARS } from "../../../utils/constants.js";
 
 const { executeSandboxCommandMock } = vi.hoisted(() => ({
   executeSandboxCommandMock: vi.fn(),
@@ -75,12 +76,37 @@ describe("toolGateway command output sanitation", () => {
     expect(result.stderr).toBe("");
   });
 
-  it("bounds sanitation work for very large repeated outputs", async () => {
-    const repeatedOutput = "line repeated\n".repeat(20_000);
+  it("preserves raw output for file-read commands", async () => {
+    const rawOutput = "same line\nsame line\nsame line\nsame line\n";
 
     executeSandboxCommandMock.mockResolvedValue({
       exitCode: 0,
-      stdout: repeatedOutput,
+      stdout: rawOutput,
+      stderr: "",
+    });
+
+    const result = await executeCommandTool({
+      turn: 1,
+      sandboxId: "sb-1",
+      command: "cat",
+      args: ["README.md"],
+    });
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toBe(rawOutput);
+    expect(result.stdout).not.toContain("...[line repeated");
+    expect(result.stdout).not.toContain("...[truncated]");
+    expect(result.stderr).toBe("");
+  });
+
+  it("bounds very large sanitized outputs with truncation markers", async () => {
+    const longOutput = Array.from({ length: 800 }, (_, index) =>
+      `line-${index}-${"x".repeat(20)}`,
+    ).join("\n");
+
+    executeSandboxCommandMock.mockResolvedValue({
+      exitCode: 0,
+      stdout: longOutput,
       stderr: "",
     });
 
@@ -92,8 +118,28 @@ describe("toolGateway command output sanitation", () => {
     });
 
     expect(result.exitCode).toBe(0);
-    expect(result.stdout).toContain("...[line repeated");
     expect(result.stdout).toContain("...[truncated]");
+    expect(result.stdout.length).toBeLessThanOrEqual(MAX_TOOL_STDIO_CHARS + 20);
+    expect(result.stderr).toBe("");
+  });
+
+  it("bounds raw-output commands with truncation markers", async () => {
+    executeSandboxCommandMock.mockResolvedValue({
+      exitCode: 0,
+      stdout: "a".repeat(MAX_TOOL_STDIO_CHARS + 500),
+      stderr: "",
+    });
+
+    const result = await executeCommandTool({
+      turn: 1,
+      sandboxId: "sb-1",
+      command: "cat",
+      args: ["README.md"],
+    });
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain("...[truncated]");
+    expect(result.stdout.length).toBeLessThanOrEqual(MAX_TOOL_STDIO_CHARS + 20);
     expect(result.stderr).toBe("");
   });
 });

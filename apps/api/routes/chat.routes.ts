@@ -12,7 +12,6 @@ import {
 } from "../controllers/chat/query/history.controller.js";
 import {
   getBuildStatus,
-  triggerRebuild,
   streamBuildEvents,
 } from "../controllers/chat/query/build.controller.js";
 import {
@@ -30,7 +29,6 @@ import { validateRequest } from "../middleware/validateRequest.js";
 import {
   GetChatHistoryRequestSchema,
   PromptEnhanceRequestSchema,
-  RebuildRequestSchema,
   UnifiedSendMessageRequestSchema,
   StreamRunEventsRequestSchema,
   CancelRunRequestSchema,
@@ -86,11 +84,6 @@ chatRouter.get(
   "/:chatId/build-status",
   validateRequest(GetChatHistoryRequestSchema),
   getBuildStatus,
-);
-chatRouter.post(
-  "/:chatId/rebuild",
-  validateRequest(RebuildRequestSchema),
-  triggerRebuild,
 );
 chatRouter.get(
   "/:chatId/active-run",

@@ -79,6 +79,10 @@ export const SANDBOX_COMMAND_TIMEOUT_MS = parsePositiveInt(
   "SANDBOX_COMMAND_TIMEOUT_MS",
   45_000,
 );
+export const SANDBOX_EXEC_MAX_CAPTURE_BYTES = parsePositiveInt(
+  "SANDBOX_EXEC_MAX_CAPTURE_BYTES",
+  64 * 1024 * 1024,
+);
 export const TOOL_GATEWAY_RETRY_ATTEMPTS = parsePositiveInt(
   "TOOL_GATEWAY_RETRY_ATTEMPTS",
   2,

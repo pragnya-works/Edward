@@ -16,6 +16,8 @@ export interface ImageAttachment {
   name?: string;
 }
 
+const DEFAULT_CHAT_DESCRIPTION = "Start building with Edward.";
+
 function isMissingChatSeoColumnError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
   return (
@@ -37,7 +39,7 @@ export async function getOrCreateChat(
   try {
     const now = new Date();
     const title = chatData.title || "New Chat";
-    const description = chatData.description;
+    const description = chatData.description || DEFAULT_CHAT_DESCRIPTION;
 
     if (!chatId) {
       const newChatId = nanoid(32);

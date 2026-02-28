@@ -6,14 +6,14 @@ import {
   useMemo,
   useRef,
 } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import type { MetaEvent } from "@edward/shared/streamEvents";
 import {
   INITIAL_STREAM_STATE,
   type StreamState,
 } from "@edward/shared/chat/types";
 import type { MessageContent } from "@/lib/api/messageContent";
-import { cancelRun } from "@/lib/api/chat";
+import { cancelRun, getActiveRun } from "@/lib/api/chat";
 import type { StreamAction } from "@edward/shared/chat/streamActions";
 import type { StreamMap } from "@/stores/chatStream/reducer";
 import {
@@ -41,6 +41,23 @@ import {
 import {
   type RefCell,
 } from "@/lib/streaming/processors/chatStreamProcessor";
+import {
+  clearRunStopIntent,
+  markRunStopIntent,
+} from "@/lib/chat/runStopIntent";
+
+const PENDING_CHAT_ID_PREFIX = "pending_";
+
+function reportCancelStreamError(
+  context: string,
+  chatId: string,
+  error: unknown,
+): void {
+  if (process.env.NODE_ENV === "production") {
+    return;
+  }
+  console.error(`[chatStreamController:${chatId}] ${context}`, error);
+}
 
 export interface ChatStreamStateContextValue {
   streams: StreamMap;
@@ -73,10 +90,6 @@ export function useChatStreamController(): UseChatStreamControllerResult {
     (state) => state.dispatchStreamAction,
   );
   const queryClient = useQueryClient();
-  const cancelRunMutation = useMutation({
-    mutationFn: ({ chatId, runId }: { chatId: string; runId: string }) =>
-      cancelRun(chatId, runId),
-  });
 
   const abortControllersRef = useRef<Map<string, AbortControllerEntry>>(new Map());
   const latestMutationByChatRef = useRef<Map<string, string>>(new Map());
@@ -130,13 +143,12 @@ export function useChatStreamController(): UseChatStreamControllerResult {
       const streamState = streamsRef.current[chatId];
       const runId = streamState?.meta?.runId;
       const realChatId = streamState?.meta?.chatId ?? chatId;
-
-      if (runId && realChatId) {
-        void cancelRunMutation.mutateAsync({ chatId: realChatId, runId });
-        void queryClient.invalidateQueries({
-          queryKey: queryKeys.activeRun.byChatId(realChatId),
-        });
-      }
+      const cancelChatId =
+        typeof realChatId === "string" &&
+          realChatId.length > 0 &&
+          !realChatId.startsWith(PENDING_CHAT_ID_PREFIX)
+          ? realChatId
+          : null;
 
       const entry = abortControllersRef.current.get(chatId);
       if (entry) {
@@ -145,8 +157,79 @@ export function useChatStreamController(): UseChatStreamControllerResult {
       }
 
       dispatch({ type: StreamActionType.STOP_STREAMING, chatId });
+
+      if (!cancelChatId) {
+        return;
+      }
+
+      markRunStopIntent(cancelChatId);
+
+      void (async () => {
+        try {
+          if (runId) {
+            try {
+              await cancelRun(cancelChatId, runId);
+            } catch (error) {
+              // Fall through to active-run lookup if direct cancel misses.
+              reportCancelStreamError(
+                "direct cancelRun failed; falling back to active-run lookup",
+                cancelChatId,
+                error,
+              );
+            }
+          }
+
+          try {
+            const activeRunResponse = await getActiveRun(cancelChatId);
+            const activeRun = activeRunResponse.data.run;
+            if (!activeRun) {
+              clearRunStopIntent(cancelChatId);
+              return;
+            }
+
+            if (!runId || activeRun.id !== runId) {
+              try {
+                await cancelRun(cancelChatId, activeRun.id);
+              } catch (error) {
+                // Keep stop intent active for later verification/retry.
+                reportCancelStreamError(
+                  "fallback cancelRun failed",
+                  cancelChatId,
+                  error,
+                );
+              }
+            }
+          } catch (error) {
+            // Keep stop intent active if lookup fails.
+            reportCancelStreamError(
+              "getActiveRun lookup failed during cancel",
+              cancelChatId,
+              error,
+            );
+          }
+
+          try {
+            const afterCancel = await getActiveRun(cancelChatId);
+            if (!afterCancel.data.run) {
+              clearRunStopIntent(cancelChatId);
+            }
+          } catch (error) {
+            // Keep stop intent active if verification fails.
+            reportCancelStreamError(
+              "post-cancel active-run verification failed",
+              cancelChatId,
+              error,
+            );
+          }
+        } finally {
+          void queryClient.invalidateQueries({
+            queryKey: queryKeys.activeRun.byChatId(cancelChatId),
+            exact: true,
+          });
+        }
+      })();
     },
-    [cancelRunMutation, dispatch, queryClient],
+    [dispatch, queryClient],
   );
 
   const getStreamForChat = useCallback(

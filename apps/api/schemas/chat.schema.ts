@@ -85,10 +85,6 @@ export const GetChatHistoryRequestSchema = z.object({
   params: ChatIdParamSchema,
 });
 
-export const RebuildRequestSchema = z.object({
-  params: ChatIdParamSchema,
-});
-
 export const PromptEnhanceSchema = z.object({
   text: z
     .string()
