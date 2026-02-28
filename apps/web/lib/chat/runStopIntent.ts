@@ -25,7 +25,7 @@ function now(): number {
 }
 
 function readRunStopIntentState(chatId: string): RunStopIntentState | null {
-  if (typeof window === "undefined") {
+  if (typeof window === "undefined" || !chatId) {
     return null;
   }
 
@@ -72,7 +72,7 @@ function readRunStopIntentState(chatId: string): RunStopIntentState | null {
 }
 
 function writeRunStopIntentState(chatId: string, state: RunStopIntentState): void {
-  if (typeof window === "undefined") {
+  if (typeof window === "undefined" || !chatId) {
     return;
   }
 
@@ -95,6 +95,10 @@ export function markRunStopIntent(chatId: string): void {
 }
 
 export function hasRunStopIntent(chatId: string): boolean {
+  if (!chatId) {
+    return false;
+  }
+
   const state = readRunStopIntentState(chatId);
   if (!state) {
     return false;
@@ -109,6 +113,10 @@ export function hasRunStopIntent(chatId: string): boolean {
 }
 
 export function shouldAttemptRunStopIntent(chatId: string): boolean {
+  if (!chatId) {
+    return false;
+  }
+
   const state = readRunStopIntentState(chatId);
   if (!state) {
     return false;
@@ -124,6 +132,10 @@ export function shouldAttemptRunStopIntent(chatId: string): boolean {
 }
 
 export function markRunStopIntentAttempt(chatId: string): void {
+  if (!chatId) {
+    return;
+  }
+
   const state = readRunStopIntentState(chatId);
   if (!state) {
     return;

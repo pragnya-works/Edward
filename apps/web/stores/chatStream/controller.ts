@@ -222,12 +222,9 @@ export function useChatStreamController(): UseChatStreamControllerResult {
             );
           }
         } finally {
-          queryClient.removeQueries({
-            queryKey: queryKeys.activeRun.byChatId(cancelChatId),
-            exact: true,
-          });
           void queryClient.invalidateQueries({
             queryKey: queryKeys.activeRun.byChatId(cancelChatId),
+            exact: true,
           });
         }
       })();

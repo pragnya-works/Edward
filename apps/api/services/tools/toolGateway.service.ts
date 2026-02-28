@@ -8,6 +8,7 @@ import { logger } from "../../utils/logger.js";
 import { executeSandboxCommand } from "../sandbox/command.service.js";
 import { searchTavilyBasic } from "../websearch/tavily.search.js";
 import {
+  MAX_TOOL_STDIO_CHARS,
   MAX_WEB_SEARCH_SNIPPET_CHARS,
   TOOL_GATEWAY_RETRY_ATTEMPTS,
   TOOL_GATEWAY_TIMEOUT_MS,
@@ -289,8 +290,8 @@ export async function executeCommandTool(params: {
       if (RAW_OUTPUT_COMMANDS.has(params.command)) {
         return {
           exitCode: raw.exitCode ?? 0,
-          stdout: raw.stdout ?? "",
-          stderr: raw.stderr ?? "",
+          stdout: truncateWithMarker(raw.stdout ?? "", MAX_TOOL_STDIO_CHARS),
+          stderr: truncateWithMarker(raw.stderr ?? "", MAX_TOOL_STDIO_CHARS),
         };
       }
       const stdout = sanitizeCommandOutput(raw.stdout ?? "");
@@ -298,8 +299,8 @@ export async function executeCommandTool(params: {
       const deduped = dedupeStdStreams(stdout, stderr, raw.exitCode ?? 0);
       return {
         exitCode: raw.exitCode ?? 0,
-        stdout: deduped.stdout,
-        stderr: deduped.stderr,
+        stdout: truncateWithMarker(deduped.stdout, MAX_TOOL_STDIO_CHARS),
+        stderr: truncateWithMarker(deduped.stderr, MAX_TOOL_STDIO_CHARS),
       };
     },
   });
