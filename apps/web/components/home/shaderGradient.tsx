@@ -132,7 +132,7 @@ export function ShaderGradientBackground() {
   return (
     <div 
       ref={containerRef}
-      className="fixed inset-0 w-full h-full -z-50 overflow-hidden bg-background select-none pointer-events-none"
+      className="fixed inset-0 opacity-75 w-full h-full -z-50 overflow-hidden bg-background select-none pointer-events-none"
       aria-hidden="true"
     >
       <StaticGradientFallback opacity={shouldRenderShader ? fallbackOpacity : 0.25} />

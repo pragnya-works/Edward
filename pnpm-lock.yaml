@@ -445,7 +445,7 @@ importers:
         specifier: ^0.475.0
         version: 0.475.0(react@19.2.3)
       motion:
-        specifier: ^12.26.1
+        specifier: ^12.28.1
         version: 12.28.1(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       next:
         specifier: ^16.1.6

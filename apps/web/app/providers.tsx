@@ -8,6 +8,7 @@ import { ChatStreamProvider } from "@/contexts/chatStreamContext";
 import { SandboxProvider } from "@/contexts/sandboxContext";
 import { Toaster } from "@edward/ui/components/sonner";
 import { NotificationManagerProvider } from "@/components/notifications/notificationManagerProvider";
+import { ThemeEnforcer } from "@/components/themeEnforcer";
 
 function makeQueryClient() {
   return new QueryClient({
@@ -33,6 +34,7 @@ export function Providers({ children }: { children: ReactNode }) {
       disableTransitionOnChange
       enableColorScheme
     >
+      <ThemeEnforcer />
       <LazyMotion features={domAnimation}>
         <MotionConfig reducedMotion="user">
           <QueryClientProvider client={queryClient}>

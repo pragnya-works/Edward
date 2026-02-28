@@ -7,6 +7,7 @@ import { ParserEventType } from "@edward/shared/streamEvents";
 import { toast } from "@edward/ui/components/sonner";
 import { EdwardLogo } from "@edward/ui/components/brand/edwardLogo";
 import { buildApiUrl } from "@/lib/api/httpClient";
+import { useSession } from "@/lib/auth-client";
 import { useNotificationsStore } from "@/stores/notifications/store";
 import { useSandboxStore } from "@/stores/sandbox/store";
 
@@ -95,6 +96,8 @@ function parseBuildEvent(data: string): ParsedBuildEvent | null {
 }
 
 export function useNotificationManager() {
+  const { data: session, isPending: isSessionPending } = useSession();
+  const isAuthenticated = Boolean(session?.user);
   const pathname = usePathname();
   const routeChatId = useMemo(
     () => resolveChatIdFromPathname(pathname),
@@ -116,10 +119,15 @@ export function useNotificationManager() {
   const scheduleReconnectRef = useRef<(chatId: string, delayMs: number) => void>(
     () => {},
   );
+  const isAuthenticatedRef = useRef(isAuthenticated);
 
   useEffect(() => {
     activeChatIdRef.current = activeChatId;
   }, [activeChatId]);
+
+  useEffect(() => {
+    isAuthenticatedRef.current = isAuthenticated;
+  }, [isAuthenticated]);
 
   useEffect(() => {
     if (typeof window === "undefined" || !("Notification" in window)) {
@@ -248,6 +256,10 @@ export function useNotificationManager() {
 
   const openSource = useCallback(
     (chatId: string) => {
+      if (!isAuthenticatedRef.current) {
+        return;
+      }
+
       clearReconnect(chatId);
 
       const existingSource = sourcesRef.current.get(chatId);
@@ -277,6 +289,9 @@ export function useNotificationManager() {
       const timeoutId = setTimeout(() => {
         reconnectTimersRef.current.delete(chatId);
         const state = useNotificationsStore.getState();
+        if (!isAuthenticatedRef.current) {
+          return;
+        }
         if (!state.isSubscribed(chatId)) {
           return;
         }
@@ -298,6 +313,20 @@ export function useNotificationManager() {
 
   useEffect(() => {
     if (!hasHydrated) {
+      return;
+    }
+
+    if (!isAuthenticated || isSessionPending) {
+      for (const source of sourcesRef.current.values()) {
+        source.close();
+      }
+      sourcesRef.current.clear();
+      initialFrameSeenRef.current.clear();
+
+      for (const timeoutId of reconnectTimersRef.current.values()) {
+        clearTimeout(timeoutId);
+      }
+      reconnectTimersRef.current.clear();
       return;
     }
 
@@ -329,6 +358,8 @@ export function useNotificationManager() {
     clearReconnect,
     closeSource,
     hasHydrated,
+    isAuthenticated,
+    isSessionPending,
     openSource,
     subscriptions,
   ]);

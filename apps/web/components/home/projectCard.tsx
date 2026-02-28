@@ -48,29 +48,30 @@ export const ProjectCard = memo(function ProjectCard({
   return (
     <AlertDialog>
       <m.div
-        initial={{ opacity: 0, filter: "blur(8px)", y: 8 }}
-        animate={{ opacity: 1, filter: "blur(0px)", y: 0 }}
+        initial={{ opacity: 0, scale: 0.98, y: 8 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
         transition={{
           duration: 0.4,
           ease: [0.25, 0.1, 0.25, 1],
           delay: Math.min(index * 0.03, 0.15),
         }}
-        className="group relative flex flex-col rounded-xl border border-border/60 dark:border-white/[0.08] bg-foreground/[0.02] dark:bg-white/[0.04] p-3 sm:p-4 lg:p-5 transition-all duration-300 hover:border-foreground/[0.12] dark:hover:border-white/[0.16] hover:bg-foreground/[0.05] dark:hover:bg-white/[0.07] hover:shadow-md dark:hover:shadow-2xl dark:hover:shadow-black/50 cursor-pointer aspect-video overflow-hidden"
+        className="group relative flex flex-col rounded-2xl border border-border/60 dark:border-white/10 bg-foreground/[0.02] dark:bg-white/[0.04] p-3 sm:p-4 lg:p-5 transition-[background-color,border-color,box-shadow] duration-300 hover:border-foreground/[0.12] dark:hover:border-white/20 hover:bg-foreground/[0.05] dark:hover:bg-white/[0.07] hover:shadow-[0_8px_30px_rgba(0,0,0,0.12)] cursor-pointer aspect-video overflow-hidden"
       >
+        <div className="pointer-events-none absolute inset-0 z-20 rounded-2xl shadow-[inset_0_1px_1px_rgba(0,0,0,0.05)] dark:shadow-[inset_0_1px_1px_rgba(255,255,255,0.15)] group-hover:shadow-[inset_0_1px_1px_rgba(0,0,0,0.1)] dark:group-hover:shadow-[inset_0_1px_1px_rgba(255,255,255,0.25)] transition-shadow duration-300" />
         <Link
           href={`/chat/${project.id}`}
-          className="absolute inset-0 z-[1] rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+          className="absolute inset-0 z-[1] rounded-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
           aria-label={project.title || "Open project"}
         />
         <div className="absolute inset-0 bg-gradient-to-br from-foreground/[0.03] to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
-        <div className="absolute -bottom-18 -right-20 w-[65%] aspect-[7/5] sm:-bottom-20 sm:-right-24 sm:w-[70%] lg:-bottom-24 lg:-right-36 lg:w-[80%] xl:-bottom-32 xl:-right-44 xl:w-[90%] text-foreground/[0.08] group-hover:text-foreground/[0.14] transition-all duration-700 group-hover:-translate-x-2 group-hover:-translate-y-1 pointer-events-none">
+        <div className="absolute -bottom-18 -right-20 w-[65%] aspect-[7/5] sm:-bottom-20 sm:-right-24 sm:w-[70%] lg:-bottom-24 lg:-right-36 lg:w-[80%] xl:-bottom-32 xl:-right-44 xl:w-[90%] text-foreground/[0.08] group-hover:text-foreground/[0.14] transition-[color,transform] duration-700 group-hover:-translate-x-2 group-hover:-translate-y-1 pointer-events-none">
           <TechnicalBlueprint />
         </div>
         {onDelete && (
           <AlertDialogTrigger asChild>
             <button
               type="button"
-              className="absolute top-2.5 right-2.5 z-20 flex items-center justify-center h-7 w-7 sm:h-8 sm:w-8 rounded-lg opacity-100 sm:opacity-0 sm:group-hover:opacity-100 scale-100 sm:scale-90 sm:group-hover:scale-100 transition-all duration-200 bg-background/80 dark:bg-white/[0.06] border border-border/60 dark:border-white/[0.12] text-muted-foreground/70 hover:text-destructive hover:bg-destructive/10 hover:border-destructive/30 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-destructive/40 shadow-sm dark:shadow-none"
+              className="absolute top-2.5 right-2.5 z-20 flex items-center justify-center h-7 w-7 sm:h-8 sm:w-8 rounded-lg opacity-100 sm:opacity-0 sm:group-hover:opacity-100 scale-100 sm:scale-90 sm:group-hover:scale-100 transition-[opacity,transform,background-color,border-color,color] duration-200 bg-background/80 dark:bg-white/[0.06] border border-border/60 dark:border-white/[0.12] text-muted-foreground/70 hover:text-destructive hover:bg-destructive/10 hover:border-destructive/30 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-destructive/40 shadow-sm dark:shadow-none"
               aria-label="Delete project"
             >
               <Trash2 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
