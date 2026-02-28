@@ -15,6 +15,19 @@ export interface SendMessageRequest {
   retryTargetAssistantMessageId?: string;
 }
 
+export interface ChatMetaResponse {
+  message: string;
+  data: {
+    chatId: string;
+    title: string | null;
+    description: string | null;
+    seoTitle: string | null;
+    seoDescription: string | null;
+    updatedAt: string | Date;
+  };
+  timestamp: string;
+}
+
 
 export async function postChatMessageStream(
   body: SendMessageRequest,
@@ -51,15 +64,10 @@ export async function cancelRun(
   chatId: string,
   runId: string,
 ): Promise<void> {
-  try {
-    await fetchApi<{ cancelled: boolean }>(
-      `/chat/${chatId}/runs/${runId}/cancel`,
-      { method: "POST" },
-    );
-  } catch {
-    // Non-critical — the client-side abort already stops the SSE connection.
-    // The backend will eventually mark the run terminal on its own.
-  }
+  await fetchApi<{ cancelled: boolean }>(
+    `/chat/${chatId}/runs/${runId}/cancel`,
+    { method: "POST" },
+  );
 }
 
 export async function getActiveRun(
@@ -67,6 +75,16 @@ export async function getActiveRun(
   options?: { signal?: AbortSignal },
 ): Promise<ActiveRunResponse> {
   return fetchApi<ActiveRunResponse>(`/chat/${chatId}/active-run`, {
+    method: "GET",
+    signal: options?.signal,
+  });
+}
+
+export async function getChatMeta(
+  chatId: string,
+  options?: { signal?: AbortSignal },
+): Promise<ChatMetaResponse> {
+  return fetchApi<ChatMetaResponse>(`/chat/${chatId}/meta`, {
     method: "GET",
     signal: options?.signal,
   });

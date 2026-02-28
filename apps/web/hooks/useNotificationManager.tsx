@@ -6,6 +6,7 @@ import { BuildRecordStatus } from "@edward/shared/api/contracts";
 import { ParserEventType } from "@edward/shared/streamEvents";
 import { toast } from "@edward/ui/components/sonner";
 import { EdwardLogo } from "@edward/ui/components/brand/edwardLogo";
+import { getChatMeta } from "@/lib/api/chat";
 import { buildApiUrl } from "@/lib/api/httpClient";
 import { useSession } from "@/lib/auth-client";
 import { useNotificationsStore } from "@/stores/notifications/store";
@@ -17,7 +18,9 @@ const TERMINAL_STATUSES = new Set<BuildRecordStatus>([
 ]);
 
 const RECONNECT_AFTER_TERMINAL_MS = 12_000;
-const RECONNECT_AFTER_ERROR_MS = 4_000;
+const RECONNECT_BASE_ERROR_MS = 4_000;
+const RECONNECT_MAX_ERROR_MS = 60_000;
+const MAX_RECONNECT_ATTEMPTS = 8;
 
 interface BuildEventPayload {
   type?: string;
@@ -42,7 +45,8 @@ function resolveChatIdFromPathname(pathname: string | null): string | null {
 
   try {
     return decodeURIComponent(match[1]);
-  } catch {
+  } catch (_) {
+    void _;
     return match[1];
   }
 }
@@ -81,7 +85,8 @@ function parseBuildEvent(data: string): ParsedBuildEvent | null {
   let payload: BuildEventPayload;
   try {
     payload = JSON.parse(data) as BuildEventPayload;
-  } catch {
+  } catch (_) {
+    void _;
     return null;
   }
 
@@ -97,6 +102,7 @@ function parseBuildEvent(data: string): ParsedBuildEvent | null {
 
 export function useNotificationManager() {
   const { data: session, isPending: isSessionPending } = useSession();
+  const userId = session?.user?.id ?? null;
   const isAuthenticated = Boolean(session?.user);
   const pathname = usePathname();
   const routeChatId = useMemo(
@@ -109,6 +115,7 @@ export function useNotificationManager() {
   const subscriptions = useNotificationsStore((s) => s.subscriptions);
   const hasHydrated = useNotificationsStore((s) => s.hasHydrated);
   const setBrowserPermission = useNotificationsStore((s) => s.setBrowserPermission);
+  const setOwnerUserId = useNotificationsStore((s) => s.setOwnerUserId);
 
   const activeChatIdRef = useRef<string | null>(activeChatId);
   const sourcesRef = useRef<Map<string, EventSource>>(new Map());
@@ -116,10 +123,22 @@ export function useNotificationManager() {
   const reconnectTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(
     new Map(),
   );
+  const reconnectAttemptsRef = useRef<Map<string, number>>(new Map());
   const scheduleReconnectRef = useRef<(chatId: string, delayMs: number) => void>(
     () => {},
   );
   const isAuthenticatedRef = useRef(isAuthenticated);
+  const userIdRef = useRef(userId);
+
+  useEffect(() => {
+    if (hasHydrated && !isSessionPending) {
+      setOwnerUserId(userId);
+    }
+  }, [hasHydrated, isSessionPending, userId, setOwnerUserId]);
+
+  useEffect(() => {
+    userIdRef.current = userId;
+  }, [userId]);
 
   useEffect(() => {
     activeChatIdRef.current = activeChatId;
@@ -219,19 +238,49 @@ export function useNotificationManager() {
         return;
       }
 
-      const subscription = state.getSubscription(chatId);
-      const chatTitle = subscription?.chatTitle ?? "Untitled app";
-      showToast(chatId, chatTitle, status, buildId);
-      notifyBrowser(chatId, chatTitle, status);
-
       closeSource(chatId);
       scheduleReconnectRef.current(chatId, RECONNECT_AFTER_TERMINAL_MS);
+
+      const subscription = state.getSubscription(chatId);
+      const fallbackTitle = subscription?.chatTitle ?? "Untitled app";
+
+      const abort = new AbortController();
+      const tidyUp = () => abort.abort();
+      const unsubWatch = useNotificationsStore.subscribe((next) => {
+        if (!next.isSubscribed(chatId) || activeChatIdRef.current === chatId) {
+          tidyUp();
+        }
+      });
+
+      void (async () => {
+        let chatTitle = fallbackTitle;
+        try {
+          const res = await getChatMeta(chatId, { signal: abort.signal });
+          if (res.data?.title) {
+            chatTitle = res.data.title;
+            useNotificationsStore.getState().updateSubscriptionTitle(chatId, chatTitle);
+          }
+        } catch (_) {
+          void _;
+        } finally {
+          unsubWatch();
+        }
+
+        if (abort.signal.aborted) return;
+
+        showToast(chatId, chatTitle, status, buildId);
+        notifyBrowser(chatId, chatTitle, status);
+      })();
     },
     [closeSource, showToast],
   );
 
   const attachSourceListeners = useCallback(
     (chatId: string, source: EventSource) => {
+      source.addEventListener("open", () => {
+        reconnectAttemptsRef.current.delete(chatId);
+      });
+
       source.addEventListener("message", (event) => {
         if (typeof event.data !== "string" || !event.data || event.data === "[DONE]") {
           return;
@@ -248,7 +297,19 @@ export function useNotificationManager() {
           return;
         }
         closeSource(chatId);
-        scheduleReconnectRef.current(chatId, RECONNECT_AFTER_ERROR_MS);
+
+        const attempts = reconnectAttemptsRef.current.get(chatId) ?? 0;
+        if (attempts >= MAX_RECONNECT_ATTEMPTS) {
+          reconnectAttemptsRef.current.delete(chatId);
+          return;
+        }
+
+        reconnectAttemptsRef.current.set(chatId, attempts + 1);
+        const delay = Math.min(
+          RECONNECT_MAX_ERROR_MS,
+          RECONNECT_BASE_ERROR_MS * 2 ** attempts,
+        );
+        scheduleReconnectRef.current(chatId, delay);
       });
     },
     [closeSource, handleBuildStatusEvent],
@@ -256,7 +317,11 @@ export function useNotificationManager() {
 
   const openSource = useCallback(
     (chatId: string) => {
-      if (!isAuthenticatedRef.current) {
+      if (!isAuthenticatedRef.current || !userIdRef.current) {
+        return;
+      }
+      const state = useNotificationsStore.getState();
+      if (!state.isSubscribed(chatId)) {
         return;
       }
 
@@ -289,10 +354,11 @@ export function useNotificationManager() {
       const timeoutId = setTimeout(() => {
         reconnectTimersRef.current.delete(chatId);
         const state = useNotificationsStore.getState();
-        if (!isAuthenticatedRef.current) {
+        if (!isAuthenticatedRef.current || !userIdRef.current) {
           return;
         }
         if (!state.isSubscribed(chatId)) {
+          reconnectAttemptsRef.current.delete(chatId);
           return;
         }
         if (activeChatIdRef.current === chatId) {
@@ -316,12 +382,13 @@ export function useNotificationManager() {
       return;
     }
 
-    if (!isAuthenticated || isSessionPending) {
+    if (!isAuthenticated || isSessionPending || !userId) {
       for (const source of sourcesRef.current.values()) {
         source.close();
       }
       sourcesRef.current.clear();
       initialFrameSeenRef.current.clear();
+      reconnectAttemptsRef.current.clear();
 
       for (const timeoutId of reconnectTimersRef.current.values()) {
         clearTimeout(timeoutId);
@@ -338,6 +405,7 @@ export function useNotificationManager() {
       }
       closeSource(chatId);
       clearReconnect(chatId);
+      reconnectAttemptsRef.current.delete(chatId);
     }
 
     for (const chatId of Array.from(reconnectTimersRef.current.keys())) {
@@ -345,6 +413,7 @@ export function useNotificationManager() {
         continue;
       }
       clearReconnect(chatId);
+      reconnectAttemptsRef.current.delete(chatId);
     }
 
     for (const chatId of subscribedChatIds) {
@@ -362,6 +431,7 @@ export function useNotificationManager() {
     isSessionPending,
     openSource,
     subscriptions,
+    userId,
   ]);
 
   useEffect(
@@ -371,6 +441,7 @@ export function useNotificationManager() {
       }
       sourcesRef.current.clear();
       initialFrameSeenRef.current.clear();
+      reconnectAttemptsRef.current.clear();
 
       for (const timeoutId of reconnectTimersRef.current.values()) {
         clearTimeout(timeoutId);

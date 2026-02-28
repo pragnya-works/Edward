@@ -139,6 +139,7 @@ export async function executeStartStreamMutation(
   const response = await postChatMessageStream(body, variables.controller.signal);
 
   let resolvedChatId = variables.streamKey;
+  let recentChatsRefreshedOnChatResolve = false;
 
   const streamResult = await processStreamResponse({
     response,
@@ -169,6 +170,13 @@ export async function executeStartStreamMutation(
       });
 
       resolvedChatId = realChatId;
+
+      if (!recentChatsRefreshedOnChatResolve) {
+        recentChatsRefreshedOnChatResolve = true;
+        void deps.queryClient.invalidateQueries({
+          queryKey: queryKeys.recentChats.all,
+        });
+      }
     },
   });
 
@@ -226,9 +234,11 @@ export async function executeStartStreamMutation(
         queryKey: queryKeys.activeRun.byChatId(metaEvent.chatId),
       });
     }
-    void deps.queryClient.invalidateQueries({
-      queryKey: queryKeys.recentChats.all,
-    });
+    if (!recentChatsRefreshedOnChatResolve) {
+      void deps.queryClient.invalidateQueries({
+        queryKey: queryKeys.recentChats.all,
+      });
+    }
 
     if (deps.isLatestMutationForChat(resolvedChatId, variables.mutationId)) {
       if (metaEvent.runId) {

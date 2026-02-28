@@ -75,7 +75,30 @@ describe("toolGateway command output sanitation", () => {
     expect(result.stderr).toBe("");
   });
 
-  it("bounds sanitation work for very large repeated outputs", async () => {
+  it("preserves raw output for file-read commands", async () => {
+    const rawOutput = "same line\nsame line\nsame line\nsame line\n";
+
+    executeSandboxCommandMock.mockResolvedValue({
+      exitCode: 0,
+      stdout: rawOutput,
+      stderr: "",
+    });
+
+    const result = await executeCommandTool({
+      turn: 1,
+      sandboxId: "sb-1",
+      command: "cat",
+      args: ["README.md"],
+    });
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toBe(rawOutput);
+    expect(result.stdout).not.toContain("...[line repeated");
+    expect(result.stdout).not.toContain("...[truncated]");
+    expect(result.stderr).toBe("");
+  });
+
+  it("sanitizes very large repeated outputs without truncation markers", async () => {
     const repeatedOutput = "line repeated\n".repeat(20_000);
 
     executeSandboxCommandMock.mockResolvedValue({
@@ -93,7 +116,7 @@ describe("toolGateway command output sanitation", () => {
 
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("...[line repeated");
-    expect(result.stdout).toContain("...[truncated]");
+    expect(result.stdout).not.toContain("...[truncated]");
     expect(result.stderr).toBe("");
   });
 });

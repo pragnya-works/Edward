@@ -21,6 +21,7 @@ import { resolveFramework } from "./frameworkResolution.js";
 import { prepareBaseMessages } from "./messagePreparation.js";
 import { setupStreamGuards } from "./streamGuards.js";
 import { applyDeterministicPostgenAutofixes } from "./postgenAutofix.js";
+import { scheduleChatMetaGeneration } from "./chatMetaGeneration.js";
 import { finalizeStreamSession } from "./runStreamSession.finalize.js";
 import {
   resolveMode,
@@ -129,6 +130,13 @@ export async function runStreamSession(
       phase: MetaPhase.SESSION_START,
       intent,
       tokenUsage,
+    });
+
+    scheduleChatMetaGeneration({
+      isFollowUp,
+      decryptedApiKey,
+      userContent,
+      chatId,
     });
 
     if (isOverContextLimit(tokenUsage)) {
@@ -241,9 +249,6 @@ export async function runStreamSession(
       chatId,
       assistantMessageId,
       runId,
-      userContent,
-      isFollowUp,
-      decryptedApiKey,
       workflow,
       res,
       framework,

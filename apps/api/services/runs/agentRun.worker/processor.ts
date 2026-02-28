@@ -188,345 +188,379 @@ export async function processAgentRunJob(
     return;
   }
 
-  let metadata: AgentRunMetadata;
+  const workerAbort = new AbortController();
+  const runCancelChannel = `edward:run-cancel:${runId}`;
+  const cancelSub = createRedisClient();
+  let cancelSubscriptionReady = false;
+
   try {
-    metadata = parseAgentRunMetadata(run.metadata);
-  } catch (error) {
-    const err = ensureError(error);
-    await updateRun(runId, {
-      status: RUN_STATUS.FAILED,
-      state: "FAILED",
-      errorMessage: err.message,
-      completedAt: new Date(),
-    }).catch(() => {});
-    throw err;
-  }
+    await cancelSub.subscribe(runCancelChannel);
+    cancelSubscriptionReady = true;
+    cancelSub.on("message", (channel: string) => {
+      if (channel !== runCancelChannel) return;
+      logger.info({ runId }, "Cancel signal received via Redis — aborting agent run");
+      workerAbort.abort();
+    });
 
-  const userData = await getUserWithApiKey(run.userId);
-  if (!userData?.apiKey) {
-    const err = new Error("Missing API key for run execution");
-    await updateRun(runId, {
-      status: RUN_STATUS.FAILED,
-      state: "FAILED",
-      errorMessage: err.message,
-      completedAt: new Date(),
-    }).catch(() => {});
-    throw err;
-  }
-
-  let decryptedApiKey: string;
-  try {
-    decryptedApiKey = decrypt(userData.apiKey);
-  } catch (error) {
-    const err = ensureError(error);
-    await updateRun(runId, {
-      status: RUN_STATUS.FAILED,
-      state: "FAILED",
-      errorMessage: err.message,
-      completedAt: new Date(),
-    }).catch(() => {});
-    throw err;
-  }
-
-  let historyMessages: LlmChatMessage[] = metadata.historyMessages ?? [];
-  let projectContext = metadata.projectContext ?? "";
-
-  if (metadata.isFollowUp) {
-    try {
-      const ctx = await buildConversationMessages(run.chatId, {
-        excludeMessageIds: run.userMessageId ? [run.userMessageId] : [],
-        maxCreatedAt: run.createdAt ?? undefined,
-      });
-      historyMessages = ctx.history;
-      projectContext = ctx.projectContext;
-    } catch (err) {
-      logger.warn(
-        { err, runId, chatId: run.chatId },
-        "Failed to reconstruct follow-up context in worker; falling back to metadata snapshot",
-      );
+    const latestAfterSubscription = await getRunById(runId);
+    if (
+      !latestAfterSubscription ||
+      isTerminalRunStatus(latestAfterSubscription.status)
+    ) {
+      return;
     }
-  }
 
-  const startedAt = run.startedAt ?? new Date();
-  const startedAtMs = startedAt.getTime();
-  let firstTokenLatencyMs: number | null = null;
-  let latestLoopStopReason: string | null = null;
-  let latestTerminationReason: StreamTerminationReason | null = null;
-  let latestErrorMessage: string | null = null;
-  let currentTurn = metadata.resumeCheckpoint?.turn ?? run.currentTurn ?? 0;
-  const turnStartTimes = new Map<number, number>();
+    let metadata: AgentRunMetadata;
+    try {
+      metadata = parseAgentRunMetadata(run.metadata);
+    } catch (error) {
+      const err = ensureError(error);
+      await updateRun(runId, {
+        status: RUN_STATUS.FAILED,
+        state: "FAILED",
+        errorMessage: err.message,
+        completedAt: new Date(),
+      }).catch(() => {});
+      throw err;
+    }
 
-  await updateRun(runId, {
-    status: RUN_STATUS.RUNNING,
-    state: "INIT",
-    startedAt,
-    errorMessage: null,
-  });
-  let lastPersistedState:
-    | "INIT"
-    | "LLM_STREAM"
-    | "TOOL_EXEC"
-    | "APPLY"
-    | "NEXT_TURN" = "INIT";
-  let lastPersistedTurn = currentTurn;
+    const userData = await getUserWithApiKey(run.userId);
+    if (!userData?.apiKey) {
+      const err = new Error("Missing API key for run execution");
+      await updateRun(runId, {
+        status: RUN_STATUS.FAILED,
+        state: "FAILED",
+        errorMessage: err.message,
+        completedAt: new Date(),
+      }).catch(() => {});
+      throw err;
+    }
 
-  logger.info(
-    {
-      runId,
-      chatId: run.chatId,
-      userId: run.userId,
-      traceId: metadata.traceId,
-      metric: "run_start",
-    },
-    "Agent run started",
-  );
+    let decryptedApiKey: string;
+    try {
+      decryptedApiKey = decrypt(userData.apiKey);
+    } catch (error) {
+      const err = ensureError(error);
+      await updateRun(runId, {
+        status: RUN_STATUS.FAILED,
+        state: "FAILED",
+        errorMessage: err.message,
+        completedAt: new Date(),
+      }).catch(() => {});
+      throw err;
+    }
 
-  const updateRunStateIfNeeded = async (
-    nextState:
+    let historyMessages: LlmChatMessage[] = metadata.historyMessages ?? [];
+    let projectContext = metadata.projectContext ?? "";
+
+    if (metadata.isFollowUp) {
+      try {
+        const ctx = await buildConversationMessages(run.chatId, {
+          excludeMessageIds: run.userMessageId ? [run.userMessageId] : [],
+          maxCreatedAt: run.createdAt ?? undefined,
+        });
+        historyMessages = ctx.history;
+        projectContext = ctx.projectContext;
+      } catch (err) {
+        logger.warn(
+          { err, runId, chatId: run.chatId },
+          "Failed to reconstruct follow-up context in worker; falling back to metadata snapshot",
+        );
+      }
+    }
+
+    const startedAt = run.startedAt ?? new Date();
+    const startedAtMs = startedAt.getTime();
+    let firstTokenLatencyMs: number | null = null;
+    let latestLoopStopReason: string | null = null;
+    let latestTerminationReason: StreamTerminationReason | null = null;
+    let latestErrorMessage: string | null = null;
+    let currentTurn = metadata.resumeCheckpoint?.turn ?? run.currentTurn ?? 0;
+    const turnStartTimes = new Map<number, number>();
+
+    const latestBeforeStart = await getRunById(runId);
+    if (
+      workerAbort.signal.aborted ||
+      !latestBeforeStart ||
+      isTerminalRunStatus(latestBeforeStart.status)
+    ) {
+      return;
+    }
+
+    await updateRun(runId, {
+      status: RUN_STATUS.RUNNING,
+      state: "INIT",
+      startedAt,
+      errorMessage: null,
+    });
+    let lastPersistedState:
       | "INIT"
       | "LLM_STREAM"
       | "TOOL_EXEC"
       | "APPLY"
-      | "NEXT_TURN",
-    nextTurn: number,
-  ) => {
-    if (lastPersistedState === nextState && lastPersistedTurn === nextTurn) {
-      return;
-    }
+      | "NEXT_TURN" = "INIT";
+    let lastPersistedTurn = currentTurn;
 
-    await updateRun(runId, { state: nextState, currentTurn: nextTurn });
-    lastPersistedState = nextState;
-    lastPersistedTurn = nextTurn;
-  };
+    logger.info(
+      {
+        runId,
+        chatId: run.chatId,
+        userId: run.userId,
+        traceId: metadata.traceId,
+        metric: "run_start",
+      },
+      "Agent run started",
+    );
 
-  const capturedRes = createRunEventCaptureResponse(async (event) => {
-    await persistRunEvent(runId, event, publisher);
-
-    if (firstTokenLatencyMs === null && event.type === ParserEventType.TEXT) {
-      firstTokenLatencyMs = Math.max(0, Date.now() - startedAtMs);
-    }
-
-    if (
-      event.type === ParserEventType.COMMAND ||
-      event.type === ParserEventType.WEB_SEARCH
-    ) {
-      await updateRunStateIfNeeded("TOOL_EXEC", currentTurn);
-      return;
-    }
-
-    if (
-      event.type === ParserEventType.FILE_START ||
-      event.type === ParserEventType.FILE_CONTENT ||
-      event.type === ParserEventType.FILE_END ||
-      event.type === ParserEventType.SANDBOX_START ||
-      event.type === ParserEventType.SANDBOX_END ||
-      event.type === ParserEventType.INSTALL_START ||
-      event.type === ParserEventType.INSTALL_CONTENT ||
-      event.type === ParserEventType.INSTALL_END
-    ) {
-      await updateRunStateIfNeeded("APPLY", currentTurn);
-      return;
-    }
-
-    if (event.type === ParserEventType.ERROR) {
-      latestErrorMessage = event.message;
-      return;
-    }
-
-    if (event.type !== ParserEventType.META) {
-      return;
-    }
-
-    if (typeof event.turn === "number" && event.turn > 0) {
-      currentTurn = event.turn;
-    }
-
-    if (event.phase === MetaPhase.TURN_START) {
-      turnStartTimes.set(currentTurn, Date.now());
-      await updateRunStateIfNeeded("LLM_STREAM", currentTurn);
-      return;
-    }
-
-    if (event.phase === MetaPhase.TURN_COMPLETE) {
-      const startedTurnAt = turnStartTimes.get(currentTurn);
-      if (typeof startedTurnAt === "number") {
-        logger.info(
-          {
-            runId,
-            turn: currentTurn,
-            turnLatencyMs: Math.max(0, Date.now() - startedTurnAt),
-            metric: "turn_latency",
-          },
-          "Run turn completed",
-        );
+    const updateRunStateIfNeeded = async (
+      nextState:
+        | "INIT"
+        | "LLM_STREAM"
+        | "TOOL_EXEC"
+        | "APPLY"
+        | "NEXT_TURN",
+      nextTurn: number,
+    ) => {
+      if (lastPersistedState === nextState && lastPersistedTurn === nextTurn) {
+        return;
       }
-      turnStartTimes.delete(currentTurn);
 
-      await updateRunStateIfNeeded("NEXT_TURN", currentTurn);
-      return;
-    }
+      await updateRun(runId, { state: nextState, currentTurn: nextTurn });
+      lastPersistedState = nextState;
+      lastPersistedTurn = nextTurn;
+    };
 
-    if (event.phase === MetaPhase.SESSION_COMPLETE) {
-      latestLoopStopReason = event.loopStopReason ?? null;
-      latestTerminationReason = event.terminationReason ?? null;
-    }
-  });
+    const capturedRes = createRunEventCaptureResponse(async (event) => {
+      await persistRunEvent(runId, event, publisher);
 
-  const fakeReq = new EventEmitter() as unknown as AuthenticatedRequest;
+      if (firstTokenLatencyMs === null && event.type === ParserEventType.TEXT) {
+        firstTokenLatencyMs = Math.max(0, Date.now() - startedAtMs);
+      }
 
-  const workerAbort = new AbortController();
+      if (
+        event.type === ParserEventType.COMMAND ||
+        event.type === ParserEventType.WEB_SEARCH
+      ) {
+        await updateRunStateIfNeeded("TOOL_EXEC", currentTurn);
+        return;
+      }
 
-  const runCancelChannel = `edward:run-cancel:${runId}`;
-  const cancelSub = createRedisClient();
-  await cancelSub.subscribe(runCancelChannel);
-  cancelSub.on("message", (channel: string) => {
-    if (channel !== runCancelChannel) return;
-    logger.info({ runId }, "Cancel signal received via Redis — aborting agent run");
-    workerAbort.abort();
-  });
+      if (
+        event.type === ParserEventType.FILE_START ||
+        event.type === ParserEventType.FILE_CONTENT ||
+        event.type === ParserEventType.FILE_END ||
+        event.type === ParserEventType.SANDBOX_START ||
+        event.type === ParserEventType.SANDBOX_END ||
+        event.type === ParserEventType.INSTALL_START ||
+        event.type === ParserEventType.INSTALL_CONTENT ||
+        event.type === ParserEventType.INSTALL_END
+      ) {
+        await updateRunStateIfNeeded("APPLY", currentTurn);
+        return;
+      }
 
-  try {
+      if (event.type === ParserEventType.ERROR) {
+        latestErrorMessage = event.message;
+        return;
+      }
+
+      if (event.type !== ParserEventType.META) {
+        return;
+      }
+
+      if (typeof event.turn === "number" && event.turn > 0) {
+        currentTurn = event.turn;
+      }
+
+      if (event.phase === MetaPhase.TURN_START) {
+        turnStartTimes.set(currentTurn, Date.now());
+        await updateRunStateIfNeeded("LLM_STREAM", currentTurn);
+        return;
+      }
+
+      if (event.phase === MetaPhase.TURN_COMPLETE) {
+        const startedTurnAt = turnStartTimes.get(currentTurn);
+        if (typeof startedTurnAt === "number") {
+          logger.info(
+            {
+              runId,
+              turn: currentTurn,
+              turnLatencyMs: Math.max(0, Date.now() - startedTurnAt),
+              metric: "turn_latency",
+            },
+            "Run turn completed",
+          );
+        }
+        turnStartTimes.delete(currentTurn);
+
+        await updateRunStateIfNeeded("NEXT_TURN", currentTurn);
+        return;
+      }
+
+      if (event.phase === MetaPhase.SESSION_COMPLETE) {
+        latestLoopStopReason = event.loopStopReason ?? null;
+        latestTerminationReason = event.terminationReason ?? null;
+      }
+    });
+
+    const fakeReq = new EventEmitter() as unknown as AuthenticatedRequest;
+
     try {
       await runStreamSession({
-      req: fakeReq,
-      res: capturedRes as never,
-      externalSignal: workerAbort.signal,
-      workflow: metadata.workflow,
-      userId: run.userId,
-      chatId: run.chatId,
-      decryptedApiKey,
-      userContent: metadata.userContent,
-      userTextContent: metadata.userTextContent,
-      userMessageId: run.userMessageId,
-      assistantMessageId: run.assistantMessageId,
-      preVerifiedDeps: metadata.preVerifiedDeps,
-      isFollowUp: metadata.isFollowUp,
-      intent: metadata.intent,
-      historyMessages,
-      projectContext,
-      model: metadata.model,
-      runId,
-      resumeCheckpoint: metadata.resumeCheckpoint
-        ? {
+        req: fakeReq,
+        res: capturedRes as never,
+        externalSignal: workerAbort.signal,
+        workflow: metadata.workflow,
+        userId: run.userId,
+        chatId: run.chatId,
+        decryptedApiKey,
+        userContent: metadata.userContent,
+        userTextContent: metadata.userTextContent,
+        userMessageId: run.userMessageId,
+        assistantMessageId: run.assistantMessageId,
+        preVerifiedDeps: metadata.preVerifiedDeps,
+        isFollowUp: metadata.isFollowUp,
+        intent: metadata.intent,
+        historyMessages,
+        projectContext,
+        model: metadata.model,
+        runId,
+        resumeCheckpoint: metadata.resumeCheckpoint
+          ? {
             turn: metadata.resumeCheckpoint.turn,
             fullRawResponse: metadata.resumeCheckpoint.fullRawResponse,
             agentMessages: metadata.resumeCheckpoint.agentMessages,
             sandboxTagDetected: metadata.resumeCheckpoint.sandboxTagDetected,
             totalToolCallsInRun: metadata.resumeCheckpoint.totalToolCallsInRun,
           }
-        : undefined,
-      onCheckpoint: async (checkpoint) => {
-        const mergedMetadata: AgentRunMetadata = {
-          ...metadata,
-          resumeCheckpoint: {
-            turn: checkpoint.turn,
-            fullRawResponse: checkpoint.fullRawResponse,
-            agentMessages: checkpoint.agentMessages,
-            sandboxTagDetected: checkpoint.sandboxTagDetected,
-            totalToolCallsInRun: checkpoint.totalToolCallsInRun,
-            updatedAt: checkpoint.updatedAt,
-          } satisfies RunResumeCheckpoint,
-        };
-        metadata = mergedMetadata;
-        await updateRun(runId, {
-          currentTurn: checkpoint.turn,
-          metadata: mergedMetadata as unknown as Record<string, unknown>,
-        });
-      },
-    });
-
-    await capturedRes.flushPending();
-
-    const finishedAt = new Date();
-    const durationMs = Math.max(0, finishedAt.getTime() - startedAtMs);
-    const mapped = mapTerminationToStatus(latestTerminationReason);
-
-    await updateRun(runId, {
-      status: mapped.status,
-      state: mapped.state,
-      currentTurn,
-      loopStopReason: latestLoopStopReason,
-      terminationReason: latestTerminationReason,
-      errorMessage: latestErrorMessage,
-      completedAt: finishedAt,
-      metadata: {
-        ...metadata,
-        resumeCheckpoint: null,
-        firstTokenLatencyMs,
-        runDurationMs: durationMs,
-      },
-    });
-
-    logger.info(
-      {
-        runId,
-        status: mapped.status,
-        terminationReason: latestTerminationReason,
-        loopStopReason: latestLoopStopReason,
-        traceId: metadata.traceId,
-        firstTokenLatencyMs,
-        durationMs,
-        metric: "run_completion",
-      },
-      "Agent run completed",
-    );
-  } catch (error) {
-    const err = ensureError(error);
-    const assistantError = classifyAssistantError(err.message);
-    latestErrorMessage = assistantError.message;
-
-    await capturedRes.flushPending().catch((flushError) => {
-      logger.error(
-        { error: ensureError(flushError), runId },
-        "Failed to drain pending run events before terminal persistence",
-      );
-    });
-
-    const completionMetaEvent: StreamEvent = {
-      type: ParserEventType.META,
-      version: STREAM_EVENT_VERSION,
-      chatId: run.chatId,
-      userMessageId: run.userMessageId,
-      assistantMessageId: run.assistantMessageId,
-      isNewChat: !metadata.isFollowUp,
-      runId,
-      phase: MetaPhase.SESSION_COMPLETE,
-      terminationReason: StreamTerminationReason.STREAM_FAILED,
-    };
-
-    await persistRunEvent(
-      runId,
-      {
-        type: ParserEventType.ERROR,
-        version: STREAM_EVENT_VERSION,
-        message: assistantError.message,
-        code: assistantError.code,
-        details: {
-          title: assistantError.title,
-          severity: assistantError.severity,
-          action: assistantError.action,
-          actionLabel: assistantError.actionLabel,
-          actionUrl: assistantError.actionUrl,
+          : undefined,
+        onCheckpoint: async (checkpoint) => {
+          const mergedMetadata: AgentRunMetadata = {
+            ...metadata,
+            resumeCheckpoint: {
+              turn: checkpoint.turn,
+              fullRawResponse: checkpoint.fullRawResponse,
+              agentMessages: checkpoint.agentMessages,
+              sandboxTagDetected: checkpoint.sandboxTagDetected,
+              totalToolCallsInRun: checkpoint.totalToolCallsInRun,
+              updatedAt: checkpoint.updatedAt,
+            } satisfies RunResumeCheckpoint,
+          };
+          metadata = mergedMetadata;
+          await updateRun(runId, {
+            currentTurn: checkpoint.turn,
+            metadata: mergedMetadata as unknown as Record<string, unknown>,
+          });
         },
-      },
-      publisher,
-    ).catch(() => {});
+      });
 
-    await persistRunEvent(runId, completionMetaEvent, publisher).catch(() => {});
+      await capturedRes.flushPending();
 
-    await updateRun(runId, {
-      status: RUN_STATUS.FAILED,
-      state: "FAILED",
-      currentTurn,
-      terminationReason: StreamTerminationReason.STREAM_FAILED,
-      errorMessage: latestErrorMessage,
-      completedAt: new Date(),
-    }).catch(() => {});
+      const finishedAt = new Date();
+      const durationMs = Math.max(0, finishedAt.getTime() - startedAtMs);
+      const mapped = mapTerminationToStatus(latestTerminationReason);
 
-    throw error;
+      const latestBeforeFinalize = await getRunById(runId);
+      if (!latestBeforeFinalize || isTerminalRunStatus(latestBeforeFinalize.status)) {
+        return;
+      }
+
+      await updateRun(runId, {
+        status: mapped.status,
+        state: mapped.state,
+        currentTurn,
+        loopStopReason: latestLoopStopReason,
+        terminationReason: latestTerminationReason,
+        errorMessage: latestErrorMessage,
+        completedAt: finishedAt,
+        metadata: {
+          ...metadata,
+          resumeCheckpoint: null,
+          firstTokenLatencyMs,
+          runDurationMs: durationMs,
+        },
+      });
+
+      logger.info(
+        {
+          runId,
+          status: mapped.status,
+          terminationReason: latestTerminationReason,
+          loopStopReason: latestLoopStopReason,
+          traceId: metadata.traceId,
+          firstTokenLatencyMs,
+          durationMs,
+          metric: "run_completion",
+        },
+        "Agent run completed",
+      );
+    } catch (error) {
+      const err = ensureError(error);
+      const assistantError = classifyAssistantError(err.message);
+      latestErrorMessage = assistantError.message;
+
+      const latestBeforeErrorFinalize = await getRunById(runId).catch(() => null);
+      if (
+        latestBeforeErrorFinalize &&
+        isTerminalRunStatus(latestBeforeErrorFinalize.status)
+      ) {
+        return;
+      }
+
+      await capturedRes.flushPending().catch((flushError) => {
+        logger.error(
+          { error: ensureError(flushError), runId },
+          "Failed to drain pending run events before terminal persistence",
+        );
+      });
+
+      const completionMetaEvent: StreamEvent = {
+        type: ParserEventType.META,
+        version: STREAM_EVENT_VERSION,
+        chatId: run.chatId,
+        userMessageId: run.userMessageId,
+        assistantMessageId: run.assistantMessageId,
+        isNewChat: !metadata.isFollowUp,
+        runId,
+        phase: MetaPhase.SESSION_COMPLETE,
+        terminationReason: StreamTerminationReason.STREAM_FAILED,
+      };
+
+      await persistRunEvent(
+        runId,
+        {
+          type: ParserEventType.ERROR,
+          version: STREAM_EVENT_VERSION,
+          message: assistantError.message,
+          code: assistantError.code,
+          details: {
+            title: assistantError.title,
+            severity: assistantError.severity,
+            action: assistantError.action,
+            actionLabel: assistantError.actionLabel,
+            actionUrl: assistantError.actionUrl,
+          },
+        },
+        publisher,
+      ).catch(() => {});
+
+      await persistRunEvent(runId, completionMetaEvent, publisher).catch(() => {});
+
+      await updateRun(runId, {
+        status: RUN_STATUS.FAILED,
+        state: "FAILED",
+        currentTurn,
+        terminationReason: StreamTerminationReason.STREAM_FAILED,
+        errorMessage: latestErrorMessage,
+        completedAt: new Date(),
+      }).catch(() => {});
+
+      throw error;
     }
   } finally {
-    await cancelSub.unsubscribe().catch(() => {});
+    if (cancelSubscriptionReady) {
+      await cancelSub.unsubscribe().catch(() => {});
+    }
     await cancelSub.quit().catch(() => {});
   }
 }

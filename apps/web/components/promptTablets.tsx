@@ -110,7 +110,7 @@ const PromptTabletButton = memo(function PromptTabletButton({
       onClick={handleClick}
       className={cn(
         "rounded-full h-auto gap-2 font-medium group",
-        "border-border/30 dark:border-white/10 bg-background/80 backdrop-blur-sm",
+        "border-border dark:border-border/30 dark:border-white/10 bg-background/80 backdrop-blur-sm",
         "px-4 py-2 text-xs shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] dark:shadow-none",
         "text-foreground/90",
         "hover:border-primary/40 hover:bg-primary/5 hover:text-primary hover:shadow-lg hover:shadow-primary/5",
