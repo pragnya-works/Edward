@@ -143,4 +143,27 @@ describe("promptEnhance controller", () => {
       "Selected provider is incompatible with the saved API key.",
     );
   });
+
+  it("rejects unsupported provider values", async () => {
+    const { enhancePrompt } = await import(
+      "../../../controllers/chat/promptEnhance.controller.js"
+    );
+
+    const req = {
+      body: {
+        text: "Improve this prompt with concrete acceptance criteria and clear technical constraints",
+        provider: "anthropic",
+      },
+    } as never;
+    const res = {} as never;
+
+    await enhancePrompt(req, res);
+
+    expect(mockRefs.generateResponse).not.toHaveBeenCalled();
+    expect(mockRefs.sendError).toHaveBeenCalledWith(
+      res,
+      HttpStatus.BAD_REQUEST,
+      "Selected provider is unsupported for prompt enhancement.",
+    );
+  });
 });

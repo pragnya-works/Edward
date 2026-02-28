@@ -460,7 +460,7 @@ export async function processAgentRunJob(
       const durationMs = Math.max(0, finishedAt.getTime() - startedAtMs);
       const mapped = mapTerminationToStatus(latestTerminationReason);
 
-      const latestBeforeFinalize = await getRunById(runId);
+      const latestBeforeFinalize = await getRunById(runId).catch(() => null);
       if (!latestBeforeFinalize || isTerminalRunStatus(latestBeforeFinalize.status)) {
         return;
       }

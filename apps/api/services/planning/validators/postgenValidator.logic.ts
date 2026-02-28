@@ -90,7 +90,7 @@ export function validateLogicQualityForFile(
     violations.push({
       type: 'logic-quality',
       severity,
-      message: `${filePath} contains placeholder markers (TODO/FIXME/TBD/lorem ipsum). Provide complete implementation.`,
+      message: `${filePath} contains placeholder markers (FIXME/TBD/lorem ipsum). Provide complete implementation.`,
       file: filePath,
     });
   }
@@ -134,7 +134,12 @@ const FEATURE_PRESENCE_RULES: Record<string, { patterns: RegExp[]; message: stri
     message: 'E-commerce app appears to have no cart implementation. Cart add/remove/quantity must be fully wired.',
   },
   dashboard: {
-    patterns: [/useState\s*\(\[|useReducer|data\s*=\s*\[|=\s*\[\s*\{/],
+    patterns: [
+      /useState(?:<[^>]+>)?\s*\(\s*\[\s*[^\s\]]/,
+      /useReducer/,
+      /data\s*=\s*\[\s*[^\s\]]/,
+      /=\s*\[\s*\{/,
+    ],
     message: 'Dashboard app has no data state. Charts/tables must use real typed data, not empty arrays.',
   },
 };

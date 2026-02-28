@@ -22,7 +22,7 @@ export const EMPTY_ROOT_COMPONENT_PATTERN =
 export const PLACEHOLDER_PATTERN =
   /\b(?:FIXME|TBD)\b|lorem ipsum|your content here|replace with your/i;
 export const COMMENT_STUB_PATTERN =
-  /\/\/\s*(?:TODO|FIXME|implement|add logic|add here|placeholder|stub|coming soon)/i;
+  /(?:^|[^\S\r\n])(?:\/\/\s*(?:TODO|implement|add logic|add here|placeholder|stub|coming soon)\b|\/\*[\s\S]*?\b(?:TODO|implement|add logic|add here|placeholder|stub|coming soon)\b[\s\S]*?\*\/)/im;
 export const SAMPLE_CONTENT_PATTERN =
   /\b(?:Sample Product|Product \d+|My Project \d+|\[Your Name\]|\[Company Name\])\b/i;
 export const EMPTY_HANDLER_PATTERN =

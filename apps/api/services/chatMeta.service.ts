@@ -36,7 +36,7 @@ function stripFormatting(value: string): string {
 }
 
 function extractWords(value: string): string[] {
-  return value.match(/[A-Za-z0-9]+(?:['’][A-Za-z0-9]+)*/g) ?? [];
+  return value.match(/[\p{L}\p{N}]+(?:['’][\p{L}\p{N}]+)*/gu) ?? [];
 }
 
 function toTitleWord(word: string): string {

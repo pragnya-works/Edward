@@ -661,4 +661,127 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       ),
     ).toBe(true);
   });
+
+  test("should detect TODO stubs inside block comments", () => {
+    const output = {
+      mode: "edit" as const,
+      files: new Map([
+        [
+          "src/lib.ts",
+          "/* TODO: wire analytics pipeline */\nexport function ready() { return true; }",
+        ],
+      ]),
+      declaredPackages: [],
+    };
+
+    const result = validateGeneratedOutput(output);
+    expect(
+      result.violations.some(
+        (violation) =>
+          violation.type === "logic-quality" &&
+          violation.file === "src/lib.ts" &&
+          violation.message.includes("stub comments"),
+      ),
+    ).toBe(true);
+  });
+
+  test("should not treat URL strings containing todo-like text as comments", () => {
+    const output = {
+      mode: "edit" as const,
+      files: new Map([
+        [
+          "src/App.tsx",
+          'const docsUrl = "https://example.com/guides/todo-items";\nexport default function App() { return <main>Done</main>; }',
+        ],
+      ]),
+      declaredPackages: [],
+    };
+
+    const result = validateGeneratedOutput(output);
+    expect(
+      result.violations.some(
+        (violation) =>
+          violation.type === "logic-quality" &&
+          violation.file === "src/App.tsx" &&
+          violation.message.includes("stub comments"),
+      ),
+    ).toBe(false);
+  });
+
+  test("should not double-report a single FIXME comment", () => {
+    const output = {
+      mode: "edit" as const,
+      files: new Map([
+        [
+          "src/App.tsx",
+          "// FIXME: finish wiring this section\nexport default function App() { return <main>Done</main>; }",
+        ],
+      ]),
+      declaredPackages: [],
+    };
+
+    const result = validateGeneratedOutput(output);
+    const appLogicViolations = result.violations.filter(
+      (violation) =>
+        violation.type === "logic-quality" && violation.file === "src/App.tsx",
+    );
+
+    expect(appLogicViolations).toHaveLength(1);
+    expect(appLogicViolations[0]?.message).toContain("placeholder markers");
+  });
+
+  test("should flag dashboard outputs that only initialize empty array state", () => {
+    const output = {
+      framework: "vite-react",
+      mode: "generate" as const,
+      intentType: "dashboard",
+      files: new Map([
+        ["README.md", "# Demo"],
+        [
+          "index.html",
+          `
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta name="description" content="Dashboard app" />
+    <meta name="robots" content="index, follow" />
+    <link rel="canonical" href="https://edwardd.app/" />
+    <meta property="og:title" content="Dashboard" />
+    <meta property="og:description" content="Dashboard app" />
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content="https://assets.pragnyaa.in/home/OG.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Dashboard" />
+    <meta name="twitter:description" content="Dashboard app" />
+    <meta name="twitter:image" content="https://assets.pragnyaa.in/home/OG.png" />
+    <link rel="icon" href="https://assets.pragnyaa.in/home/favicon_io/favicon.ico" />
+    <link rel="apple-touch-icon" href="https://assets.pragnyaa.in/home/favicon_io/apple-touch-icon.png" />
+    <link rel="manifest" href="https://assets.pragnyaa.in/home/favicon_io/site.webmanifest" />
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>
+`,
+        ],
+        [
+          "src/main.tsx",
+          'import { createRoot } from "react-dom/client";\nimport App from "./App";\nimport "./index.css";\ncreateRoot(document.getElementById("root")!).render(<App />);',
+        ],
+        ["src/index.css", "/* styles */"],
+        [
+          "src/App.tsx",
+          'import { useState } from "react";\nexport default function App() { const [rows] = useState([]); return <main>{rows.length}</main>; }',
+        ],
+      ]),
+      declaredPackages: [],
+    };
+
+    const result = validateGeneratedOutput(output);
+    expect(
+      result.violations.some(
+        (violation) => violation.type === "feature-skeleton",
+      ),
+    ).toBe(true);
+  });
 });

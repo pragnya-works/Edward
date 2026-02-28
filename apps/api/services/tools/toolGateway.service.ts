@@ -194,6 +194,7 @@ const RAW_OUTPUT_COMMANDS = new Set([
   "pwd",
   "date",
 ]);
+const MAX_SANITIZE_INPUT_CHARS = MAX_TOOL_STDIO_CHARS * 8;
 
 function collapseRepeatedLines(input: string, maxConsecutive = 3): string {
   const lines = input.split("\n");
@@ -231,7 +232,8 @@ function sanitizeCommandOutput(content: string): string {
     return "";
   }
 
-  const withoutAnsi = content.replace(ANSI_ESCAPE_SEQUENCE_PATTERN, "");
+  const bounded = truncateWithMarker(content, MAX_SANITIZE_INPUT_CHARS);
+  const withoutAnsi = bounded.replace(ANSI_ESCAPE_SEQUENCE_PATTERN, "");
   const normalizedNewlines = withoutAnsi.replace(/\r\n?/g, "\n");
   return collapseRepeatedLines(normalizedNewlines).trimEnd();
 }

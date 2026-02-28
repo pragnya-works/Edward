@@ -16,6 +16,13 @@ const ENHANCER_MODEL_BY_PROVIDER: Record<Provider, string> = {
   [Provider.GEMINI]: Model.GEMINI_2_5_FLASH,
 };
 
+function isEnhancerProvider(provider: unknown): provider is Provider {
+  return (
+    typeof provider === "string" &&
+    Object.prototype.hasOwnProperty.call(ENHANCER_MODEL_BY_PROVIDER, provider)
+  );
+}
+
 const PROMPT_ENHANCER_SYSTEM_PROMPT = `
 You are a prompt enhancement assistant for a coding/building agent.
 
@@ -50,7 +57,7 @@ function sanitizeEnhancedPrompt(raw: string): string {
 }
 
 function resolveEnhancementProvider(params: {
-  requestedProvider?: Provider;
+  requestedProvider?: Provider | null;
   preferredModel?: string | null;
   apiKeyProvider: Provider | null;
 }): Provider {
@@ -113,7 +120,18 @@ export async function enhancePrompt(
 
     const decryptedApiKey = decrypt(userData.apiKey);
     const apiKeyProvider = getProviderFromKey(decryptedApiKey);
-    const requestedProvider = req.body?.provider as Provider | undefined;
+    const requestedProvider = isEnhancerProvider(req.body?.provider)
+      ? req.body.provider
+      : null;
+    if (req.body?.provider !== undefined && requestedProvider === null) {
+      sendError(
+        res,
+        HttpStatus.BAD_REQUEST,
+        "Selected provider is unsupported for prompt enhancement.",
+      );
+      return;
+    }
+
     const resolvedProvider = resolveEnhancementProvider({
       requestedProvider,
       preferredModel: userData.preferredModel,
@@ -130,6 +148,14 @@ export async function enhancePrompt(
     }
 
     const model = ENHANCER_MODEL_BY_PROVIDER[resolvedProvider];
+    if (!model) {
+      sendError(
+        res,
+        HttpStatus.BAD_REQUEST,
+        "Selected provider is unsupported for prompt enhancement.",
+      );
+      return;
+    }
     const enhancedRaw = await generateResponse(
       decryptedApiKey,
       inputText,

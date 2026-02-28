@@ -142,4 +142,30 @@ describe("toolGateway command output sanitation", () => {
     expect(result.stdout.length).toBeLessThanOrEqual(MAX_TOOL_STDIO_CHARS + 20);
     expect(result.stderr).toBe("");
   });
+
+  it("pre-truncates oversized output before repeated-line sanitization", async () => {
+    const repeatedLineCount = 60_000;
+    const oversized = `${"duplicate-line\n".repeat(repeatedLineCount)}`;
+
+    executeSandboxCommandMock.mockResolvedValue({
+      exitCode: 0,
+      stdout: oversized,
+      stderr: "",
+    });
+
+    const result = await executeCommandTool({
+      turn: 1,
+      sandboxId: "sb-1",
+      command: "pnpm",
+      args: ["build"],
+    });
+
+    const repeatedLineMarker = result.stdout.match(
+      /\.\.\.\[line repeated (\d+) more times\]/,
+    );
+    expect(repeatedLineMarker).not.toBeNull();
+    expect(Number(repeatedLineMarker?.[1] ?? "0")).toBeLessThan(
+      repeatedLineCount - 3,
+    );
+  });
 });

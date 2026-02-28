@@ -49,4 +49,15 @@ describe("deriveInitialChatMetadata", () => {
     expect(result.title).toBe("New Chat");
     expect(result.description).toBe("Start building with Edward.");
   });
+
+  it("derives metadata from non-Latin prompts instead of using fallback", () => {
+    const result = deriveInitialChatMetadata({
+      userTextContent: "构建一个带图表和筛选器的数据分析仪表板",
+      hasImages: false,
+    });
+
+    expect(result.title).not.toBe("New Chat");
+    expect(result.description).not.toBe("Start building with Edward.");
+    expect(result.description).toContain("构建一个带图表和筛选器的数据分析仪表板");
+  });
 });
