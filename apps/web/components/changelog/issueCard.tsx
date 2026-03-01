@@ -84,60 +84,60 @@ function IssueCardComponent({ issue, index = 0, isExpanded: controlledExpanded, 
           </div>
 
           <div className="flex-1 min-w-0">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-4">
-              <div className="flex-1 min-w-0">
-                <h3
-                  className={cn(
-                    "text-[15px] font-medium leading-snug transition-colors duration-200",
-                    isExpanded
-                      ? "text-slate-900 dark:text-slate-100"
-                      : "text-slate-700 dark:text-slate-300 group-hover:text-slate-900 dark:group-hover:text-white",
-                  )}
-                >
-                  {issue.title}
-                </h3>
-                {(issue.labels.length > 0 || issue.priority > 0) && (
-                  <div className="flex flex-wrap items-center gap-1.5 mt-2">
-                    {issue.priority > 0 && (
-                      <PriorityBadge priority={issue.priority} label={issue.priorityLabel} />
-                    )}
-                    {issue.labels.map((label) => (
-                      <Badge
-                        key={label.name}
-                        variant="outline"
-                        className="px-2 py-0.5 text-[11px] font-medium text-slate-600 dark:text-slate-400 border-slate-200 dark:border-white/10 bg-slate-100/80 dark:bg-white/5 shadow-sm rounded-md"
-                      >
-                        {label.name}
-                      </Badge>
-                    ))}
-                  </div>
-                )}
-              </div>
-              <div className="flex items-center gap-3 shrink-0 self-start sm:self-auto mt-1 sm:mt-0">
-                <StatusBadge
-                  name={issue.state.name}
-                  color={issue.state.color}
-                  type={issue.state.type}
-                />
-                {hasDescription && (
-                  <m.div
-                    animate={{ rotate: isExpanded ? 180 : 0 }}
-                    transition={{ type: "spring", stiffness: 400, damping: 30 }}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 mt-1 sm:mt-0">
+                <div className="flex-1 min-w-0">
+                  <h3
                     className={cn(
-                      "flex items-center justify-center w-6 h-6 rounded-full transition-colors duration-200",
+                      "text-[15px] font-medium leading-snug transition-colors duration-200",
                       isExpanded
-                        ? "bg-slate-100 dark:bg-white/10 text-slate-700 dark:text-slate-200"
-                        : "text-slate-400 dark:text-slate-500 group-hover:bg-slate-100 dark:group-hover:bg-white/5 group-hover:text-slate-600 dark:group-hover:text-slate-300",
+                        ? "text-slate-900 dark:text-slate-100"
+                        : "text-slate-700 dark:text-slate-300 group-hover:text-slate-900 dark:group-hover:text-white",
                     )}
                   >
-                    <ChevronDown className="w-3.5 h-3.5" />
-                  </m.div>
-                )}
+                    {issue.title}
+                  </h3>
+                  {(issue.labels.length > 0 || issue.priority > 0) && (
+                    <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                      {issue.priority > 0 && (
+                        <PriorityBadge priority={issue.priority} label={issue.priorityLabel} />
+                      )}
+                      {issue.labels.map((label) => (
+                        <Badge
+                          key={label.name}
+                          variant="outline"
+                          className="px-2 py-0.5 text-[11px] font-medium text-slate-600 dark:text-slate-400 border-slate-200 dark:border-white/10 bg-slate-100/80 dark:bg-white/5 shadow-sm rounded-md"
+                        >
+                          {label.name}
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0 mt-2 sm:mt-0 w-full sm:w-auto">
+                  <StatusBadge
+                    name={issue.state.name}
+                    color={issue.state.color}
+                    type={issue.state.type}
+                  />
+                  {hasDescription && (
+                    <m.div
+                      animate={{ rotate: isExpanded ? 180 : 0 }}
+                      transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                      className={cn(
+                        "flex items-center justify-center w-7 h-7 sm:w-6 sm:h-6 rounded-full transition-colors duration-200",
+                        isExpanded
+                          ? "bg-slate-100 dark:bg-white/10 text-slate-700 dark:text-slate-200"
+                          : "text-slate-400 dark:text-slate-500 group-hover:bg-slate-100 dark:group-hover:bg-white/5 group-hover:text-slate-600 dark:group-hover:text-slate-300",
+                      )}
+                    >
+                      <ChevronDown className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
+                    </m.div>
+                  )}
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      </button>
+        </button>
       <AnimatePresence initial={false}>
         {isExpanded && hasDescription && (
           <m.div
@@ -152,7 +152,7 @@ function IssueCardComponent({ issue, index = 0, isExpanded: controlledExpanded, 
             }}
             className="overflow-hidden"
           >
-            <div className="pb-5 pt-1 px-4 sm:px-5 ml-0 sm:ml-[72px] mt-1 text-slate-600 dark:text-slate-300 prose prose-sm dark:prose-invert max-w-none">
+            <div className="pb-5 pt-1 px-4 sm:px-5 ml-0 sm:ml-[72px] mt-1 text-slate-600 dark:text-slate-300 prose prose-sm dark:prose-invert max-w-none overflow-x-hidden break-words">
               <MarkdownRenderer
                 content={issue.description ?? ""}
                 className="text-[14px] leading-relaxed"
