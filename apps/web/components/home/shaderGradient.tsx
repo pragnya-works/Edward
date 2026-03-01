@@ -162,7 +162,7 @@ export function ShaderGradientBackground() {
   }, [])
 
   useEffect(() => {
-    if (isShaderReady || !isMounted) return
+    if (isShaderReady || !shouldRenderShader) return
 
     readyFallbackRef.current = setTimeout(() => {
       readyFallbackRef.current = null
@@ -175,7 +175,7 @@ export function ShaderGradientBackground() {
         readyFallbackRef.current = null
       }
     }
-  }, [isMounted, isShaderReady])
+  }, [isShaderReady, shouldRenderShader])
 
   const fallbackOpacity = isShaderReady ? 0.15 : 0.4
 

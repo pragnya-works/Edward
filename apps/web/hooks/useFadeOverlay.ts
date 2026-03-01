@@ -27,9 +27,12 @@ export function useFadeOverlay(
       return;
     }
 
-    if (visibleRef.current && !fadingRef.current) {
-      fadingRef.current = true;
-      setIsFadingOut(true);
+    if (visibleRef.current) {
+      if (!fadingRef.current) {
+        fadingRef.current = true;
+        setIsFadingOut(true);
+      }
+
       timerRef.current = setTimeout(() => {
         timerRef.current = null;
         fadingRef.current = false;
