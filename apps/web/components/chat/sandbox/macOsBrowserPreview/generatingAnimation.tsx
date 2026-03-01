@@ -7,6 +7,7 @@ import { Cpu } from "lucide-react";
 
 const GENERATING_EXAMPLES = [
     {
+        id: "api-route-handler",
         code: [
             "import { NextResponse } from 'next/server';",
             "import { db } from '@/lib/db';",
@@ -37,6 +38,7 @@ const GENERATING_EXAMPLES = [
         accent: "text-blue-500 dark:text-blue-400"
     },
     {
+        id: "dashboard-component",
         code: [
             "import { useState, useEffect } from 'react';",
             "import { motion } from 'framer-motion';",
@@ -70,6 +72,7 @@ const GENERATING_EXAMPLES = [
         accent: "text-purple-500 dark:text-purple-400"
     },
     {
+        id: "tailwind-config",
         code: [
             "/** @type {import('tailwindcss').Config} */",
             "module.exports = {",
@@ -105,6 +108,7 @@ const GENERATING_EXAMPLES = [
         accent: "text-emerald-500 dark:text-emerald-400"
     },
     {
+        id: "zustand-store",
         code: [
             "import { create } from 'zustand';",
             "import { persist } from 'zustand/middleware';",
@@ -133,6 +137,7 @@ const GENERATING_EXAMPLES = [
         accent: "text-orange-500 dark:text-orange-400"
     },
     {
+        id: "prisma-schema",
         code: [
             "generator client {",
             "  provider = \"prisma-client-js\"",
@@ -209,7 +214,7 @@ export const GeneratingAnimation = memo(function GeneratingAnimation() {
             >
                 <AnimatePresence mode="wait">
                     <m.div
-                        key={index}
+                        key={current?.id ?? "fallback-example"}
                         initial={{ opacity: 0, scale: 0.98, y: 5 }}
                         animate={{ opacity: 1, scale: 1, y: 0 }}
                         exit={{ opacity: 0, filter: "blur(4px)", scale: 1.02, y: -5 }}

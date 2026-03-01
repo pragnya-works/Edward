@@ -2,8 +2,8 @@ import {
   type ReactNode,
   type RefObject,
   type SyntheticEvent,
-  useState,
   useEffect,
+  useReducer,
 } from "react";
 import { AlertTriangle } from "lucide-react";
 import { BuildStatus } from "@/stores/sandbox/types";
@@ -48,6 +48,27 @@ const previewByState: Record<MacOsPreviewState, ReactNode> = {
   ),
 };
 
+type StablePreviewAction =
+  | { type: "TARGET_CHANGED"; target: PreviewWorkspaceState }
+  | { type: "HIDE" };
+
+function stablePreviewReducer(
+  state: PreviewWorkspaceState,
+  action: StablePreviewAction,
+): PreviewWorkspaceState {
+  if (action.type === "HIDE") {
+    return state === PREVIEW_WORKSPACE_STATE.NONE
+      ? state
+      : PREVIEW_WORKSPACE_STATE.NONE;
+  }
+
+  if (action.target === PREVIEW_WORKSPACE_STATE.NONE) {
+    return state;
+  }
+
+  return state === action.target ? state : action.target;
+}
+
 interface PreviewWorkspaceProps {
   previewUrl: string | null;
   previewAddress: string | null;
@@ -79,23 +100,20 @@ export function PreviewWorkspace({
   else if (isInstallingDependencies) targetState = PREVIEW_WORKSPACE_STATE.INSTALLING;
   else if (buildStatus === BuildStatus.QUEUED || buildStatus === BuildStatus.BUILDING) targetState = PREVIEW_WORKSPACE_STATE.DEPLOYING;
 
-  const [stableState, setStableState] = useState<PreviewWorkspaceState>(
+  const [stableState, dispatchStableState] = useReducer(
+    stablePreviewReducer,
     targetState,
   );
 
   useEffect(() => {
     if (targetState === PREVIEW_WORKSPACE_STATE.NONE) {
       const timer = setTimeout(() => {
-        setStableState((prev) =>
-          prev === PREVIEW_WORKSPACE_STATE.NONE
-            ? prev
-            : PREVIEW_WORKSPACE_STATE.NONE,
-        );
+        dispatchStableState({ type: "HIDE" });
       }, 800);
       return () => clearTimeout(timer);
     }
 
-    setStableState((prev) => (prev === targetState ? prev : targetState));
+    dispatchStableState({ type: "TARGET_CHANGED", target: targetState });
   }, [targetState]);
 
   if (stableState !== PREVIEW_WORKSPACE_STATE.NONE) {
