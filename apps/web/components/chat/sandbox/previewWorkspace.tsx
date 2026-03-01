@@ -84,19 +84,19 @@ export function PreviewWorkspace({
   );
 
   useEffect(() => {
-    if (targetState === stableState) {
-      return;
-    }
-
     if (targetState === PREVIEW_WORKSPACE_STATE.NONE) {
       const timer = setTimeout(() => {
-        setStableState(PREVIEW_WORKSPACE_STATE.NONE);
+        setStableState((prev) =>
+          prev === PREVIEW_WORKSPACE_STATE.NONE
+            ? prev
+            : PREVIEW_WORKSPACE_STATE.NONE,
+        );
       }, 800);
       return () => clearTimeout(timer);
     }
 
-    setStableState(targetState);
-  }, [targetState, stableState]);
+    setStableState((prev) => (prev === targetState ? prev : targetState));
+  }, [targetState]);
 
   if (stableState !== PREVIEW_WORKSPACE_STATE.NONE) {
     return previewByState[stableState];

@@ -191,12 +191,12 @@ export const GeneratingAnimation = memo(function GeneratingAnimation() {
     const keyedCodeLines = useMemo(() => {
         if (!isMounted) return [];
         const seen = new Map<string, number>();
-        return (current?.code ?? []).map((line, lineIndex) => {
+        return (current?.code ?? []).map((line) => {
             const count = (seen.get(line) ?? 0) + 1;
             seen.set(line, count);
             return {
                 line,
-                key: `code-line-${lineIndex}-${count}`,
+                key: `code-line-${line}-${count}`,
             };
         });
     }, [current, isMounted]);

@@ -2,7 +2,7 @@
 
 import { memo, useMemo } from "react";
 import { m } from "motion/react";
-import { Brain, Zap } from "lucide-react";
+import { Brain, Zap, ChevronRight } from "lucide-react";
 import {
   Accordion,
   AccordionContent,
@@ -42,183 +42,206 @@ export const ThinkingIndicator = memo(function ThinkingIndicator({
     [text],
   );
 
+  if (!cleanedText && !isActive) return null;
+
   return (
     <m.div
-      initial={{ opacity: 0, y: 4 }}
+      initial={{ opacity: 0, y: 5 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.25 }}
-      className="w-full"
+      exit={{ opacity: 0, y: -5 }}
+      transition={{ duration: 0.3, ease: "easeOut" }}
+      className="w-full mb-4"
     >
-      <Accordion className="w-full border-none" defaultValue={["thinking"]}>
-        <AccordionItem
-          value="thinking"
-          className={cn(
-            "rounded-lg sm:rounded-xl border overflow-hidden transition-all duration-300",
-            isCodeMode
-              ? "border-amber-200 bg-amber-50 dark:border-amber-300 dark:bg-amber-400/[0.02]"
-              : "border-violet-200 bg-violet-50 dark:border-violet-300 dark:bg-violet-400/[0.02]",
-          )}
+      <div className={cn(
+        "rounded-2xl border transition-all duration-300",
+        isCodeMode 
+          ? "border-amber-200 bg-amber-50/50 dark:border-amber-500/30 dark:bg-amber-500/10" 
+          : "border-zinc-200 bg-zinc-50 dark:border-zinc-700/60 dark:bg-zinc-800/40"
+      )}>
+        <Accordion
+          className="w-full"
+          defaultValue={isActive ? ["thinking"] : undefined}
         >
-          <AccordionTrigger
-            className={cn(
-              "flex items-center gap-2 sm:gap-2.5 px-2.5 sm:px-3.5 py-2 sm:py-2.5 w-full text-left group cursor-pointer transition-colors hover:no-underline touch-manipulation",
-              isCodeMode
-                ? "hover:bg-amber-100 dark:hover:bg-amber-500/[0.04]"
-                : "hover:bg-violet-100 dark:hover:bg-violet-500/[0.04]",
-              isActive
-                ? isCodeMode
-                  ? "bg-amber-100/50 dark:bg-amber-500/[0.02]"
-                  : "bg-violet-100/50 dark:bg-violet-500/[0.02]"
-                : undefined,
-            )}
-          >
-            <div className="flex items-center gap-2 sm:gap-2.5 flex-1 min-w-0">
-              <div className="relative shrink-0">
-                {isActive ? (
-                  <m.div
-                    className={cn(
-                      "h-4 w-4 sm:h-5 sm:w-5 rounded-md flex items-center justify-center",
-                      isCodeMode
-                        ? "bg-gradient-to-br from-amber-100 to-orange-100 dark:from-amber-500/20 dark:to-orange-500/20"
-                        : "bg-gradient-to-br from-violet-100 to-purple-100 dark:from-violet-500/20 dark:to-purple-500/20",
-                    )}
-                    animate={{
-                      scale: [1, 1.05, 1],
-                    }}
-                    transition={{
-                      duration: 1.5,
-                      repeat: Infinity,
-                      ease: "easeInOut",
-                    }}
-                  >
-                    <Zap
+          <AccordionItem value="thinking" className="border-none bg-transparent">
+            <AccordionTrigger
+              className={cn(
+                "flex items-center gap-3 py-2 w-fit text-left group cursor-pointer transition-all hover:no-underline touch-manipulation",
+                "px-4",
+                "rounded-t-2xl hover:bg-zinc-100/50 dark:hover:bg-zinc-800/20 data-[state=closed]:rounded-b-2xl",
+                "[&>svg:last-child]:hidden",
+              )}
+            >
+              <div className="flex items-center gap-3">
+                <div className="relative flex items-center justify-center shrink-0">
+                  {isActive ? (
+                    <m.div
                       className={cn(
-                        "h-2.5 w-2.5 sm:h-3 sm:w-3",
+                        "flex items-center justify-center p-1.5 rounded-full relative z-10",
                         isCodeMode
-                          ? "text-amber-600 dark:text-amber-400"
-                          : "text-violet-600 dark:text-violet-400",
+                          ? "bg-amber-100 dark:bg-amber-500/20"
+                          : "bg-zinc-100 dark:bg-zinc-800/80",
                       )}
-                    />
-                  </m.div>
-                ) : (
-                  <div
-                    className={cn(
-                      "h-4 w-4 sm:h-5 sm:w-5 rounded-md flex items-center justify-center",
-                      isCodeMode
-                        ? "bg-amber-100 dark:bg-amber-500/10"
-                        : "bg-violet-100 dark:bg-violet-500/10",
-                    )}
-                  >
-                    <Brain
-                      className={cn(
-                        "h-2.5 w-2.5 sm:h-3 sm:w-3",
-                        isCodeMode
-                          ? "text-amber-600 dark:text-amber-400 opacity-80"
-                          : "text-violet-600 dark:text-violet-400 opacity-80",
-                      )}
-                    />
-                  </div>
-                )}
-              </div>
-
-              <span className="text-[11px] sm:text-xs font-medium text-foreground/80 flex items-center gap-1 sm:gap-1.5 truncate">
-                {isActive ? (
-                  <>
-                    <span
-                      className={cn(
-                        "bg-gradient-to-r bg-clip-text text-transparent font-semibold",
-                        isCodeMode
-                          ? "from-amber-600 to-orange-600 dark:from-amber-400 dark:to-orange-400"
-                          : "from-violet-600 to-purple-600 dark:from-violet-400 dark:to-purple-400",
-                      )}
-                    >
-                      {isCodeMode ? "Generating Code" : "Thinking"}
-                    </span>
-                    <m.span
-                      className={cn(
-                        isCodeMode
-                          ? "text-amber-600/60 dark:text-amber-400/60"
-                          : "text-violet-600/60 dark:text-violet-400/60",
-                      )}
-                      animate={{ opacity: [0.3, 1, 0.3] }}
+                      animate={{ scale: [1, 1.05, 1], rotate: [0, 5, -5, 0] }}
                       transition={{
-                        duration: 1.5,
+                        duration: 4,
                         repeat: Infinity,
                         ease: "easeInOut",
                       }}
                     >
-                      ...
-                    </m.span>
-                    {elapsed > 0 && (
-                      <span className="text-slate-500 dark:text-muted-foreground/40 ml-0.5 font-normal">
-                        {elapsed}s
-                      </span>
-                    )}
-                  </>
-                ) : displayDuration !== null ? (
-                  <span className="text-slate-500 dark:text-muted-foreground/60">
-                    {isCodeMode ? "Code generated in" : "Thought for"}{" "}
-                    <span
+                      {isCodeMode ? (
+                        <Zap className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                      ) : (
+                        <Brain className="w-3.5 h-3.5 text-zinc-600 dark:text-zinc-400" />
+                      )}
+                    </m.div>
+                  ) : (
+                    <div
                       className={cn(
-                        "font-semibold",
+                        "flex items-center justify-center p-1.5 rounded-full ring-1 ring-inset",
                         isCodeMode
-                          ? "text-amber-600 dark:text-amber-400/80"
-                          : "text-violet-600 dark:text-violet-400/80",
+                          ? "ring-amber-200 dark:ring-amber-500/40 bg-amber-50/50 dark:bg-amber-500/10"
+                          : "ring-zinc-200 dark:ring-zinc-700 bg-zinc-50/50 dark:bg-zinc-800/50",
                       )}
                     >
-                      {displayDuration}s
-                    </span>
-                  </span>
-                ) : (
-                  <span className="text-slate-500 dark:text-muted-foreground/60">
-                    {isCodeMode ? "Code generated" : "Thought process"}
-                  </span>
-                )}
-              </span>
-            </div>
-          </AccordionTrigger>
+                      {isCodeMode ? (
+                        <Zap className="w-3.5 h-3.5 text-amber-500/70 dark:text-amber-400" />
+                      ) : (
+                        <Brain className="w-3.5 h-3.5 text-zinc-500/70 dark:text-zinc-400" />
+                      )}
+                    </div>
+                  )}
 
-          <AccordionContent className="pb-2 sm:pb-3 px-2.5 sm:px-3.5">
-            <div
-              className={cn(
-                "relative rounded-md sm:rounded-lg border overflow-hidden",
-                isCodeMode
-                  ? "bg-amber-50/65 border-amber-200/75 dark:bg-amber-950/20 dark:border-amber-300/16"
-                  : "bg-slate-100/85 border-slate-300/75 dark:bg-foreground/[0.03] dark:border-violet-300/12",
-              )}
-            >
-              <div className="max-h-40 sm:max-h-60 overflow-y-auto p-2 sm:p-3 custom-scrollbar">
-                <MarkdownRenderer
-                  content={cleanedText}
-                  className="text-[10px] sm:text-xs text-slate-600 dark:text-muted-foreground/70 [&_p]:text-[10px] sm:[&_p]:text-xs [&_p]:text-slate-600 dark:[&_p]:text-muted-foreground/70 [&_code]:text-[9px] sm:[&_code]:text-[11px] [&_pre]:my-1.5 sm:[&_pre]:my-2 [&_pre]:rounded-lg [&_h1]:text-xs sm:[&_h1]:text-sm [&_h2]:text-xs sm:[&_h2]:text-sm [&_h3]:text-[10px] sm:[&_h3]:text-xs [&_ul]:text-[10px] sm:[&_ul]:text-xs [&_ol]:text-[10px] sm:[&_ol]:text-xs"
-                />
-                {isActive && (
-                  <m.span
-                    className={cn(
-                      "inline-block w-[3px] h-2.5 sm:h-3 ml-0.5 align-text-bottom rounded-full",
-                      isCodeMode
-                        ? "bg-amber-500 dark:bg-amber-400/50"
-                        : "bg-violet-500 dark:bg-violet-400/50",
-                    )}
-                    animate={{ opacity: [0, 1, 0] }}
-                    transition={{ duration: 0.8, repeat: Infinity }}
-                  />
-                )}
+                  {isActive && (
+                    <m.div
+                      className={cn(
+                        "absolute inset-0 rounded-full",
+                        isCodeMode
+                          ? "bg-amber-400/20 dark:bg-amber-500/20"
+                          : "bg-zinc-400/20 dark:bg-zinc-500/20",
+                      )}
+                      animate={{ scale: [1, 1.5, 1], opacity: [0.5, 0, 0.5] }}
+                      transition={{
+                        duration: 2,
+                        repeat: Infinity,
+                        ease: "easeInOut",
+                      }}
+                    />
+                  )}
+                </div>
+
+                <div className="flex items-center gap-2 text-[13px] font-medium tracking-tight">
+                  {isActive ? (
+                    <>
+                      <span
+                        className={cn(
+                          "bg-gradient-to-r bg-clip-text text-transparent font-semibold shadow-sm",
+                          isCodeMode
+                            ? "from-amber-600 to-amber-500 dark:from-amber-300 dark:to-orange-300"
+                            : "from-zinc-800 to-zinc-500 dark:from-zinc-100 dark:to-zinc-300",
+                        )}
+                      >
+                        {isCodeMode ? "Generating" : "Thinking"}
+                      </span>
+                      <m.span
+                        className={cn(
+                          "w-5 inline-block text-left font-bold font-sans tracking-[0.2em]",
+                          isCodeMode
+                            ? "text-amber-500/70 dark:text-amber-400/70"
+                            : "text-zinc-600 dark:text-zinc-400",
+                        )}
+                        animate={{ opacity: [0.2, 1, 0.2] }}
+                        transition={{
+                          duration: 1.5,
+                          repeat: Infinity,
+                          ease: "easeInOut",
+                        }}
+                      >
+                        ...
+                      </m.span>
+                      {elapsed > 0 && (
+                        <m.span
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          className="text-zinc-400 dark:text-zinc-500 text-xs font-normal tabular-nums ml-1"
+                        >
+                          {elapsed}s
+                        </m.span>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <span
+                        className={cn(
+                          "text-zinc-500 font-medium dark:text-zinc-300 transition-colors",
+                          isCodeMode &&
+                            "text-amber-600/80 dark:text-amber-400",
+                        )}
+                      >
+                        {isCodeMode ? "Generated" : "Thought"}
+                      </span>
+                      {displayDuration !== null && (
+                        <span className="text-zinc-400 dark:text-zinc-500 text-xs font-normal tabular-nums ml-1">
+                          {displayDuration}s
+                        </span>
+                      )}
+                    </>
+                  )}
+                </div>
+                <ChevronRight className="w-3.5 h-3.5 text-zinc-400/70 transition-transform duration-200 group-data-[panel-open]:rotate-90 ml-1 opacity-0 group-hover:opacity-100" />
               </div>
+            </AccordionTrigger>
 
-              {!isActive && (
+            <AccordionContent className="pb-0 pt-2 px-1">
+              <m.div
+                initial={{ opacity: 0, y: -4 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.1, duration: 0.3 }}
+                className="relative pl-5 sm:pl-7 ml-2"
+              >
                 <div
-                  className="absolute bottom-0 left-0 right-0 h-4 sm:h-6 pointer-events-none"
-                  style={{
-                    background:
-                      "linear-gradient(to bottom, transparent, hsl(var(--background) / 0.8))",
-                  }}
+                  className={cn(
+                    "absolute left-2 top-1 bottom-1 w-[2px] rounded-full",
+                    isCodeMode
+                      ? "bg-gradient-to-b from-amber-400/60 to-transparent dark:from-amber-500/40"
+                      : "bg-gradient-to-b from-zinc-200 to-transparent dark:from-zinc-700/80",
+                  )}
                 />
-              )}
-            </div>
-          </AccordionContent>
-        </AccordionItem>
-      </Accordion>
+
+                <div className="py-1 pr-4 mb-2 text-zinc-700 dark:text-zinc-300 max-h-[400px] overflow-y-auto custom-scrollbar">
+                  <MarkdownRenderer
+                    content={cleanedText}
+                    className={cn(
+                      "text-[12px] sm:text-[13px] leading-relaxed text-zinc-600 dark:text-zinc-400",
+                      "[&_p]:mb-3 last:[&_p]:mb-0 [&_p]:leading-relaxed",
+                      "[&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded-md [&_code]:bg-zinc-100 dark:[&_code]:bg-zinc-800/50 [&_code]:text-[11px] sm:[&_code]:text-xs [&_code]:font-medium",
+                      "[&_pre]:my-3 [&_pre]:rounded-xl [&_pre]:border [&_pre]:border-zinc-200 dark:[&_pre]:border-zinc-800",
+                      "[&_h1]:text-sm [&_h2]:text-[13px] [&_h3]:text-[13px] [&_ul]:mb-3 [&_ol]:mb-3",
+                      isCodeMode &&
+                        "[&_code]:text-amber-600 dark:[&_code]:text-amber-400 [&_code]:bg-amber-50 dark:[&_code]:bg-amber-500/10",
+                    )}
+                  />
+                  {isActive && (
+                    <m.span
+                      className={cn(
+                        "inline-block w-1.5 h-3 ml-1 align-baseline rounded-full blink",
+                        isCodeMode
+                          ? "bg-amber-500/70"
+                          : "bg-zinc-400 dark:bg-zinc-500",
+                      )}
+                      animate={{ opacity: [0, 1, 0] }}
+                      transition={{
+                        duration: 0.8,
+                        repeat: Infinity,
+                        ease: "easeInOut",
+                      }}
+                    />
+                  )}
+                </div>
+              </m.div>
+            </AccordionContent>
+          </AccordionItem>
+        </Accordion>
+      </div>
     </m.div>
   );
 });
