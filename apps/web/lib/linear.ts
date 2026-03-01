@@ -31,7 +31,7 @@ export enum LinearFetchError {
   CONNECTION_FAILED = "connection_failed",
 }
 
-const GENERAL_LABEL = "General";
+
 
 export const getLinearIssues = cache(async (): Promise<FetchIssuesResult> => {
   const apiKey = process.env.LINEAR_API_KEY;
@@ -47,7 +47,6 @@ export const getLinearIssues = cache(async (): Promise<FetchIssuesResult> => {
       orderBy: PaginationOrderBy.UpdatedAt,
       filter: {
         project: { name: { eq: "Edward" } },
-        state: { type: { neq: "completed" } },
         number: { gt: 5 },
       },
       includeArchived: true,
@@ -86,35 +85,13 @@ export const getLinearIssues = cache(async (): Promise<FetchIssuesResult> => {
   }
 });
 
-export function groupAndSortIssues(issues: ChangelogIssue[]): {
-  categorizedIssues: Record<string, ChangelogIssue[]>;
-  sortedLabels: string[]
-} {
-  const categorizedIssues = issues.reduce((acc, issue) => {
-    const label = issue.labels[0]?.name || GENERAL_LABEL;
-    if (!acc[label]) {
-      acc[label] = [];
-    }
-    acc[label].push(issue);
-    return acc;
-  }, {} as Record<string, ChangelogIssue[]>);
-
-  const sortedLabels = Object.keys(categorizedIssues).sort((a, b) => {
-    if (a === GENERAL_LABEL) return 1;
-    if (b === GENERAL_LABEL) return -1;
-    return a.localeCompare(b);
+export function sortIssues(issues: ChangelogIssue[]): ChangelogIssue[] {
+  return [...issues].sort((a, b) => {
+    const pA = a.priority === 0 ? 10 : a.priority;
+    const pB = b.priority === 0 ? 10 : b.priority;
+    if (pA !== pB) return pA - pB;
+    const dateA = new Date(a.completedAt || a.updatedAt).getTime();
+    const dateB = new Date(b.completedAt || b.updatedAt).getTime();
+    return dateB - dateA;
   });
-
-  sortedLabels.forEach((label) => {
-    categorizedIssues[label]?.sort((a, b) => {
-      const pA = a.priority === 0 ? 10 : a.priority;
-      const pB = b.priority === 0 ? 10 : b.priority;
-      if (pA !== pB) return pA - pB;
-      const dateA = new Date(a.completedAt || a.updatedAt).getTime();
-      const dateB = new Date(b.completedAt || b.updatedAt).getTime();
-      return dateB - dateA;
-    });
-  });
-
-  return { categorizedIssues, sortedLabels };
 }

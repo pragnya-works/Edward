@@ -1,14 +1,15 @@
 import { Metadata } from "next";
-import { Suspense } from "react";
+import { Suspense, type ComponentType, type ReactNode } from "react";
 import {
   LinearFetchError,
   getLinearIssues,
-  groupAndSortIssues,
+  sortIssues,
 } from "@/lib/linear";
 import { ChangelogHeader } from "@/components/changelog/header";
 import { IssueCardSkeleton } from "@/components/changelog/issueCard";
 import { ChangelogViewer } from "@/components/changelog/changelogViewer";
-import { AlertCircle, FolderGit } from "lucide-react";
+import { ChangelogMetrics } from "@/components/changelog/metrics";
+import { AlertCircle, CheckCircle2, FolderGit, Hammer } from "lucide-react";
 import { getCanonicalUrl, STATIC_OG_IMAGE_URL } from "@/lib/seo/siteUrl";
 
 export const revalidate = 3600;
@@ -73,7 +74,32 @@ function EmptyState() {
   );
 }
 
-
+function ChangelogSection({
+  title,
+  description,
+  icon: Icon,
+  children,
+}: {
+  title: string;
+  description: string;
+  icon: ComponentType<{ className?: string }>;
+  children: ReactNode;
+}) {
+  return (
+    <section className="space-y-4">
+      <div className="flex items-start gap-3">
+        <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-200/80 bg-slate-50 dark:border-border/40 dark:bg-muted/30">
+          <Icon className="h-4 w-4 text-slate-700 dark:text-foreground/80" />
+        </div>
+        <div>
+          <h2 className="text-xl font-semibold tracking-tight text-foreground">{title}</h2>
+          <p className="mt-1 text-sm text-muted-foreground">{description}</p>
+        </div>
+      </div>
+      {children}
+    </section>
+  );
+}
 
 async function ChangelogContent() {
   const { issues, error } = await getLinearIssues();
@@ -81,13 +107,44 @@ async function ChangelogContent() {
   if (error) return <ErrorState error={error} />;
   if (issues.length === 0) return <EmptyState />;
 
-  const { categorizedIssues, sortedLabels } = groupAndSortIssues(issues);
+  const inProgressIssues = issues.filter((issue) => {
+    const stateName = issue.state.name.toLowerCase();
+    const isBacklog = issue.state.type === "backlog" || stateName === "backlog";
+    return issue.state.type !== "completed" && !isBacklog;
+  });
+  const doneIssues = issues.filter((issue) => issue.state.type === "completed");
+
+  if (inProgressIssues.length === 0 && doneIssues.length === 0) {
+    return <EmptyState />;
+  }
+
+  const sortedInProgress = inProgressIssues.length > 0 ? sortIssues(inProgressIssues) : null;
+  const sortedDone = doneIssues.length > 0 ? sortIssues(doneIssues) : null;
 
   return (
-    <ChangelogViewer
-      categorizedIssues={categorizedIssues}
-      sortedLabels={sortedLabels}
-    />
+    <div className="space-y-10 md:space-y-16">
+      <ChangelogMetrics issues={issues} />
+
+      {sortedInProgress ? (
+        <ChangelogSection
+          title="What we're building"
+          description="Features, improvements, and fixes currently in motion."
+          icon={Hammer}
+        >
+          <ChangelogViewer issues={sortedInProgress} />
+        </ChangelogSection>
+      ) : null}
+
+      {sortedDone ? (
+        <ChangelogSection
+          title="What's done"
+          description="Recent work that has already shipped."
+          icon={CheckCircle2}
+        >
+          <ChangelogViewer issues={sortedDone} />
+        </ChangelogSection>
+      ) : null}
+    </div>
   );
 }
 
@@ -96,7 +153,7 @@ export default function ChangelogPage() {
     <main className="min-h-[100dvh] text-foreground">
       <div className="container max-w-3xl mx-auto px-4 sm:px-6 py-12 md:py-16 lg:py-20">
         <ChangelogHeader />
-        
+
         <Suspense fallback={<ChangelogSkeleton />}>
           <ChangelogContent />
         </Suspense>
