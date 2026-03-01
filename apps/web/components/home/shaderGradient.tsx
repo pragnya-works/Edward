@@ -1,9 +1,10 @@
 "use client"
 
-import React, { Suspense, useState, useEffect, memo } from "react"
+import React, { Suspense, useState, useEffect, useCallback, useRef, memo } from "react"
 import dynamic from "next/dynamic"
 import { m } from "motion/react"
 import type { GradientT } from "@shadergradient/react"
+import type { RootState } from "@react-three/fiber"
 import { useTabVisibility } from "@edward/ui/hooks/useTabVisibility"
 import { useInView } from "@edward/ui/hooks/useInView"
 
@@ -47,8 +48,20 @@ const CANVAS_STYLE = {
   pointerEvents: "none",
 } as const
 
-const ShaderGradientCanvas = dynamic(
-  () => import("@shadergradient/react").then((mod) => mod.ShaderGradientCanvas),
+type ShaderCanvasProps = {
+  pixelDensity?: number
+  fov?: number
+  style?: React.CSSProperties
+  powerPreference?: "default" | "high-performance" | "low-power"
+  onCreated?: (state: RootState) => void
+  children?: React.ReactNode
+}
+
+const ShaderGradientCanvas = dynamic<ShaderCanvasProps>(
+  () =>
+    import("@shadergradient/react").then(
+      (mod) => mod.ShaderGradientCanvas as React.ComponentType<ShaderCanvasProps>
+    ),
   { ssr: false }
 )
 
@@ -80,26 +93,42 @@ const StaticGradientFallback = memo(function StaticGradientFallback({ opacity }:
 
 const ShaderContent = memo(function ShaderContent({ 
   shouldRender, 
-  hasAppeared 
+  isReady,
+  onReady,
 }: { 
   shouldRender: boolean
-  hasAppeared: boolean 
+  isReady: boolean
+  onReady: () => void
 }) {
+  const mountedRef = useRef(true)
+  useEffect(() => {
+    mountedRef.current = true
+    return () => { mountedRef.current = false }
+  }, [])
+
   if (!shouldRender) return null
   
   return (
     <Suspense fallback={null}>
       <m.div
         initial={{ opacity: 0 }}
-        animate={{ opacity: hasAppeared ? 1 : 0 }}
+        animate={{ opacity: isReady ? 1 : 0 }}
         transition={{ duration: 2.5, ease: [0.22, 1, 0.36, 1] }}
-        className="w-full h-full"
+        className="w-full h-full [&_canvas]:!bg-transparent"
       >
         <ShaderGradientCanvas
           pixelDensity={1} 
           fov={45}
           style={CANVAS_STYLE}
           powerPreference="low-power"
+          onCreated={({ gl }: RootState) => {
+            gl.setClearColor(0x000000, 0)
+            requestAnimationFrame(() => {
+              requestAnimationFrame(() => {
+                if (mountedRef.current) onReady()
+              })
+            })
+          }}
         >
           <ShaderGradient {...GRADIENT_CONFIG} />
         </ShaderGradientCanvas>
@@ -108,13 +137,24 @@ const ShaderContent = memo(function ShaderContent({
   )
 })
 
+const CONTAINER_BG = "oklch(0.145 0 0)"
+
 export function ShaderGradientBackground() {
-  const [hasAppeared, setHasAppeared] = useState(false)
+  const [isShaderReady, setIsShaderReady] = useState(false)
   const [isMounted, setIsMounted] = useState(false)
   const isDocumentVisible = useTabVisibility()
   const { ref: containerRef, isInView: isInViewport } = useInView({ threshold: 0.1 })
+  const readyFallbackRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   
   const shouldRenderShader = isMounted && isDocumentVisible && isInViewport
+
+  const handleShaderReady = useCallback(() => {
+    setIsShaderReady(true)
+    if (readyFallbackRef.current !== null) {
+      clearTimeout(readyFallbackRef.current)
+      readyFallbackRef.current = null
+    }
+  }, [])
 
   useEffect(() => {
     const mountTimer = setTimeout(() => setIsMounted(true), 100)
@@ -122,22 +162,33 @@ export function ShaderGradientBackground() {
   }, [])
 
   useEffect(() => {
-    if (!isMounted) return
-    const timer = setTimeout(() => setHasAppeared(true), 150)
-    return () => clearTimeout(timer)
-  }, [isMounted])
+    if (isShaderReady || !isMounted) return
 
-  const fallbackOpacity = hasAppeared ? 0.15 : 0.4
+    readyFallbackRef.current = setTimeout(() => {
+      readyFallbackRef.current = null
+      setIsShaderReady(true)
+    }, 3000)
+
+    return () => {
+      if (readyFallbackRef.current !== null) {
+        clearTimeout(readyFallbackRef.current)
+        readyFallbackRef.current = null
+      }
+    }
+  }, [isMounted, isShaderReady])
+
+  const fallbackOpacity = isShaderReady ? 0.15 : 0.4
 
   return (
     <div 
       ref={containerRef}
-      className="fixed inset-0 opacity-75 w-full h-full -z-50 overflow-hidden bg-background select-none pointer-events-none"
+      className="fixed inset-0 opacity-75 w-full h-full -z-50 overflow-hidden select-none pointer-events-none"
+      style={{ backgroundColor: CONTAINER_BG }}
       aria-hidden="true"
     >
       <StaticGradientFallback opacity={shouldRenderShader ? fallbackOpacity : 0.25} />
       <div className="absolute inset-0 z-5">
-        <ShaderContent shouldRender={shouldRenderShader} hasAppeared={hasAppeared} />
+        <ShaderContent shouldRender={shouldRenderShader} isReady={isShaderReady} onReady={handleShaderReady} />
       </div>
     </div>
   )
