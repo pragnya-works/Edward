@@ -31,6 +31,15 @@ export const GENERATED_OUTPUT_MODE = {
 export type GeneratedOutputMode =
   (typeof GENERATED_OUTPUT_MODE)[keyof typeof GENERATED_OUTPUT_MODE];
 
+export const GENERATED_OUTPUT_FRAMEWORK = {
+  NEXTJS: 'nextjs',
+  VITE_REACT: 'vite-react',
+  VANILLA: 'vanilla',
+} as const;
+
+export type GeneratedOutputFramework =
+  (typeof GENERATED_OUTPUT_FRAMEWORK)[keyof typeof GENERATED_OUTPUT_FRAMEWORK];
+
 export interface ValidationViolation {
   type: ValidationViolationType;
   severity: ValidationSeverity;
@@ -96,6 +105,10 @@ export function resolveGeneratedOutputModeBehavior(mode?: GeneratedOutputMode): 
 
 export function isErrorSeverity(severity: ValidationSeverity): boolean {
   return IS_ERROR_SEVERITY[severity];
+}
+
+export function isGenerateMode(mode?: GeneratedOutputMode): boolean {
+  return mode === GENERATED_OUTPUT_MODE.GENERATE;
 }
 
 export function countErrorViolations(violations: ValidationViolation[]): number {

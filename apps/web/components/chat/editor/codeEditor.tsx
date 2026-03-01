@@ -104,33 +104,19 @@ export const CodeEditor = memo(function CodeEditor({
   const editorValue = typeof code === "string" ? code : String(code ?? "");
   const statusBadge = isStreaming
     ? {
-        key: "streaming",
-        label: "Streaming",
-        tone: "accent" as const,
-        indicatorClassName: "bg-workspace-accent animate-pulse",
-      }
-    : buildStatus === BuildStatus.QUEUED
+      key: "streaming",
+      label: "Streaming",
+      tone: "accent" as const,
+      indicatorClassName: "bg-workspace-accent animate-pulse",
+    }
+    : buildStatus === BuildStatus.FAILED
       ? {
-          key: "queued",
-          label: "Queued",
-          tone: "accent" as const,
-          indicatorClassName: "bg-workspace-accent animate-pulse",
-        }
-      : buildStatus === BuildStatus.BUILDING
-        ? {
-            key: "deploying",
-            label: "Deploying",
-            tone: "accent" as const,
-            indicatorClassName: "bg-workspace-accent animate-spin-slow",
-          }
-        : buildStatus === BuildStatus.FAILED
-          ? {
-              key: "failed",
-              label: "Build Failed",
-              tone: "destructive" as const,
-              indicatorClassName: "bg-destructive",
-            }
-          : null;
+        key: "failed",
+        label: "Build Failed",
+        tone: "destructive" as const,
+        indicatorClassName: "bg-destructive",
+      }
+      : null;
 
   const handleEditorWillMount = (monaco: MonacoApi) => {
     applyWorkspaceMonacoTheme(monaco);

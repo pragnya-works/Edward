@@ -107,12 +107,48 @@ describe("runAgentLoop resilience", () => {
     });
   });
 
-  it("continues after a no-progress narrative turn instead of stopping early", async () => {
+  it("terminates cleanly on a conversational reply without edward tags", async () => {
+    mocks.streamResponseMock.mockImplementation(async function* () {
+      yield "Hello! I'm Edward. What would you like me to build today?";
+    });
+
+    const { runAgentLoop } = await import(
+      "../../../controllers/chat/session/loop/internal/agentLoop.runner.js"
+    );
+
+    const result = await runAgentLoop({
+      decryptedApiKey: "key",
+      initialMessages: [{ role: MessageRole.User, content: "hi" }],
+      preVerifiedDeps: [],
+      systemPrompt: "system",
+      framework: undefined,
+      complexity: "moderate",
+      mode: "generate",
+      model: "gpt-5.1-codex",
+      abortController: new AbortController(),
+      userContent: "hi",
+      workflow: {} as never,
+      res: {} as never,
+      chatId: "chat-1",
+      isFollowUp: false,
+      generatedFiles: new Map<string, string>(),
+      declaredPackages: [],
+      emitMeta: vi.fn(),
+      runId: "run-1",
+    });
+
+    expect(mocks.streamResponseMock).toHaveBeenCalledTimes(1);
+    expect(mocks.buildAgentContinuationPromptMock).not.toHaveBeenCalled();
+    expect(result.agentTurn).toBe(1);
+    expect(result.loopStopReason).toBe(AgentLoopStopReason.DONE);
+  });
+
+  it("nudges when response is too short to be a valid conversational reply", async () => {
     let streamCallCount = 0;
     mocks.streamResponseMock.mockImplementation(async function* () {
       streamCallCount += 1;
       if (streamCallCount === 1) {
-        yield "I will inspect the project and continue.";
+        yield "OK";
         return;
       }
       yield "<edward_done />";
@@ -144,7 +180,6 @@ describe("runAgentLoop resilience", () => {
     });
 
     expect(mocks.streamResponseMock).toHaveBeenCalledTimes(2);
-    expect(mocks.buildAgentContinuationPromptMock).toHaveBeenCalledTimes(1);
     expect(result.agentTurn).toBe(2);
     expect(result.loopStopReason).toBe(AgentLoopStopReason.DONE);
   });

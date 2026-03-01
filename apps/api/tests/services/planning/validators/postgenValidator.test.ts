@@ -31,6 +31,55 @@ describe("Post-Generation Validator", () => {
     ).toBe(true);
   });
 
+  test("should validate with Next.js rules when declared framework is vite-react but Next.js entrypoints are emitted", () => {
+    const output = {
+      framework: "vite-react",
+      mode: "generate" as const,
+      files: new Map([
+        ["README.md", "# Demo"],
+        [
+          "src/lib/seo.ts",
+          'export const STATIC_OG_IMAGE_URL = "https://assets.pragnyaa.in/home/OG.png";',
+        ],
+        [
+          "src/app/layout.tsx",
+          `
+import { STATIC_OG_IMAGE_URL } from "../lib/seo";
+import "./globals.css";
+export const metadata = {
+  metadataBase: new URL("https://example.com"),
+  title: "Demo",
+  description: "Demo app",
+  alternates: { canonical: "/" },
+  openGraph: { title: "Demo", description: "Demo app", images: [STATIC_OG_IMAGE_URL] },
+  twitter: { card: "summary_large_image", title: "Demo", description: "Demo app", images: [STATIC_OG_IMAGE_URL] },
+  robots: { index: true, follow: true },
+  icons: {
+    icon: [{ url: "https://assets.pragnyaa.in/home/favicon_io/favicon.ico" }],
+    apple: [{ url: "https://assets.pragnyaa.in/home/favicon_io/apple-touch-icon.png" }],
+  },
+  manifest: "https://assets.pragnyaa.in/home/favicon_io/site.webmanifest",
+};
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return <html lang="en"><body>{children}</body></html>;
+}
+`,
+        ],
+        ["src/app/page.tsx", "export default function Page() { return <main>Demo</main>; }"],
+        ["src/app/globals.css", "body { margin: 0; }"],
+      ]),
+      declaredPackages: [],
+    };
+
+    const result = validateGeneratedOutput(output);
+    expect(result.valid).toBe(true);
+    expect(
+      result.violations.some(
+        (violation) => violation.message.includes("framework: vite-react"),
+      ),
+    ).toBe(false);
+  });
+
   test("should detect missing packages", () => {
     const output = {
       framework: "nextjs",

@@ -8,13 +8,43 @@ interface TypingIndicatorProps {
   isCodeMode?: boolean;
 }
 
+const FEATURE_TYPING_DOT_DELAYS = [0, 0.2, 0.4] as const;
+
 export const TypingIndicator = memo(function TypingIndicator({
   isCodeMode,
 }: TypingIndicatorProps) {
+  const dotClassName = isCodeMode
+    ? "bg-gradient-to-tr from-amber-400 to-orange-400"
+    : "bg-foreground/40";
+
+  if (!isCodeMode) {
+    return (
+      <div className="flex items-start leading-none">
+        <m.div
+          initial={{ opacity: 0, scale: 0.8 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.25, ease: "easeOut" }}
+          className="inline-flex items-center justify-center rounded-[20px] border border-white/5 bg-[#1c1c1e] px-3 py-2 sm:px-4 sm:py-2.5 min-w-12 sm:min-w-14"
+        >
+          <div className="flex items-center justify-center gap-1">
+            {FEATURE_TYPING_DOT_DELAYS.map((delay) => (
+              <m.div
+                key={`feature-typing-dot-${delay}`}
+                animate={{ opacity: [0.3, 1, 0.3] }}
+                transition={{ duration: 1, repeat: Infinity, delay }}
+                className={cn("w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full", dotClassName)}
+              />
+            ))}
+          </div>
+        </m.div>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex items-center gap-1 sm:gap-1.5 p-1.5 sm:p-2">
+    <div className="flex items-start leading-none">
       <m.div
-        className="flex items-center gap-0.5 sm:gap-1"
+        className="inline-flex items-center gap-0.5 sm:gap-1 px-1 py-1"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.4 }}
@@ -22,12 +52,7 @@ export const TypingIndicator = memo(function TypingIndicator({
         {[0, 1, 2].map((dot) => (
           <m.div
             key={`typing-dot-${dot}`}
-            className={cn(
-              "h-1 sm:h-1.5 w-1 sm:w-1.5 rounded-full",
-              isCodeMode
-                ? "bg-gradient-to-tr from-amber-400 to-orange-400"
-                : "bg-gradient-to-tr from-sky-400 to-indigo-400",
-            )}
+            className={cn("h-1 sm:h-1.5 w-1 sm:w-1.5 rounded-full", dotClassName)}
             animate={{
               scale: [1, 1.2, 1],
               opacity: [0.4, 1, 0.4],
@@ -40,16 +65,6 @@ export const TypingIndicator = memo(function TypingIndicator({
             }}
           />
         ))}
-        <span
-          className={cn(
-            "ml-1.5 sm:ml-2 text-[9px] sm:text-[10px] font-medium uppercase tracking-widest motion-safe:animate-pulse",
-            isCodeMode
-              ? "text-amber-600/60 dark:text-amber-400/50"
-              : "text-sky-600/60 dark:text-sky-400/50",
-          )}
-        >
-          {isCodeMode ? "Generating code" : "Edward is processing"}
-        </span>
       </m.div>
     </div>
   );

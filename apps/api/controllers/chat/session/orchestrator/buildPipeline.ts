@@ -7,6 +7,7 @@ import { flushSandbox } from "../../../../services/sandbox/write/flush.js";
 import {
   validateGeneratedOutput,
 } from "../../../../services/planning/validators/postgenValidator.js";
+import { isErrorSeverity } from "../../../../services/planning/validators/postgenValidator.types.js";
 import type { ChatAction } from "../../../../services/planning/schemas.js";
 import { redis } from "../../../../lib/redis.js";
 import { ensureError } from "../../../../utils/error.js";
@@ -68,7 +69,7 @@ export async function processBuildPipeline(
 
     if (!validation.valid) {
       const errorViolations = validation.violations.filter(
-        (v) => v.severity === "error",
+        (v) => isErrorSeverity(v.severity),
       );
       logger.warn(
         { violations: errorViolations, chatId },

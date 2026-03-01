@@ -31,7 +31,7 @@ export function ApiKeyInput({
 }: ApiKeyInputProps) {
   return (
     <div className="space-y-4">
-      <div className="space-y-2">
+      <div className="space-y-2 p-1">
         <Label htmlFor={`apiKey-${provider}`}>
           {API_KEY_LABEL[provider]}
         </Label>

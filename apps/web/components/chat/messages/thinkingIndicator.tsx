@@ -53,10 +53,10 @@ export const ThinkingIndicator = memo(function ThinkingIndicator({
         <AccordionItem
           value="thinking"
           className={cn(
-            "rounded-lg sm:rounded-xl border border-border/50 dark:border-foreground/[0.04] overflow-hidden transition-all duration-300",
+            "rounded-lg sm:rounded-xl border overflow-hidden transition-all duration-300",
             isCodeMode
-              ? "bg-amber-50 dark:bg-amber-400/[0.01]"
-              : "bg-violet-50 dark:bg-sky-400/[0.01]",
+              ? "border-amber-200 bg-amber-50 dark:border-amber-300 dark:bg-amber-400/[0.02]"
+              : "border-violet-200 bg-violet-50 dark:border-violet-300 dark:bg-violet-400/[0.02]",
           )}
         >
           <AccordionTrigger
@@ -179,7 +179,14 @@ export const ThinkingIndicator = memo(function ThinkingIndicator({
           </AccordionTrigger>
 
           <AccordionContent className="pb-2 sm:pb-3 px-2.5 sm:px-3.5">
-            <div className="relative rounded-md sm:rounded-lg bg-slate-100 dark:bg-foreground/[0.02] border border-slate-200 dark:border-border/20 overflow-hidden">
+            <div
+              className={cn(
+                "relative rounded-md sm:rounded-lg border overflow-hidden",
+                isCodeMode
+                  ? "bg-amber-50/65 border-amber-200/75 dark:bg-amber-950/20 dark:border-amber-300/16"
+                  : "bg-slate-100/85 border-slate-300/75 dark:bg-foreground/[0.03] dark:border-violet-300/12",
+              )}
+            >
               <div className="max-h-40 sm:max-h-60 overflow-y-auto p-2 sm:p-3 custom-scrollbar">
                 <MarkdownRenderer
                   content={cleanedText}

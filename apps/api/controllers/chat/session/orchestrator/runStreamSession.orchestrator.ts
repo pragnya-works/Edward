@@ -96,6 +96,7 @@ export async function runStreamSession(
     framework = await resolveFramework({
       workflow,
       framework,
+      userRequest: userTextContent,
     });
 
     const { baseMessages, urlScrapeResults } = await prepareBaseMessages({

@@ -1,8 +1,52 @@
-import type { RefObject, SyntheticEvent } from "react";
-import { AlertTriangle, RefreshCw } from "lucide-react";
+import {
+  type ReactNode,
+  type RefObject,
+  type SyntheticEvent,
+  useState,
+  useEffect,
+} from "react";
+import { AlertTriangle } from "lucide-react";
 import { BuildStatus } from "@/stores/sandbox/types";
 import { PreviewFrameState, type PreviewFrameState as PreviewFrameStateType } from "@/components/chat/sandbox/previewState";
 import { useChatWorkspaceContext } from "@/components/chat/chatWorkspaceContext";
+import {
+  MacOsBrowserPreview,
+  MAC_OS_PREVIEW_STATE,
+  type MacOsPreviewState,
+} from "@/components/chat/sandbox/macOsBrowserPreview";
+
+const PREVIEW_WORKSPACE_STATE = {
+  NONE: "none",
+  GENERATING: MAC_OS_PREVIEW_STATE.GENERATING,
+  INSTALLING: MAC_OS_PREVIEW_STATE.INSTALLING,
+  DEPLOYING: MAC_OS_PREVIEW_STATE.DEPLOYING,
+} as const;
+
+type PreviewWorkspaceState =
+  (typeof PREVIEW_WORKSPACE_STATE)[keyof typeof PREVIEW_WORKSPACE_STATE];
+
+const previewClassName = "w-full h-full animate-in fade-in duration-500";
+
+const previewByState: Record<MacOsPreviewState, ReactNode> = {
+  [MAC_OS_PREVIEW_STATE.GENERATING]: (
+    <MacOsBrowserPreview
+      state={MAC_OS_PREVIEW_STATE.GENERATING}
+      className={previewClassName}
+    />
+  ),
+  [MAC_OS_PREVIEW_STATE.INSTALLING]: (
+    <MacOsBrowserPreview
+      state={MAC_OS_PREVIEW_STATE.INSTALLING}
+      className={previewClassName}
+    />
+  ),
+  [MAC_OS_PREVIEW_STATE.DEPLOYING]: (
+    <MacOsBrowserPreview
+      state={MAC_OS_PREVIEW_STATE.DEPLOYING}
+      className={previewClassName}
+    />
+  ),
+};
 
 interface PreviewWorkspaceProps {
   previewUrl: string | null;
@@ -10,6 +54,7 @@ interface PreviewWorkspaceProps {
   previewFrameState: PreviewFrameStateType;
   previewFrameRef: RefObject<HTMLIFrameElement | null>;
   buildStatus: BuildStatus;
+  isStreaming: boolean;
   onSwitchToCode: () => void;
   onPreviewLoad: (event: SyntheticEvent<HTMLIFrameElement>) => void;
   onPreviewError: () => void;
@@ -21,12 +66,41 @@ export function PreviewWorkspace({
   previewFrameState,
   previewFrameRef,
   buildStatus,
+  isStreaming,
   onSwitchToCode,
   onPreviewLoad,
   onPreviewError,
 }: PreviewWorkspaceProps) {
   const { chatId, stream } = useChatWorkspaceContext();
   const isInstallingDependencies = stream.installingDeps.length > 0;
+
+  let targetState: PreviewWorkspaceState = PREVIEW_WORKSPACE_STATE.NONE;
+  if (isStreaming) targetState = PREVIEW_WORKSPACE_STATE.GENERATING;
+  else if (isInstallingDependencies) targetState = PREVIEW_WORKSPACE_STATE.INSTALLING;
+  else if (buildStatus === BuildStatus.QUEUED || buildStatus === BuildStatus.BUILDING) targetState = PREVIEW_WORKSPACE_STATE.DEPLOYING;
+
+  const [stableState, setStableState] = useState<PreviewWorkspaceState>(
+    targetState,
+  );
+
+  useEffect(() => {
+    if (targetState === stableState) {
+      return;
+    }
+
+    if (targetState === PREVIEW_WORKSPACE_STATE.NONE) {
+      const timer = setTimeout(() => {
+        setStableState(PREVIEW_WORKSPACE_STATE.NONE);
+      }, 800);
+      return () => clearTimeout(timer);
+    }
+
+    setStableState(targetState);
+  }, [targetState, stableState]);
+
+  if (stableState !== PREVIEW_WORKSPACE_STATE.NONE) {
+    return previewByState[stableState];
+  }
 
   if (previewUrl) {
     if (previewFrameState === PreviewFrameState.FAILED) {
@@ -85,18 +159,7 @@ export function PreviewWorkspace({
             </p>
           </div>
         </div>
-      ) : (
-        <div className="flex flex-col items-center gap-3">
-          <RefreshCw className="h-8 w-8 animate-spin-slow opacity-30 text-workspace-accent" />
-          <span className="text-[11px] font-medium">
-            {isInstallingDependencies
-              ? "Installing dependencies..."
-              : buildStatus === BuildStatus.QUEUED
-                ? "Queued for build..."
-                : "Wait for build..."}
-          </span>
-        </div>
-      )}
+      ) : null}
     </div>
   );
 }

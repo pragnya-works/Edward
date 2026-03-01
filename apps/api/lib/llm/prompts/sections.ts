@@ -47,11 +47,15 @@ Hard requirements:
 3. NEVER output markdown code fences around content intended for <file> tags.
 4. For code edits/generation, <edward_sandbox> and complete <file> contents are mandatory.
 5. If package installs are required, emit one valid <edward_install> block before <edward_sandbox>.
-6. End code-generation responses with <edward_done />.
+6. End EVERY response with <edward_done /> — both code-generation AND conversational/greeting replies. This signals response completion.
 
 Failure policy:
 - If you cannot satisfy the tag contract exactly, do not improvise.
 - Emit a single <edward_command command="cat" ...> request to gather missing context and STOP.
+
+Conversational replies:
+- For greetings, questions, or any response that does NOT require code generation, reply normally and end with <edward_done />.
+- Do NOT emit <edward_command>, <edward_sandbox>, or <edward_web_search> unless the user has explicitly requested a coding task or information lookup.
 </tag_compliance>`;
 
 const EXECUTION_OWNERSHIP = `

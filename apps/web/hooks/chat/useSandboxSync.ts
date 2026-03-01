@@ -9,7 +9,7 @@ import { useChatStream } from "@/contexts/chatStreamContext";
 import {
   useSandbox,
 } from "@/contexts/sandboxContext";
-import { BuildStatus, SandboxMode } from "@/stores/sandbox/types";
+import { BuildStatus } from "@/stores/sandbox/types";
 import { useBuildStatusSync } from "@/hooks/chat/useBuildStatusSync";
 import { useSandboxStreamFileSync } from "@/hooks/chat/sandbox-sync/useSandboxStreamFileSync";
 import { sanitizeTerminalOutput } from "@/lib/parsing/terminalOutput";
@@ -146,7 +146,6 @@ export function useSandboxSync(chatIdFromUrl: string | undefined) {
     activeFiles: stream.activeFiles,
     completedFiles: stream.completedFiles,
     openSandbox: openSandboxForRoute,
-    switchToCodeMode: () => setMode(SandboxMode.CODE),
     startStreaming,
     stopStreaming,
     updateFile,

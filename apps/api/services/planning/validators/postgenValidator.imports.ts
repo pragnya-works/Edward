@@ -7,6 +7,12 @@ import {
   SOURCE_FILE_PATTERN,
 } from './postgenValidator.constants.js';
 import type { GeneratedOutput, ValidationViolation } from './postgenValidator.types.js';
+import {
+  GENERATED_OUTPUT_FRAMEWORK,
+  isGenerateMode,
+  VALIDATION_SEVERITY,
+  VALIDATION_VIOLATION_TYPE,
+} from './postgenValidator.types.js';
 
 export function validateRelativeImportsForFile(
   filePath: string,
@@ -22,8 +28,8 @@ export function validateRelativeImportsForFile(
     const resolvedPath = resolveImportPath(filePath, importPath);
     if (resolvedPath && !fileExists(resolvedPath, files)) {
       violations.push({
-        type: 'orphaned-import',
-        severity: 'warning',
+        type: VALIDATION_VIOLATION_TYPE.ORPHANED_IMPORT,
+        severity: VALIDATION_SEVERITY.WARNING,
         message: `Import "${importPath}" in ${filePath} does not match any generated file`,
         file: filePath,
       });
@@ -50,8 +56,8 @@ export function validateMissingPackagesForFile(
     const packageToInstall = IMPORT_TO_PACKAGE[packageName];
     if (packageToInstall && !declaredPackages.has(packageToInstall)) {
       violations.push({
-        type: 'missing-package',
-        severity: 'warning',
+        type: VALIDATION_VIOLATION_TYPE.MISSING_PACKAGE,
+        severity: VALIDATION_SEVERITY.WARNING,
         message: `${filePath} imports "${packageName}" but it's not in <edward_install> packages`,
         file: filePath,
       });
@@ -94,8 +100,10 @@ export function validateImportPlacementForFile(
     if (line.startsWith('import ')) {
       if (passedImportSection) {
         violations.push({
-          type: 'import-placement',
-          severity: mode === 'generate' ? 'error' : 'warning',
+          type: VALIDATION_VIOLATION_TYPE.IMPORT_PLACEMENT,
+          severity: isGenerateMode(mode)
+            ? VALIDATION_SEVERITY.ERROR
+            : VALIDATION_SEVERITY.WARNING,
           message: `${filePath}:${lineNumber + 1} has an import after executable code. Keep imports at the top of the file.`,
           file: filePath,
         });
@@ -125,8 +133,11 @@ function fileExists(resolvedPath: string, files: Map<string, string>): boolean {
   return LOCAL_FILE_EXTENSIONS.some(ext => files.has(resolvedPath + ext));
 }
 
-function isBuiltinModule(moduleName: string, framework?: string): boolean {
-  if (framework === 'nextjs') {
+function isBuiltinModule(
+  moduleName: string,
+  framework?: GeneratedOutput['framework'],
+): boolean {
+  if (framework === GENERATED_OUTPUT_FRAMEWORK.NEXTJS) {
     return NEXT_BUILTIN_MODULES.has(moduleName) || moduleName.startsWith('next/');
   }
   return moduleName === 'react' || moduleName === 'react-dom' || moduleName.startsWith('react-dom/');

@@ -136,7 +136,7 @@ export function NotificationOptIn({
           "py-0 shadow-none",
           isSubscribed
             ? "border-sky-400/20 bg-sky-500/5 dark:border-sky-400/15 dark:bg-sky-500/8"
-            : "border-zinc-200/60 bg-zinc-100/60 dark:border-zinc-800/60 dark:bg-zinc-900/40",
+            : "border-zinc-400/60 bg-zinc-100/60 dark:border-zinc-700/60 dark:bg-zinc-800/40",
           "backdrop-blur-sm transition-all duration-300",
         )}
       >

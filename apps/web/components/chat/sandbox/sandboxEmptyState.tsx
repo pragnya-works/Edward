@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
-import { RefreshCw, X, Copy, Check, FileCode } from "lucide-react";
+import { X, Copy, Check, FileCode } from "lucide-react";
 import { cn } from "@edward/ui/lib/utils";
 import { Button } from "@edward/ui/components/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@edward/ui/components/card";
@@ -9,6 +9,10 @@ import { copyTextToClipboard } from "@edward/ui/lib/clipboard";
 import { useSandbox } from "@/contexts/sandboxContext";
 import { useOptionalChatWorkspaceContext } from "@/components/chat/chatWorkspaceContext";
 import { BuildStatus } from "@/stores/sandbox/types";
+import {
+  MacOsBrowserPreview,
+  MAC_OS_PREVIEW_STATE,
+} from "@/components/chat/sandbox/macOsBrowserPreview";
 
 export function SandboxEmptyState() {
   const { buildStatus, isStreaming, fullErrorReport } = useSandbox();
@@ -240,34 +244,12 @@ export function SandboxEmptyState() {
           isInstallingDependencies ||
           buildStatus === BuildStatus.QUEUED ||
           buildStatus === BuildStatus.BUILDING ? (
-          <div className="flex flex-col items-center gap-4">
-            <div className="relative">
-              <div className="h-16 w-16 rounded-3xl bg-workspace-active/70 border border-workspace-border flex items-center justify-center">
-                <RefreshCw className="h-8 w-8 text-workspace-accent animate-spin" />
-              </div>
-              <div className="absolute -bottom-1 -right-1 h-5 w-5 rounded-full bg-workspace-bg border border-workspace-border flex items-center justify-center">
-                <div className="h-1.5 w-1.5 rounded-full bg-workspace-accent animate-pulse" />
-              </div>
-            </div>
-            <div className="space-y-1">
-              <span className="text-[12px] font-bold tracking-tight text-workspace-accent uppercase">
-                {isStreaming
-                  ? "Coding..."
-                  : isInstallingDependencies
-                    ? "Installing..."
-                  : buildStatus === BuildStatus.QUEUED
-                    ? "Queued..."
-                    : "Deploying..."}
-              </span>
-              <p className="text-[11px] text-muted-foreground">
-                {isStreaming
-                  ? "Edward is typing..."
-                  : isInstallingDependencies
-                    ? "Installing project dependencies"
-                  : "Spinning up your application environment"}
-              </p>
-            </div>
-          </div>
+          <MacOsBrowserPreview
+            size="sm"
+            state={MAC_OS_PREVIEW_STATE.DEPLOYING
+            }
+            className="w-full p-0 md:p-0 bg-transparent animate-in fade-in duration-500"
+          />
         ) : (
           <div className="flex flex-col items-center gap-3 opacity-40">
             <div className="h-12 w-12 rounded-2xl bg-workspace-sidebar border border-workspace-border flex items-center justify-center">
