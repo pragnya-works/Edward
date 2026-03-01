@@ -7,10 +7,6 @@ import { GitHub } from "@edward/ui/components/icons/github";
 export const GitHubSyncVisual = memo(() => {
     return (
         <div className="absolute inset-0 bg-[#020202] overflow-hidden select-none">
-            <div className="absolute inset-0 pointer-events-none">
-                <div className="absolute top-[10%] left-1/2 -translate-x-1/2 w-[150%] h-[150%] bg-[radial-gradient(circle_at_50%_0%,rgba(255,255,255,0.03)_0%,transparent_50%)]" />
-            </div>
-
             <div className="relative h-full w-full flex flex-col items-center justify-start pt-6 md:pt-8">
                 <m.div
                     initial={{ scale: 0.9, opacity: 0 }}
@@ -48,7 +44,6 @@ export const GitHubSyncVisual = memo(() => {
                     <span className="text-[10px] font-mono font-medium uppercase tracking-[0.2em] text-white/80">Continuous Sync</span>
                 </m.div>
             </div>
-
             <div className="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-background via-background/80 to-transparent pointer-events-none z-20" />
             <div className="absolute inset-x-0 bottom-0 h-1/3 bg-background/40 backdrop-blur-[2px] pointer-events-none z-10" />
         </div>
