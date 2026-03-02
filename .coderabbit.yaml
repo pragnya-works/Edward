@@ -277,7 +277,7 @@ reviews:
 
   finishing_touches:
     docstrings:
-      enabled: true
+      enabled: false
     unit_tests:
       enabled: true
 
@@ -290,8 +290,7 @@ reviews:
     issue_assessment:
       mode: warning
     docstrings:
-      mode: warning
-      threshold: 70
+      mode: off
     custom_checks:
       - name: "No hardcoded secrets"
         mode: error
