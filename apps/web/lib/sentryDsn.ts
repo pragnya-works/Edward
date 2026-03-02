@@ -31,12 +31,5 @@ export function getValidatedSentryDsn(
     return rawDsn;
   }
 
-  const source =
-    runtime === "client"
-      ? "NEXT_PUBLIC_SENTRY_DSN"
-      : "SENTRY_DSN/NEXT_PUBLIC_SENTRY_DSN";
-  const message = `[Sentry] Invalid ${source}. DSN must include a numeric project ID (for example: https://<key>@o<org>.ingest.sentry.io/<projectId>). Sentry initialization was skipped to prevent /monitoring ProjectId rejections.`;
-  console.error(message);
-
   return undefined;
 }

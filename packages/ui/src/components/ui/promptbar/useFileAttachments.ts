@@ -188,13 +188,11 @@ export function useFileAttachments(
           ).includes(file.type)
         ) {
           const message = `Unsupported image type for ${file.name}`;
-          console.warn(message);
           onImageUploadError?.(message);
           return false;
         }
         if (file.size > IMAGE_UPLOAD_CONFIG.MAX_SIZE_BYTES) {
           const message = `${file.name} exceeds ${IMAGE_UPLOAD_CONFIG.MAX_SIZE_MB}MB limit`;
-          console.warn(message);
           onImageUploadError?.(message);
           return false;
         }

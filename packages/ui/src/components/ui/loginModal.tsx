@@ -18,9 +18,10 @@ interface LoginModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSignIn?: () => void | Promise<void>;
+  onError?: (error: unknown) => void;
 }
 
-export function LoginModal({ isOpen, onClose, onSignIn }: LoginModalProps) {
+export function LoginModal({ isOpen, onClose, onSignIn, onError }: LoginModalProps) {
   const [isLoading, setIsLoading] = useState(false);
 
   const handleLogin = useCallback(async () => {
@@ -29,7 +30,7 @@ export function LoginModal({ isOpen, onClose, onSignIn }: LoginModalProps) {
       await onSignIn?.();
       onClose();
     } catch (error) {
-      console.error("Login failed:", error);
+      onError?.(error);
     } finally {
       setIsLoading(false);
     }
