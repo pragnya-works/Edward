@@ -28,6 +28,8 @@ import {
 import { useSidebar } from "@edward/ui/components/sidebar";
 import { cn } from "@edward/ui/lib/utils";
 import { useMobileViewport } from "@edward/ui/hooks/useMobileViewport";
+import { captureException } from "@sentry/nextjs";
+import { toast } from "@edward/ui/components/sonner";
 
 export default function UserProfile() {
   const router = useRouter();
@@ -62,7 +64,8 @@ export default function UserProfile() {
       await signOut();
       router.push("/");
     } catch (error) {
-      console.error("Failed to sign out:", error);
+      captureException(error);
+      toast.error("Sign-out failed, please try again");
     }
   }
 
