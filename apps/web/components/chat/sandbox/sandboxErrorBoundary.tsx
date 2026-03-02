@@ -4,6 +4,7 @@ import { type ReactNode, useEffect } from "react";
 import { AlertCircle } from "lucide-react";
 import { Button } from "@edward/ui/components/button";
 import { ErrorBoundary } from "react-error-boundary";
+import { captureException } from "@sentry/nextjs";
 
 interface SandboxErrorBoundaryProps {
     children: ReactNode;
@@ -106,30 +107,15 @@ export function SandboxErrorBoundary({ children, fallback }: SandboxErrorBoundar
     useEffect(() => {
         const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
             if (shouldSuppressUnhandledRejection(event.reason)) {
-                if (
-                    process.env.NODE_ENV !== "production" &&
-                    !isCancellationReason(event.reason)
-                ) {
-                    console.warn(
-                        "Sandbox suppressed non-fatal async error:",
-                        getErrorMessage(event.reason),
-                    );
-                }
                 event.preventDefault();
                 return;
             }
 
             if (isKnownNonFatalSandboxNoise(event.reason)) {
-                if (process.env.NODE_ENV !== "production") {
-                    console.warn(
-                        "Sandbox observed non-fatal async warning:",
-                        getErrorMessage(event.reason),
-                    );
-                }
                 return;
             }
 
-            console.error("Sandbox unhandled promise rejection:", event.reason);
+            captureException(event.reason);
         };
 
         window.addEventListener("unhandledrejection", handleUnhandledRejection);
@@ -148,7 +134,7 @@ export function SandboxErrorBoundary({ children, fallback }: SandboxErrorBoundar
                 />
             )}
             onError={(error, errorInfo) => {
-                console.error("Sandbox Error Boundary caught an error:", error, errorInfo);
+                captureException(error, { extra: { componentStack: errorInfo.componentStack } });
             }}
         >
             {children}

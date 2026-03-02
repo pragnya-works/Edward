@@ -1,5 +1,6 @@
 import { IMAGE_UPLOAD_CONFIG, PROMPT_INPUT_CONFIG } from "@edward/shared/constants";
 import { normalizeUserMessageText } from "@/lib/userMessageText";
+import { captureMessage } from "@sentry/nextjs";
 
 export type UploadableImageMimeType =
   (typeof IMAGE_UPLOAD_CONFIG.ALLOWED_MIME_TYPES)[number];
@@ -33,9 +34,7 @@ function normalizeImageMimeType(
   ) {
     return mimeType as UploadableImageMimeType;
   }
-  console.warn(
-    `Image type ${mimeType} not supported. Sending URL without mime.`,
-  );
+  captureMessage("Unsupported image mime type. Sending URL without mime.", "warning");
   return undefined;
 }
 
