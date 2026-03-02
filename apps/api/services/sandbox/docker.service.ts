@@ -5,6 +5,7 @@ import { ExecResult } from "./types.service.js";
 import path from "path";
 import { config } from "../../app.config.js";
 import { createLogger } from "../../utils/logger.js";
+import { SANDBOX_EXEC_MAX_CAPTURE_BYTES } from "../../utils/constants.js";
 
 const logger = createLogger('DOCKER_SANDBOX');
 
@@ -13,7 +14,6 @@ const getPrewarmImage = () => config.docker.prewarmImage;
 export const CONTAINER_WORKDIR = "/home/node/edward";
 export const SANDBOX_LABEL = "com.edward.sandbox";
 const EXEC_TIMEOUT_MS = 10000;
-const MAX_EXEC_OUTPUT = 10 * 1024 * 1024;
 
 export async function ensureContainerRunning(
   container: Docker.Container,
@@ -48,16 +48,55 @@ export async function execCommand(
 
   const stream = await exec.start({ hijack: true });
 
-  let stdout = "";
-  let stderr = "";
+  const stdoutChunks: string[] = [];
+  const stderrChunks: string[] = [];
+  let stdoutBytes = 0;
+  let stderrBytes = 0;
 
   const result = await new Promise<ExecResult>((resolve, reject) => {
+    let settled = false;
+    const resolveOnce = (value: ExecResult) => {
+      if (settled) return;
+      settled = true;
+      resolve(value);
+    };
+    const rejectOnce = (error: Error) => {
+      if (settled) return;
+      settled = true;
+      reject(error);
+    };
+
     const timeout = setTimeout(() => {
       stream.destroy();
-      reject(
+      rejectOnce(
         new Error(`Command timeout after ${timeoutMs}ms: ${cmd.join(" ")}`),
       );
     }, timeoutMs);
+
+    const failForOutputOverflow = (
+      streamName: "stdout" | "stderr",
+      currentBytes: number,
+      nextChunkBytes: number,
+    ) => {
+      const err = new Error(
+        `Command output exceeded safe capture limit (${SANDBOX_EXEC_MAX_CAPTURE_BYTES} bytes) while reading ${streamName}. ` +
+          "Narrow the command output (e.g., use head/tail/grep).",
+      );
+      logger.warn(
+        {
+          command: cmd[0],
+          args: cmd.slice(1),
+          stream: streamName,
+          currentBytes,
+          nextChunkBytes,
+          maxCaptureBytes: SANDBOX_EXEC_MAX_CAPTURE_BYTES,
+        },
+        "Sandbox command output exceeded capture limit",
+      );
+      clearTimeout(timeout);
+      stream.destroy(err);
+      rejectOnce(err);
+    };
 
     const stdoutStream = new Writable({
       write(
@@ -65,7 +104,14 @@ export async function execCommand(
         _enc: BufferEncoding,
         cb: (error?: Error | null) => void,
       ) {
-        if (stdout.length < MAX_EXEC_OUTPUT) stdout += chunk.toString();
+        const chunkBuffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+        if (stdoutBytes + chunkBuffer.length > SANDBOX_EXEC_MAX_CAPTURE_BYTES) {
+          failForOutputOverflow("stdout", stdoutBytes, chunkBuffer.length);
+          cb();
+          return;
+        }
+        stdoutChunks.push(chunkBuffer.toString());
+        stdoutBytes += chunkBuffer.length;
         cb();
       },
     });
@@ -76,7 +122,14 @@ export async function execCommand(
         _enc: BufferEncoding,
         cb: (error?: Error | null) => void,
       ) {
-        if (stderr.length < MAX_EXEC_OUTPUT) stderr += chunk.toString();
+        const chunkBuffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+        if (stderrBytes + chunkBuffer.length > SANDBOX_EXEC_MAX_CAPTURE_BYTES) {
+          failForOutputOverflow("stderr", stderrBytes, chunkBuffer.length);
+          cb();
+          return;
+        }
+        stderrChunks.push(chunkBuffer.toString());
+        stderrBytes += chunkBuffer.length;
         cb();
       },
     });
@@ -84,20 +137,27 @@ export async function execCommand(
     container.modem.demuxStream(stream, stdoutStream, stderrStream);
 
     stream.on("end", async () => {
+      if (settled) {
+        return;
+      }
       clearTimeout(timeout);
       stdoutStream.end();
       stderrStream.end();
       try {
         const { ExitCode } = await exec.inspect();
-        resolve({ exitCode: ExitCode ?? -1, stdout, stderr });
+        resolveOnce({
+          exitCode: ExitCode ?? -1,
+          stdout: stdoutChunks.join(""),
+          stderr: stderrChunks.join(""),
+        });
       } catch (err) {
-        reject(err);
+        rejectOnce(err instanceof Error ? err : new Error(String(err)));
       }
     });
 
     stream.on("error", (err) => {
       clearTimeout(timeout);
-      reject(err);
+      rejectOnce(err instanceof Error ? err : new Error(String(err)));
     });
   });
 

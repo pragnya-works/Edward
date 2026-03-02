@@ -57,8 +57,10 @@ import {
 
 const SANDBOX_TAG_PATTERN = /<edward_sandbox\b/i;
 const FILE_TAG_PATTERN = /<file\b/i;
+const EDWARD_TAG_PATTERN = /<edward_/i;
 const MAX_NO_PROGRESS_CONTINUATIONS = 1;
 const MAX_STREAM_ATTEMPTS_PER_TURN = 2;
+const MIN_CONVERSATIONAL_RESPONSE_LENGTH = 20;
 
 function trimForContinuationPrefix(input: string, maxChars: number): string {
   if (input.length <= maxChars) {
@@ -514,6 +516,15 @@ export async function runAgentLoop(
     if (turnState.doneTagDetectedThisTurn) {
       noProgressContinuations = 0;
       emitTurnCompleteMeta(emitMeta, agentTurn, toolResultsThisTurn.length);
+      loopStopReason = AgentLoopStopReason.DONE;
+      break;
+    }
+    const isConversationalReply =
+      turnRawResponse.trim().length >= MIN_CONVERSATIONAL_RESPONSE_LENGTH &&
+      !EDWARD_TAG_PATTERN.test(turnRawResponse);
+
+    if (isConversationalReply) {
+      emitTurnCompleteMeta(emitMeta, agentTurn, 0);
       loopStopReason = AgentLoopStopReason.DONE;
       break;
     }

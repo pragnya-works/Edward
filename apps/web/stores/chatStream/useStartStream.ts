@@ -51,6 +51,7 @@ import {
   type StartStreamMutationVariables,
   type StartStreamOptions,
 } from "@/stores/chatStream/startStreamShared";
+import { clearRunStopNotice } from "@/lib/chat/runStopIntent";
 
 interface UseStartStreamParams {
   dispatch: (action: StreamAction) => void;
@@ -171,6 +172,8 @@ export function useStartStream({
             dispatch,
             streams: streamsRef.current,
           });
+        } else {
+          clearRunStopNotice(opts.chatId);
         }
 
         const streamKey =

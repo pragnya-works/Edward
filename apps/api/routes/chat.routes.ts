@@ -3,6 +3,7 @@ import {
   uploadChatImage,
 } from "../controllers/chat/image.controller.js";
 import { unifiedSendMessage } from "../controllers/chat/message.controller.js";
+import { enhancePrompt } from "../controllers/chat/promptEnhance.controller.js";
 import {
   getChatHistory,
   getChatMeta,
@@ -19,10 +20,7 @@ import {
   cancelRunHandler,
 } from "../controllers/chat/query/run.controller.js";
 import { getSandboxFiles } from "../controllers/chat/query/sandbox.controller.js";
-import {
-  getShareStatus,
-  updateShareSettings,
-} from "../controllers/chat/query/share.controller.js";
+
 import {
   checkSubdomainAvailabilityHandler,
   updateChatSubdomainHandler,
@@ -30,16 +28,17 @@ import {
 import { validateRequest } from "../middleware/validateRequest.js";
 import {
   GetChatHistoryRequestSchema,
+  PromptEnhanceRequestSchema,
   UnifiedSendMessageRequestSchema,
   StreamRunEventsRequestSchema,
   CancelRunRequestSchema,
-  ShareStatusRequestSchema,
-  UpdateShareSettingsRequestSchema,
+
 } from "../schemas/chat.schema.js";
 import {
   chatRateLimiter,
   dailyChatRateLimiter,
   imageUploadRateLimiter,
+  promptEnhanceRateLimiter,
 } from "../middleware/rateLimit.js";
 import { IMAGE_UPLOAD_CONFIG } from "@edward/shared/constants";
 
@@ -60,6 +59,12 @@ chatRouter.post(
   dailyChatRateLimiter,
   validateRequest(UnifiedSendMessageRequestSchema),
   unifiedSendMessage,
+);
+chatRouter.post(
+  "/prompt-enhance",
+  promptEnhanceRateLimiter,
+  validateRequest(PromptEnhanceRequestSchema),
+  enhancePrompt,
 );
 chatRouter.get(
   "/recent",
@@ -105,16 +110,7 @@ chatRouter.get(
   validateRequest(GetChatHistoryRequestSchema),
   getSandboxFiles,
 );
-chatRouter.get(
-  "/:chatId/share",
-  validateRequest(ShareStatusRequestSchema),
-  getShareStatus,
-);
-chatRouter.patch(
-  "/:chatId/share",
-  validateRequest(UpdateShareSettingsRequestSchema),
-  updateShareSettings,
-);
+
 chatRouter.delete(
   "/:chatId",
   validateRequest(GetChatHistoryRequestSchema),

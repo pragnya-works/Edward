@@ -1,6 +1,7 @@
 import { createLogger } from '../../../utils/logger.js';
 import {
   MARKDOWN_FENCE_PATTERN,
+  MAX_GENERATED_FILE_LINES,
   REQUIRED_CSS_IMPORTS,
   REQUIRED_ENTRY_POINTS,
   REQUIRED_GENERATE_PROJECT_FILES,
@@ -14,8 +15,10 @@ import {
 import {
   validateFrameworkEntrypoints,
   validateLogicQualityForFile,
+  validateFeatureSkeletonForOutput,
 } from './postgenValidator.logic.js';
 import { validateSeoBranding } from './postgenValidator.seo.js';
+import { resolveValidationFramework } from './postgenValidator.framework.js';
 import type {
   GeneratedOutput,
   ValidationResult,
@@ -30,16 +33,45 @@ import {
 
 const logger = createLogger('PostGenValidator');
 
+function countContentLines(content: string): number {
+  if (content.length === 0) {
+    return 0;
+  }
+
+  const normalized = content.replace(/\r\n/g, '\n');
+  const withoutTrailingNewline = normalized.endsWith('\n')
+    ? normalized.slice(0, -1)
+    : normalized;
+  return withoutTrailingNewline.length === 0
+    ? 0
+    : withoutTrailingNewline.split('\n').length;
+}
+
 export function validateGeneratedOutput(output: GeneratedOutput): ValidationResult {
+  const effectiveFramework = resolveValidationFramework(output.framework, output.files);
+  if (effectiveFramework !== output.framework) {
+    logger.warn(
+      {
+        declaredFramework: output.framework,
+        effectiveFramework,
+      },
+      'Detected framework mismatch during post-generation validation; using entrypoint-inferred framework',
+    );
+  }
+
+  const validatedOutput = {
+    ...output,
+    framework: effectiveFramework,
+  };
   const violations: ValidationViolation[] = [];
-  const declaredPackages = new Set(output.declaredPackages);
-  const modeBehavior = resolveGeneratedOutputModeBehavior(output.mode);
+  const declaredPackages = new Set(validatedOutput.declaredPackages);
+  const modeBehavior = resolveGeneratedOutputModeBehavior(validatedOutput.mode);
   const shouldValidateFramework =
-    Boolean(output.framework) && modeBehavior.validatesFrameworkRules;
+    Boolean(validatedOutput.framework) && modeBehavior.validatesFrameworkRules;
 
   if (modeBehavior.requiresGenerateProjectFiles) {
-    const frameworkSpecificRequiredFiles = output.framework
-      ? (REQUIRED_GENERATE_PROJECT_FILES_BY_FRAMEWORK[output.framework] ?? [])
+    const frameworkSpecificRequiredFiles = validatedOutput.framework
+      ? (REQUIRED_GENERATE_PROJECT_FILES_BY_FRAMEWORK[validatedOutput.framework] ?? [])
       : [];
     const requiredFiles = [
       ...REQUIRED_GENERATE_PROJECT_FILES,
@@ -47,7 +79,7 @@ export function validateGeneratedOutput(output: GeneratedOutput): ValidationResu
     ];
 
     for (const requiredFile of requiredFiles) {
-      if (!output.files.has(requiredFile)) {
+      if (!validatedOutput.files.has(requiredFile)) {
         violations.push({
           type: VALIDATION_VIOLATION_TYPE.MISSING_PROJECT_FILE,
           severity: VALIDATION_SEVERITY.ERROR,
@@ -58,15 +90,15 @@ export function validateGeneratedOutput(output: GeneratedOutput): ValidationResu
     }
   }
 
-  if (output.framework && shouldValidateFramework) {
-    const required = REQUIRED_ENTRY_POINTS[output.framework];
+  if (validatedOutput.framework && shouldValidateFramework) {
+    const required = REQUIRED_ENTRY_POINTS[validatedOutput.framework];
     if (required) {
       for (const entryPoint of required) {
-        if (!output.files.has(entryPoint)) {
+        if (!validatedOutput.files.has(entryPoint)) {
           violations.push({
             type: VALIDATION_VIOLATION_TYPE.MISSING_ENTRY_POINT,
             severity: VALIDATION_SEVERITY.ERROR,
-            message: `Missing required entry point: ${entryPoint} (framework: ${output.framework})`,
+            message: `Missing required entry point: ${entryPoint} (framework: ${validatedOutput.framework})`,
             file: entryPoint,
           });
         }
@@ -74,11 +106,11 @@ export function validateGeneratedOutput(output: GeneratedOutput): ValidationResu
     }
   }
 
-  if (output.framework && shouldValidateFramework) {
-    const cssRule = REQUIRED_CSS_IMPORTS[output.framework];
+  if (validatedOutput.framework && shouldValidateFramework) {
+    const cssRule = REQUIRED_CSS_IMPORTS[validatedOutput.framework];
     if (cssRule) {
       const { file, importPattern } = cssRule;
-      const content = output.files.get(file);
+      const content = validatedOutput.files.get(file);
       if (content && !importPattern.test(content)) {
         violations.push({
           type: VALIDATION_VIOLATION_TYPE.MISSING_ENTRY_POINT,
@@ -90,7 +122,19 @@ export function validateGeneratedOutput(output: GeneratedOutput): ValidationResu
     }
   }
 
-  for (const [filePath, content] of output.files) {
+  for (const [filePath, content] of validatedOutput.files) {
+    if (modeBehavior.requiresGenerateProjectFiles) {
+      const lineCount = countContentLines(content);
+      if (lineCount > MAX_GENERATED_FILE_LINES) {
+        violations.push({
+          type: VALIDATION_VIOLATION_TYPE.FILE_LINE_LIMIT_EXCEEDED,
+          severity: VALIDATION_SEVERITY.ERROR,
+          message: `${filePath} exceeds the maximum allowed ${MAX_GENERATED_FILE_LINES} lines (${lineCount} lines).`,
+          file: filePath,
+        });
+      }
+    }
+
     if (MARKDOWN_FENCE_PATTERN.test(content)) {
       violations.push({
         type: VALIDATION_VIOLATION_TYPE.MARKDOWN_FENCE,
@@ -99,21 +143,30 @@ export function validateGeneratedOutput(output: GeneratedOutput): ValidationResu
         file: filePath,
       });
     }
-    violations.push(...validateRelativeImportsForFile(filePath, content, output.files));
+    violations.push(
+      ...validateRelativeImportsForFile(filePath, content, validatedOutput.files),
+    );
     violations.push(
       ...validateMissingPackagesForFile(
         filePath,
         content,
-        output.framework,
+        validatedOutput.framework,
         declaredPackages,
       ),
     );
-    violations.push(...validateImportPlacementForFile(filePath, content, output.mode));
-    violations.push(...validateLogicQualityForFile(filePath, content, output.mode));
+    violations.push(
+      ...validateImportPlacementForFile(filePath, content, validatedOutput.mode),
+    );
+    violations.push(
+      ...validateLogicQualityForFile(filePath, content, validatedOutput.mode),
+    );
   }
 
-  violations.push(...validateFrameworkEntrypoints(output));
-  violations.push(...validateSeoBranding(output));
+  if (validatedOutput.framework && shouldValidateFramework) {
+    violations.push(...validateFrameworkEntrypoints(validatedOutput));
+  }
+  violations.push(...validateSeoBranding(validatedOutput));
+  violations.push(...validateFeatureSkeletonForOutput(validatedOutput));
 
   const errorCount = countErrorViolations(violations);
   const warningCount = violations.length - errorCount;

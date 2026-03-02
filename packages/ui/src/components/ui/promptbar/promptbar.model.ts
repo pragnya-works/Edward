@@ -15,7 +15,6 @@ import {
 
 const URL_PATTERN = /https?:\/\/[^\s<>"'`]+/gi;
 const URL_SOURCE_PREVIEW_LIMIT = 6;
-const PROMPT_INPUT_SELECTOR = "textarea[data-edward-prompt-input='true']";
 
 export interface ResolvedPromptbarProps {
   isAuthenticated: boolean;
@@ -24,6 +23,8 @@ export interface ResolvedPromptbarProps {
     text: string,
     images?: UploadedImageRef[],
   ) => void | Promise<void>;
+  onEnhancePrompt?: (text: string) => string | Promise<string>;
+  onTopContextVisibilityChange?: (visible: boolean) => void;
   hasApiKey: boolean | null;
   isApiKeyLoading: boolean;
   apiKeyError: string;
@@ -97,6 +98,9 @@ export function resolvePromptbarProps(props: PromptbarProps): ResolvedPromptbarP
       isAuthenticated: controller.auth?.isAuthenticated ?? false,
       onSignIn: controller.auth?.onSignIn,
       onProtectedAction: controller.submission?.onProtectedAction,
+      onEnhancePrompt: controller.submission?.onEnhancePrompt,
+      onTopContextVisibilityChange:
+        controller.submission?.onTopContextVisibilityChange,
       hasApiKey: controller.apiKey?.hasApiKey ?? null,
       isApiKeyLoading: controller.apiKey?.isApiKeyLoading ?? false,
       apiKeyError: controller.apiKey?.apiKeyError ?? "",
@@ -121,6 +125,8 @@ export function resolvePromptbarProps(props: PromptbarProps): ResolvedPromptbarP
     isAuthenticated: props.isAuthenticated ?? false,
     onSignIn: props.onSignIn,
     onProtectedAction: props.onProtectedAction,
+    onEnhancePrompt: props.onEnhancePrompt,
+    onTopContextVisibilityChange: props.onTopContextVisibilityChange,
     hasApiKey: props.hasApiKey ?? null,
     isApiKeyLoading: props.isApiKeyLoading ?? false,
     apiKeyError: props.apiKeyError ?? "",
@@ -296,6 +302,7 @@ export function usePromptbarGlobalEvents(
   isApiKeyLoading: boolean,
   setShowLoginModal: Dispatch<SetStateAction<boolean>>,
   setShowBYOK: Dispatch<SetStateAction<boolean>>,
+  promptInputRef: React.RefObject<HTMLTextAreaElement | null>,
 ) {
   useEffect(() => {
     const openApiKeyModal = () => {
@@ -310,9 +317,7 @@ export function usePromptbarGlobalEvents(
     };
 
     const focusPromptInput = () => {
-      const input = document.querySelector(
-        PROMPT_INPUT_SELECTOR,
-      ) as HTMLTextAreaElement | null;
+      const input = promptInputRef.current;
       if (!input) {
         return;
       }
@@ -328,5 +333,5 @@ export function usePromptbarGlobalEvents(
       window.removeEventListener(UI_EVENTS.OPEN_API_KEY_MODAL, openApiKeyModal);
       window.removeEventListener(UI_EVENTS.FOCUS_PROMPT_INPUT, focusPromptInput);
     };
-  }, [isApiKeyLoading, isAuthenticated, setShowBYOK, setShowLoginModal]);
+  }, [isApiKeyLoading, isAuthenticated, setShowBYOK, setShowLoginModal, promptInputRef]);
 }

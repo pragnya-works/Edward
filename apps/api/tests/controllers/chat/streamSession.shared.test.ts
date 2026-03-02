@@ -64,7 +64,7 @@ describe("buildAgentContinuationPrompt", () => {
   });
 
   it("compacts oversized tool outputs in continuation prompt", () => {
-    const noisyOutput = `${"line\n".repeat(2_000)}end`;
+    const noisyOutput = `${"line\n".repeat(12_000)}end`;
     const result = buildAgentContinuationPrompt("fix build", "Done", [
       {
         tool: "command",
@@ -77,6 +77,47 @@ describe("buildAgentContinuationPrompt", () => {
 
     expect(result.truncated).toBe(false);
     expect(result.prompt).toContain("$ pnpm build");
+    expect(result.prompt).toContain("...[truncated]...");
+  });
+
+  it("keeps medium command outputs intact when they fit the continuation budget", () => {
+    const output = `${"line\n".repeat(900)}done`;
+    const result = buildAgentContinuationPrompt("inspect file", "Done", [
+      {
+        tool: "command",
+        command: "cat",
+        args: ["src/index.ts"],
+        stdout: output,
+        stderr: "",
+      },
+    ]);
+
+    expect(result.truncated).toBe(false);
+    expect(result.prompt).toContain("$ cat src/index.ts");
+    expect(result.prompt).toContain("done");
+    expect(result.prompt).not.toContain("...[truncated]...");
+  });
+
+  it("stays within context budget under many very large tool results", () => {
+    const largeToolResults = Array.from({ length: 12 }, (_, index) => ({
+      tool: "command" as const,
+      command: "cat",
+      args: [`src/file-${index}.ts`],
+      stdout: `${"x".repeat(16_000)}\nmarker-${index}`,
+      stderr: "",
+    }));
+
+    const result = buildAgentContinuationPrompt(
+      "fix all build issues",
+      "r".repeat(MAX_AGENT_CONTINUATION_PROMPT_CHARS),
+      largeToolResults,
+    );
+
+    expect(result.prompt.length).toBeLessThanOrEqual(
+      MAX_AGENT_CONTINUATION_PROMPT_CHARS + 20,
+    );
+    expect(result.prompt).toContain("$ cat src/file-0.ts");
+    expect(result.prompt).toContain("$ cat src/file-11.ts");
     expect(result.prompt).toContain("...[truncated]...");
   });
 });

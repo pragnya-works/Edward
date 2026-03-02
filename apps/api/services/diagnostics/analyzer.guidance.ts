@@ -1,11 +1,11 @@
 import type { BuildError } from "./types.js";
 
-export type DiagnosisGuidance = {
+export interface DiagnosisGuidance {
   probableCause: string;
   pinpointContext: string;
   preciseFix: string;
   nextStep: string;
-};
+}
 
 function buildLocation(error: BuildError): string {
   return `${error.error.file}:${error.error.line}${error.error.column != null ? `:${error.error.column}` : ""}`;

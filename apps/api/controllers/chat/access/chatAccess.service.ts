@@ -28,7 +28,7 @@ export async function assertChatReadableOrRespond(
   sendError: ErrorResponder,
 ): Promise<boolean> {
   const [chatData] = await db
-    .select({ userId: chat.userId, visibility: chat.visibility })
+    .select({ userId: chat.userId })
     .from(chat)
     .where(eq(chat.id, chatId))
     .limit(1);
@@ -38,7 +38,7 @@ export async function assertChatReadableOrRespond(
     return false;
   }
 
-  if (chatData.userId !== userId && !chatData.visibility) {
+  if (chatData.userId !== userId) {
     sendError(res, HttpStatus.FORBIDDEN, ERROR_MESSAGES.FORBIDDEN);
     return false;
   }

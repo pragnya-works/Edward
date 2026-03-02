@@ -15,7 +15,7 @@ describe("errorPresentation", () => {
 
   it("classifies transient provider high-demand errors as temporary unavailability", () => {
     const result = classifyAssistantError(
-      "[GoogleGenerativeAI Error]: [503 Service Unavailable] This model is currently experiencing high demand. Please try again later.",
+      "[GoogleGenAI Error]: [503 Service Unavailable] This model is currently experiencing high demand. Please try again later.",
     );
 
     expect(result.code).toBe("provider_temporarily_unavailable");

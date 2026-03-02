@@ -14,7 +14,7 @@ import { shutdownRedisPubSub } from "./lib/redisPubSub.js";
 import { apiKeyRouter } from "./routes/apiKey.routes.js";
 import { chatRouter } from "./routes/chat.routes.js";
 import { githubRouter } from "./routes/github.routes.js";
-import { shareRouter } from "./routes/share.routes.js";
+
 import { authMiddleware } from "./middleware/auth.js";
 import { apiKeyRateLimiter } from "./middleware/rateLimit.js";
 import { securityTelemetryMiddleware } from "./middleware/securityTelemetry.js";
@@ -27,7 +27,6 @@ import {
 } from "./utils/constants.js";
 import { ensureError } from "./utils/error.js";
 import { config } from "./app.config.js";
-import { ensureChatSeoColumns } from "./services/db/schemaCompatibility.service.js";
 
 const PORT = config.server.port;
 const ENV = config.server.environment as Environment;
@@ -152,7 +151,7 @@ if (!isProd) {
 }
 
 app.use("/api-key", authMiddleware, apiKeyRateLimiter, apiKeyRouter);
-app.use("/share", shareRouter);
+
 app.use("/chat", authMiddleware, chatRouter);
 app.use("/github", authMiddleware, githubRouter);
 
@@ -194,7 +193,6 @@ const serverInstance = app.listen(PORT, async function onServerStarted() {
   );
 
   try {
-    await ensureChatSeoColumns();
     await initSandboxService();
     logger.info("Sandbox Service initialized.");
   } catch (err) {

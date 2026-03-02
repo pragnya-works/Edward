@@ -8,7 +8,7 @@ import {
   useScroll,
 } from "motion/react";
 import { Menu, X } from "lucide-react";
-import React, { useRef, useState } from "react";
+import React, { useState } from "react";
 import { cn } from "@edward/ui/lib/utils";
 import { EdwardLogo } from "@edward/ui/components/brand/edwardLogo";
 import {
@@ -34,11 +34,7 @@ import {
 const BUTTON_ELEMENT = "button";
 
 export const Navbar = ({ children, className }: NavbarProps) => {
-  const ref = useRef<HTMLDivElement>(null);
-  const { scrollY } = useScroll({
-    target: ref,
-    offset: ["start start", "end start"],
-  });
+  const { scrollY } = useScroll();
   const [visible, setVisible] = useState(false);
 
   useMotionValueEvent(scrollY, "change", (latest) => {
@@ -48,7 +44,6 @@ export const Navbar = ({ children, className }: NavbarProps) => {
   return (
     <NavbarContextProvider visible={visible}>
       <m.div
-        ref={ref}
         className={cn("sticky inset-x-0 top-20 z-40 w-full", className)}
       >
         {children}
@@ -102,7 +97,7 @@ export const MobileNav = ({
         animate={getMobileBodyAnimation(visible)}
         transition={{ type: "spring", stiffness: 200, damping: 50 }}
         className={cn(
-          "absolute inset-x-0 z-50 mx-auto flex w-full flex-col self-start bg-transparent px-4 py-2 md:hidden",
+          "relative z-50 mx-auto flex w-full flex-col self-start bg-transparent px-4 py-2 md:hidden",
           visible && "bg-background/80",
           className,
         )}

@@ -1,5 +1,6 @@
 "use client";
 
+import { memo } from "react";
 import { IssueCard } from "./issueCard";
 import type { ChangelogIssue } from "@/lib/linear";
 
@@ -10,7 +11,7 @@ interface IssueListProps {
   onToggle: (id: string) => void;
 }
 
-export function IssueList({
+export const IssueList = memo(function IssueList({
   issues,
   startIndex = 0,
   expandedId,
@@ -29,4 +30,4 @@ export function IssueList({
       ))}
     </div>
   );
-}
+});

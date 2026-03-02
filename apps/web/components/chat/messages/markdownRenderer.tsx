@@ -15,7 +15,7 @@ interface MarkdownRendererProps {
 
 const MAX_MARKDOWN_RENDER_CHARS = 50_000;
 const MARKDOWN_SYNTAX_PATTERN = /(^|\n)\s{0,3}(#{1,6}\s|[-*+]\s|\d+\.\s|>\s)|\*\*|__|~~|`|\[[^\]]*\]\([^)]*\)|\|/;
-const CODE_FENCE_PATTERN = /```/;
+const COMPLETE_CODE_FENCE_PATTERN = /```[\s\S]*?```/;
 const REMARK_PLUGINS: NonNullable<Options["remarkPlugins"]> = [remarkGfm];
 const EMPTY_REHYPE_PLUGINS: [] = [];
 const URL_PATTERN = /\b((?:https?:\/\/|www\.)[^\s<>{}[\]"]+)/gi;
@@ -332,7 +332,7 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
     : content;
 
   const hasMarkdownSyntax = MARKDOWN_SYNTAX_PATTERN.test(safeContent);
-  const hasCodeFences = CODE_FENCE_PATTERN.test(safeContent);
+  const hasCodeFences = COMPLETE_CODE_FENCE_PATTERN.test(safeContent);
 
   if (!hasMarkdownSyntax) {
     return (

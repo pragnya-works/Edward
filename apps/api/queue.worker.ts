@@ -13,6 +13,7 @@ import {
   BUILD_WORKER_CONCURRENCY,
   CLEANUP_INTERVAL_MS,
   VERSION,
+  WORKER_GRACEFUL_SHUTDOWN_TIMEOUT_MS,
 } from "./utils/constants.js";
 import {
   AGENT_RUN_QUEUE_NAME,
@@ -30,7 +31,10 @@ import { processAgentRunJob } from "./services/runs/agentRun.worker.js";
 import { processScheduledFlushes } from "./services/sandbox/write/flush.scheduler.js";
 import { reapStaleRuns } from "./services/runs/staleRunReaper.service.js";
 import { createErrorReportIfPossible } from "./queue.worker.helpers.js";
+import { registerWorkerEventHandlers } from "./queue.worker.events.js";
+import { createGracefulShutdown } from "./queue.worker.shutdown.js";
 import { registerProcessHandlerOnce } from "./utils/processHandlers.js";
+import { ensureError } from "./utils/error.js";
 
 const logger = createLogger("WORKER");
 const pubClient = createRedisClient();
@@ -47,6 +51,10 @@ async function processBuildJob(payload: BuildJobPayload): Promise<void> {
         messageId,
         status: BuildRecordStatus.QUEUED,
       });
+
+  if (!buildRecord) {
+    throw new Error(`Failed to create/find build record for chatId: ${chatId}`);
+  }
 
   await updateBuild(buildRecord.id, {
     status: BuildRecordStatus.BUILDING,
@@ -283,46 +291,21 @@ const staleRunReaperInterval = setInterval(() => {
 }, CLEANUP_INTERVAL_MS);
 staleRunReaperInterval.unref();
 
-buildWorker.on("completed", (job) => {
-  logger.debug({ jobId: job.id, jobName: job.name }, "[Worker] Job completed");
+registerWorkerEventHandlers({
+  buildWorker,
+  agentRunWorker,
+  logger,
 });
 
-buildWorker.on("failed", (job, error) => {
-  logger.error(
-    { error, jobId: job?.id, jobName: job?.name },
-    "[Worker] Job failed",
-  );
+const gracefulShutdown = createGracefulShutdown({
+  buildWorker,
+  agentRunWorker,
+  pubClient,
+  scheduledFlushInterval,
+  staleRunReaperInterval,
+  logger,
+  shutdownTimeoutMs: WORKER_GRACEFUL_SHUTDOWN_TIMEOUT_MS,
 });
-
-buildWorker.on("error", (error) => {
-  logger.error({ error }, "[Worker] Build worker error");
-});
-
-agentRunWorker.on("completed", (job) => {
-  logger.debug(
-    { jobId: job.id, jobName: job.name },
-    "[Worker] Agent run job completed",
-  );
-});
-
-agentRunWorker.on("failed", (job, error) => {
-  logger.error(
-    { error, jobId: job?.id, jobName: job?.name },
-    "[Worker] Agent run job failed",
-  );
-});
-
-agentRunWorker.on("error", (error) => {
-  logger.error({ error }, "[Worker] Worker error");
-});
-
-async function gracefulShutdown() {
-  clearInterval(scheduledFlushInterval);
-  clearInterval(staleRunReaperInterval);
-  await Promise.all([buildWorker.close(), agentRunWorker.close()]);
-  await pubClient.quit();
-  process.exit(0);
-}
 
 registerProcessHandlerOnce("worker:SIGINT", "SIGINT", () => {
   void gracefulShutdown();
@@ -330,6 +313,25 @@ registerProcessHandlerOnce("worker:SIGINT", "SIGINT", () => {
 registerProcessHandlerOnce("worker:SIGTERM", "SIGTERM", () => {
   void gracefulShutdown();
 });
+registerProcessHandlerOnce(
+  "worker:uncaughtException",
+  "uncaughtException",
+  (error) => {
+    logger.fatal(ensureError(error), "[Worker] Uncaught Exception");
+    void gracefulShutdown(1);
+  },
+);
+registerProcessHandlerOnce(
+  "worker:unhandledRejection",
+  "unhandledRejection",
+  (reason) => {
+    logger.fatal(
+      { reason: ensureError(reason) },
+      "[Worker] Unhandled Rejection",
+    );
+    void gracefulShutdown(1);
+  },
+);
 
 logger.info(
   {

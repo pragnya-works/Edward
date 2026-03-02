@@ -37,13 +37,13 @@ export const UpdateApiKeyRequestSchema = z.object({
   body: ApiKeySchema,
 });
 
-export type GetApiKeyResponse = {
+export interface GetApiKeyResponse {
   message: string;
   data: z.infer<typeof ApiKeyDataSchema>;
   timestamp: string;
-};
+}
 
-export type CreateApiKeyResponse = {
+export interface CreateApiKeyResponse {
   message: string;
   data: {
     userId: string;
@@ -51,9 +51,9 @@ export type CreateApiKeyResponse = {
     preferredModel?: string | null;
   };
   timestamp: string;
-};
+}
 
-export type UpdateApiKeyResponse = {
+export interface UpdateApiKeyResponse {
   message: string;
   data: {
     userId: string;
@@ -61,13 +61,13 @@ export type UpdateApiKeyResponse = {
     preferredModel?: string | null;
   };
   timestamp: string;
-};
+}
 
-export type ErrorResponse = {
+export interface ErrorResponse {
   error: string;
   details?: Array<{
     path: Array<string | number>;
     message: string;
   }>;
   timestamp: string;
-};
+}

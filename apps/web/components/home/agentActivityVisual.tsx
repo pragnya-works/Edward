@@ -2,8 +2,9 @@
 
 import React, { memo, useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { m, AnimatePresence } from "motion/react";
-import { Search, FileCode, Edit3, Terminal, CheckCircle2, User, Bot, LoaderIcon } from "lucide-react";
+import { Search, FileCode, Edit3, Terminal, CheckCircle2, User, LoaderIcon } from "lucide-react";
 import { useTabVisibility } from "@edward/ui/hooks/useTabVisibility";
+import { EdwardLogo } from "@edward/ui/components/brand/edwardLogo";
 
 enum ToolCallKind {
     SEARCH = "search",
@@ -34,7 +35,6 @@ const CONVERSATION: ConversationStep[] = [
     {
         user: "Build a responsive analytics dashboard with real-time metrics.",
         tools: [
-            { id: "t1", tool: ToolCallKind.SEARCH, context: "locating [packages/ui/charts]", status: ToolCallStatus.DONE },
             { id: "t2", tool: ToolCallKind.READ, context: "analyzing [theme.json]", status: ToolCallStatus.DONE },
             { id: "t3", tool: ToolCallKind.EDIT, context: "generating [dashboard.tsx] +142 lines", status: ToolCallStatus.DONE }
         ],
@@ -87,11 +87,18 @@ const ToolCallUI = memo(({ call }: { call: ToolCall }) => {
 
     return (
         <m.div
-            initial={{ opacity: 0, y: 10, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            className="flex items-center gap-3 px-3 py-2 rounded-lg bg-white/[0.03] border border-white/5 my-1"
+            layout
+            initial={{ opacity: 0, scale: 0.9, y: 10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            transition={{
+                type: "spring",
+                stiffness: 400,
+                damping: 30,
+                mass: 0.8
+            }}
+            className="flex items-center gap-3 px-3 py-1.5 rounded-xl bg-white/[0.04] border border-white/5 my-1 backdrop-blur-sm"
         >
-            <div className="p-1 rounded bg-primary/10">
+            <div className="p-1 rounded-md bg-primary/10">
                 <Icon className="w-3 h-3 text-primary/70" />
             </div>
 
@@ -100,7 +107,7 @@ const ToolCallUI = memo(({ call }: { call: ToolCall }) => {
             {call.status === ToolCallStatus.RUNNING ? (
                 <LoaderIcon className="w-2.5 h-2.5 text-primary/30 animate-spin" />
             ) : (
-                <CheckCircle2 className="w-2.5 h-2.5 text-emerald-500/50" />
+                <CheckCircle2 className="w-2.5 h-2.5 text-emerald-500/60" />
             )}
         </m.div>
     );
@@ -108,13 +115,14 @@ const ToolCallUI = memo(({ call }: { call: ToolCall }) => {
 ToolCallUI.displayName = "ToolCallUI";
 
 const SEQUENCE = [
-    { delay: 1000, next: 1 },
-    { delay: 800, next: 2 },
-    { delay: 1200, next: 3 },
-    { delay: 1000, next: 4 },
-    { delay: 800, next: 5 },
-    { delay: 5000, next: 0 }
+    { delay: 800, next: 1 }, // User message appear
+    { delay: 1000, next: 1.5 }, // Bot "typing" starts
+    { delay: 1500, next: 2 }, // Analyzing
+    { delay: 1000, next: 3 }, // Generating
+    { delay: 1200, next: 4 }, // Assistant message
+    { delay: 8000, next: 0 }  // Wait and then Fade Out (Reset)
 ] as const;
+const TYPING_DOT_DELAYS = [0, 0.2, 0.4] as const;
 
 export const AgentActivityVisual = memo(() => {
     const [step, setStep] = useState(0);
@@ -156,38 +164,71 @@ export const AgentActivityVisual = memo(() => {
     if (!data) return null;
 
     return (
-        <div className="absolute inset-0 bg-background select-none p-4 pt-6 overflow-hidden flex flex-col">
-            <div className="flex-1 space-y-6 max-w-sm mx-auto w-full relative transition-all duration-700 group-hover:scale-105 group-hover:rotate-1">
-                <AnimatePresence mode="popLayout">
+        <div className="absolute inset-0 bg-[#0a0a0a] select-none p-4 pt-8 overflow-hidden flex flex-col">
+            <div className="flex-1 flex flex-col space-y-4 max-w-sm mx-auto w-full relative transition-all duration-700 group-hover:scale-[1.02]">
+                <AnimatePresence mode="popLayout" initial={false}>
                     {step >= 1 && (
                         <m.div
                             key="user"
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            className="flex items-start gap-3"
+                            layout
+                            initial={{ opacity: 0, scale: 0.8, y: 20, originX: 1 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.2 } }}
+                            transition={{
+                                type: "spring",
+                                stiffness: 350,
+                                damping: 25,
+                                mass: 0.8
+                            }}
+                            className="flex flex-row-reverse items-start gap-2.5 self-end"
                         >
-                            <div className="w-6 h-6 rounded-full bg-white/5 border border-white/10 flex items-center justify-center shrink-0">
-                                <User className="w-3.5 h-3.5 text-foreground/40" />
+                            <div className="w-7 h-7 rounded-full bg-white/5 border border-white/10 flex items-center justify-center shrink-0">
+                                <User className="w-4 h-4 text-foreground/40" />
                             </div>
-                            <div className="bg-white/[0.03] border border-white/5 rounded-2xl p-3 md:p-4 text-[10px] md:text-[12px] text-foreground/80 leading-relaxed shadow-sm">
+                            <div className="relative bg-[#1c1c1e] border border-white/5 rounded-[20px] p-3.5 mt-1.5 text-[13px] text-foreground/90 leading-snug shadow-lg max-w-[85%]">
                                 {data.user}
                             </div>
                         </m.div>
                     )}
 
-                    {step >= 2 && (
+                    {step >= 1.5 && (
                         <m.div
                             key="agent"
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            className="flex items-start gap-3 w-full"
+                            layout
+                            initial={{ opacity: 0, scale: 0.8, y: 30, originX: 0 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.2, delay: 0.05 } }}
+                            transition={{
+                                type: "spring",
+                                stiffness: 350,
+                                damping: 25,
+                                mass: 1,
+                                delay: 0.1
+                            }}
+                            className="flex items-start gap-2.5 w-full"
                         >
-                            <div className="w-6 h-6 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0 shadow-[0_0_15px_rgba(var(--color-primary),0.1)]">
-                                <Bot className="w-3.5 h-3.5 text-primary" />
-                            </div>
+                            <EdwardLogo size={30} className="rounded-full border border-white/20 ring-1 ring-white/5" />
+                            <div className="flex-1 space-y-2.5">
+                                {step === 1.5 && (
+                                    <m.div
+                                        initial={{ opacity: 0, scale: 0.8 }}
+                                        animate={{ opacity: 1, scale: 1 }}
+                                        className="bg-[#1c1c1e] border border-white/5 rounded-[20px] px-4 py-2.5 w-16"
+                                    >
+                                        <div className="flex gap-1 justify-center">
+                                            {TYPING_DOT_DELAYS.map((delay) => (
+                                                <m.div
+                                                    key={`typing-dot-${delay}`}
+                                                    animate={{ opacity: [0.3, 1, 0.3] }}
+                                                    transition={{ duration: 1, repeat: Infinity, delay }}
+                                                    className="w-1.5 h-1.5 bg-foreground/40 rounded-full"
+                                                />
+                                            ))}
+                                        </div>
+                                    </m.div>
+                                )}
 
-                            <div className="flex-1 space-y-3">
-                                <div className="space-y-1">
+                                <div className="space-y-1.5">
                                     {data.tools.map((tool, idx) => (
                                         step >= 2 + idx && (
                                             <ToolCallUI key={tool.id} call={tool} />
@@ -195,11 +236,17 @@ export const AgentActivityVisual = memo(() => {
                                     ))}
                                 </div>
 
-                                {step >= 5 && (
+                                {step >= 4 && (
                                     <m.div
-                                        initial={{ opacity: 0 }}
-                                        animate={{ opacity: 1 }}
-                                        className="bg-white/[0.03] border border-white/5 rounded-2xl p-4 text-[12px] text-foreground/80 leading-relaxed"
+                                        layout
+                                        initial={{ opacity: 0, scale: 0.8, originY: 0 }}
+                                        animate={{ opacity: 1, scale: 1 }}
+                                        transition={{
+                                            type: "spring",
+                                            stiffness: 400,
+                                            damping: 30
+                                        }}
+                                        className="relative bg-primary/10 border border-primary/20 rounded-[20px] p-4 text-[13px] text-foreground/90 leading-relaxed shadow-lg backdrop-blur-md"
                                     >
                                         {data.assistant}
                                     </m.div>
@@ -210,8 +257,7 @@ export const AgentActivityVisual = memo(() => {
                 </AnimatePresence>
             </div>
 
-            <div className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-background via-background/90 to-transparent pointer-events-none z-20" />
-            <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 blur-[120px] rounded-full -translate-y-1/2 translate-x-1/2 pointer-events-none" />
+            <div className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-[#0a0a0a] via-[#0a0a0a]/80 to-transparent pointer-events-none z-20" />
         </div>
     );
 });

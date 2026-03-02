@@ -85,7 +85,7 @@ export function MessageBlockRenderer({
   let sandboxBlockRendered = false;
 
   return (
-    <div className="flex flex-col gap-3 sm:gap-4 w-full">
+    <div className="flex flex-col gap-2 sm:gap-3 w-full">
       {blocks.map((block, index) => {
         const blockKey = blockKeys[index] ?? `block-${block.type}`;
         switch (block.type) {

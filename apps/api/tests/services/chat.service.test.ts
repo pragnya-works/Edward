@@ -84,9 +84,7 @@ describe("chat service", () => {
       const result = await getOrCreateChat(mockUserId, undefined, {
         title: "New Chat",
         description: "Test description",
-        visibility: true,
       });
-
       expect(result.chatId).toBeDefined();
       expect(result.isNewChat).toBe(true);
       expect(result.error).toBeUndefined();

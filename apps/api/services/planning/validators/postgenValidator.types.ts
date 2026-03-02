@@ -1,6 +1,9 @@
+import { GENERATED_OUTPUT_FRAMEWORK } from './postgenValidator.constants.js';
+
 export const VALIDATION_VIOLATION_TYPE = {
   MISSING_ENTRY_POINT: 'missing-entry-point',
   MISSING_PROJECT_FILE: 'missing-project-file',
+  FILE_LINE_LIMIT_EXCEEDED: 'file-line-limit-exceeded',
   IMPORT_PLACEMENT: 'import-placement',
   LOGIC_QUALITY: 'logic-quality',
   ORPHANED_IMPORT: 'orphaned-import',
@@ -8,6 +11,7 @@ export const VALIDATION_VIOLATION_TYPE = {
   MISSING_PACKAGE: 'missing-package',
   MISSING_SEO_BRANDING: 'missing-seo-branding',
   INVALID_CANONICAL_URL: 'invalid-canonical-url',
+  FEATURE_SKELETON: 'feature-skeleton',
 } as const;
 
 export type ValidationViolationType =
@@ -30,6 +34,9 @@ export const GENERATED_OUTPUT_MODE = {
 export type GeneratedOutputMode =
   (typeof GENERATED_OUTPUT_MODE)[keyof typeof GENERATED_OUTPUT_MODE];
 
+export type GeneratedOutputFramework =
+  (typeof GENERATED_OUTPUT_FRAMEWORK)[keyof typeof GENERATED_OUTPUT_FRAMEWORK];
+
 export interface ValidationViolation {
   type: ValidationViolationType;
   severity: ValidationSeverity;
@@ -44,12 +51,13 @@ export interface ValidationResult {
 
 export interface GeneratedOutput {
   framework?: string;
+  intentType?: string;
   files: Map<string, string>;
   declaredPackages: string[];
   mode?: GeneratedOutputMode;
 }
 
-export type PatternRequirement = { pattern: RegExp; label: string };
+export interface PatternRequirement { pattern: RegExp; label: string }
 
 const MODE_BEHAVIOR_BY_MODE: Record<
   GeneratedOutputMode,
@@ -94,6 +102,10 @@ export function resolveGeneratedOutputModeBehavior(mode?: GeneratedOutputMode): 
 
 export function isErrorSeverity(severity: ValidationSeverity): boolean {
   return IS_ERROR_SEVERITY[severity];
+}
+
+export function isGenerateMode(mode?: GeneratedOutputMode): boolean {
+  return mode === GENERATED_OUTPUT_MODE.GENERATE;
 }
 
 export function countErrorViolations(violations: ValidationViolation[]): number {

@@ -1,18 +1,31 @@
 import type { PatternRequirement } from './postgenValidator.types.js';
 
+export const GENERATED_OUTPUT_FRAMEWORK = {
+  NEXTJS: 'nextjs',
+  VITE_REACT: 'vite-react',
+  VANILLA: 'vanilla',
+} as const;
+
 export const REQUIRED_ENTRY_POINTS: Record<string, string[]> = {
-  nextjs: ['src/app/layout.tsx', 'src/app/page.tsx'],
-  'vite-react': ['src/main.tsx', 'src/App.tsx'],
-  vanilla: ['index.html'],
+  [GENERATED_OUTPUT_FRAMEWORK.NEXTJS]: ['src/app/layout.tsx', 'src/app/page.tsx'],
+  [GENERATED_OUTPUT_FRAMEWORK.VITE_REACT]: ['src/main.tsx', 'src/App.tsx'],
+  [GENERATED_OUTPUT_FRAMEWORK.VANILLA]: ['index.html'],
 };
 
 export const REQUIRED_CSS_IMPORTS: Record<string, { file: string; importPattern: RegExp }> = {
-  nextjs: { file: 'src/app/layout.tsx', importPattern: /import\s+['"]\.\/globals\.css['"]/ },
-  'vite-react': { file: 'src/main.tsx', importPattern: /import\s+['"]\.\/index\.css['"]/ },
+  [GENERATED_OUTPUT_FRAMEWORK.NEXTJS]: {
+    file: 'src/app/layout.tsx',
+    importPattern: /import\s+['"]\.\/globals\.css['"]/,
+  },
+  [GENERATED_OUTPUT_FRAMEWORK.VITE_REACT]: {
+    file: 'src/main.tsx',
+    importPattern: /import\s+['"]\.\/index\.css['"]/,
+  },
 };
 
 export const REQUIRED_GENERATE_PROJECT_FILES = ['README.md'] as const;
 export const REQUIRED_GENERATE_PROJECT_FILES_BY_FRAMEWORK: Record<string, readonly string[]> = {};
+export const MAX_GENERATED_FILE_LINES = 200;
 export const SOURCE_FILE_PATTERN = /\.(ts|tsx|js|jsx)$/i;
 export const MARKDOWN_FENCE_PATTERN = /^```/m;
 export const RELATIVE_IMPORT_PATTERN = /(?:import|from)\s+['"](\.[^'"]+)['"]/g;
@@ -20,8 +33,13 @@ export const PACKAGE_IMPORT_PATTERN = /(?:import|from)\s+['"]([^./][^'"]*)['"]/g
 export const EMPTY_ROOT_COMPONENT_PATTERN =
   /export\s+default\s+function[\s\S]*?return\s+(?:null|<>\s*<\/>|<React\.Fragment>\s*<\/React\.Fragment>)\s*;?/m;
 export const PLACEHOLDER_PATTERN =
-  /\b(?:TODO|FIXME|TBD)\b|lorem ipsum|your content here|replace with your/i;
-export const EMPTY_HANDLER_PATTERN = /\bon[A-Z][A-Za-z0-9_]*=\{\s*\(\)\s*=>\s*\{\s*\}\s*\}/;
+  /\b(?:FIXME|TBD)\b|lorem ipsum|your content here|replace with your/i;
+export const COMMENT_STUB_PATTERN =
+  /(?:^|[^\S\r\n])(?:\/\/\s*(?:TODO|implement|add logic|add here|placeholder|stub|coming soon)\b|\/\*[\s\S]*?\b(?:TODO|implement|add logic|add here|placeholder|stub|coming soon)\b[\s\S]*?\*\/)/im;
+export const SAMPLE_CONTENT_PATTERN =
+  /\b(?:Sample Product|Product \d+|My Project \d+|\[Your Name\]|\[Company Name\])\b/i;
+export const EMPTY_HANDLER_PATTERN =
+  /\b(?:on[A-Z][A-Za-z0-9_]*)\s*=\s*\{\s*(?:\(\s*\))?\s*=>\s*\{\s*\}\s*\}|const\s+[a-z][A-Za-z0-9_]*\s*=\s*\(\s*\)\s*=>\s*\{\s*\}/;
 export const INVALID_ZUSTAND_DEFAULT_IMPORT_PATTERN =
   /^\s*import\s+[A-Za-z_$][\w$]*\s*(?:,\s*\{[^}]*\})?\s+from\s+["']zustand["'];?/m;
 export const LOCAL_FILE_EXTENSIONS = [

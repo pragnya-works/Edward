@@ -63,6 +63,7 @@ interface SandboxPreviewBarProps {
   url: string | null;
   canGoBack: boolean;
   canGoForward: boolean;
+  isRefreshing?: boolean;
   onBack: () => void;
   onForward: () => void;
   onOpenInNewTab: () => void;
@@ -73,6 +74,7 @@ export function SandboxPreviewBar({
   url,
   canGoBack,
   canGoForward,
+  isRefreshing = false,
   onBack,
   onForward,
   onOpenInNewTab,
@@ -210,11 +212,11 @@ export function SandboxPreviewBar({
               variant="ghost"
               size="icon"
               aria-label="Refresh preview"
-              disabled={!url}
+              disabled={!url || isRefreshing}
               onClick={onRefresh}
               className="h-7 w-7 rounded-full text-workspace-foreground disabled:opacity-35 hover:bg-workspace-hover"
             >
-              <RefreshCw className="h-3.5 w-3.5" />
+              <RefreshCw className={cn("h-3.5 w-3.5 transition-transform", isRefreshing && "animate-spin")} />
             </Button>
           </div>
         </div>

@@ -1,15 +1,17 @@
 import type { MetadataRoute } from "next";
 import { getCanonicalUrl } from "@/lib/seo/siteUrl";
 
-type StaticRoute = {
+interface StaticRoute {
   path: string;
   changeFrequency: "always" | "hourly" | "daily" | "weekly" | "monthly" | "yearly" | "never";
   priority: number;
-};
+}
 
 const STATIC_ROUTES: StaticRoute[] = [
   { path: "/", changeFrequency: "daily", priority: 1 },
   { path: "/changelog", changeFrequency: "weekly", priority: 0.7 },
+  { path: "/privacy", changeFrequency: "yearly", priority: 0.3 },
+  { path: "/terms", changeFrequency: "yearly", priority: 0.3 },
 ];
 
 export default function sitemap(): MetadataRoute.Sitemap {
