@@ -25,6 +25,7 @@ import {
   pollBuildStatusForChat,
 } from "@/hooks/chat/sandbox-sync/buildSyncPolling";
 import { useSandboxDataFetchers } from "@/hooks/server-state/useSandboxData";
+import { captureException } from "@sentry/nextjs";
 
 export function useSandboxBuildSync({
   chatIdFromUrl,
@@ -151,7 +152,7 @@ export function useSandboxBuildSync({
           requestSeq === filesRequestSeqRef.current &&
           isCurrentRoute(chatId, epoch)
         ) {
-          console.error("Failed to load sandbox files:", error);
+          captureException(error);
         }
       } finally {
         if (filesLoadInFlightChatIdRef.current === chatId) {
