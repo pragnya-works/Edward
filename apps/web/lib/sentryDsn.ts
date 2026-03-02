@@ -21,7 +21,7 @@ export function isValidSentryDsn(rawDsn: string): boolean {
 
 export function getValidatedSentryDsn(
   rawDsn: string | undefined,
-  runtime: "client" | "server",
+  _runtime: "client" | "server",
 ): string | undefined {
   if (!rawDsn) {
     return undefined;

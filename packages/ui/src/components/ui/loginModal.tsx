@@ -34,7 +34,7 @@ export function LoginModal({ isOpen, onClose, onSignIn, onError }: LoginModalPro
     } finally {
       setIsLoading(false);
     }
-  }, [onSignIn, onClose]);
+  }, [onSignIn, onClose, onError]);
 
   return (
     <Dialog
