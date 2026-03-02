@@ -298,16 +298,16 @@ reviews:
         mode: error
         instructions: "Fail if the diff introduces any hardcoded API keys, tokens, passwords, or secrets. Look for patterns like sk-, Bearer , _SECRET, _KEY, _TOKEN assigned to string literals. Environment variable references like process.env.X are acceptable."
       - name: "Env vars documented"
-        mode: warning
+        mode: error
         instructions: "If the diff introduces a new environment variable reference (process.env.NEW_VAR), check that it is also added to .env.example or an equivalent documentation file. Fail if a new env var is used but not documented."
       - name: "No console.log in production code"
-        mode: warning
+        mode: error
         instructions: "Fail if the diff adds console.log, console.warn, or console.error statements in non-test source files under apps/ or packages/. Structured logging via a logger utility is acceptable."
       - name: "SSE cleanup present"
         mode: error
         instructions: "If the diff modifies any SSE endpoint handler or EventSource client code, verify that the connection is explicitly closed in all exit paths on the server (error handler, timeout, SIGTERM) and that the EventSource is closed in the cleanup function on the client (useEffect return). Fail if cleanup is missing."
       - name: "TypeScript strict compliance"
-        mode: warning
+        mode: error
         instructions: "Fail if the diff introduces `any` type without an explanatory comment, a `@ts-ignore` or `@ts-expect-error` without a ticket reference, or a non-null assertion `!` on a value that could be null based on context."
 
   tools:
