@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useRef } from "react";
+import { cancelRun } from "@/lib/api/chat";
 import { useSandboxSync } from "@/hooks/chat/useSandboxSync";
 import { useActiveRunLookup } from "@/hooks/server-state/useActiveRun";
 import {
@@ -9,6 +10,12 @@ import {
   isNoRunLookupOnCooldown,
   markNoRunLookupCooldown,
 } from "@/hooks/chat/activeRunCooldown";
+import {
+  clearRunStopIntent,
+  hasRunStopIntent,
+  markRunStopIntentAttempt,
+  shouldAttemptRunStopIntent,
+} from "@/lib/chat/runStopIntent";
 
 interface UseChatPageOrchestrationParams {
   chatId: string;
@@ -29,6 +36,17 @@ const AGGRESSIVE_ACTIVE_RUN_ERROR_ATTEMPTS = 4;
 const SINGLE_ACTIVE_RUN_LOOKUP_ATTEMPTS = 1;
 const ACTIVE_RUN_LOOKUP_BASE_RETRY_MS = 350;
 const ACTIVE_RUN_LOOKUP_MAX_RETRY_MS = 2000;
+
+function reportActiveRunOrchestrationError(
+  context: string,
+  chatId: string,
+  error: unknown,
+): void {
+  if (process.env.NODE_ENV === "production") {
+    return;
+  }
+  console.error(`[chatOrchestration:${chatId}] ${context}`, error);
+}
 
 function getRetryDelayMs(attempt: number): number {
   return Math.min(
@@ -115,6 +133,69 @@ export function useChatPageOrchestration({
   useEffect(() => {
     if (!chatId || hasActiveStreamState || activeRunLookupMode === "defer") {
       return;
+    }
+
+    const stopIntentLookupKey = `stop:${chatId}`;
+    if (hasRunStopIntent(chatId)) {
+      if (!shouldAttemptRunStopIntent(chatId)) {
+        return;
+      }
+
+      if (resumeLookupInFlightRef.current === stopIntentLookupKey) {
+        return;
+      }
+
+      resumeLookupInFlightRef.current = stopIntentLookupKey;
+      markRunStopIntentAttempt(chatId);
+      const abortController = new AbortController();
+
+      void (async () => {
+        if (abortController.signal.aborted) {
+          return;
+        }
+
+        try {
+          const response = await fetchActiveRun({
+            signal: abortController.signal,
+            staleTimeMs: 0,
+          });
+          const activeRun = response?.data.run;
+          if (!activeRun) {
+            clearRunStopIntent(chatId);
+            clearCachedActiveRun();
+            return;
+          }
+
+          await cancelRun(chatId, activeRun.id);
+          await waitForRetry(0, abortController.signal);
+
+          const finalStatus = await fetchActiveRun({
+            signal: abortController.signal,
+            staleTimeMs: 0,
+          });
+          if (!finalStatus?.data.run) {
+            clearRunStopIntent(chatId);
+            clearCachedActiveRun();
+          }
+        } catch (error) {
+          if (isAbortError(error) || abortController.signal.aborted) {
+            return;
+          }
+          reportActiveRunOrchestrationError(
+            "stop-intent cancel verification failed",
+            chatId,
+            error,
+          );
+        }
+      })().finally(() => {
+        if (resumeLookupInFlightRef.current === stopIntentLookupKey) {
+          resumeLookupInFlightRef.current = null;
+        }
+      });
+
+      return () => {
+        abortController.abort();
+      };
     }
 
     const noRunLookupKey = buildNoRunLookupCooldownKey(

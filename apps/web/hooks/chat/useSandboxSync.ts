@@ -9,7 +9,7 @@ import { useChatStream } from "@/contexts/chatStreamContext";
 import {
   useSandbox,
 } from "@/contexts/sandboxContext";
-import { BuildStatus, SandboxMode } from "@/stores/sandbox/types";
+import { BuildStatus } from "@/stores/sandbox/types";
 import { useBuildStatusSync } from "@/hooks/chat/useBuildStatusSync";
 import { useSandboxStreamFileSync } from "@/hooks/chat/sandbox-sync/useSandboxStreamFileSync";
 import { sanitizeTerminalOutput } from "@/lib/parsing/terminalOutput";
@@ -88,12 +88,14 @@ export function useSandboxSync(chatIdFromUrl: string | undefined) {
   const previousBuildStatusRef = useRef<BuildStatus>(buildStatus);
   const previousPreviewUrlRef = useRef<string | null>(previewUrl);
   const seenTerminalEventKeysRef = useRef<Set<string>>(new Set());
+  const buildStatusEventSeqRef = useRef(0);
 
   const resetTerminalTracking = useCallback(() => {
     previousCommandSignatureRef.current = null;
     previousErrorSignatureRef.current = null;
     previousSandboxingRef.current = false;
     previousInstallingDepsRef.current = "";
+    buildStatusEventSeqRef.current = 0;
     seenTerminalEventKeysRef.current.clear();
   }, []);
 
@@ -146,7 +148,6 @@ export function useSandboxSync(chatIdFromUrl: string | undefined) {
     activeFiles: stream.activeFiles,
     completedFiles: stream.completedFiles,
     openSandbox: openSandboxForRoute,
-    switchToCodeMode: () => setMode(SandboxMode.CODE),
     startStreaming,
     stopStreaming,
     updateFile,
@@ -182,6 +183,8 @@ export function useSandboxSync(chatIdFromUrl: string | undefined) {
 
     clearTerminalEntries();
     resetTerminalTracking();
+    previousBuildStatusRef.current = BuildStatus.IDLE;
+    previousPreviewUrlRef.current = null;
     appendTerminalEntry({
       kind: "system",
       message: "Edward run started",
@@ -308,10 +311,14 @@ export function useSandboxSync(chatIdFromUrl: string | undefined) {
           ? "error"
           : "system";
 
-    appendUniqueTerminalEntry(`build:${buildStatus}`, {
-      kind,
-      message,
-    });
+    buildStatusEventSeqRef.current += 1;
+    appendUniqueTerminalEntry(
+      `build:${buildStatus}:${buildStatusEventSeqRef.current}`,
+      {
+        kind,
+        message,
+      },
+    );
   }, [appendUniqueTerminalEntry, buildStatus]);
 
   useEffect(() => {

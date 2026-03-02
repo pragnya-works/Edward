@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { AgentLoopStopReason } from "@edward/shared/streamEvents";
-import { createStoredAssistantContent } from "../../../controllers/chat/session/orchestrator/runStreamSession.helpers.js";
+import { createStoredAssistantContent } from "../../../controllers/chat/session/orchestrator/runStreamSession.content.js";
 
 describe("createStoredAssistantContent", () => {
   it("strips only known no-op closing control tags from stored assistant content", () => {

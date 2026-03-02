@@ -57,7 +57,7 @@ export function AssistantErrorCard({
           <AlertTriangle
             className={cn(
               "h-3.5 w-3.5",
-              isCaution ? "text-amber-300" : "text-destructive",
+              isCaution ? "text-amber-600" : "text-destructive",
             )}
           />
         </div>

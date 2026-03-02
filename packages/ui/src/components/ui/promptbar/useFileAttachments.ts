@@ -98,10 +98,10 @@ export function useFileAttachments(
       prev.map((file) =>
         failedSet.has(file.id)
           ? {
-              ...file,
-              status: AttachmentUploadStatus.FAILED,
-              error: errorMessage,
-            }
+            ...file,
+            status: AttachmentUploadStatus.FAILED,
+            error: errorMessage,
+          }
           : file,
       ),
     );
@@ -124,12 +124,12 @@ export function useFileAttachments(
             prev.map((f) =>
               f.id === item.id
                 ? {
-                    ...f,
-                    status: AttachmentUploadStatus.UPLOADED,
-                    cdnUrl: uploaded.url,
-                    mimeType: uploaded.mimeType,
-                    error: undefined,
-                  }
+                  ...f,
+                  status: AttachmentUploadStatus.UPLOADED,
+                  cdnUrl: uploaded.url,
+                  mimeType: uploaded.mimeType,
+                  error: undefined,
+                }
                 : f,
             ),
           );
@@ -230,10 +230,10 @@ export function useFileAttachments(
           prev.map((item) =>
             newFiles.some((f) => f.id === item.id)
               ? {
-                  ...item,
-                  status: AttachmentUploadStatus.FAILED,
-                  error: "Image upload is not configured.",
-                }
+                ...item,
+                status: AttachmentUploadStatus.FAILED,
+                error: "Image upload is not configured.",
+              }
               : item,
           ),
         );
@@ -276,7 +276,6 @@ export function useFileAttachments(
       );
       if (imageFiles.length === 0) return;
 
-      // Prevent pasting opaque binary content into the prompt when clipboard holds images.
       e.preventDefault();
       void handleFiles(imageFiles);
     },

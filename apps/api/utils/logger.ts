@@ -9,6 +9,17 @@ export enum Environment {
 const env = (process.env.NODE_ENV as Environment) || Environment.Development;
 const isProduction = env === Environment.Production;
 
+const prettyTransport = !isProduction
+  ? pino.transport({
+      target: "pino-pretty",
+      options: {
+        colorize: true,
+        ignore: "pid,hostname",
+        translateTime: "SYS:standard",
+      },
+    })
+  : undefined;
+
 const REDACT_PATHS = [
   'req',
   'request',
@@ -39,31 +50,24 @@ const REDACT_PATHS = [
 ];
 
 export const createLogger = (processName?: string) => {
-  return pino({
-    level: isProduction ? 'silent' : 'debug',
-    redact: {
-      paths: REDACT_PATHS,
-      censor: '[REDACTED]',
+  return pino(
+    {
+      level: isProduction ? "silent" : "debug",
+      redact: {
+        paths: REDACT_PATHS,
+        censor: "[REDACTED]",
+      },
+      serializers: {
+        error: pino.stdSerializers.err,
+        err: pino.stdSerializers.err,
+      },
+      base: {
+        env,
+        ...(processName && { process: processName }),
+      },
     },
-    serializers: {
-      error: pino.stdSerializers.err,
-      err: pino.stdSerializers.err,
-    },
-    transport: !isProduction
-      ? {
-        target: "pino-pretty",
-        options: {
-          colorize: true,
-          ignore: "pid,hostname",
-          translateTime: "SYS:standard",
-        },
-      }
-      : undefined,
-    base: {
-      env,
-      ...(processName && { process: processName }),
-    },
-  });
+    prettyTransport,
+  );
 };
 
 export const logger = createLogger();

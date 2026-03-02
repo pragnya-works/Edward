@@ -70,13 +70,13 @@ function PreviewUrlSection({
       <div
         className={cn(
           "flex items-center gap-2 rounded-lg border border-workspace-border/50 bg-workspace-bg/40 px-3 py-2.5 transition-all duration-300",
-          isPreviewAvailable && "border-emerald-500/20 bg-emerald-500/[0.03]",
+          isPreviewAvailable && "border-emerald-500/40 bg-emerald-500/10 dark:bg-emerald-500/[0.07]",
         )}
       >
         <span
           className={cn(
             "min-w-0 flex-1 truncate font-mono text-[12px] transition-colors duration-200",
-            isPreviewAvailable ? "text-emerald-400" : "text-workspace-foreground/50",
+            isPreviewAvailable ? "text-emerald-600 dark:text-emerald-400" : "text-workspace-foreground/50",
           )}
         >
           {previewUrl}
@@ -85,7 +85,7 @@ function PreviewUrlSection({
           <m.span
             initial={{ opacity: 0, scale: 0.8 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="shrink-0 text-[10px] font-semibold uppercase tracking-wider text-emerald-500"
+            className="shrink-0 text-[10px] font-semibold uppercase tracking-wider text-emerald-700 dark:text-emerald-500"
           >
             Available
           </m.span>

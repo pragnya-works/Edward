@@ -33,6 +33,7 @@ interface PollBuildStatusForChatParams {
   pushConnectedRef: RefObject<boolean>;
   pushTerminalRef: RefObject<boolean>;
   buildInFlightRef: RefObject<boolean>;
+  buildExpectedFromMsRef: RefObject<number | null>;
 }
 
 export async function pollBuildStatusForChat({
@@ -51,6 +52,7 @@ export async function pollBuildStatusForChat({
   pushConnectedRef,
   pushTerminalRef,
   buildInFlightRef,
+  buildExpectedFromMsRef,
 }: PollBuildStatusForChatParams): Promise<void> {
   const scheduleNextPoll = () => {
     if (!isCurrentRoute(chatId, epoch)) {
@@ -100,11 +102,32 @@ export async function pollBuildStatusForChat({
     const build = response.data.build;
 
     if (!build) {
+      if (buildInFlightRef.current) {
+        scheduleNextPoll();
+        return;
+      }
       setBuildStatus(BuildStatus.IDLE);
       setBuildError(null);
       setFullErrorReport(null);
       pushTerminalRef.current = true;
       buildInFlightRef.current = false;
+      return;
+    }
+
+    const buildCreatedAtMs = Date.parse(build.createdAt);
+    const buildExpectedFromMs = buildExpectedFromMsRef.current;
+    const isBuildTerminal =
+      build.status === BuildRecordStatus.SUCCESS ||
+      build.status === BuildRecordStatus.FAILED;
+    const isStaleTerminalWhileAwaitingNewBuild =
+      isBuildTerminal &&
+      buildInFlightRef.current &&
+      typeof buildExpectedFromMs === "number" &&
+      Number.isFinite(buildCreatedAtMs) &&
+      buildCreatedAtMs + 1_000 < buildExpectedFromMs;
+
+    if (isStaleTerminalWhileAwaitingNewBuild) {
+      scheduleNextPoll();
       return;
     }
 

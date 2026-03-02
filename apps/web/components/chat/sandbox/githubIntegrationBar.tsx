@@ -57,14 +57,18 @@ export function GithubIntegrationBar() {
             integration.isCheckingStatus ||
             integration.isGithubRateLimited
           }
-          className="h-8 rounded-lg px-3 text-[12px] font-semibold tracking-tight"
+          aria-label={integration.actionLabel}
+          className="h-8 rounded-lg px-2 md:px-3 text-[12px] font-semibold tracking-tight"
         >
           {integration.isSubmitting || integration.isCheckingStatus ? (
             <LoaderIcon className="h-3.5 w-3.5 animate-spin" />
           ) : (
             <>
-              <GitHub className="h-4 w-4" />
-              {integration.actionLabel}
+              <GitHub className="h-4 w-4 shrink-0" />
+              {/* Text label hidden on small screens, visible md+ */}
+              <span className="hidden md:inline">
+                {integration.actionLabel}
+              </span>
             </>
           )}
         </Button>

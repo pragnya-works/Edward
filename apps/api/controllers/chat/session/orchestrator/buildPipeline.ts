@@ -7,6 +7,7 @@ import { flushSandbox } from "../../../../services/sandbox/write/flush.js";
 import {
   validateGeneratedOutput,
 } from "../../../../services/planning/validators/postgenValidator.js";
+import { isErrorSeverity } from "../../../../services/planning/validators/postgenValidator.types.js";
 import type { ChatAction } from "../../../../services/planning/schemas.js";
 import { redis } from "../../../../lib/redis.js";
 import { ensureError } from "../../../../utils/error.js";
@@ -68,7 +69,7 @@ export async function processBuildPipeline(
 
     if (!validation.valid) {
       const errorViolations = validation.violations.filter(
-        (v) => v.severity === "error",
+        (v) => isErrorSeverity(v.severity),
       );
       logger.warn(
         { violations: errorViolations, chatId },
@@ -101,6 +102,9 @@ export async function processBuildPipeline(
       messageId: assistantMessageId,
       status: BuildRecordStatus.FAILED,
     });
+    if (!failedBuild) {
+      throw new Error(`Failed to create failed build record for chatId: ${chatId}`);
+    }
 
     await updateBuild(failedBuild.id, {
       status: BuildRecordStatus.FAILED,
@@ -146,6 +150,9 @@ export async function processBuildPipeline(
     messageId: assistantMessageId,
     status: BuildRecordStatus.QUEUED,
   });
+  if (!queuedBuild) {
+    throw new Error(`Failed to create queued build record for chatId: ${chatId}`);
+  }
 
   const buildStatusChannel = `edward:build-status:${chatId}`;
   const publishBuildStatus = async (payload: Record<string, unknown>) => {

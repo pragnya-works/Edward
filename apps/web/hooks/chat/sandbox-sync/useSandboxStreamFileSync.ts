@@ -5,7 +5,6 @@ interface UseSandboxStreamFileSyncParams {
   activeFiles: StreamedFile[];
   completedFiles: StreamedFile[];
   openSandbox: () => void;
-  switchToCodeMode: () => void;
   startStreaming: (filePath: string) => void;
   stopStreaming: () => void;
   updateFile: (file: { path: string; content: string; isComplete: boolean }) => void;
@@ -15,7 +14,6 @@ export function useSandboxStreamFileSync({
   activeFiles,
   completedFiles,
   openSandbox,
-  switchToCodeMode,
   startStreaming,
   stopStreaming,
   updateFile,
@@ -31,7 +29,6 @@ export function useSandboxStreamFileSync({
       const firstActiveFile = activeFiles[0];
       if (firstActiveFile) {
         openSandbox();
-        switchToCodeMode();
         startStreaming(firstActiveFile.path);
       }
     }
@@ -74,7 +71,6 @@ export function useSandboxStreamFileSync({
     completedFiles,
     isNowStreaming,
     openSandbox,
-    switchToCodeMode,
     startStreaming,
     stopStreaming,
     updateFile,

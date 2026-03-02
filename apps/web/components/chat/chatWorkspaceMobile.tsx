@@ -1,11 +1,16 @@
+import { useState } from "react";
 import { Sheet, SheetContent } from "@edward/ui/components/sheet";
 import AuthenticatedPromptbar from "@/components/authenticatedPromptbar";
 import { ChatMessageList } from "@/components/chat/messages/chatMessageList";
 import { SandboxPanel } from "@/components/chat/sandbox/sandboxPanel";
 import { useSandbox } from "@/contexts/sandboxContext";
+import { NotificationOptIn } from "@/components/chat/notificationOptIn";
+import { useChatWorkspaceContext } from "@/components/chat/chatWorkspaceContext";
 
 export function ChatWorkspaceMobile() {
   const { isOpen: sandboxOpen, closeSandbox } = useSandbox();
+  const { chatId } = useChatWorkspaceContext();
+  const [isTopPromptContextVisible, setIsTopPromptContextVisible] = useState(false);
 
   return (
     <div className="flex h-[100dvh] w-full overflow-hidden">
@@ -14,7 +19,13 @@ export function ChatWorkspaceMobile() {
           <ChatMessageList />
         </div>
         <div className="shrink-0 w-full max-w-4xl mx-auto px-4 pb-6 pt-2">
-          <AuthenticatedPromptbar />
+          <NotificationOptIn
+            chatId={chatId}
+            suppressWhenTopContextVisible={isTopPromptContextVisible}
+          />
+          <AuthenticatedPromptbar
+            onTopContextVisibilityChange={setIsTopPromptContextVisible}
+          />
         </div>
       </div>
 

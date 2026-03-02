@@ -21,10 +21,12 @@ import { resolveFramework } from "./frameworkResolution.js";
 import { prepareBaseMessages } from "./messagePreparation.js";
 import { setupStreamGuards } from "./streamGuards.js";
 import { applyDeterministicPostgenAutofixes } from "./postgenAutofix.js";
+import { scheduleChatMetaGeneration } from "./chatMetaGeneration.js";
 import { finalizeStreamSession } from "./runStreamSession.finalize.js";
 import {
   resolveMode,
   getBlockingPostgenViolations,
+  updateFrameworkFromWorkflow,
   handleContextLimitExceeded,
   handleAbortedLoop,
   handleStreamSessionError,
@@ -95,6 +97,7 @@ export async function runStreamSession(
     framework = await resolveFramework({
       workflow,
       framework,
+      userRequest: userTextContent,
     });
 
     const { baseMessages, urlScrapeResults } = await prepareBaseMessages({
@@ -129,6 +132,13 @@ export async function runStreamSession(
       phase: MetaPhase.SESSION_START,
       intent,
       tokenUsage,
+    });
+
+    scheduleChatMetaGeneration({
+      isFollowUp,
+      decryptedApiKey,
+      userContent,
+      chatId,
     });
 
     if (isOverContextLimit(tokenUsage)) {
@@ -178,6 +188,7 @@ export async function runStreamSession(
       loopStopReason: loopResult.loopStopReason,
       webSearchResults: loopResult.webSearchResults,
     };
+    framework = updateFrameworkFromWorkflow(workflow, framework);
 
     await applyDeterministicPostgenAutofixes({
       framework,
@@ -193,6 +204,7 @@ export async function runStreamSession(
       framework,
       declaredPackages,
       mode,
+      intentType: workflow.context.intent?.type,
     });
 
     const strictRetryResult = await maybeRunStrictPostgenRetry({
@@ -220,6 +232,7 @@ export async function runStreamSession(
     loopState = strictRetryResult.loopState;
     tokenUsage = strictRetryResult.tokenUsage;
     fullRawResponse = loopState.fullRawResponse;
+    framework = updateFrameworkFromWorkflow(workflow, framework);
 
     await applyDeterministicPostgenAutofixes({
       framework,
@@ -240,9 +253,6 @@ export async function runStreamSession(
       chatId,
       assistantMessageId,
       runId,
-      userContent,
-      isFollowUp,
-      decryptedApiKey,
       workflow,
       res,
       framework,

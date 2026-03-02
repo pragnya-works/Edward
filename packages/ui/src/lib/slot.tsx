@@ -60,7 +60,7 @@ function composeRefs<T>(...refs: (React.Ref<T> | undefined)[]) {
       if (typeof ref === "function") {
         ref(node)
       } else if (ref != null && typeof ref === "object" && "current" in ref) {
-          (ref as React.MutableRefObject<T>).current = node
+          (ref as React.RefObject<T | null>).current = node
       }
     })
   }

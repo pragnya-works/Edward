@@ -15,6 +15,7 @@ import {
   saveAttachments,
   saveMessage,
 } from "../chat.service.js";
+import { deriveInitialChatMetadata } from "../chatMeta.service.js";
 import {
   createWorkflow,
   advanceWorkflow,
@@ -95,10 +96,18 @@ export async function unifiedSendMessage(
       return;
     }
 
+    const parsedContent = await parseMultimodalContent(body.content);
+    const seededMetadata = deriveInitialChatMetadata({
+      userTextContent: parsedContent.textContent,
+      hasImages: parsedContent.hasImages,
+    });
+    const initialTitle = body.title?.trim() || seededMetadata.title;
+    const initialDescription =
+      body.description?.trim() || seededMetadata.description;
+
     const chatResult = await getOrCreateChat(userId, body.chatId, {
-      title: body.title,
-      description: body.description,
-      visibility: body.visibility,
+      title: initialTitle,
+      description: initialDescription,
     });
 
     if (chatResult.error) {
@@ -117,7 +126,6 @@ export async function unifiedSendMessage(
 
     const retryTargets = await resolveRetryTargets(userId, chatId, body);
 
-    const parsedContent = await parseMultimodalContent(body.content);
     const selectedModel = body.model || preferredModel;
 
     if (parsedContent.hasImages && selectedModel && !modelSupportsVision(selectedModel)) {

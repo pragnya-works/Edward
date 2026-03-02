@@ -158,14 +158,6 @@ export async function streamBuildEvents(
           chatId,
         });
       }
-
-      if (
-        latestBuild.status === BuildRecordStatus.SUCCESS ||
-        latestBuild.status === BuildRecordStatus.FAILED
-      ) {
-        await closeStream();
-        return;
-      }
     }
 
     const onMessage = (payload: string) => {

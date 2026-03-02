@@ -33,7 +33,7 @@ interface ChatMetaResponse {
     description: string | null;
     seoTitle: string | null;
     seoDescription: string | null;
-    updatedAt: string | Date;
+    updatedAt: string;
   };
 }
 

@@ -108,6 +108,7 @@ export function connectBuildEvents({
       const parsed = JSON.parse(event.data) as BuildEventPayload;
 
       if (parsed.type === ParserEventType.BUILD_STATUS && parsed.status) {
+        const wasBuildInFlight = refs.buildInFlightRef.current;
         applyBuildStatus({
           status: parsed.status,
           previewUrl: parsed.previewUrl,
@@ -118,8 +119,12 @@ export function connectBuildEvents({
           parsed.status === BuildRecordStatus.SUCCESS ||
           parsed.status === BuildRecordStatus.FAILED
         ) {
-          refs.pushTerminalRef.current = true;
-          closeBuildEvents(refs);
+          if (wasBuildInFlight) {
+            refs.pushTerminalRef.current = true;
+            closeBuildEvents(refs);
+            return;
+          }
+          refs.pushTerminalRef.current = false;
           return;
         }
       }

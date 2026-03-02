@@ -24,7 +24,7 @@ export function buildPostgenRetryPrompt(
 
   const modeInstruction =
     options.mode === ChatAction.GENERATE
-      ? "Regenerate a complete, buildable project output with required entry files and project files."
+      ? "Regenerate with ALL features fully implemented — no scaffolds, no stubs, no empty handlers. Every feature the user named must have working state, real event handlers, and navigable routes."
       : "Apply only the minimum targeted fixes required to resolve all listed validation errors.";
 
   return [

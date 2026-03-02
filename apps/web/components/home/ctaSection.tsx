@@ -1,13 +1,32 @@
+"use client";
+
+import { useState } from "react";
 import { Button } from "@edward/ui/components/button";
 import { FlickeringGrid } from "@edward/ui/components/flickering-grid";
 import { AnimatedShinyText } from "@edward/ui/components/animated-shiny-text";
 import { ArrowRight } from "lucide-react";
 import { cn } from "@edward/ui/lib/utils";
+import { useSession, signIn } from "@/lib/auth-client";
+import { LoginModal } from "@edward/ui/components/ui/loginModal";
+import { FadeInOnScroll } from "./fadeInOnScroll";
 
 export function CTASection() {
+    const { data: session } = useSession();
+    const isAuth = !!session?.user;
+    const [showLoginModal, setShowLoginModal] = useState(false);
+
+
+    const handleGetStarted = () => {
+        if (isAuth) {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        } else {
+            setShowLoginModal(true);
+        }
+    };
+
     return (
         <section className="relative z-10 py-24 px-4 overflow-hidden">
-            <div className="mx-auto max-w-5xl rounded-3xl bg-card/50 border border-border p-12 text-center text-foreground relative overflow-hidden group">
+            <FadeInOnScroll className="mx-auto max-w-5xl rounded-3xl bg-card/50 border border-border p-12 text-center text-foreground relative overflow-hidden group">
                 <FlickeringGrid
                     className="absolute inset-0 z-0 [mask-image:radial-gradient(450px_circle_at_center,white,transparent)]"
                     squareSize={4}
@@ -36,12 +55,21 @@ export function CTASection() {
                         Experience the fastest way to build modern frontend applications with Edward&apos;s AI-driven workflow.
                     </p>
                     <div className="flex flex-col sm:flex-row justify-center gap-4">
-                        <Button size="lg" className="bg-primary rounded-full text-primary-foreground hover:bg-primary/90 h-12 px-8 text-base">
+                        <Button
+                            size="lg"
+                            className="bg-primary rounded-full text-primary-foreground hover:bg-primary/90 h-12 px-8 text-base"
+                            onClick={handleGetStarted}
+                        >
                             Get Started for Free
                         </Button>
                     </div>
                 </div>
-            </div>
+            </FadeInOnScroll>
+            <LoginModal
+                isOpen={showLoginModal}
+                onClose={() => setShowLoginModal(false)}
+                onSignIn={signIn}
+            />
         </section>
-    )
+    );
 }
