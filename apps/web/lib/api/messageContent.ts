@@ -34,10 +34,7 @@ function normalizeImageMimeType(
   ) {
     return mimeType as UploadableImageMimeType;
   }
-  captureMessage(
-    `Image type ${mimeType} not supported. Sending URL without mime.`,
-    "warning",
-  );
+  captureMessage("Unsupported image mime type. Sending URL without mime.", "warning");
   return undefined;
 }
 

@@ -30,7 +30,11 @@ export function LoginModal({ isOpen, onClose, onSignIn, onError }: LoginModalPro
       await onSignIn?.();
       onClose();
     } catch (error) {
-      onError?.(error);
+      if (onError) {
+        onError(error);
+      } else {
+        throw error instanceof Error ? error : new Error("Login failed");
+      }
     } finally {
       setIsLoading(false);
     }

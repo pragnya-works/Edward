@@ -164,7 +164,7 @@ reviews:
 
         - Are all components fully accessible: ARIA, keyboard navigation, focus management?
         - Are prop types exhaustive — no missing optional vs required distinctions?
-        - Do components that may need ref forwarding use `React.forwardRef`?
+        - Do components that may need ref forwarding use `React.forwardRef`? Version-aware rule: for React <19, `React.forwardRef` is required for ref forwarding; for React 19+ (apps/web and packages/ui currently use `react@^19.2.3`), refs can be passed as normal props. Use `React.forwardRef` when cross-version compatibility or explicit ref semantics are needed.
         - Is `dangerouslySetInnerHTML` absent or properly guarded?
         - Is the component API stable? Breaking changes cascade to all consuming apps.
         - Are loading, error, and empty states handled for every data-displaying component?
@@ -181,7 +181,7 @@ reviews:
         - Are non-zero exit codes set on failure so CI/CD catches errors?
         - Are file paths constructed safely — no path traversal via `../`?
 
-    - path: "docker/**"
+    - path: "{docker/**,**/Dockerfile,**/Dockerfile.*,**/docker-compose.*,**/*.dockerfile}"
       instructions: |
         Docker and container security.
 
