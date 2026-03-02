@@ -31,6 +31,340 @@ describe("Post-Generation Validator", () => {
     ).toBe(true);
   });
 
+  test("should fail when a generated file exceeds 200 lines", () => {
+    const oversizedFile = Array.from(
+      { length: 201 },
+      (_, index) => `const line${index + 1} = ${index + 1};`,
+    ).join("\n");
+
+    const output = {
+      mode: "generate" as const,
+      files: new Map([["src/App.tsx", oversizedFile]]),
+      declaredPackages: [],
+    };
+
+    const result = validateGeneratedOutput(output);
+
+    expect(result.valid).toBe(false);
+    expect(
+      result.violations.some(
+        (violation) => violation.type === "file-line-limit-exceeded",
+      ),
+    ).toBe(true);
+  });
+
+  test("should validate with Next.js rules when declared framework is vite-react but Next.js entrypoints are emitted", () => {
+    const output = {
+      framework: "vite-react",
+      mode: "generate" as const,
+      files: new Map([
+        ["README.md", "# Demo"],
+        [
+          "src/lib/seo.ts",
+          'export const STATIC_OG_IMAGE_URL = "https://assets.pragnyaa.in/home/OG.png";',
+        ],
+        [
+          "src/app/layout.tsx",
+          `
+import { STATIC_OG_IMAGE_URL } from "../lib/seo";
+import "./globals.css";
+export const metadata = {
+  metadataBase: new URL("https://example.com"),
+  title: "Demo",
+  description: "Demo app",
+  alternates: { canonical: "/" },
+  openGraph: { title: "Demo", description: "Demo app", images: [STATIC_OG_IMAGE_URL] },
+  twitter: { card: "summary_large_image", title: "Demo", description: "Demo app", images: [STATIC_OG_IMAGE_URL] },
+  robots: { index: true, follow: true },
+  icons: {
+    icon: [{ url: "https://assets.pragnyaa.in/home/favicon_io/favicon.ico" }],
+    apple: [{ url: "https://assets.pragnyaa.in/home/favicon_io/apple-touch-icon.png" }],
+  },
+  manifest: "https://assets.pragnyaa.in/home/favicon_io/site.webmanifest",
+};
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return <html lang="en"><body>{children}</body></html>;
+}
+`,
+        ],
+        ["src/app/page.tsx", "export default function Page() { return <main>Demo</main>; }"],
+        ["src/app/globals.css", "body { margin: 0; }"],
+      ]),
+      declaredPackages: [],
+    };
+
+    const result = validateGeneratedOutput(output);
+    expect(result.valid).toBe(true);
+    expect(
+      result.violations.some(
+        (violation) => violation.message.includes("framework: vite-react"),
+      ),
+    ).toBe(false);
+  });
+
+  test("should infer vanilla when framework is unspecified and files are classic html/css/js", () => {
+    const output = {
+      mode: "generate" as const,
+      files: new Map([
+        ["README.md", "# Demo"],
+        [
+          "index.html",
+          `
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Vanilla Demo</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main id="app">Demo</main>
+    <script src="./script.js"></script>
+  </body>
+</html>
+`,
+        ],
+        ["styles.css", "body { margin: 0; }"],
+        ["script.js", "document.getElementById('app')?.classList.add('ready');"],
+      ]),
+      declaredPackages: [],
+    };
+
+    const result = validateGeneratedOutput(output);
+    expect(result.valid).toBe(true);
+    expect(
+      result.violations.some((violation) => violation.type === "missing-entry-point"),
+    ).toBe(false);
+  });
+
+  test("should validate as vanilla when declared framework is vite-react but output is classic html/css/js", () => {
+    const output = {
+      framework: "vite-react",
+      mode: "generate" as const,
+      files: new Map([
+        ["README.md", "# Demo"],
+        [
+          "index.html",
+          `
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Vanilla Demo</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main id="app">Demo</main>
+    <script src="./script.js"></script>
+  </body>
+</html>
+`,
+        ],
+        ["styles.css", "body { margin: 0; }"],
+        ["script.js", "document.getElementById('app')?.classList.add('ready');"],
+      ]),
+      declaredPackages: [],
+    };
+
+    const result = validateGeneratedOutput(output);
+    expect(result.valid).toBe(true);
+    expect(
+      result.violations.some(
+        (violation) =>
+          violation.type === "missing-entry-point" &&
+          violation.message.includes("framework: vite-react"),
+      ),
+    ).toBe(false);
+    expect(
+      result.violations.some((violation) =>
+        violation.message.includes('id="root"'),
+      ),
+    ).toBe(false);
+  });
+
+  test("should validate as vanilla when declared framework is vite-react but output is single-file html", () => {
+    const output = {
+      framework: "vite-react",
+      mode: "generate" as const,
+      files: new Map([
+        ["README.md", "# Demo"],
+        [
+          "index.html",
+          `
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Vanilla Inline Demo</title>
+    <style>body { margin: 0; }</style>
+  </head>
+  <body>
+    <main id="app">Demo</main>
+    <script>document.getElementById("app")?.classList.add("ready");</script>
+  </body>
+</html>
+`,
+        ],
+      ]),
+      declaredPackages: [],
+    };
+
+    const result = validateGeneratedOutput(output);
+    expect(result.valid).toBe(true);
+    expect(
+      result.violations.some((violation) =>
+        violation.message.includes('id="root"'),
+      ),
+    ).toBe(false);
+  });
+
+  test("should keep vite-react validation when index.html references vite main entry but source entrypoints are missing", () => {
+    const output = {
+      framework: "vite-react",
+      mode: "generate" as const,
+      files: new Map([
+        ["README.md", "# Demo"],
+        [
+          "index.html",
+          `
+<!doctype html>
+<html lang="en">
+  <head><title>Vite</title></head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+`,
+        ],
+      ]),
+      declaredPackages: [],
+    };
+
+    const result = validateGeneratedOutput(output);
+    expect(result.valid).toBe(false);
+    expect(
+      result.violations.some(
+        (violation) =>
+          violation.type === "missing-entry-point" &&
+          violation.file === "src/main.tsx",
+      ),
+    ).toBe(true);
+    expect(
+      result.violations.some(
+        (violation) =>
+          violation.type === "missing-entry-point" &&
+          violation.file === "src/app/layout.tsx",
+      ),
+    ).toBe(false);
+  });
+
+  test("should reclassify declared vanilla output to vite-react when vite html entry is present", () => {
+    const output = {
+      framework: "vanilla",
+      mode: "generate" as const,
+      files: new Map([
+        ["README.md", "# Demo"],
+        [
+          "index.html",
+          `
+<!doctype html>
+<html lang="en">
+  <head><title>Vite</title></head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="./src/main.tsx"></script>
+  </body>
+</html>
+`,
+        ],
+      ]),
+      declaredPackages: [],
+    };
+
+    const result = validateGeneratedOutput(output);
+    expect(result.valid).toBe(false);
+    expect(
+      result.violations.some(
+        (violation) =>
+          violation.type === "missing-entry-point" &&
+          violation.file === "src/main.tsx",
+      ),
+    ).toBe(true);
+    expect(
+      result.violations.some(
+        (violation) =>
+          violation.type === "missing-entry-point" &&
+          violation.file === "src/app/layout.tsx",
+      ),
+    ).toBe(false);
+  });
+
+  test("should reclassify declared vanilla output to nextjs when next app entrypoints are present", () => {
+    const output = {
+      framework: "vanilla",
+      mode: "generate" as const,
+      files: new Map([
+        ["README.md", "# Demo"],
+        [
+          "src/app/layout.tsx",
+          'import "./globals.css"; export default function Layout({ children }) { return <html><body>{children}</body></html>; }',
+        ],
+      ]),
+      declaredPackages: [],
+    };
+
+    const result = validateGeneratedOutput(output);
+    expect(result.valid).toBe(false);
+    expect(
+      result.violations.some(
+        (violation) =>
+          violation.type === "missing-entry-point" &&
+          violation.file === "src/app/page.tsx",
+      ),
+    ).toBe(true);
+    expect(
+      result.violations.some(
+        (violation) =>
+          violation.type === "missing-entry-point" &&
+          violation.file === "src/main.tsx",
+      ),
+    ).toBe(false);
+  });
+
+  test("should reclassify declared vite-react output to nextjs when root app entrypoints are present", () => {
+    const output = {
+      framework: "vite-react",
+      mode: "generate" as const,
+      files: new Map([
+        ["README.md", "# Demo"],
+        [
+          "app/layout.tsx",
+          'import "./globals.css"; export default function Layout({ children }) { return <html><body>{children}</body></html>; }',
+        ],
+        ["app/page.tsx", "export default function Page() { return <main>Demo</main>; }"],
+      ]),
+      declaredPackages: [],
+    };
+
+    const result = validateGeneratedOutput(output);
+    expect(result.valid).toBe(false);
+    expect(
+      result.violations.some(
+        (violation) =>
+          violation.type === "missing-entry-point" &&
+          violation.file?.endsWith("app/page.tsx"),
+      ),
+    ).toBe(true);
+    expect(
+      result.violations.some(
+        (violation) =>
+          violation.type === "missing-entry-point" &&
+          violation.file === "src/main.tsx",
+      ),
+    ).toBe(false);
+  });
+
   test("should detect missing packages", () => {
     const output = {
       framework: "nextjs",
@@ -316,6 +650,32 @@ describe("Post-Generation Validator", () => {
     expect(
       result.violations.some((violation) => violation.type === "import-placement"),
     ).toBe(true);
+  });
+
+  test("should skip framework entrypoint checks in edit mode", () => {
+    const output = {
+      framework: "vite-react",
+      mode: "edit" as const,
+      files: new Map([
+        [
+          "index.html",
+          `
+<!doctype html>
+<html lang="en">
+  <head><title>Edit</title></head>
+  <body><main id="app">No root div required in edit validation</main></body>
+</html>
+`,
+        ],
+      ]),
+      declaredPackages: [],
+    };
+
+    const result = validateGeneratedOutput(output);
+    expect(result.valid).toBe(true);
+    expect(
+      result.violations.some((violation) => violation.type === "missing-entry-point"),
+    ).toBe(false);
   });
 
   test("should reject generate mode when root component renders null", () => {
@@ -658,6 +1018,129 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           violation.type === "logic-quality" &&
           violation.file === "src/App.tsx" &&
           violation.message.includes('default import from "zustand"'),
+      ),
+    ).toBe(true);
+  });
+
+  test("should detect TODO stubs inside block comments", () => {
+    const output = {
+      mode: "edit" as const,
+      files: new Map([
+        [
+          "src/lib.ts",
+          "/* TODO: wire analytics pipeline */\nexport function ready() { return true; }",
+        ],
+      ]),
+      declaredPackages: [],
+    };
+
+    const result = validateGeneratedOutput(output);
+    expect(
+      result.violations.some(
+        (violation) =>
+          violation.type === "logic-quality" &&
+          violation.file === "src/lib.ts" &&
+          violation.message.includes("stub comments"),
+      ),
+    ).toBe(true);
+  });
+
+  test("should not treat URL strings containing todo-like text as comments", () => {
+    const output = {
+      mode: "edit" as const,
+      files: new Map([
+        [
+          "src/App.tsx",
+          'const docsUrl = "https://example.com/guides/todo-items";\nexport default function App() { return <main>Done</main>; }',
+        ],
+      ]),
+      declaredPackages: [],
+    };
+
+    const result = validateGeneratedOutput(output);
+    expect(
+      result.violations.some(
+        (violation) =>
+          violation.type === "logic-quality" &&
+          violation.file === "src/App.tsx" &&
+          violation.message.includes("stub comments"),
+      ),
+    ).toBe(false);
+  });
+
+  test("should not double-report a single FIXME comment", () => {
+    const output = {
+      mode: "edit" as const,
+      files: new Map([
+        [
+          "src/App.tsx",
+          "// FIXME: finish wiring this section\nexport default function App() { return <main>Done</main>; }",
+        ],
+      ]),
+      declaredPackages: [],
+    };
+
+    const result = validateGeneratedOutput(output);
+    const appLogicViolations = result.violations.filter(
+      (violation) =>
+        violation.type === "logic-quality" && violation.file === "src/App.tsx",
+    );
+
+    expect(appLogicViolations).toHaveLength(1);
+    expect(appLogicViolations[0]?.message).toContain("placeholder markers");
+  });
+
+  test("should flag dashboard outputs that only initialize empty array state", () => {
+    const output = {
+      framework: "vite-react",
+      mode: "generate" as const,
+      intentType: "dashboard",
+      files: new Map([
+        ["README.md", "# Demo"],
+        [
+          "index.html",
+          `
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta name="description" content="Dashboard app" />
+    <meta name="robots" content="index, follow" />
+    <link rel="canonical" href="https://edwardd.app/" />
+    <meta property="og:title" content="Dashboard" />
+    <meta property="og:description" content="Dashboard app" />
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content="https://assets.pragnyaa.in/home/OG.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Dashboard" />
+    <meta name="twitter:description" content="Dashboard app" />
+    <meta name="twitter:image" content="https://assets.pragnyaa.in/home/OG.png" />
+    <link rel="icon" href="https://assets.pragnyaa.in/home/favicon_io/favicon.ico" />
+    <link rel="apple-touch-icon" href="https://assets.pragnyaa.in/home/favicon_io/apple-touch-icon.png" />
+    <link rel="manifest" href="https://assets.pragnyaa.in/home/favicon_io/site.webmanifest" />
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>
+`,
+        ],
+        [
+          "src/main.tsx",
+          'import { createRoot } from "react-dom/client";\nimport App from "./App";\nimport "./index.css";\ncreateRoot(document.getElementById("root")!).render(<App />);',
+        ],
+        ["src/index.css", "/* styles */"],
+        [
+          "src/App.tsx",
+          'import { useState } from "react";\nexport default function App() { const [rows] = useState([]); return <main>{rows.length}</main>; }',
+        ],
+      ]),
+      declaredPackages: [],
+    };
+
+    const result = validateGeneratedOutput(output);
+    expect(
+      result.violations.some(
+        (violation) => violation.type === "feature-skeleton",
       ),
     ).toBe(true);
   });

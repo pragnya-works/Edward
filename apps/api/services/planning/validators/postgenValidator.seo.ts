@@ -1,6 +1,7 @@
 import {
   ABSOLUTE_HTTP_URL_PATTERN,
   EDWARD_FAVICON_ASSET_BASE,
+  GENERATED_OUTPUT_FRAMEWORK,
   HTML_CANONICAL_HREF_PATTERN,
   HTML_CANONICAL_LINK_PATTERN,
   HTML_REQUIRED_BRANDING_PATTERNS,
@@ -13,17 +14,25 @@ import type {
   PatternRequirement,
   ValidationViolation,
 } from './postgenValidator.types.js';
+import {
+  isGenerateMode,
+  VALIDATION_SEVERITY,
+  VALIDATION_VIOLATION_TYPE,
+} from './postgenValidator.types.js';
 
 export function validateSeoBranding(output: GeneratedOutput): ValidationViolation[] {
-  if (output.mode !== 'generate' || !output.framework) {
+  if (!isGenerateMode(output.mode) || !output.framework) {
     return [];
   }
 
-  if (output.framework === 'nextjs') {
+  if (output.framework === GENERATED_OUTPUT_FRAMEWORK.NEXTJS) {
     return validateNextSeoBranding(output.files);
   }
 
-  if (output.framework === 'vite-react' || output.framework === 'vanilla') {
+  if (
+    output.framework === GENERATED_OUTPUT_FRAMEWORK.VITE_REACT ||
+    output.framework === GENERATED_OUTPUT_FRAMEWORK.VANILLA
+  ) {
     return validateHtmlSeoBranding(output.files, output.framework);
   }
 
@@ -47,8 +56,8 @@ function validateNextSeoBranding(
 
     if (missingRequirements.length > 0) {
       violations.push({
-        type: 'missing-seo-branding',
-        severity: 'warning',
+        type: VALIDATION_VIOLATION_TYPE.MISSING_SEO_BRANDING,
+        severity: VALIDATION_SEVERITY.WARNING,
         message: `${layoutPath} must include Edward favicon URLs from ${EDWARD_FAVICON_ASSET_BASE} and required Next metadata fields. Missing: ${missingRequirements.join(', ')}.`,
         file: layoutPath,
       });
@@ -60,7 +69,7 @@ function validateNextSeoBranding(
 
 function validateHtmlSeoBranding(
   files: Map<string, string>,
-  framework: string,
+  framework: GeneratedOutput['framework'],
 ): ValidationViolation[] {
   const htmlPath = 'index.html';
   const htmlContent = files.get(htmlPath);
@@ -79,8 +88,8 @@ function validateHtmlSeoBranding(
 
   if (missingRequirements.length > 0) {
     violations.push({
-      type: 'missing-seo-branding',
-      severity: 'warning',
+      type: VALIDATION_VIOLATION_TYPE.MISSING_SEO_BRANDING,
+      severity: VALIDATION_SEVERITY.WARNING,
       message: `${framework} ${htmlPath} must include Edward favicon + manifest URLs from ${EDWARD_FAVICON_ASSET_BASE} plus description/canonical/Open Graph/Twitter metadata. Missing: ${missingRequirements.join(', ')}.`,
       file: htmlPath,
     });
@@ -90,8 +99,8 @@ function validateHtmlSeoBranding(
   const canonicalHref = canonicalTag?.match(HTML_CANONICAL_HREF_PATTERN)?.[1]?.trim();
   if (canonicalHref && !ABSOLUTE_HTTP_URL_PATTERN.test(canonicalHref)) {
     violations.push({
-      type: 'invalid-canonical-url',
-      severity: 'error',
+      type: VALIDATION_VIOLATION_TYPE.INVALID_CANONICAL_URL,
+      severity: VALIDATION_SEVERITY.ERROR,
       message: `${framework} ${htmlPath} must use an absolute canonical URL (http/https). Found: "${canonicalHref}".`,
       file: htmlPath,
     });

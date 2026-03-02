@@ -1,6 +1,7 @@
 import { IntentAnalysisSchema, IntentAnalysis } from '../schemas.js';
 import { generateResponse } from '../../../lib/llm/provider.client.js';
 import { logger } from '../../../utils/logger.js';
+import { detectExplicitFrameworkPreference } from '../frameworkPreference.js';
 
 const ANALYSIS_SYSTEM_PROMPT = `You are the intent classifier for a FRONTEND-ONLY assistant.
 
@@ -51,6 +52,8 @@ If backend/infrastructure is requested, return:
 - styling/animation/responsive behavior`;
 
 export async function analyzeIntent(input: string, apiKey: string): Promise<IntentAnalysis> {
+    const explicitFramework = detectExplicitFrameworkPreference(input);
+
     try {
         const response = await generateResponse(
             apiKey,
@@ -62,8 +65,16 @@ export async function analyzeIntent(input: string, apiKey: string): Promise<Inte
         const jsonMatch = response.match(/\{[\s\S]*\}/);
         if (!jsonMatch) throw new Error('No JSON found in LLM response');
 
-        const parsed = JSON.parse(jsonMatch[0]);
-        return IntentAnalysisSchema.parse(parsed);
+        const parsed = IntentAnalysisSchema.parse(JSON.parse(jsonMatch[0]));
+        if (!explicitFramework || parsed.suggestedFramework === explicitFramework) {
+            return parsed;
+        }
+
+        return {
+            ...parsed,
+            suggestedFramework: explicitFramework,
+            reasoning: `${parsed.reasoning} Explicit framework preference detected in request: ${explicitFramework}.`,
+        };
     } catch (error) {
         logger.warn(error, 'Intent analysis failed, using fallback');
         return IntentAnalysisSchema.parse({
@@ -72,8 +83,10 @@ export async function analyzeIntent(input: string, apiKey: string): Promise<Inte
             complexity: 'moderate',
             features: [],
             recommendedPackages: [],
-            suggestedFramework: 'vite-react',
-            reasoning: 'Fallback logic invoked'
+            suggestedFramework: explicitFramework || 'vite-react',
+            reasoning: explicitFramework
+                ? `Fallback logic invoked with explicit framework preference: ${explicitFramework}.`
+                : 'Fallback logic invoked'
         });
     }
 }

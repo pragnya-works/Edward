@@ -7,6 +7,7 @@ import { DottedMap } from "@edward/ui/components/dotted-map";
 import { LineShadowText } from "@edward/ui/components/line-shadow-text";
 import { m, useReducedMotion } from "motion/react";
 import { useTabVisibility } from "@edward/ui/hooks/useTabVisibility";
+import { FadeInOnScroll } from "./fadeInOnScroll";
 
 const AIGenerationVisual = dynamic(
     () => import("./aiGenerationVisual").then((mod) => mod.AIGenerationVisual),
@@ -20,6 +21,11 @@ const InstantPreviewVisual = dynamic(
 
 const AgentActivityVisual = dynamic(
     () => import("./agentActivityVisual").then((mod) => mod.AgentActivityVisual),
+    { ssr: false },
+);
+
+const GitHubSyncVisual = dynamic(
+    () => import("./githubSyncVisual").then((mod) => mod.GitHubSyncVisual),
     { ssr: false },
 );
 
@@ -45,22 +51,22 @@ const PulsingOrb = memo(function PulsingOrb() {
     const shouldReduceMotion = useReducedMotion();
     const elementRef = useRef<HTMLDivElement>(null);
     const isDocumentVisible = useTabVisibility();
-    
+
     useEffect(() => {
         const element = elementRef.current;
         if (!element) return;
-        
+
         const observer = new IntersectionObserver(
             ([entry]) => setIsIntersecting(entry?.isIntersecting ?? false),
             { threshold: 0.1 }
         );
-        
+
         observer.observe(element);
         return () => observer.disconnect();
     }, []);
-    
+
     const shouldAnimate = isDocumentVisible && isIntersecting && !shouldReduceMotion;
-    
+
     return (
         <m.div
             ref={elementRef}
@@ -107,32 +113,24 @@ const features = [
     {
         name: "AI-Powered Generation",
         description: "Describe your vision and watch Edward turn your ideas into functional, beautiful React components.",
-        href: "/",
-        cta: "Explore Generations",
         className: "md:col-span-2",
         background: <AIGenerationVisual />,
     },
     {
         name: "Instant Preview",
-        description: "See real-time updates as you refine your prompt - what you see is what you get.",
-        href: "/",
-        cta: "Try Editor",
+        description: "See instant updates as you refine your prompt - what you see is what you get.",
         className: "md:col-span-1",
         background: <PreviewBackground />,
     },
     {
-        name: "Frontend Builder",
-        description: "Build production-ready React components, pages, and UI with instant feedback and live preview.",
-        href: "/",
-        cta: "Start Building",
+        name: "Instant Repository Sync",
+        description: "Connect and sync your GitHub repository instantly.",
         className: "md:col-span-1",
-        background: <GlobeBackground />,
+        background: <GitHubSyncVisual />,
     },
     {
         name: "Autonomous Intelligence",
         description: "Edward plans, executes, and iterates. It doesn't just write code; it follows instructions to completion across your entire project.",
-        href: "/",
-        cta: "Try now",
         className: "md:col-span-2",
         background: <TerminalBackground />,
     },
@@ -228,22 +226,28 @@ FasterText.displayName = "FasterText";
 
 export function Features() {
     return (
-        <section className="relative w-full py-14 md:py-32 px-4 overflow-hidden">
+        <section id="features" className="relative w-full py-14 md:py-32 px-4 overflow-hidden">
 
             <div className="mx-auto max-w-6xl relative z-10">
                 <div className="my-10 md:my-20 flex flex-col items-center justify-center text-center">
-                    <h2 className="mb-4 md:mb-6 text-2xl font-bold tracking-tight text-foreground md:text-4xl lg:text-5xl">
-                        Everything you need to ship{" "}
-                        <FasterText shadowColor="var(--foreground)" />
-                    </h2>
-                    <p className="max-w-2xl text-sm md:text-base lg:text-lg text-muted-foreground leading-relaxed">
-                        Edward streamlines the entire development journey, seamlessly transforming your vision into functional, interactive applications.
-                    </p>
+                    <FadeInOnScroll>
+                        <h2 className="mb-4 md:mb-6 text-2xl font-bold tracking-tight text-foreground md:text-4xl lg:text-5xl">
+                            Everything you need to ship{" "}
+                            <FasterText shadowColor="var(--foreground)" />
+                        </h2>
+                    </FadeInOnScroll>
+                    <FadeInOnScroll delay={0.1}>
+                        <p className="max-w-2xl text-sm md:text-base lg:text-lg text-muted-foreground leading-relaxed">
+                            Edward streamlines the entire development journey, seamlessly transforming your vision into functional, interactive applications.
+                        </p>
+                    </FadeInOnScroll>
                 </div>
 
                 <BentoGrid>
-                    {features.map((feature) => (
-                        <BentoCard key={feature.name} {...feature} />
+                    {features.map((feature, idx) => (
+                        <FadeInOnScroll key={feature.name} delay={0.1 + (idx * 0.1)} className={feature.className}>
+                            <BentoCard {...feature} className="h-full" />
+                        </FadeInOnScroll>
                     ))}
                 </BentoGrid>
             </div>

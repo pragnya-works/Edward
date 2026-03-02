@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useMemo } from "react";
 import { useChatHistory } from "@/hooks/server-state/useChatHistory";
 import { useChatStream, useChatStreamActions } from "@/contexts/chatStreamContext";
 import { useSandbox } from "@/contexts/sandboxContext";
@@ -7,6 +8,10 @@ import { ChatWorkspace } from "@/components/chat/chatWorkspace";
 import { ChatErrorState, ChatLoadingState } from "@/components/chat/chatPageStates";
 import { useChatPageOrchestration } from "@/hooks/chat/useChatPageOrchestration";
 import { ChatRole, INITIAL_STREAM_STATE } from "@edward/shared/chat/types";
+import {
+  clearRunStopNotice,
+  getRunStopNotice,
+} from "@/lib/chat/runStopIntent";
 
 interface ChatPageClientProps {
   chatId: string;
@@ -44,6 +49,45 @@ export default function ChatPageClient({ chatId }: ChatPageClientProps) {
     stream.installingDeps.length > 0;
 
   const latestMessage = messages[messages.length - 1];
+  const stopNotice = getRunStopNotice(chatId);
+  const hasStoredStopNotice = Boolean(stopNotice);
+  const shouldShowStopNotice =
+    hasStoredStopNotice &&
+    latestMessage?.role === ChatRole.USER &&
+    (!stopNotice?.userMessageId || stopNotice.userMessageId === latestMessage.id);
+  const messagesWithStopNotice = useMemo(() => {
+    if (!shouldShowStopNotice) {
+      return messages;
+    }
+
+    const userMessage = latestMessage;
+    if (!userMessage || userMessage.role !== ChatRole.USER) {
+      return messages;
+    }
+
+    const syntheticMessageId = `local-stop-notice:${chatId}:${userMessage.id}`;
+    if (messages.some((message) => message.id === syntheticMessageId)) {
+      return messages;
+    }
+
+    const noticeTimestamp = userMessage.updatedAt || userMessage.createdAt;
+    return [
+      ...messages,
+      {
+        id: syntheticMessageId,
+        chatId,
+        role: ChatRole.ASSISTANT,
+        content:
+          "Generation stopped at your request. Send another message when you want me to continue.<edward_done />",
+        userId: null,
+        createdAt: noticeTimestamp,
+        updatedAt: noticeTimestamp,
+        completionTime: null,
+        inputTokens: null,
+        outputTokens: null,
+      },
+    ];
+  }, [chatId, latestMessage, messages, shouldShowStopNotice]);
   const latestMessageTime = latestMessage?.createdAt
     ? Date.parse(latestMessage.createdAt)
     : Number.NaN;
@@ -74,6 +118,16 @@ export default function ChatPageClient({ chatId }: ChatPageClientProps) {
     resumeRunStream,
   });
 
+  useEffect(() => {
+    if (!chatId || !hasStoredStopNotice) {
+      return;
+    }
+
+    if (latestMessage?.role === ChatRole.ASSISTANT) {
+      clearRunStopNotice(chatId);
+    }
+  }, [chatId, hasStoredStopNotice, latestMessage?.role]);
+
   if (isHistoryLoading && !hasActiveStreamState) {
     return <ChatLoadingState />;
   }
@@ -92,7 +146,7 @@ export default function ChatPageClient({ chatId }: ChatPageClientProps) {
   return (
     <ChatWorkspace
       chatId={chatId}
-      messages={messages}
+      messages={messagesWithStopNotice}
       stream={stream}
     />
   );

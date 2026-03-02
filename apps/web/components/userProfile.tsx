@@ -1,8 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { signOut } from "@/lib/auth-client";
-import { useSession } from "@/lib/auth-client";
+import { useState, useRef } from "react";
+import { signOut, useSession } from "@/lib/auth-client";
 import {
   Avatar,
   AvatarFallback,
@@ -26,7 +25,6 @@ import {
   AnimatedThemeToggler,
   type AnimatedThemeTogglerHandle,
 } from "@edward/ui/components/animated-theme-toggler";
-import { useRef } from "react";
 import { useSidebar } from "@edward/ui/components/sidebar";
 import { cn } from "@edward/ui/lib/utils";
 import { useMobileViewport } from "@edward/ui/hooks/useMobileViewport";
@@ -47,9 +45,13 @@ export default function UserProfile() {
   } = useApiKey();
   const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState(false);
   const themeTogglerRef = useRef<AnimatedThemeTogglerHandle>(null);
-  const { open } = useSidebar();
+  const { open, setOpen } = useSidebar();
   const isMobile = useMobileViewport();
   const isExpanded = open || isMobile;
+
+  function closeMobileSidebar() {
+    if (isMobile) setOpen(false);
+  }
 
   if (!session?.user) {
     return null;
@@ -106,7 +108,7 @@ export default function UserProfile() {
             </Button>
           }
         ></DropdownMenuTrigger>
-        <DropdownMenuPositioner side="top" align="start" sideOffset={10}>
+        <DropdownMenuPositioner side="top" align="start" sideOffset={10} className="z-[200]">
           <DropdownMenuContent className="w-56 rounded-xl bg-card/50 backdrop-blur-md">
             <div className="flex flex-col space-y-1.5 p-2">
               <p className="text-sm font-medium">{user.name || "User"}</p>
@@ -115,13 +117,14 @@ export default function UserProfile() {
               </p>
             </div>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => setIsApiKeyModalOpen(true)}>
+            <DropdownMenuItem onClick={() => { closeMobileSidebar(); setIsApiKeyModalOpen(true); }}>
               <Key className="mr-2 h-4 w-4" />
               <span>Manage API Keys</span>
             </DropdownMenuItem>
             <DropdownMenuItem
               onClick={(e) => {
                 e.preventDefault();
+                closeMobileSidebar();
                 themeTogglerRef.current?.toggleTheme();
               }}
             >
@@ -129,7 +132,7 @@ export default function UserProfile() {
               <span className="ml-2">Change theme</span>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={handleSignOut}>
+            <DropdownMenuItem onClick={() => { closeMobileSidebar(); handleSignOut(); }}>
               <LogOut className="mr-2 h-4 w-4" />
               <span>Sign out</span>
             </DropdownMenuItem>

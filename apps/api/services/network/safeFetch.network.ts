@@ -1,10 +1,10 @@
 import dns from "node:dns/promises";
 import net from "node:net";
 
-export type ResolvedUrlTarget = {
+export interface ResolvedUrlTarget {
   address: string;
   family: 4 | 6;
-};
+}
 
 function isBlockedHostname(
   hostname: string,

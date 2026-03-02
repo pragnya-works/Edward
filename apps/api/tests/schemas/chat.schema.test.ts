@@ -45,8 +45,8 @@ describe("chat schemas", () => {
         chatId: "chat-123",
         title: "Test Chat",
         description: "A test chat",
-        visibility: true,
       });
+
 
       expect(result.success).toBe(true);
     });
@@ -93,7 +93,7 @@ describe("chat schemas", () => {
         expect(result.data.chatId).toBeUndefined();
         expect(result.data.title).toBeUndefined();
         expect(result.data.description).toBeUndefined();
-        expect(result.data.visibility).toBeUndefined();
+
       }
     });
 

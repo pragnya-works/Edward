@@ -51,11 +51,17 @@ export interface PromptbarAuthController {
   onSignIn?: () => void | Promise<void>;
 }
 
+export interface PromptbarRef {
+  prefill: (text: string) => void;
+}
+
 export interface PromptbarSubmissionController {
   onProtectedAction?: (
     text: string,
     images?: UploadedImageRef[],
   ) => void | Promise<void>;
+  onEnhancePrompt?: (text: string) => string | Promise<string>;
+  onTopContextVisibilityChange?: (visible: boolean) => void;
   hideSuggestions?: boolean;
   isStreaming?: boolean;
   onCancel?: () => void;
@@ -103,6 +109,8 @@ export interface PromptbarLegacyProps {
     text: string,
     images?: UploadedImageRef[],
   ) => void | Promise<void>;
+  onEnhancePrompt?: (text: string) => string | Promise<string>;
+  onTopContextVisibilityChange?: (visible: boolean) => void;
   onImageUpload?: (
     file: File,
   ) => Promise<{ url: string; mimeType: string; sizeBytes?: number }>;

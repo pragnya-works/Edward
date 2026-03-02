@@ -12,20 +12,26 @@ import {
   filesToMessageContent,
   type UploadedImage,
 } from "@/lib/api/messageContent";
-import { useCallback, useEffect, useMemo } from "react";
+import { enhancePrompt } from "@/lib/api/chat";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import type { MetaEvent } from "@edward/shared/streamEvents";
 import { INITIAL_STREAM_STATE } from "@edward/shared/chat/types";
 import { toast } from "@edward/ui/components/sonner";
 import { useChatSubmissionGuards } from "@/hooks/chat/useChatSubmissionGuards";
 import { useImageUpload } from "@/hooks/server-state/useImageUpload";
+import { getBestGuessProvider } from "@edward/shared/schema";
+import { PromptTablets } from "@/components/promptTablets";
+import type { PromptbarRef } from "@edward/ui/components/ui/promptbar/promptbar.constants";
 
 interface AuthenticatedPromptbarProps {
   chatId?: string;
+  onTopContextVisibilityChange?: (visible: boolean) => void;
 }
 
 export default function AuthenticatedPromptbar({
   chatId,
+  onTopContextVisibilityChange,
 }: AuthenticatedPromptbarProps) {
   const workspaceContext = useOptionalChatWorkspaceContext();
   const effectiveChatId = chatId ?? workspaceContext?.chatId;
@@ -49,6 +55,7 @@ export default function AuthenticatedPromptbar({
     isRateLimited: isImageUploadRateLimited,
     rateLimitMessage: imageUploadRateLimitMessage,
   } = useImageUpload();
+  const shouldAutoNavigateToNewChatRef = useRef(false);
 
   const { stream, activeStreamKey } = useMemo(() => {
     if (effectiveChatId) {
@@ -82,7 +89,12 @@ export default function AuthenticatedPromptbar({
 
   const handleMeta = useCallback(
     (meta: MetaEvent) => {
-      if (!effectiveChatId && meta.chatId) {
+      if (
+        !effectiveChatId &&
+        meta.chatId &&
+        shouldAutoNavigateToNewChatRef.current
+      ) {
+        shouldAutoNavigateToNewChatRef.current = false;
         router.push(`/chat/${meta.chatId}`);
       }
     },
@@ -101,6 +113,7 @@ export default function AuthenticatedPromptbar({
   const handleProtectedAction = useCallback(
     async (text: string, images?: UploadedImage[]) => {
       if (stream.isStreaming && activeStreamKey) {
+        shouldAutoNavigateToNewChatRef.current = false;
         cancelStream(activeStreamKey);
         return;
       }
@@ -116,6 +129,8 @@ export default function AuthenticatedPromptbar({
         return;
       }
 
+      const isNewChat = !effectiveChatId;
+      shouldAutoNavigateToNewChatRef.current = isNewChat;
       const content = await filesToMessageContent(text, uploadedImages);
       startStream(content, {
         chatId: effectiveChatId,
@@ -196,9 +211,40 @@ export default function AuthenticatedPromptbar({
 
   const handleCancel = useCallback(() => {
     if (activeStreamKey) {
+      shouldAutoNavigateToNewChatRef.current = false;
       cancelStream(activeStreamKey);
     }
   }, [activeStreamKey, cancelStream]);
+
+  const enhancementProvider = useMemo(
+    () => getBestGuessProvider(preferredModel ?? null, keyPreview ?? null),
+    [keyPreview, preferredModel],
+  );
+
+  const handleEnhancePrompt = useCallback(
+    async (text: string) => {
+      try {
+        const response = await enhancePrompt(text, enhancementProvider);
+        const enhanced = response.data.enhancedPrompt?.trim();
+        if (!enhanced) {
+          return text;
+        }
+        return enhanced;
+      } catch (error) {
+        const description =
+          error instanceof Error ? error.message : "Unable to enhance prompt.";
+        toast.error("Prompt enhancement failed", { description });
+        return text;
+      }
+    },
+    [enhancementProvider],
+  );
+
+  const promptbarRef = useRef<PromptbarRef>(null);
+
+  const handleSelectPrompt = useCallback((prompt: string) => {
+    promptbarRef.current?.prefill(prompt);
+  }, []);
 
   const promptbarController = useMemo(
     () => ({
@@ -208,6 +254,8 @@ export default function AuthenticatedPromptbar({
       },
       submission: {
         onProtectedAction: handleProtectedAction,
+        onEnhancePrompt: handleEnhancePrompt,
+        onTopContextVisibilityChange,
         hideSuggestions: Boolean(effectiveChatId),
         isStreaming: stream.isStreaming,
         onCancel: handleCancel,
@@ -235,6 +283,8 @@ export default function AuthenticatedPromptbar({
       session?.user,
       handleSignIn,
       handleProtectedAction,
+      handleEnhancePrompt,
+      onTopContextVisibilityChange,
       effectiveChatId,
       stream.isStreaming,
       handleCancel,
@@ -254,9 +304,16 @@ export default function AuthenticatedPromptbar({
     ],
   );
 
+  const showTablets = Boolean(session?.user) && !effectiveChatId && !stream.isStreaming;
+
   return (
     <div className="w-full">
-      <Promptbar controller={promptbarController} />
+      <Promptbar ref={promptbarRef} controller={promptbarController} />
+      {showTablets && (
+        <div className="mt-3 flex justify-center">
+          <PromptTablets onSelectPrompt={handleSelectPrompt} />
+        </div>
+      )}
     </div>
   );
 }

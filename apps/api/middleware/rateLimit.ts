@@ -75,7 +75,20 @@ function createRateLimiterForScope(
     skip?: (req: Request, res: Response) => boolean;
   } = {},
 ) {
-  const policy = RATE_LIMIT_POLICY_BY_SCOPE[scope];
+  // Intentionally weaken RATE_LIMIT_POLICY_BY_SCOPE to Partial<Record<KnownRateLimitScope, RateLimitPolicy>>
+  // so monorepo dist/source drift in @edward/shared can be caught by the runtime !policy guard below.
+  const policy = (
+    RATE_LIMIT_POLICY_BY_SCOPE as Partial<
+      Record<KnownRateLimitScope, RateLimitPolicy>
+    >
+  )[scope];
+
+  if (!policy) {
+    throw new Error(
+      `Missing rate-limit policy for scope "${String(scope)}". Rebuild @edward/shared so exported dist constants match source.`,
+    );
+  }
+
   return rateLimit({
     windowMs: policy.windowMs,
     max: policy.max,
@@ -123,5 +136,10 @@ export const githubRateLimiter = createRateLimiterForScope(
 
 export const dailyGithubRateLimiter = createRateLimiterForScope(
   RATE_LIMIT_SCOPE.GITHUB_DAILY,
+  { keyGenerator: getAuthenticatedRateLimitKey },
+);
+
+export const promptEnhanceRateLimiter = createRateLimiterForScope(
+  RATE_LIMIT_SCOPE.PROMPT_ENHANCE_BURST,
   { keyGenerator: getAuthenticatedRateLimitKey },
 );

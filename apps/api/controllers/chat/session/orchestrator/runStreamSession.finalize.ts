@@ -5,7 +5,6 @@ import {
   ParserEventType,
   type StreamTerminationReason,
 } from "@edward/shared/streamEvents";
-import type { MessageContent } from "@edward/shared/llm/types";
 import type { Framework, ChatAction } from "../../../../services/planning/schemas.js";
 import type { TokenUsage } from "../../../../lib/llm/tokens.js";
 import type { UrlScrapeResult } from "../../../../services/websearch/urlScraper/types.js";
@@ -21,12 +20,13 @@ import {
   sendSSEDone,
 } from "../../sse.utils.js";
 import { processBuildPipeline } from "./buildPipeline.js";
-import { scheduleChatMetaGeneration } from "./chatMetaGeneration.js";
+import {
+  type LoopState,
+} from "./runStreamSession.helpers.js";
 import {
   createSessionMetrics,
   createStoredAssistantContent,
-  type LoopState,
-} from "./runStreamSession.helpers.js";
+} from "./runStreamSession.content.js";
 import { LOOP_STOP_REASON_TO_TERMINATION } from "./loopStopReasons.js";
 import type { EmitMeta } from "../shared/meta.js";
 
@@ -40,9 +40,6 @@ export async function finalizeStreamSession(params: {
   chatId: string;
   assistantMessageId: string;
   runId: string;
-  userContent: MessageContent;
-  isFollowUp: boolean;
-  decryptedApiKey: string;
   workflow: { sandboxId?: string };
   res: Response;
   framework: Framework | undefined;
@@ -61,9 +58,6 @@ export async function finalizeStreamSession(params: {
     chatId,
     assistantMessageId,
     runId,
-    userContent,
-    isFollowUp,
-    decryptedApiKey,
     workflow,
     res,
     framework,
@@ -128,13 +122,6 @@ export async function finalizeStreamSession(params: {
     assistantMessageId,
     metrics.messageMetadata,
   );
-
-  scheduleChatMetaGeneration({
-    isFollowUp,
-    decryptedApiKey,
-    userContent,
-    chatId,
-  });
 
   if (workflow.sandboxId) {
     await processBuildPipeline({

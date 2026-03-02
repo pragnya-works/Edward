@@ -1,6 +1,6 @@
 import { Provider } from "@edward/shared/constants";
 import { getFallbackModelSpec, getModelSpecByProvider } from "@edward/shared/schema";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenAI } from "@google/genai";
 import { MessageRole } from "@edward/auth";
 import type { LlmChatMessage } from "../context.js";
 import { toGeminiRole } from "../messageRole.js";
@@ -99,18 +99,14 @@ export async function countGeminiInputTokens(
   };
 
   try {
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const geminiCountModel = genAI.getGenerativeModel({ model });
+    const genAI = new GoogleGenAI({ apiKey });
 
     const perMessage: TokenUsageMessageBreakdown[] = [];
 
-    const countFn = (
-      geminiCountModel as unknown as {
-        countTokens?: (req: unknown) => Promise<{ totalTokens?: number }>;
-      }
-    ).countTokens;
+    const countFn = genAI.models?.countTokens;
     if (typeof countFn === "function") {
-      const systemCount = await countFn.call(geminiCountModel, {
+      const systemCount = await countFn.call(genAI.models, {
+        model,
         contents: [{ role: MessageRole.User, parts: [{ text: systemPrompt }] }],
       });
       const systemTokens = systemCount?.totalTokens ?? 0;
@@ -122,7 +118,8 @@ export async function countGeminiInputTokens(
 
       const messageCounts = await Promise.all(
         messages.map((m) =>
-          countFn.call(geminiCountModel, {
+          countFn.call(genAI.models, {
+            model,
             contents: [
               {
                 role: toGeminiRole(m.role),
@@ -143,7 +140,8 @@ export async function countGeminiInputTokens(
 
       let inputTokens = 0;
       if (userPrompt) {
-        const userPromptCount = await countFn.call(geminiCountModel, {
+        const userPromptCount = await countFn.call(genAI.models, {
+          model,
           contents: [{ role: MessageRole.User, parts: [{ text: userPrompt }] }],
         });
         inputTokens = userPromptCount?.totalTokens ?? 0;

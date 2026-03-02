@@ -179,7 +179,7 @@ export function selectSkillsForContext(
       hasHint(searchText, PERF_HINTS));
 
   const shouldUseCodeQuality =
-    mode !== ChatAction.GENERATE ||
+    mode === ChatAction.GENERATE ||
     complexity !== COMPLEXITY.SIMPLE ||
     hasHint(searchText, A11Y_HINTS);
 
