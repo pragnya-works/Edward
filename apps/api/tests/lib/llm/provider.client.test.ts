@@ -7,8 +7,23 @@ const mocks = vi.hoisted(() => ({
   geminiModelsGenerateContentStreamMock: vi.fn(),
   geminiModelsGenerateContentMock: vi.fn(),
 }));
-const OPENAI_TEST_KEY = `sk-${"a".repeat(48)}`;
-const GEMINI_TEST_KEY = `AIza${"a".repeat(35)}`;
+const OPENAI_TEST_KEY = "TEST_OPENAI_KEY";
+const GEMINI_TEST_KEY = "TEST_GEMINI_KEY";
+
+vi.mock("@edward/shared/constants", () => {
+  const Provider = {
+    OPENAI: "openai",
+    GEMINI: "gemini",
+  } as const;
+
+  return {
+    Provider,
+    API_KEY_REGEX: {
+      [Provider.OPENAI]: /^TEST_OPENAI_KEY$/,
+      [Provider.GEMINI]: /^TEST_GEMINI_KEY$/,
+    },
+  };
+});
 
 vi.mock("openai", () => ({
   default: vi.fn().mockImplementation(() => ({
@@ -143,6 +158,7 @@ describe("provider.client gemini stream resilience", () => {
 
     mocks.geminiModelsGenerateContentStreamMock.mockResolvedValueOnce(
       (async function* () {
+        yield { text: "" };
         throw streamError;
       })(),
     );

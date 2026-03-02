@@ -101,6 +101,236 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     ).toBe(false);
   });
 
+  test("should infer vanilla when framework is unspecified and files are classic html/css/js", () => {
+    const output = {
+      mode: "generate" as const,
+      files: new Map([
+        ["README.md", "# Demo"],
+        [
+          "index.html",
+          `
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Vanilla Demo</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main id="app">Demo</main>
+    <script src="./script.js"></script>
+  </body>
+</html>
+`,
+        ],
+        ["styles.css", "body { margin: 0; }"],
+        ["script.js", "document.getElementById('app')?.classList.add('ready');"],
+      ]),
+      declaredPackages: [],
+    };
+
+    const result = validateGeneratedOutput(output);
+    expect(result.valid).toBe(true);
+    expect(
+      result.violations.some((violation) => violation.type === "missing-entry-point"),
+    ).toBe(false);
+  });
+
+  test("should validate as vanilla when declared framework is vite-react but output is classic html/css/js", () => {
+    const output = {
+      framework: "vite-react",
+      mode: "generate" as const,
+      files: new Map([
+        ["README.md", "# Demo"],
+        [
+          "index.html",
+          `
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Vanilla Demo</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main id="app">Demo</main>
+    <script src="./script.js"></script>
+  </body>
+</html>
+`,
+        ],
+        ["styles.css", "body { margin: 0; }"],
+        ["script.js", "document.getElementById('app')?.classList.add('ready');"],
+      ]),
+      declaredPackages: [],
+    };
+
+    const result = validateGeneratedOutput(output);
+    expect(result.valid).toBe(true);
+    expect(
+      result.violations.some(
+        (violation) =>
+          violation.type === "missing-entry-point" &&
+          violation.message.includes("framework: vite-react"),
+      ),
+    ).toBe(false);
+    expect(
+      result.violations.some((violation) =>
+        violation.message.includes('id="root"'),
+      ),
+    ).toBe(false);
+  });
+
+  test("should validate as vanilla when declared framework is vite-react but output is single-file html", () => {
+    const output = {
+      framework: "vite-react",
+      mode: "generate" as const,
+      files: new Map([
+        ["README.md", "# Demo"],
+        [
+          "index.html",
+          `
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Vanilla Inline Demo</title>
+    <style>body { margin: 0; }</style>
+  </head>
+  <body>
+    <main id="app">Demo</main>
+    <script>document.getElementById("app")?.classList.add("ready");</script>
+  </body>
+</html>
+`,
+        ],
+      ]),
+      declaredPackages: [],
+    };
+
+    const result = validateGeneratedOutput(output);
+    expect(result.valid).toBe(true);
+    expect(
+      result.violations.some((violation) =>
+        violation.message.includes('id="root"'),
+      ),
+    ).toBe(false);
+  });
+
+  test("should keep vite-react validation when index.html references vite main entry but source entrypoints are missing", () => {
+    const output = {
+      framework: "vite-react",
+      mode: "generate" as const,
+      files: new Map([
+        ["README.md", "# Demo"],
+        [
+          "index.html",
+          `
+<!doctype html>
+<html lang="en">
+  <head><title>Vite</title></head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+`,
+        ],
+      ]),
+      declaredPackages: [],
+    };
+
+    const result = validateGeneratedOutput(output);
+    expect(result.valid).toBe(false);
+    expect(
+      result.violations.some(
+        (violation) =>
+          violation.type === "missing-entry-point" &&
+          violation.file === "src/main.tsx",
+      ),
+    ).toBe(true);
+    expect(
+      result.violations.some(
+        (violation) =>
+          violation.type === "missing-entry-point" &&
+          violation.file === "src/app/layout.tsx",
+      ),
+    ).toBe(false);
+  });
+
+  test("should reclassify declared vanilla output to vite-react when vite html entry is present", () => {
+    const output = {
+      framework: "vanilla",
+      mode: "generate" as const,
+      files: new Map([
+        ["README.md", "# Demo"],
+        [
+          "index.html",
+          `
+<!doctype html>
+<html lang="en">
+  <head><title>Vite</title></head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="./src/main.tsx"></script>
+  </body>
+</html>
+`,
+        ],
+      ]),
+      declaredPackages: [],
+    };
+
+    const result = validateGeneratedOutput(output);
+    expect(result.valid).toBe(false);
+    expect(
+      result.violations.some(
+        (violation) =>
+          violation.type === "missing-entry-point" &&
+          violation.file === "src/main.tsx",
+      ),
+    ).toBe(true);
+    expect(
+      result.violations.some(
+        (violation) =>
+          violation.type === "missing-entry-point" &&
+          violation.file === "src/app/layout.tsx",
+      ),
+    ).toBe(false);
+  });
+
+  test("should reclassify declared vanilla output to nextjs when next app entrypoints are present", () => {
+    const output = {
+      framework: "vanilla",
+      mode: "generate" as const,
+      files: new Map([
+        ["README.md", "# Demo"],
+        [
+          "src/app/layout.tsx",
+          'import "./globals.css"; export default function Layout({ children }) { return <html><body>{children}</body></html>; }',
+        ],
+      ]),
+      declaredPackages: [],
+    };
+
+    const result = validateGeneratedOutput(output);
+    expect(result.valid).toBe(false);
+    expect(
+      result.violations.some(
+        (violation) =>
+          violation.type === "missing-entry-point" &&
+          violation.file === "src/app/page.tsx",
+      ),
+    ).toBe(true);
+    expect(
+      result.violations.some(
+        (violation) =>
+          violation.type === "missing-entry-point" &&
+          violation.file === "src/main.tsx",
+      ),
+    ).toBe(false);
+  });
+
   test("should detect missing packages", () => {
     const output = {
       framework: "nextjs",
@@ -386,6 +616,32 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     expect(
       result.violations.some((violation) => violation.type === "import-placement"),
     ).toBe(true);
+  });
+
+  test("should skip framework entrypoint checks in edit mode", () => {
+    const output = {
+      framework: "vite-react",
+      mode: "edit" as const,
+      files: new Map([
+        [
+          "index.html",
+          `
+<!doctype html>
+<html lang="en">
+  <head><title>Edit</title></head>
+  <body><main id="app">No root div required in edit validation</main></body>
+</html>
+`,
+        ],
+      ]),
+      declaredPackages: [],
+    };
+
+    const result = validateGeneratedOutput(output);
+    expect(result.valid).toBe(true);
+    expect(
+      result.violations.some((violation) => violation.type === "missing-entry-point"),
+    ).toBe(false);
   });
 
   test("should reject generate mode when root component renders null", () => {

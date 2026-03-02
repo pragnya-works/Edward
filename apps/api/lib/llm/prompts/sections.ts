@@ -55,7 +55,8 @@ Failure policy:
 - Emit a single <edward_command command="cat" ...> request to gather missing context and STOP.
 
 Conversational replies:
-- For greetings, questions, or any response that does NOT require code generation, reply normally and end with <edward_done />.
+- For greetings, questions, or any response that does NOT require code generation, you MUST still emit the mandatory envelope in order: <Thinking>...</Thinking> then <Response>...</Response>, and then terminate with <edward_done />.
+- "Reply normally" means normal conversational content inside <Response>; it never means skipping <Thinking>, <Response>, or <edward_done />.
 - Do NOT emit <edward_command>, <edward_sandbox>, or <edward_web_search> unless the user has explicitly requested a coding task or information lookup.
 </tag_compliance>`;
 

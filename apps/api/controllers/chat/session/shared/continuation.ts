@@ -238,16 +238,17 @@ function buildPromptWithCaps(
     previousResponse,
     "",
   ).length;
-  const availableForTools = Math.max(
-    caps.toolTotalCharsMin,
+  const availableForTools =
     MAX_AGENT_CONTINUATION_PROMPT_CHARS -
-      basePromptLength -
-      TOOL_BUDGET_PADDING_CHARS,
-  );
-  const toolBudget = Math.max(
-    caps.toolTotalCharsMin,
-    Math.min(caps.toolTotalCharsTarget, availableForTools),
-  );
+    basePromptLength -
+    TOOL_BUDGET_PADDING_CHARS;
+  const toolBudget =
+    availableForTools <= 0
+      ? 0
+      : Math.max(
+          caps.toolTotalCharsMin,
+          Math.min(caps.toolTotalCharsTarget, availableForTools),
+        );
   const formattedResults = compactToolResultsForContinuation(
     toolResults,
     toolBudget,

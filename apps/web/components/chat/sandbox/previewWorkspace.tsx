@@ -26,6 +26,7 @@ type PreviewWorkspaceState =
   (typeof PREVIEW_WORKSPACE_STATE)[keyof typeof PREVIEW_WORKSPACE_STATE];
 
 const previewClassName = "w-full h-full animate-in fade-in duration-500";
+const PREVIEW_HIDE_DELAY_MS = 800;
 
 const previewByState: Record<MacOsPreviewState, ReactNode> = {
   [MAC_OS_PREVIEW_STATE.GENERATING]: (
@@ -109,7 +110,7 @@ export function PreviewWorkspace({
     if (targetState === PREVIEW_WORKSPACE_STATE.NONE) {
       const timer = setTimeout(() => {
         dispatchStableState({ type: "HIDE" });
-      }, 800);
+      }, PREVIEW_HIDE_DELAY_MS);
       return () => clearTimeout(timer);
     }
 

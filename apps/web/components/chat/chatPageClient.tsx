@@ -11,7 +11,6 @@ import { ChatRole, INITIAL_STREAM_STATE } from "@edward/shared/chat/types";
 import {
   clearRunStopNotice,
   getRunStopNotice,
-  hasRunStopNotice,
 } from "@/lib/chat/runStopIntent";
 
 interface ChatPageClientProps {
@@ -51,8 +50,9 @@ export default function ChatPageClient({ chatId }: ChatPageClientProps) {
 
   const latestMessage = messages[messages.length - 1];
   const stopNotice = getRunStopNotice(chatId);
+  const hasStoredStopNotice = Boolean(stopNotice);
   const shouldShowStopNotice =
-    Boolean(stopNotice) &&
+    hasStoredStopNotice &&
     latestMessage?.role === ChatRole.USER &&
     (!stopNotice?.userMessageId || stopNotice.userMessageId === latestMessage.id);
   const messagesWithStopNotice = useMemo(() => {
@@ -119,14 +119,14 @@ export default function ChatPageClient({ chatId }: ChatPageClientProps) {
   });
 
   useEffect(() => {
-    if (!chatId || !hasRunStopNotice(chatId)) {
+    if (!chatId || !hasStoredStopNotice) {
       return;
     }
 
     if (latestMessage?.role === ChatRole.ASSISTANT) {
       clearRunStopNotice(chatId);
     }
-  }, [chatId, latestMessage?.id, latestMessage?.role]);
+  }, [chatId, hasStoredStopNotice, latestMessage?.role]);
 
   if (isHistoryLoading && !hasActiveStreamState) {
     return <ChatLoadingState />;

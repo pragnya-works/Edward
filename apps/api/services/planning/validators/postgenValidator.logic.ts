@@ -2,6 +2,7 @@ import {
   COMMENT_STUB_PATTERN,
   EMPTY_HANDLER_PATTERN,
   EMPTY_ROOT_COMPONENT_PATTERN,
+  GENERATED_OUTPUT_FRAMEWORK,
   INVALID_ZUSTAND_DEFAULT_IMPORT_PATTERN,
   PLACEHOLDER_PATTERN,
   SAMPLE_CONTENT_PATTERN,
@@ -11,7 +12,6 @@ import type { GeneratedOutput, ValidationViolation } from './postgenValidator.ty
 import {
   VALIDATION_VIOLATION_TYPE,
   VALIDATION_SEVERITY,
-  GENERATED_OUTPUT_FRAMEWORK,
   isGenerateMode,
 } from './postgenValidator.types.js';
 

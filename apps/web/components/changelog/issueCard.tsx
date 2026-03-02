@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useCallback, memo } from "react";
-import { m, AnimatePresence } from "motion/react";
+import { useState, useCallback, memo, type CSSProperties } from "react";
+import { m, AnimatePresence, useReducedMotion } from "motion/react";
 import { ChevronDown } from "lucide-react";
 import { StatusBadge } from "./statusBadge";
 import { PriorityBadge } from "./priorityBadge";
@@ -18,11 +18,14 @@ interface IssueCardProps {
   onToggle?: (id: string) => void;
 }
 
+const DATE_COLUMN_WIDTH_PX = 72;
+
 export const IssueCard = memo(IssueCardComponent);
 IssueCard.displayName = "IssueCard";
 
 function IssueCardComponent({ issue, index = 0, isExpanded: controlledExpanded, onToggle }: IssueCardProps) {
   const [internalExpanded, setInternalExpanded] = useState(false);
+  const prefersReducedMotion = useReducedMotion();
   const isExpanded = controlledExpanded !== undefined ? controlledExpanded : internalExpanded;
   const dateToUse = issue.completedAt || issue.updatedAt;
   const hasDescription = Boolean(issue.description?.trim());
@@ -40,6 +43,26 @@ function IssueCardComponent({ issue, index = 0, isExpanded: controlledExpanded, 
     month: "short",
     day: "numeric",
   }).format(new Date(dateToUse));
+  const descriptionMotion = prefersReducedMotion
+    ? {
+        initial: { height: 0, opacity: 0, filter: "none" },
+        animate: { height: "auto", opacity: 1, filter: "none" },
+        exit: { height: 0, opacity: 0, filter: "none" },
+        transition: { duration: 0.16, ease: "easeOut" } as const,
+      }
+    : {
+        initial: { height: 0, opacity: 0, filter: "blur(4px)" },
+        animate: { height: "auto", opacity: 1, filter: "blur(0px)" },
+        exit: { height: 0, opacity: 0, filter: "blur(4px)" },
+        transition: {
+          height: { type: "spring", stiffness: 400, damping: 35 },
+          opacity: { duration: 0.25 },
+          filter: { duration: 0.25 },
+        },
+      };
+  const descriptionOffsetStyle = {
+    "--issue-date-col-width": `${DATE_COLUMN_WIDTH_PX}px`,
+  } as CSSProperties;
 
   return (
     <m.article
@@ -142,17 +165,16 @@ function IssueCardComponent({ issue, index = 0, isExpanded: controlledExpanded, 
         {isExpanded && hasDescription && (
           <m.div
             id={`issue-description-${issue.id}`}
-            initial={{ height: 0, opacity: 0, filter: "blur(4px)" }}
-            animate={{ height: "auto", opacity: 1, filter: "blur(0px)" }}
-            exit={{ height: 0, opacity: 0, filter: "blur(4px)" }}
-            transition={{
-              height: { type: "spring", stiffness: 400, damping: 35 },
-              opacity: { duration: 0.25 },
-              filter: { duration: 0.25 }
-            }}
+            initial={descriptionMotion.initial}
+            animate={descriptionMotion.animate}
+            exit={descriptionMotion.exit}
+            transition={descriptionMotion.transition}
             className="overflow-hidden"
           >
-            <div className="pb-5 pt-1 px-4 sm:px-5 ml-0 sm:ml-[72px] mt-1 text-slate-600 dark:text-slate-300 prose prose-sm dark:prose-invert max-w-none overflow-x-hidden break-words">
+            <div
+              style={descriptionOffsetStyle}
+              className="pb-5 pt-1 px-4 sm:px-5 ml-0 sm:ml-[var(--issue-date-col-width)] mt-1 text-slate-600 dark:text-slate-300 prose prose-sm dark:prose-invert max-w-none overflow-x-hidden break-words"
+            >
               <MarkdownRenderer
                 content={issue.description ?? ""}
                 className="text-[14px] leading-relaxed"

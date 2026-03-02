@@ -187,6 +187,7 @@ export async function runStreamSession(
       loopStopReason: loopResult.loopStopReason,
       webSearchResults: loopResult.webSearchResults,
     };
+    framework = workflow.context.framework ?? framework;
 
     await applyDeterministicPostgenAutofixes({
       framework,
@@ -230,6 +231,7 @@ export async function runStreamSession(
     loopState = strictRetryResult.loopState;
     tokenUsage = strictRetryResult.tokenUsage;
     fullRawResponse = loopState.fullRawResponse;
+    framework = workflow.context.framework ?? framework;
 
     await applyDeterministicPostgenAutofixes({
       framework,

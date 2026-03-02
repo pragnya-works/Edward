@@ -75,6 +75,8 @@ function createRateLimiterForScope(
     skip?: (req: Request, res: Response) => boolean;
   } = {},
 ) {
+  // Intentionally weaken RATE_LIMIT_POLICY_BY_SCOPE to Partial<Record<KnownRateLimitScope, RateLimitPolicy>>
+  // so monorepo dist/source drift in @edward/shared can be caught by the runtime !policy guard below.
   const policy = (
     RATE_LIMIT_POLICY_BY_SCOPE as Partial<
       Record<KnownRateLimitScope, RateLimitPolicy>

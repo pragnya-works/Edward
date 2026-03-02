@@ -1,3 +1,10 @@
+export const RESPONSIVE_BREAKPOINTS = {
+  MOBILE_MAX: 767,
+  TABLET_MIN: 768,
+  TABLET_MAX: 1023,
+  DESKTOP_MIN: 1024,
+} as const;
+
 export const UI_DESIGN_CORE_SKILL = `
 <skill:ui-design-core>
 Design quality rules:
@@ -125,7 +132,7 @@ Production completeness rules (non-negotiable):
 - Primary user journeys must work end-to-end before finishing output.
 - Scale files to the task: multi-feature apps require separate files per feature/domain.
 - Ensure imports resolve and code is syntactically valid.
-- Treat responsive layout breakage on any major screen size as an incomplete delivery.
+- Treat responsive layout breakage as incomplete delivery for these required breakpoints: mobile (<= ${RESPONSIVE_BREAKPOINTS.MOBILE_MAX}px), tablet (${RESPONSIVE_BREAKPOINTS.TABLET_MIN}-${RESPONSIVE_BREAKPOINTS.TABLET_MAX}px), and desktop (>= ${RESPONSIVE_BREAKPOINTS.DESKTOP_MIN}px).
 </skill:code-quality-compact>
 `;
 

@@ -230,7 +230,8 @@ export function AppSidebar({
                 <div className="space-y-1">
                   {visibleRecentChats.map((chat) => {
                     const chatHref = `/chat/${chat.id}`;
-                    const isActiveChat = pathname === chatHref;
+                    const isActiveChat =
+                      pathname === chatHref || pathname.startsWith(`${chatHref}/`);
 
                     return (
                       <Link

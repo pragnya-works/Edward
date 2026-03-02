@@ -107,19 +107,29 @@ async function ChangelogContent() {
   if (error) return <ErrorState error={error} />;
   if (issues.length === 0) return <EmptyState />;
 
-  const inProgressIssues = issues.filter((issue) => {
+  const inProgressIssues: typeof issues = [];
+  const doneIssues: typeof issues = [];
+
+  for (const issue of issues) {
     const stateName = issue.state.name.toLowerCase();
     const isBacklog = issue.state.type === "backlog" || stateName === "backlog";
-    return issue.state.type !== "completed" && !isBacklog;
-  });
-  const doneIssues = issues.filter((issue) => issue.state.type === "completed");
+
+    if (issue.state.type === "completed") {
+      doneIssues.push(issue);
+      continue;
+    }
+
+    if (!isBacklog) {
+      inProgressIssues.push(issue);
+    }
+  }
 
   if (inProgressIssues.length === 0 && doneIssues.length === 0) {
     return <EmptyState />;
   }
 
-  const sortedInProgress = inProgressIssues.length > 0 ? sortIssues(inProgressIssues) : null;
-  const sortedDone = doneIssues.length > 0 ? sortIssues(doneIssues) : null;
+  const sortedInProgress = inProgressIssues.length ? sortIssues(inProgressIssues) : null;
+  const sortedDone = doneIssues.length ? sortIssues(doneIssues) : null;
 
   return (
     <div className="space-y-10 md:space-y-16">

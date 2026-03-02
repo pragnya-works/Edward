@@ -1,4 +1,5 @@
 import {
+  GENERATED_OUTPUT_FRAMEWORK,
   IMPORT_TO_PACKAGE,
   LOCAL_FILE_EXTENSIONS,
   NEXT_BUILTIN_MODULES,
@@ -8,7 +9,6 @@ import {
 } from './postgenValidator.constants.js';
 import type { GeneratedOutput, ValidationViolation } from './postgenValidator.types.js';
 import {
-  GENERATED_OUTPUT_FRAMEWORK,
   isGenerateMode,
   VALIDATION_SEVERITY,
   VALIDATION_VIOLATION_TYPE,

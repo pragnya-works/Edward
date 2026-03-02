@@ -1,14 +1,26 @@
 import type { PatternRequirement } from './postgenValidator.types.js';
 
+export const GENERATED_OUTPUT_FRAMEWORK = {
+  NEXTJS: 'nextjs',
+  VITE_REACT: 'vite-react',
+  VANILLA: 'vanilla',
+} as const;
+
 export const REQUIRED_ENTRY_POINTS: Record<string, string[]> = {
-  nextjs: ['src/app/layout.tsx', 'src/app/page.tsx'],
-  'vite-react': ['src/main.tsx', 'src/App.tsx'],
-  vanilla: ['index.html'],
+  [GENERATED_OUTPUT_FRAMEWORK.NEXTJS]: ['src/app/layout.tsx', 'src/app/page.tsx'],
+  [GENERATED_OUTPUT_FRAMEWORK.VITE_REACT]: ['src/main.tsx', 'src/App.tsx'],
+  [GENERATED_OUTPUT_FRAMEWORK.VANILLA]: ['index.html'],
 };
 
 export const REQUIRED_CSS_IMPORTS: Record<string, { file: string; importPattern: RegExp }> = {
-  nextjs: { file: 'src/app/layout.tsx', importPattern: /import\s+['"]\.\/globals\.css['"]/ },
-  'vite-react': { file: 'src/main.tsx', importPattern: /import\s+['"]\.\/index\.css['"]/ },
+  [GENERATED_OUTPUT_FRAMEWORK.NEXTJS]: {
+    file: 'src/app/layout.tsx',
+    importPattern: /import\s+['"]\.\/globals\.css['"]/,
+  },
+  [GENERATED_OUTPUT_FRAMEWORK.VITE_REACT]: {
+    file: 'src/main.tsx',
+    importPattern: /import\s+['"]\.\/index\.css['"]/,
+  },
 };
 
 export const REQUIRED_GENERATE_PROJECT_FILES = ['README.md'] as const;

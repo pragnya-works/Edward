@@ -329,9 +329,19 @@ async function gracefulShutdown(exitCode = 0) {
   shutdownPromise = (async () => {
     clearInterval(scheduledFlushInterval);
     clearInterval(staleRunReaperInterval);
-    await Promise.all([buildWorker.close(), agentRunWorker.close()]);
-    await pubClient.quit();
-    process.exit(shutdownExitCode);
+
+    try {
+      await Promise.all([buildWorker.close(), agentRunWorker.close()]);
+      await pubClient.quit();
+    } catch (error) {
+      shutdownExitCode = Math.max(shutdownExitCode, 1);
+      logger.error(
+        { error },
+        "[Worker] Error during graceful shutdown cleanup",
+      );
+    } finally {
+      process.exit(shutdownExitCode);
+    }
   })();
 
   return shutdownPromise;

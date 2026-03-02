@@ -54,8 +54,9 @@ export const ThinkingIndicator = memo(function ThinkingIndicator({
     () => text.replace(EDWARD_TAGS_REGEX, ""),
     [text],
   );
+  const trimmedText = useMemo(() => cleanedText.trim(), [cleanedText]);
 
-  if (!cleanedText && !isActive) return null;
+  if (!trimmedText && !isActive) return null;
 
   return (
     <m.div
@@ -223,7 +224,7 @@ export const ThinkingIndicator = memo(function ThinkingIndicator({
 
                 <div className="py-1 pr-4 mb-2 text-zinc-700 dark:text-zinc-300 max-h-[400px] overflow-y-auto custom-scrollbar">
                   <MarkdownRenderer
-                    content={cleanedText}
+                    content={trimmedText}
                     className={cn(
                       "text-[12px] sm:text-[13px] leading-relaxed text-zinc-600 dark:text-zinc-400",
                       "[&_p]:mb-3 last:[&_p]:mb-0 [&_p]:leading-relaxed",

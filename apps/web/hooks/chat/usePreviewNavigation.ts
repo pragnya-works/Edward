@@ -41,6 +41,15 @@ export function usePreviewNavigation({ mode, previewUrl }: UsePreviewNavigationP
     PREVIEW_NAVIGATION_INITIAL_STATE,
   );
   const previewFrameRef = useRef<HTMLIFrameElement | null>(null);
+  const loadingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearLoadingTimeout = useCallback(() => {
+    if (loadingTimeoutRef.current === null) {
+      return;
+    }
+    clearTimeout(loadingTimeoutRef.current);
+    loadingTimeoutRef.current = null;
+  }, []);
 
   const previewAddress = previewNavigation.address;
   const canGoBack = previewNavigation.canGoBack;
@@ -57,17 +66,21 @@ export function usePreviewNavigation({ mode, previewUrl }: UsePreviewNavigationP
 
   useEffect(() => {
     if (mode !== SandboxMode.PREVIEW || !previewUrl) {
+      clearLoadingTimeout();
       dispatchPreviewFrame({ type: "RESET" });
       return;
     }
 
+    clearLoadingTimeout();
     dispatchPreviewFrame({ type: "START_LOADING" });
-    const timeoutId = setTimeout(() => {
+    loadingTimeoutRef.current = setTimeout(() => {
       dispatchPreviewFrame({ type: "MARK_FAILED" });
     }, PREVIEW_EMBED_TIMEOUT_MS);
 
-    return () => clearTimeout(timeoutId);
-  }, [mode, previewUrl]);
+    return () => {
+      clearLoadingTimeout();
+    };
+  }, [clearLoadingTimeout, mode, previewUrl]);
 
   useEffect(() => {
     dispatchPreviewNavigation({ type: "RESET_FROM_URL", previewUrl });
@@ -183,11 +196,12 @@ export function usePreviewNavigation({ mode, previewUrl }: UsePreviewNavigationP
   }, [isPreviewBridgeConnected, postPreviewCommand]);
 
   const refreshPreview = useCallback(() => {
-    dispatchPreviewFrame({ type: "START_LOADING" });
     const iframeWindow = previewFrameRef.current?.contentWindow;
     if (!iframeWindow) {
       return;
     }
+
+    dispatchPreviewFrame({ type: "START_LOADING" });
 
     if (isPreviewBridgeConnected && postPreviewCommand(PreviewHostCommand.RELOAD)) {
       return;
@@ -208,6 +222,7 @@ export function usePreviewNavigation({ mode, previewUrl }: UsePreviewNavigationP
 
   const handlePreviewFrameLoad = useCallback((event: SyntheticEvent<HTMLIFrameElement>) => {
     const iframe = event.currentTarget;
+    clearLoadingTimeout();
 
     try {
       const href = iframe.contentWindow?.location?.href;
@@ -231,11 +246,12 @@ export function usePreviewNavigation({ mode, previewUrl }: UsePreviewNavigationP
       });
       dispatchPreviewFrame({ type: "MARK_READY" });
     }
-  }, [previewUrl]);
+  }, [clearLoadingTimeout, previewUrl]);
 
   const markPreviewFailed = useCallback(() => {
+    clearLoadingTimeout();
     dispatchPreviewFrame({ type: "MARK_FAILED" });
-  }, []);
+  }, [clearLoadingTimeout]);
 
   return {
     previewFrameState: previewFrameState as PreviewFrameStateType,

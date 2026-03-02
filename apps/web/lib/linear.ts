@@ -90,8 +90,8 @@ export function sortIssues(issues: ChangelogIssue[]): ChangelogIssue[] {
     const pA = a.priority === 0 ? 10 : a.priority;
     const pB = b.priority === 0 ? 10 : b.priority;
     if (pA !== pB) return pA - pB;
-    const dateA = new Date(a.completedAt || a.updatedAt).getTime();
-    const dateB = new Date(b.completedAt || b.updatedAt).getTime();
+    const dateA = (a.completedAt ?? a.updatedAt).getTime();
+    const dateB = (b.completedAt ?? b.updatedAt).getTime();
     return dateB - dateA;
   });
 }

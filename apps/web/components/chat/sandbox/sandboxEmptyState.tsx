@@ -19,6 +19,11 @@ export function SandboxEmptyState() {
   const workspace = useOptionalChatWorkspaceContext();
   const isInstallingDependencies =
     (workspace?.stream.installingDeps.length ?? 0) > 0;
+  const previewState = isInstallingDependencies
+    ? MAC_OS_PREVIEW_STATE.INSTALLING
+    : isStreaming
+      ? MAC_OS_PREVIEW_STATE.GENERATING
+      : MAC_OS_PREVIEW_STATE.DEPLOYING;
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
   const handleCopy = useCallback(async (key: string, text: string) => {
@@ -246,8 +251,7 @@ export function SandboxEmptyState() {
           buildStatus === BuildStatus.BUILDING ? (
           <MacOsBrowserPreview
             size="sm"
-            state={MAC_OS_PREVIEW_STATE.DEPLOYING
-            }
+            state={previewState}
             className="w-full p-0 md:p-0 bg-transparent animate-in fade-in duration-500"
           />
         ) : (

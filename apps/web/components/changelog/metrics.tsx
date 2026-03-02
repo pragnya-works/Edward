@@ -11,7 +11,10 @@ interface ChangelogMetricsProps {
 
 export function ChangelogMetrics({ issues }: ChangelogMetricsProps) {
     const metrics = useMemo(() => {
-        const total = issues.length;
+        if (issues.length === 0) {
+            return { completed: 0, inProgress: 0, recentActivity: 0 };
+        }
+
         const completed = issues.filter((i) => i.state.type === "completed").length;
         const inProgress = issues.filter((i) => i.state.type !== "completed").length;
         const thirtyDaysAgo = new Date();
@@ -20,10 +23,10 @@ export function ChangelogMetrics({ issues }: ChangelogMetricsProps) {
             (i) => new Date(i.completedAt || i.updatedAt) > thirtyDaysAgo
         ).length;
 
-        return { total, completed, inProgress, recentActivity };
+        return { completed, inProgress, recentActivity };
     }, [issues]);
 
-    const cards = [
+    const cards = useMemo(() => ([
         {
             label: "Shipped",
             value: metrics.completed,
@@ -48,7 +51,7 @@ export function ChangelogMetrics({ issues }: ChangelogMetricsProps) {
             bg: "bg-purple-100 dark:bg-purple-500/10",
             border: "border-purple-200 dark:border-purple-500/20",
         },
-    ];
+    ]), [metrics]);
 
     if (issues.length === 0) return null;
 

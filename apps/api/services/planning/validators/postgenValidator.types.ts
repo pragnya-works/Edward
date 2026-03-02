@@ -1,3 +1,5 @@
+import { GENERATED_OUTPUT_FRAMEWORK } from './postgenValidator.constants.js';
+
 export const VALIDATION_VIOLATION_TYPE = {
   MISSING_ENTRY_POINT: 'missing-entry-point',
   MISSING_PROJECT_FILE: 'missing-project-file',
@@ -31,12 +33,6 @@ export const GENERATED_OUTPUT_MODE = {
 
 export type GeneratedOutputMode =
   (typeof GENERATED_OUTPUT_MODE)[keyof typeof GENERATED_OUTPUT_MODE];
-
-export const GENERATED_OUTPUT_FRAMEWORK = {
-  NEXTJS: 'nextjs',
-  VITE_REACT: 'vite-react',
-  VANILLA: 'vanilla',
-} as const;
 
 export type GeneratedOutputFramework =
   (typeof GENERATED_OUTPUT_FRAMEWORK)[keyof typeof GENERATED_OUTPUT_FRAMEWORK];

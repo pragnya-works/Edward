@@ -1,10 +1,12 @@
 "use client";
 
-import { memo } from "react";
+import { memo, useId } from "react";
 import { m } from "motion/react";
 import { Package, Terminal } from "lucide-react";
 
 export const InstallingAnimation = memo(function InstallingAnimation() {
+    const titleId = useId();
+
     return (
         <div className="w-full h-full flex items-center justify-center opacity-90 dark:opacity-80">
             <div className="flex flex-col items-center gap-4 sm:gap-8">
@@ -19,7 +21,13 @@ export const InstallingAnimation = memo(function InstallingAnimation() {
                         transition={{ duration: 8, ease: "linear", repeat: Infinity }}
                         className="absolute inset-0"
                     >
-                        <svg className="w-12 h-12 sm:w-16 sm:h-16 text-neutral-300 dark:text-workspace-foreground/20" viewBox="0 0 100 100">
+                        <svg
+                          role="img"
+                          aria-labelledby={titleId}
+                          className="w-12 h-12 sm:w-16 sm:h-16 text-neutral-300 dark:text-workspace-foreground/20"
+                          viewBox="0 0 100 100"
+                        >
+                            <title id={titleId}>Installing dependencies activity indicator</title>
                             <circle cx="50" cy="50" r="48" fill="none" strokeWidth="1.5" stroke="currentColor" strokeDasharray="8 6" />
                         </svg>
                     </m.div>

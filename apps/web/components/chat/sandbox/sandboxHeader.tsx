@@ -53,7 +53,7 @@ export function SandboxHeader() {
           </span>
           <div className="flex items-center gap-1.5 leading-none">
             <span className="text-[8px] text-workspace-header-fg/60 font-medium uppercase tracking-tighter">
-              {files.length} Files
+              {files.length} {files.length === 1 ? "File" : "Files"}
             </span>
           </div>
         </div>
