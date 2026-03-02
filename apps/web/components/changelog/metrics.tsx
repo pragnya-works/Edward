@@ -16,7 +16,7 @@ export function ChangelogMetrics({ issues }: ChangelogMetricsProps) {
         }
 
         const completed = issues.filter((i) => i.state.type === "completed").length;
-        const inProgress = issues.filter((i) => i.state.type !== "completed").length;
+        const inProgress = issues.filter((i) => i.state.type === "started").length;
         const thirtyDaysAgo = new Date();
         thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
         const recentActivity = issues.filter(

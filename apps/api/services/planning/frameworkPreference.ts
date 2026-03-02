@@ -4,38 +4,41 @@ const FRAMEWORK_MATCHERS: ReadonlyArray<{
   framework: Framework;
   patterns: ReadonlyArray<RegExp>;
 }> = [
-  {
-    framework: "nextjs",
-    patterns: [
-      /\bnext(?:\.js|js)\b/i,
-      /\bnext\s+js\b/i,
-    ],
-  },
-  {
-    framework: "vite-react",
-    patterns: [
-      /\bvite(?:\s+react)?\b/i,
-    ],
-  },
-  {
-    framework: "vanilla",
-    patterns: [
-      /\bvanilla(?:\s+(?:js|javascript|html|css))?\b/i,
-      /\bplain\s+(?:html|javascript|js)\b/i,
-      /\bhtml\s*\/\s*css\s*\/\s*js\b/i,
-    ],
-  },
-];
+    {
+      framework: "nextjs",
+      patterns: [
+        /\bnext(?:\.js|js)\b/i,
+        /\bnext\s+js\b/i,
+      ],
+    },
+    {
+      framework: "vite-react",
+      patterns: [
+        /\bvite(?:\s+react)?\b/i,
+      ],
+    },
+    {
+      framework: "vanilla",
+      patterns: [
+        /\bvanilla(?:\s+(?:js|javascript|html|css))?\b/i,
+        /\bplain\s+(?:html|javascript|js)\b/i,
+        /\bhtml\s*\/\s*css\s*\/\s*js\b/i,
+      ],
+    },
+  ];
 
 const NEGATION_TOKEN_PATTERN = /\b(?:no|not|without|avoid|exclude|don['’]?t|dont|minus)\b/i;
 const NEGATION_LOOKBACK_CHARS = 24;
 const NEGATION_LOOKAHEAD_CHARS = 24;
+const CLAUSE_DELIMITER_PATTERN = /[,;.]|\b(?:but|however|rather|instead|except)\b/i;
 
 function hasNegationNearMatch(input: string, matchIndex: number, matchLength: number): boolean {
   const lookbackStart = Math.max(0, matchIndex - NEGATION_LOOKBACK_CHARS);
   const contextBeforeMatch = input.slice(lookbackStart, matchIndex);
   const matchEnd = matchIndex + matchLength;
-  const contextAfterMatch = input.slice(matchEnd, matchEnd + NEGATION_LOOKAHEAD_CHARS);
+  const rawAfter = input.slice(matchEnd, matchEnd + NEGATION_LOOKAHEAD_CHARS);
+  const delimiterMatch = CLAUSE_DELIMITER_PATTERN.exec(rawAfter);
+  const contextAfterMatch = delimiterMatch ? rawAfter.slice(0, delimiterMatch.index) : rawAfter;
   return NEGATION_TOKEN_PATTERN.test(contextBeforeMatch) || NEGATION_TOKEN_PATTERN.test(contextAfterMatch);
 }
 

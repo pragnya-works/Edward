@@ -51,7 +51,8 @@ export function createGracefulShutdown({
           agentRunWorkerClose: false,
           pubClientQuit: false,
         };
-        const cleanupPromise = Promise.all([
+        const operationNames = ['buildWorkerClose', 'agentRunWorkerClose', 'pubClientQuit'] as const;
+        const cleanupPromise = Promise.allSettled([
           buildWorker.close().finally(() => {
             completionState.buildWorkerClose = true;
           }),
@@ -61,7 +62,18 @@ export function createGracefulShutdown({
           pubClient.quit().finally(() => {
             completionState.pubClientQuit = true;
           }),
-        ]);
+        ]).then((results) => {
+          const failedOps: string[] = results
+            .map((r, i) => (r.status === 'rejected' ? operationNames[i] : null))
+            .filter((name): name is (typeof operationNames)[number] => name !== null);
+          if (failedOps.length > 0) {
+            const err = new Error(
+              `Graceful shutdown cleanup failed for: ${failedOps.join(', ')}`,
+            ) as TimeoutError;
+            err.timedOutOperations = failedOps;
+            throw err;
+          }
+        });
         const timeoutPromise = new Promise<never>((_, reject) => {
           cleanupTimeoutHandle = setTimeout(() => {
             const timedOutOperations = Object.entries(completionState)

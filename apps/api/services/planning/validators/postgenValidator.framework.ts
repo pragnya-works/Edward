@@ -255,12 +255,19 @@ function inferFrameworkFromSignals(
   return undefined;
 }
 
+const CANONICAL_FRAMEWORKS = new Set<string>([
+  GENERATED_OUTPUT_FRAMEWORK.NEXTJS,
+  GENERATED_OUTPUT_FRAMEWORK.VITE_REACT,
+  GENERATED_OUTPUT_FRAMEWORK.VANILLA,
+]);
+
 export function resolveValidationFramework(
   framework: GeneratedOutput['framework'],
   files: Map<string, string>,
 ): GeneratedOutput['framework'] {
   const signals = buildFrameworkSignalContext(files);
-  const frameworkToValidate = framework ?? inferFrameworkFromSignals(signals);
+  const normalizedFramework = framework && CANONICAL_FRAMEWORKS.has(framework) ? framework : undefined;
+  const frameworkToValidate = normalizedFramework ?? inferFrameworkFromSignals(signals);
   if (!frameworkToValidate) {
     return frameworkToValidate;
   }
