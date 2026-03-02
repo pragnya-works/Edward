@@ -52,6 +52,10 @@ async function processBuildJob(payload: BuildJobPayload): Promise<void> {
         status: BuildRecordStatus.QUEUED,
       });
 
+  if (!buildRecord) {
+    throw new Error(`Failed to create/find build record for chatId: ${chatId}`);
+  }
+
   await updateBuild(buildRecord.id, {
     status: BuildRecordStatus.BUILDING,
   });

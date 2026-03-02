@@ -49,9 +49,9 @@ export const TypingIndicator = memo(function TypingIndicator({
         animate={{ opacity: 1 }}
         transition={{ duration: 0.4 }}
       >
-        {FEATURE_TYPING_DOT_DELAYS.map((delay, index) => (
+        {FEATURE_TYPING_DOT_DELAYS.map((delay) => (
           <m.div
-            key={`typing-dot-${index}`}
+            key={`typing-dot-${delay}`}
             className={cn("h-1 sm:h-1.5 w-1 sm:w-1.5 rounded-full", dotClassName)}
             animate={{
               scale: [1, 1.2, 1],

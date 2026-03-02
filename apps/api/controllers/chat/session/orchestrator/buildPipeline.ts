@@ -102,6 +102,9 @@ export async function processBuildPipeline(
       messageId: assistantMessageId,
       status: BuildRecordStatus.FAILED,
     });
+    if (!failedBuild) {
+      throw new Error(`Failed to create failed build record for chatId: ${chatId}`);
+    }
 
     await updateBuild(failedBuild.id, {
       status: BuildRecordStatus.FAILED,
@@ -147,6 +150,9 @@ export async function processBuildPipeline(
     messageId: assistantMessageId,
     status: BuildRecordStatus.QUEUED,
   });
+  if (!queuedBuild) {
+    throw new Error(`Failed to create queued build record for chatId: ${chatId}`);
+  }
 
   const buildStatusChannel = `edward:build-status:${chatId}`;
   const publishBuildStatus = async (payload: Record<string, unknown>) => {
