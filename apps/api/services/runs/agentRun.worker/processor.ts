@@ -1,4 +1,5 @@
 import { EventEmitter } from "node:events";
+import type { Response } from "express";
 import {
   ParserEventType,
   MetaPhase,
@@ -284,6 +285,17 @@ export async function processAgentRunJob(
       !latestBeforeStart ||
       isTerminalRunStatus(latestBeforeStart.status)
     ) {
+      if (
+        workerAbort.signal.aborted &&
+        latestBeforeStart &&
+        !isTerminalRunStatus(latestBeforeStart.status)
+      ) {
+        await updateRun(runId, {
+          status: RUN_STATUS.CANCELLED,
+          state: "CANCELLED",
+          completedAt: new Date(),
+        }).catch(() => {});
+      }
       return;
     }
 
@@ -403,12 +415,15 @@ export async function processAgentRunJob(
       }
     });
 
-    const fakeReq = new EventEmitter() as unknown as AuthenticatedRequest;
+    const fakeReq = Object.assign(new EventEmitter(), {
+      userId: run.userId,
+      sessionId: undefined,
+    }) as unknown as AuthenticatedRequest;
 
     try {
       await runStreamSession({
         req: fakeReq,
-        res: capturedRes as never,
+        res: capturedRes as unknown as Response,
         externalSignal: workerAbort.signal,
         workflow: metadata.workflow,
         userId: run.userId,

@@ -22,6 +22,14 @@ interface GracefulShutdownDeps {
 
 type TimeoutError = Error & { timedOutOperations?: string[] };
 
+function createTimeoutError(message: string, timedOutOperations: string[]): TimeoutError {
+  return Object.assign(new Error(message), { timedOutOperations });
+}
+
+function isTimeoutError(err: unknown): err is TimeoutError {
+  return err instanceof Error && 'timedOutOperations' in err;
+}
+
 export function createGracefulShutdown({
   buildWorker,
   agentRunWorker,
@@ -67,11 +75,10 @@ export function createGracefulShutdown({
             .map((r, i) => (r.status === 'rejected' ? operationNames[i] : null))
             .filter((name): name is (typeof operationNames)[number] => name !== null);
           if (failedOps.length > 0) {
-            const err = new Error(
+            throw createTimeoutError(
               `Graceful shutdown cleanup failed for: ${failedOps.join(', ')}`,
-            ) as TimeoutError;
-            err.timedOutOperations = failedOps;
-            throw err;
+              failedOps,
+            );
           }
         });
         const timeoutPromise = new Promise<never>((_, reject) => {
@@ -79,18 +86,17 @@ export function createGracefulShutdown({
             const timedOutOperations = Object.entries(completionState)
               .filter(([, complete]) => !complete)
               .map(([operation]) => operation);
-            const timeoutError = new Error(
+            reject(createTimeoutError(
               `Graceful shutdown cleanup timed out after ${shutdownTimeoutMs}ms`,
-            ) as TimeoutError;
-            timeoutError.timedOutOperations = timedOutOperations;
-            reject(timeoutError);
+              timedOutOperations,
+            ));
           }, shutdownTimeoutMs);
         });
 
         await Promise.race([cleanupPromise, timeoutPromise]);
       } catch (error) {
         shutdownExitCode = Math.max(shutdownExitCode, 1);
-        const timedOutOperations = (error as TimeoutError).timedOutOperations;
+        const timedOutOperations = isTimeoutError(error) ? error.timedOutOperations : undefined;
         if (timedOutOperations && timedOutOperations.length > 0) {
           logger.error(
             {

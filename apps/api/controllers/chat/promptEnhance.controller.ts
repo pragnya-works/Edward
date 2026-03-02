@@ -60,11 +60,15 @@ function resolveEnhancementProvider(params: {
   requestedProvider?: Provider | null;
   preferredModel?: string | null;
   apiKeyProvider: Provider | null;
-}): Provider {
+}): Provider | null {
   const { requestedProvider, preferredModel, apiKeyProvider } = params;
 
   if (requestedProvider) {
     return requestedProvider;
+  }
+
+  if (apiKeyProvider) {
+    return apiKeyProvider;
   }
 
   const preferredModelProvider = preferredModel
@@ -74,11 +78,7 @@ function resolveEnhancementProvider(params: {
     return preferredModelProvider;
   }
 
-  if (apiKeyProvider) {
-    return apiKeyProvider;
-  }
-
-  throw new Error("Unable to resolve provider for prompt enhancement.");
+  return null;
 }
 
 export async function enhancePrompt(
@@ -137,6 +137,15 @@ export async function enhancePrompt(
       preferredModel: userData.preferredModel,
       apiKeyProvider,
     });
+
+    if (!resolvedProvider) {
+      sendError(
+        res,
+        HttpStatus.BAD_REQUEST,
+        "Unable to determine provider for prompt enhancement. Please configure your API key.",
+      );
+      return;
+    }
 
     if (apiKeyProvider && resolvedProvider !== apiKeyProvider) {
       sendError(

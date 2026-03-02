@@ -1,6 +1,6 @@
 import { db } from "./db.js";
 import { build } from "./schema.js";
-import { eq, desc } from "drizzle-orm";
+import { and, eq, desc } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { BuildRecordStatus } from "@edward/shared/api/contracts";
 
@@ -9,10 +9,10 @@ export async function createBuild(data: {
   messageId: string;
   status?: BuildRecordStatus;
   forceNew?: boolean;
-}) {
+}): Promise<typeof build.$inferSelect | undefined> {
   if (!data.forceNew) {
     const existing = await db.query.build.findFirst({
-      where: eq(build.messageId, data.messageId),
+      where: and(eq(build.chatId, data.chatId), eq(build.messageId, data.messageId)),
       orderBy: [desc(build.createdAt)],
     });
     if (existing) {
@@ -40,7 +40,7 @@ export async function createBuild(data: {
     } catch (error) {
       attempts++;
       if (attempts >= MAX_RETRIES) throw error;
-      if ((error as { code?: string }).code === "23503") {
+      if (error !== null && typeof error === "object" && (error as { code?: string }).code === "23503") {
         await new Promise((resolve) => setTimeout(resolve, 500 * attempts));
         continue;
       }

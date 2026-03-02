@@ -229,7 +229,7 @@ export function AppSidebar({
               ) : visibleRecentChats.length > 0 ? (
                 <div className="space-y-1">
                   {visibleRecentChats.map((chat) => {
-                    const chatHref = `/chat/${chat.id}`;
+                    const chatHref = `/chat/${encodeURIComponent(chat.id)}`;
                     const isActiveChat =
                       pathname === chatHref || pathname.startsWith(`${chatHref}/`);
 
@@ -237,6 +237,7 @@ export function AppSidebar({
                       <Link
                         key={chat.id}
                         href={chatHref}
+                        aria-current={isActiveChat ? "page" : undefined}
                         className={cn(
                           "flex items-center justify-between gap-2 rounded-md px-2 py-1.5 text-neutral-700 dark:text-neutral-200 hover:bg-neutral-200/70 dark:hover:bg-neutral-800 transition-colors",
                           isActiveChat &&

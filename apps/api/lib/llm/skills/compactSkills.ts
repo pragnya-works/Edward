@@ -1,9 +1,11 @@
-export const RESPONSIVE_BREAKPOINTS = {
+export const RESPONSIVE_BREAKPOINTS = Object.freeze({
   MOBILE_MAX: 767,
   TABLET_MIN: 768,
   TABLET_MAX: 1023,
   DESKTOP_MIN: 1024,
-} as const;
+  LAPTOP_MIN: 1280,
+  ULTRA_WIDE_MIN: 1920,
+});
 
 export const UI_DESIGN_CORE_SKILL = `
 <skill:ui-design-core>
@@ -132,7 +134,7 @@ Production completeness rules (non-negotiable):
 - Primary user journeys must work end-to-end before finishing output.
 - Scale files to the task: multi-feature apps require separate files per feature/domain.
 - Ensure imports resolve and code is syntactically valid.
-- Treat responsive layout breakage as incomplete delivery for these required breakpoints: mobile (<= ${RESPONSIVE_BREAKPOINTS.MOBILE_MAX}px), tablet (${RESPONSIVE_BREAKPOINTS.TABLET_MIN}-${RESPONSIVE_BREAKPOINTS.TABLET_MAX}px), and desktop (>= ${RESPONSIVE_BREAKPOINTS.DESKTOP_MIN}px).
+- Treat responsive layout breakage as incomplete delivery for these required breakpoints: mobile (<= ${RESPONSIVE_BREAKPOINTS.MOBILE_MAX}px), tablet (${RESPONSIVE_BREAKPOINTS.TABLET_MIN}-${RESPONSIVE_BREAKPOINTS.TABLET_MAX}px), desktop (${RESPONSIVE_BREAKPOINTS.DESKTOP_MIN}-${RESPONSIVE_BREAKPOINTS.LAPTOP_MIN - 1}px), laptop (${RESPONSIVE_BREAKPOINTS.LAPTOP_MIN}-${RESPONSIVE_BREAKPOINTS.ULTRA_WIDE_MIN - 1}px), and ultra-wide (>= ${RESPONSIVE_BREAKPOINTS.ULTRA_WIDE_MIN}px).
 </skill:code-quality-compact>
 `;
 

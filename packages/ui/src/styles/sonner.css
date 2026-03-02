@@ -39,7 +39,7 @@
   --ed-toast-accent: color-mix(in oklch, var(--workspace-accent, oklch(0.7 0.15 247)) 70%, white 30%);
   background: color-mix(in oklch, var(--sonner-surface) 92%, var(--sonner-surface-soft) 8%);
   border: 1px solid var(--sonner-border-fallback);
-  border-color: var(--sonner-border);
+  border-color: color-mix(in oklch, var(--workspace-border, oklch(0.86 0 0)) 84%, var(--workspace-accent, oklch(0.62 0.15 248)) 16%);
   color: var(--sonner-text);
   box-shadow: var(--sonner-shadow);
   backdrop-filter: blur(10px) saturate(1.03);

@@ -42,18 +42,18 @@ const BentoCard = memo(function BentoCard({
                 "group relative flex flex-col justify-end overflow-hidden rounded-2xl",
                 "bg-card border border-white/10 dark:border-white/10 backdrop-blur-md",
                 "transform-gpu hover:shadow-[0_8px_30px_rgba(0,0,0,0.12)] hover:border-white/20",
-                "transition-[box-shadow,border-color,transform,background-color] duration-300",
-                "will-change-transform will-change-[box-shadow]",
+                "motion-safe:transition-[box-shadow,border-color,transform,background-color] motion-safe:duration-300",
+                "motion-safe:will-change-transform motion-safe:will-change-[box-shadow]",
                 "min-h-[18rem] md:min-h-0",
                 "content-visibility-auto",
                 className,
             )}
         >
             <div className="absolute inset-0 z-0">{background}</div>
-            <div className="pointer-events-none absolute inset-0 z-20 rounded-2xl shadow-[inset_0_1px_1px_rgba(255,255,255,0.15)] group-hover:shadow-[inset_0_1px_1px_rgba(255,255,255,0.25)] transition-shadow duration-300" />
-            <div className="pointer-events-none z-10 flex transform-gpu flex-col gap-1 p-4 md:p-6 transition-[transform,opacity] duration-300">
+            <div className="pointer-events-none absolute inset-0 z-20 rounded-2xl shadow-[inset_0_1px_1px_rgba(255,255,255,0.15)] group-hover:shadow-[inset_0_1px_1px_rgba(255,255,255,0.25)] motion-safe:transition-shadow motion-safe:duration-300" />
+            <div className="pointer-events-none z-10 flex transform-gpu flex-col gap-1 p-4 md:p-6 motion-safe:transition-[transform,opacity] motion-safe:duration-300">
                 {Icon && (
-                    <Icon className="h-8 w-8 md:h-12 md:w-12 origin-left transform-gpu text-foreground/70 transition-transform duration-300 ease-in-out md:group-hover:scale-75" />
+                    <Icon className="h-8 w-8 md:h-12 md:w-12 origin-left transform-gpu text-foreground/70 motion-safe:transition-transform motion-safe:duration-300 motion-safe:ease-in-out md:group-hover:scale-75" />
                 )}
                 <h3 className="text-lg md:text-xl font-semibold text-foreground">
                     {name}

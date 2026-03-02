@@ -106,7 +106,14 @@ export const useNotificationsStore = create<NotificationsStore>()(
               userId: ownerId,
             },
           };
-          return { subscriptions: pruneSubscriptionsMap(next) };
+          const subscriptions = pruneSubscriptionsMap(next);
+          const buildCheckpoints: typeof state.buildCheckpoints = {};
+          for (const [id, cp] of Object.entries(state.buildCheckpoints)) {
+            if (subscriptions[id]) {
+              buildCheckpoints[id] = cp;
+            }
+          }
+          return { subscriptions, buildCheckpoints };
         });
       },
 

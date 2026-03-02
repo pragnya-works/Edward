@@ -17,6 +17,8 @@ const TERMINAL_STATUSES = new Set<BuildRecordStatus>([
   BuildRecordStatus.FAILED,
 ]);
 
+const VALID_BUILD_STATUSES = new Set<string>(Object.values(BuildRecordStatus));
+
 const RECONNECT_AFTER_TERMINAL_MS = 12_000;
 const RECONNECT_BASE_ERROR_MS = 4_000;
 const RECONNECT_MAX_ERROR_MS = 60_000;
@@ -90,7 +92,11 @@ function parseBuildEvent(data: string): ParsedBuildEvent | null {
     return null;
   }
 
-  if (payload.type !== ParserEventType.BUILD_STATUS || !payload.status) {
+  if (
+    payload.type !== ParserEventType.BUILD_STATUS ||
+    !payload.status ||
+    !VALID_BUILD_STATUSES.has(payload.status)
+  ) {
     return null;
   }
 

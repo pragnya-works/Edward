@@ -148,14 +148,15 @@ const Promptbar = forwardRef<PromptbarRef, PromptbarProps>((props, ref) => {
 
   const uploadedImages = useMemo<UploadedImageRef[]>(
     () =>
-      attachedFiles
-        .filter((file) => isUploaded(file) && file.cdnUrl)
-        .map((file) => ({
-          url: file.cdnUrl!,
+      attachedFiles.flatMap((file) => {
+        if (!isUploaded(file) || !file.cdnUrl) return [];
+        return [{
+          url: file.cdnUrl,
           mimeType: file.mimeType || file.file.type || "image/jpeg",
           name: file.file.name,
           sizeBytes: file.file.size,
-        })),
+        }];
+      }),
     [attachedFiles],
   );
 

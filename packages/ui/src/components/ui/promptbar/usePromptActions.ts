@@ -1,4 +1,4 @@
-import { useCallback, type Dispatch, type SetStateAction } from "react";
+import { useCallback, type Dispatch, type RefObject, type SetStateAction } from "react";
 import { toast } from "@edward/ui/components/sonner";
 import { PROMPT_INPUT_CONFIG } from "@edward/shared/constants";
 import type { SpeechRecognitionInstance } from "./useVoiceInput";
@@ -81,9 +81,9 @@ interface UsePromptActionsInput {
     setShowLoginModal: Dispatch<SetStateAction<boolean>>;
     setShowBYOK: Dispatch<SetStateAction<boolean>>;
     handleClearAllFiles: () => void;
-    voiceRecognitionRef: React.RefObject<SpeechRecognitionInstance | null>;
-    voiceBaseTextRef: React.RefObject<string>;
-    voiceFinalTranscriptRef: React.RefObject<string>;
+    voiceRecognitionRef: RefObject<SpeechRecognitionInstance | null>;
+    voiceBaseTextRef: RefObject<string>;
+    voiceFinalTranscriptRef: RefObject<string>;
 }
 
 export function usePromptActions({
@@ -114,7 +114,7 @@ export function usePromptActions({
         setInputValue(nextValue.slice(0, PROMPT_INPUT_CONFIG.MAX_CHARS));
     }, [setInputValue]);
 
-    const handleProtectedAction = useCallback(async () => {
+    const handleProtectedAction = useCallback(async (): Promise<void> => {
         if (submissionDisabledReason) return;
         if (hasPendingUploads) return;
 
@@ -130,8 +130,10 @@ export function usePromptActions({
             return;
         }
 
+        if (!onProtectedAction) return;
+
         try {
-            await onProtectedAction?.(inputValue, uploadedImages);
+            await onProtectedAction(inputValue, uploadedImages);
             if (isVoiceRecording) {
                 voiceRecognitionRef.current?.stop();
             }
@@ -160,7 +162,7 @@ export function usePromptActions({
         voiceRecognitionRef,
     ]);
 
-    const handleEnhancePrompt = useCallback(async () => {
+    const handleEnhancePrompt = useCallback(async (): Promise<void> => {
         if (!canEnhancePrompt || isEnhancingPrompt) {
             return;
         }
@@ -211,7 +213,7 @@ export function usePromptActions({
         setShowLoginModal,
     ]);
 
-    const handleToggleVoiceInput = useCallback(() => {
+    const handleToggleVoiceInput = useCallback((): void => {
         const recognition = voiceRecognitionRef.current;
         if (!recognition || isSubmissionBlocked) {
             return;
@@ -227,21 +229,23 @@ export function usePromptActions({
 
         try {
             recognition.start();
-        } catch {
+        } catch (error: unknown) {
             recognition.stop();
             toast.error("Could not start voice input", {
-                description: "Failed to activate the microphone. Please try again.",
+                description: error instanceof Error ? error.message : "Failed to activate the microphone. Please try again.",
                 id: "voice-start-error",
             });
         }
     }, [inputValue, isSubmissionBlocked, isVoiceRecording, voiceBaseTextRef, voiceFinalTranscriptRef, voiceRecognitionRef]);
 
-    const handleByokValidate = useCallback(async () => {
+    const handleByokValidate = useCallback(async (): Promise<void> => {
         if (submissionDisabledReason || isStreaming) return;
         if (hasPendingUploads) return;
 
+        if (!onProtectedAction) return;
+
         try {
-            await onProtectedAction?.(inputValue, uploadedImages);
+            await onProtectedAction(inputValue, uploadedImages);
             if (isVoiceRecording) {
                 voiceRecognitionRef.current?.stop();
             }

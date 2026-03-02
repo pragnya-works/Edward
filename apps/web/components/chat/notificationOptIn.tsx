@@ -129,6 +129,7 @@ export function NotificationOptIn({
         ease: [0.22, 1, 0.36, 1],
       }}
       aria-hidden={suppressWhenTopContextVisible}
+      inert={suppressWhenTopContextVisible || undefined}
       className={cn("overflow-hidden", suppressWhenTopContextVisible && "pointer-events-none")}
     >
       <Card
@@ -162,7 +163,7 @@ export function NotificationOptIn({
                   <BellRing
                     className={cn(
                       "h-3.5 w-3.5",
-                      isBuilding && "animate-[wiggle_1.2s_ease-in-out_infinite]",
+                      isBuilding && !prefersReducedMotion && "animate-[wiggle_1.2s_ease-in-out_infinite]",
                     )}
                     strokeWidth={2}
                   />

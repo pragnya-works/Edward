@@ -234,7 +234,7 @@ export function PromptToolbar({
                     "bg-sky-500/15 border-sky-500/30 text-sky-500 hover:bg-sky-500/20",
                 )}
                 onClick={onToggleVoiceInput}
-                disabled={!isVoiceSupported || isSubmissionBlocked}
+                disabled={!isVoiceSupported || (isSubmissionBlocked && !isVoiceRecording)}
                 aria-label={isVoiceRecording ? "Stop voice input" : "Start voice input"}
               >
                 {isVoiceRecording ? (

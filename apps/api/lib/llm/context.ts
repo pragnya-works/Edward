@@ -270,7 +270,7 @@ export async function buildConversationMessages(
               ])
               .filter(
                 (f: string): f is string =>
-                  typeof f === "string" && f !== "unknown",
+                  typeof f === "string" && f.trim() !== "" && f !== "unknown",
               ),
           ),
         ]

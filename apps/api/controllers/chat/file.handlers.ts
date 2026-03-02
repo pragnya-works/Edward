@@ -14,7 +14,7 @@ export async function handleFileContent(
             const newlineIdx = trimmed.indexOf("\n");
             processedContent = newlineIdx !== -1 ? trimmed.slice(newlineIdx + 1) : "";
         } else {
-            processedContent = content.replace(/^\n+/, "");
+            processedContent = content.replace(/^(?:\r?\n)+/, "");
         }
     }
 
