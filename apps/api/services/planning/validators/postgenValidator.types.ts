@@ -57,7 +57,7 @@ export interface GeneratedOutput {
   mode?: GeneratedOutputMode;
 }
 
-export type PatternRequirement = { pattern: RegExp; label: string };
+export interface PatternRequirement { pattern: RegExp; label: string }
 
 const MODE_BEHAVIOR_BY_MODE: Record<
   GeneratedOutputMode,
