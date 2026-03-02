@@ -49,9 +49,9 @@ reviews:
       - "DO NOT MERGE"
       - "SKIP REVIEW"
     base_branches:
-      - main
-      - "release/**"
-      - "hotfix/**"
+      - "^main$"
+      - "^release/.+$"
+      - "^hotfix/.+$"
 
   path_filters:
     - "!pnpm-lock.yaml"
