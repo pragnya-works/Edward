@@ -29,11 +29,14 @@ const FRAMEWORK_MATCHERS: ReadonlyArray<{
 
 const NEGATION_TOKEN_PATTERN = /\b(?:no|not|without|avoid|exclude|don['’]?t|dont|minus)\b/i;
 const NEGATION_LOOKBACK_CHARS = 24;
+const NEGATION_LOOKAHEAD_CHARS = 24;
 
-function hasNegationNearMatch(input: string, matchIndex: number): boolean {
+function hasNegationNearMatch(input: string, matchIndex: number, matchLength: number): boolean {
   const lookbackStart = Math.max(0, matchIndex - NEGATION_LOOKBACK_CHARS);
   const contextBeforeMatch = input.slice(lookbackStart, matchIndex);
-  return NEGATION_TOKEN_PATTERN.test(contextBeforeMatch);
+  const matchEnd = matchIndex + matchLength;
+  const contextAfterMatch = input.slice(matchEnd, matchEnd + NEGATION_LOOKAHEAD_CHARS);
+  return NEGATION_TOKEN_PATTERN.test(contextBeforeMatch) || NEGATION_TOKEN_PATTERN.test(contextAfterMatch);
 }
 
 function toGlobalRegExp(pattern: RegExp): RegExp {
@@ -58,7 +61,7 @@ export function detectExplicitFrameworkPreference(
           const matchIndex = match.index;
           if (
             typeof matchIndex === "number" &&
-            !hasNegationNearMatch(input, matchIndex)
+            !hasNegationNearMatch(input, matchIndex, match[0].length)
           ) {
             return true;
           }

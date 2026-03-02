@@ -78,7 +78,7 @@ export default function ChatPageClient({ chatId }: ChatPageClientProps) {
         chatId,
         role: ChatRole.ASSISTANT,
         content:
-          "Generation stopped at your request. Send another message when you want me to continue.",
+          "Generation stopped at your request. Send another message when you want me to continue.<edward_done />",
         userId: null,
         createdAt: noticeTimestamp,
         updatedAt: noticeTimestamp,

@@ -48,6 +48,9 @@ describe("frameworkPreference", () => {
       detectExplicitFrameworkPreference("Please do not use Next.js"),
     ).toBeUndefined();
     expect(
+      detectExplicitFrameworkPreference("Next.js should not be used"),
+    ).toBeUndefined();
+    expect(
       detectExplicitFrameworkPreference("Use Vite React, no vanilla"),
     ).toBe("vite-react");
   });
