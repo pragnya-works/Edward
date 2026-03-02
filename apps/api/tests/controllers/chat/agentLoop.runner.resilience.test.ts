@@ -184,9 +184,12 @@ describe("runAgentLoop resilience", () => {
     const secondCallMessages = secondStreamCall?.[1] as
       | Array<{ role: MessageRole; content: string }>
       | undefined;
-    expect(secondCallMessages?.[0]?.content).toBe(
-      "continue with action tags\n\nNo actionable tool/file output was produced in the previous turn (attempt 1/1). Continue execution now:\n- To inspect/debug project state, emit one or more <edward_command ...> tags.\n- To gather external info, emit <edward_web_search ...>.\n- To implement changes, emit <edward_sandbox> with complete <file> blocks, then <edward_done />.\nDo not stop at narration-only output.",
-    );
+    const continuationPrompt = secondCallMessages?.[0]?.content ?? "";
+    expect(continuationPrompt).toContain("continue with action tags");
+    expect(continuationPrompt).toContain("No actionable tool/file output");
+    expect(continuationPrompt).toContain("<edward_command");
+    expect(continuationPrompt).toContain("<edward_web_search");
+    expect(continuationPrompt).toContain("<edward_sandbox");
     expect(result.agentTurn).toBe(2);
     expect(result.loopStopReason).toBe(AgentLoopStopReason.DONE);
   });

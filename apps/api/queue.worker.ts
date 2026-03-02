@@ -13,6 +13,7 @@ import {
   BUILD_WORKER_CONCURRENCY,
   CLEANUP_INTERVAL_MS,
   VERSION,
+  WORKER_GRACEFUL_SHUTDOWN_TIMEOUT_MS,
 } from "./utils/constants.js";
 import {
   AGENT_RUN_QUEUE_NAME,
@@ -30,6 +31,8 @@ import { processAgentRunJob } from "./services/runs/agentRun.worker.js";
 import { processScheduledFlushes } from "./services/sandbox/write/flush.scheduler.js";
 import { reapStaleRuns } from "./services/runs/staleRunReaper.service.js";
 import { createErrorReportIfPossible } from "./queue.worker.helpers.js";
+import { registerWorkerEventHandlers } from "./queue.worker.events.js";
+import { createGracefulShutdown } from "./queue.worker.shutdown.js";
 import { registerProcessHandlerOnce } from "./utils/processHandlers.js";
 import { ensureError } from "./utils/error.js";
 
@@ -284,68 +287,21 @@ const staleRunReaperInterval = setInterval(() => {
 }, CLEANUP_INTERVAL_MS);
 staleRunReaperInterval.unref();
 
-let shutdownPromise: Promise<void> | null = null;
-let shutdownExitCode = 0;
-
-buildWorker.on("completed", (job) => {
-  logger.debug({ jobId: job.id, jobName: job.name }, "[Worker] Job completed");
+registerWorkerEventHandlers({
+  buildWorker,
+  agentRunWorker,
+  logger,
 });
 
-buildWorker.on("failed", (job, error) => {
-  logger.error(
-    { error, jobId: job?.id, jobName: job?.name },
-    "[Worker] Job failed",
-  );
+const gracefulShutdown = createGracefulShutdown({
+  buildWorker,
+  agentRunWorker,
+  pubClient,
+  scheduledFlushInterval,
+  staleRunReaperInterval,
+  logger,
+  shutdownTimeoutMs: WORKER_GRACEFUL_SHUTDOWN_TIMEOUT_MS,
 });
-
-buildWorker.on("error", (error) => {
-  logger.error({ error }, "[Worker] Build worker error");
-});
-
-agentRunWorker.on("completed", (job) => {
-  logger.debug(
-    { jobId: job.id, jobName: job.name },
-    "[Worker] Agent run job completed",
-  );
-});
-
-agentRunWorker.on("failed", (job, error) => {
-  logger.error(
-    { error, jobId: job?.id, jobName: job?.name },
-    "[Worker] Agent run job failed",
-  );
-});
-
-agentRunWorker.on("error", (error) => {
-  logger.error({ error }, "[Worker] Worker error");
-});
-
-async function gracefulShutdown(exitCode = 0) {
-  shutdownExitCode = Math.max(shutdownExitCode, exitCode);
-  if (shutdownPromise) {
-    return shutdownPromise;
-  }
-
-  shutdownPromise = (async () => {
-    clearInterval(scheduledFlushInterval);
-    clearInterval(staleRunReaperInterval);
-
-    try {
-      await Promise.all([buildWorker.close(), agentRunWorker.close()]);
-      await pubClient.quit();
-    } catch (error) {
-      shutdownExitCode = Math.max(shutdownExitCode, 1);
-      logger.error(
-        { error },
-        "[Worker] Error during graceful shutdown cleanup",
-      );
-    } finally {
-      process.exit(shutdownExitCode);
-    }
-  })();
-
-  return shutdownPromise;
-}
 
 registerProcessHandlerOnce("worker:SIGINT", "SIGINT", () => {
   void gracefulShutdown();

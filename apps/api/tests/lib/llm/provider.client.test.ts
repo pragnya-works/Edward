@@ -7,8 +7,8 @@ const mocks = vi.hoisted(() => ({
   geminiModelsGenerateContentStreamMock: vi.fn(),
   geminiModelsGenerateContentMock: vi.fn(),
 }));
-const OPENAI_TEST_KEY = "TEST_OPENAI_KEY";
-const GEMINI_TEST_KEY = "TEST_GEMINI_KEY";
+const OPENAI_TEST_ID = "TEST_OPENAI_ID";
+const GEMINI_TEST_ID = "TEST_GEMINI_ID";
 
 vi.mock("@edward/shared/constants", () => {
   const Provider = {
@@ -19,8 +19,8 @@ vi.mock("@edward/shared/constants", () => {
   return {
     Provider,
     API_KEY_REGEX: {
-      [Provider.OPENAI]: /^TEST_OPENAI_KEY$/,
-      [Provider.GEMINI]: /^TEST_GEMINI_KEY$/,
+      [Provider.OPENAI]: /^TEST_OPENAI_ID$/,
+      [Provider.GEMINI]: /^TEST_GEMINI_ID$/,
     },
   };
 });
@@ -68,7 +68,7 @@ describe("provider.client legacy completions fallback", () => {
     );
 
     let output = "";
-    for await (const chunk of streamResponse(OPENAI_TEST_KEY, [
+    for await (const chunk of streamResponse(OPENAI_TEST_ID, [
       { role: MessageRole.User, content: "Say hello" },
     ])) {
       output += chunk;
@@ -96,7 +96,7 @@ describe("provider.client legacy completions fallback", () => {
       choices: [{ text: "Complete answer" }],
     });
 
-    const output = await generateResponse(OPENAI_TEST_KEY, "Give answer");
+    const output = await generateResponse(OPENAI_TEST_ID, "Give answer");
 
     expect(output).toBe("Complete answer");
     expect(mocks.completionsCreateMock).toHaveBeenCalledTimes(1);
@@ -115,7 +115,7 @@ describe("provider.client legacy completions fallback", () => {
     mocks.responsesCreateMock.mockRejectedValueOnce(transportAbort);
 
     const collect = async () => {
-      for await (const _chunk of streamResponse(OPENAI_TEST_KEY, [
+      for await (const _chunk of streamResponse(OPENAI_TEST_ID, [
         { role: MessageRole.User, content: "Say hello" },
       ])) {
         // no-op
@@ -136,7 +136,7 @@ describe("provider.client legacy completions fallback", () => {
 
     let output = "";
     for await (const chunk of streamResponse(
-      OPENAI_TEST_KEY,
+      OPENAI_TEST_ID,
       [{ role: MessageRole.User, content: "Say hello" }],
       abortController.signal,
     )) {
@@ -165,7 +165,7 @@ describe("provider.client gemini stream resilience", () => {
 
     const collect = async () => {
       let output = "";
-      for await (const chunk of streamResponse(GEMINI_TEST_KEY, [
+      for await (const chunk of streamResponse(GEMINI_TEST_ID, [
         { role: MessageRole.User, content: "Say hello" },
       ])) {
         output += chunk;
@@ -186,7 +186,7 @@ describe("provider.client gemini stream resilience", () => {
     );
 
     let output = "";
-    for await (const chunk of streamResponse(GEMINI_TEST_KEY, [
+    for await (const chunk of streamResponse(GEMINI_TEST_ID, [
       { role: MessageRole.User, content: "Say hello" },
     ])) {
       output += chunk;
@@ -201,7 +201,7 @@ describe("provider.client gemini stream resilience", () => {
       text: "Gemini response",
     });
 
-    const output = await generateResponse(GEMINI_TEST_KEY, "Say hello");
+    const output = await generateResponse(GEMINI_TEST_ID, "Say hello");
 
     expect(output).toBe("Gemini response");
     expect(mocks.geminiModelsGenerateContentMock).toHaveBeenCalledTimes(1);
@@ -213,7 +213,7 @@ describe("provider.client gemini stream resilience", () => {
       text: "{\"ok\":true}",
     });
 
-    await generateResponse(GEMINI_TEST_KEY, "Return json", undefined, undefined, {
+    await generateResponse(GEMINI_TEST_ID, "Return json", undefined, undefined, {
       jsonMode: true,
     });
 

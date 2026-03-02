@@ -51,6 +51,13 @@ export function usePreviewNavigation({ mode, previewUrl }: UsePreviewNavigationP
     loadingTimeoutRef.current = null;
   }, []);
 
+  const restartEmbedTimeout = useCallback(() => {
+    clearLoadingTimeout();
+    loadingTimeoutRef.current = setTimeout(() => {
+      dispatchPreviewFrame({ type: "MARK_FAILED" });
+    }, PREVIEW_EMBED_TIMEOUT_MS);
+  }, [clearLoadingTimeout]);
+
   const previewAddress = previewNavigation.address;
   const canGoBack = previewNavigation.canGoBack;
   const canGoForward = previewNavigation.canGoForward;
@@ -202,6 +209,7 @@ export function usePreviewNavigation({ mode, previewUrl }: UsePreviewNavigationP
     }
 
     dispatchPreviewFrame({ type: "START_LOADING" });
+    restartEmbedTimeout();
 
     if (isPreviewBridgeConnected && postPreviewCommand(PreviewHostCommand.RELOAD)) {
       return;
@@ -218,7 +226,13 @@ export function usePreviewNavigation({ mode, previewUrl }: UsePreviewNavigationP
     if (url && previewFrameRef.current) {
       previewFrameRef.current.src = url;
     }
-  }, [isPreviewBridgeConnected, postPreviewCommand, previewAddress, previewUrl]);
+  }, [
+    isPreviewBridgeConnected,
+    postPreviewCommand,
+    previewAddress,
+    previewUrl,
+    restartEmbedTimeout,
+  ]);
 
   const handlePreviewFrameLoad = useCallback((event: SyntheticEvent<HTMLIFrameElement>) => {
     const iframe = event.currentTarget;

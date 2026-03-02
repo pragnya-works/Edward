@@ -20,7 +20,7 @@ export function ChangelogMetrics({ issues }: ChangelogMetricsProps) {
         const thirtyDaysAgo = new Date();
         thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
         const recentActivity = issues.filter(
-            (i) => new Date(i.completedAt || i.updatedAt) > thirtyDaysAgo
+            (i) => (i.completedAt || i.updatedAt) > thirtyDaysAgo
         ).length;
 
         return { completed, inProgress, recentActivity };

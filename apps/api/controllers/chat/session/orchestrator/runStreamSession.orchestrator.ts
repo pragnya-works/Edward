@@ -26,6 +26,7 @@ import { finalizeStreamSession } from "./runStreamSession.finalize.js";
 import {
   resolveMode,
   getBlockingPostgenViolations,
+  updateFrameworkFromWorkflow,
   handleContextLimitExceeded,
   handleAbortedLoop,
   handleStreamSessionError,
@@ -187,7 +188,7 @@ export async function runStreamSession(
       loopStopReason: loopResult.loopStopReason,
       webSearchResults: loopResult.webSearchResults,
     };
-    framework = workflow.context.framework ?? framework;
+    framework = updateFrameworkFromWorkflow(workflow, framework);
 
     await applyDeterministicPostgenAutofixes({
       framework,
@@ -231,7 +232,7 @@ export async function runStreamSession(
     loopState = strictRetryResult.loopState;
     tokenUsage = strictRetryResult.tokenUsage;
     fullRawResponse = loopState.fullRawResponse;
-    framework = workflow.context.framework ?? framework;
+    framework = updateFrameworkFromWorkflow(workflow, framework);
 
     await applyDeterministicPostgenAutofixes({
       framework,

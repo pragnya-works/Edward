@@ -21,10 +21,12 @@ import {
 } from "../../sse.utils.js";
 import { processBuildPipeline } from "./buildPipeline.js";
 import {
-  createSessionMetrics,
-  createStoredAssistantContent,
   type LoopState,
 } from "./runStreamSession.helpers.js";
+import {
+  createSessionMetrics,
+  createStoredAssistantContent,
+} from "./runStreamSession.content.js";
 import { LOOP_STOP_REASON_TO_TERMINATION } from "./loopStopReasons.js";
 import type { EmitMeta } from "../shared/meta.js";
 

@@ -202,7 +202,7 @@ export const ThinkingIndicator = memo(function ThinkingIndicator({
                     </>
                   )}
                 </div>
-                <ChevronRight className="w-3.5 h-3.5 text-zinc-400/70 transition-transform duration-200 group-data-[panel-open]:rotate-90 ml-1 opacity-0 group-hover:opacity-100" />
+                <ChevronRight className="w-3.5 h-3.5 text-zinc-400/70 transition-transform duration-200 group-data-[state=open]:rotate-90 ml-1 opacity-0 group-hover:opacity-100" />
               </div>
             </AccordionTrigger>
 

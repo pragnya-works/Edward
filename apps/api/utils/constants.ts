@@ -127,3 +127,7 @@ export const RUN_MAX_RUNNING_AGE_MS = parsePositiveInt(
 export const MAX_SSE_QUEUE_BYTES = 768 * 1024;
 export const MAX_SSE_QUEUE_EVENTS = 700;
 export const CLEANUP_INTERVAL_MS = 60 * 1000;
+export const WORKER_GRACEFUL_SHUTDOWN_TIMEOUT_MS = parsePositiveInt(
+  "WORKER_GRACEFUL_SHUTDOWN_TIMEOUT_MS",
+  12_000,
+);

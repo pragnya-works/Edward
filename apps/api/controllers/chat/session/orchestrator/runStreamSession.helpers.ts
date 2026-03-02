@@ -39,11 +39,6 @@ import {
 } from "../../sse.utils.js";
 import type { EmitMeta } from "../shared/meta.js";
 import { runAgentLoop } from "../loop/agent.loop.js";
-import { LOOP_STOP_REASON_TO_ERROR_HINT } from "./loopStopReasons.js";
-import {
-  injectWebSearchPayloadIntoResponse,
-  stripNoopControlCloseTags,
-} from "./runStreamSession.webSearch.js";
 
 export type AgentLoopResult = Awaited<ReturnType<typeof runAgentLoop>>;
 export type LoopStopReason = AgentLoopResult["loopStopReason"];
@@ -87,13 +82,6 @@ interface AbortedLoopHandlingParams {
   res: Response;
 }
 
-export interface SessionMetrics {
-  completionTime: number;
-  inputTokens: number;
-  outputTokens: number;
-  messageMetadata: MessageMetadata;
-}
-
 const IS_CLIENT_DISCONNECT_TERMINATION: Partial<
   Record<StreamTerminationReason, boolean>
 > = {
@@ -133,6 +121,13 @@ export function getBlockingPostgenViolations({
   return validation.violations.filter((violation) =>
     isErrorSeverity(violation.severity),
   );
+}
+
+export function updateFrameworkFromWorkflow(
+  workflow: WorkflowState,
+  framework: Framework | undefined,
+): Framework | undefined {
+  return workflow.context.framework ?? framework;
 }
 
 export function handleContextLimitExceeded(
@@ -195,52 +190,6 @@ export function handleAbortedLoop({
   }
 
   return true;
-}
-
-export function createSessionMetrics(
-  messageStartTime: number,
-  inputTokens: number,
-  fullRawResponse: string,
-): SessionMetrics {
-  const completionTime = Date.now() - messageStartTime;
-  const outputTokens = countOutputTokens(fullRawResponse);
-
-  return {
-    completionTime,
-    inputTokens,
-    outputTokens,
-    messageMetadata: {
-      completionTime,
-      inputTokens,
-      outputTokens,
-    },
-  };
-}
-
-export function createStoredAssistantContent(
-  fullRawResponse: string,
-  urlScrapeTags: string,
-  webSearchResults: WebSearchToolResult[],
-  loopStopReason: LoopStopReason,
-): string {
-  const hasAssistantContent = fullRawResponse.trim().length > 0;
-
-  if (!hasAssistantContent) {
-    return toAssistantErrorTag(
-      classifyAssistantError(LOOP_STOP_REASON_TO_ERROR_HINT[loopStopReason]),
-    );
-  }
-
-  const contentWithWebSearchPayload = injectWebSearchPayloadIntoResponse(
-    fullRawResponse,
-    webSearchResults,
-  );
-
-  const mergedContent = !urlScrapeTags
-    ? contentWithWebSearchPayload
-    : `${urlScrapeTags}\n\n${contentWithWebSearchPayload}`;
-
-  return stripNoopControlCloseTags(mergedContent);
 }
 
 export async function persistErrorMessageIfUncommitted({

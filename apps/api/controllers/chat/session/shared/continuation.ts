@@ -176,6 +176,10 @@ function compactToolResultsForContinuation(
   toolResults: AgentToolResult[],
   maxChars: number,
 ): string {
+  if (maxChars <= 0) {
+    return "";
+  }
+
   if (toolResults.length === 0) {
     return "";
   }

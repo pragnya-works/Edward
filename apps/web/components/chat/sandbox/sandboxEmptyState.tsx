@@ -19,10 +19,10 @@ export function SandboxEmptyState() {
   const workspace = useOptionalChatWorkspaceContext();
   const isInstallingDependencies =
     (workspace?.stream.installingDeps.length ?? 0) > 0;
-  const previewState = isInstallingDependencies
-    ? MAC_OS_PREVIEW_STATE.INSTALLING
-    : isStreaming
-      ? MAC_OS_PREVIEW_STATE.GENERATING
+  const previewState = isStreaming
+    ? MAC_OS_PREVIEW_STATE.GENERATING
+    : isInstallingDependencies
+      ? MAC_OS_PREVIEW_STATE.INSTALLING
       : MAC_OS_PREVIEW_STATE.DEPLOYING;
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 

@@ -38,6 +38,7 @@ describe("Post-Generation Validator", () => {
     ).join("\n");
 
     const output = {
+      mode: "generate" as const,
       files: new Map([["src/App.tsx", oversizedFile]]),
       declaredPackages: [],
     };
@@ -320,6 +321,39 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         (violation) =>
           violation.type === "missing-entry-point" &&
           violation.file === "src/app/page.tsx",
+      ),
+    ).toBe(true);
+    expect(
+      result.violations.some(
+        (violation) =>
+          violation.type === "missing-entry-point" &&
+          violation.file === "src/main.tsx",
+      ),
+    ).toBe(false);
+  });
+
+  test("should reclassify declared vite-react output to nextjs when root app entrypoints are present", () => {
+    const output = {
+      framework: "vite-react",
+      mode: "generate" as const,
+      files: new Map([
+        ["README.md", "# Demo"],
+        [
+          "app/layout.tsx",
+          'import "./globals.css"; export default function Layout({ children }) { return <html><body>{children}</body></html>; }',
+        ],
+        ["app/page.tsx", "export default function Page() { return <main>Demo</main>; }"],
+      ]),
+      declaredPackages: [],
+    };
+
+    const result = validateGeneratedOutput(output);
+    expect(result.valid).toBe(false);
+    expect(
+      result.violations.some(
+        (violation) =>
+          violation.type === "missing-entry-point" &&
+          violation.file?.endsWith("app/page.tsx"),
       ),
     ).toBe(true);
     expect(
