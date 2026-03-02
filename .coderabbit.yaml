@@ -1,0 +1,393 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+
+language: "en-US"
+
+tone_instructions: "Be direct and precise. Flag every issue clearly. No sugar-coating. Prioritize security, correctness, and edge cases above all else."
+
+early_access: false
+
+reviews:
+  profile: assertive
+  request_changes_workflow: true
+  high_level_summary: true
+  high_level_summary_placeholder: "@coderabbitai summary"
+  high_level_summary_instructions: "Summarize what changed, why it matters, and flag any risks. Use bullet points. If any security-sensitive files changed, call that out first."
+  poem: false
+  review_status: true
+  review_details: true
+  collapse_walkthrough: false
+  sequence_diagrams: true
+  estimate_code_review_effort: true
+  assess_linked_issues: true
+  related_issues: true
+  related_prs: true
+  suggested_labels: true
+  auto_apply_labels: true
+  suggested_reviewers: true
+  enable_prompt_for_ai_agents: true
+  abort_on_close: true
+
+  labeling_instructions:
+    - label: "security"
+      instructions: "Apply when the PR touches authentication, authorization, JWT handling, API keys, secrets, CORS, rate limiting, input validation, or any security-sensitive logic in packages/auth or apps/api."
+    - label: "streaming"
+      instructions: "Apply when the PR modifies SSE endpoints, EventSource client code, LLM streaming logic, or anything in the SSE connection lifecycle."
+    - label: "breaking-change"
+      instructions: "Apply when the PR changes a public API contract, modifies shared package exports in packages/ui or packages/auth, changes environment variable names, or alters database schemas."
+    - label: "performance"
+      instructions: "Apply when the PR changes caching, database query patterns, bundle size, rendering strategy, or streaming throughput."
+    - label: "ai-agent"
+      instructions: "Apply when the PR modifies files under .agent/, .agents/, .gemini/, or .kilocode/."
+
+  auto_review:
+    enabled: true
+    auto_incremental_review: true
+    auto_pause_after_reviewed_commits: 0
+    drafts: false
+    ignore_title_keywords:
+      - "WIP"
+      - "DO NOT MERGE"
+      - "SKIP REVIEW"
+    base_branches:
+      - main
+      - "release/**"
+      - "hotfix/**"
+
+  path_filters:
+    - "!pnpm-lock.yaml"
+    - "!**/*.generated.ts"
+    - "!**/dist/**"
+    - "!**/.next/**"
+
+  path_instructions:
+    - path: "apps/api/**"
+      instructions: |
+        You are reviewing a Node.js API server for an AI coding platform that uses SSE streaming.
+
+        SSE (Server-Sent Events):
+        - Is the SSE connection closed in ALL exit paths — error, timeout, and client disconnect?
+        - Is `res.flushHeaders()` called before the first event to prevent proxy buffering?
+        - Is a heartbeat/ping event sent to keep connections alive through proxies that time out idle connections (common default: 60s)?
+        - Is backpressure handled? If the client reads slower than the server writes, does it buffer unboundedly?
+        - Are concurrent SSE connections per user capped to prevent resource exhaustion?
+        - On SIGTERM, are all open SSE connections gracefully drained before process exit?
+        - If the LLM upstream fails mid-stream, is the error surfaced as an `event: error` SSE frame, not a silent hang?
+        - Are streaming LLM chunks reassembled correctly — chunk boundaries can split multi-byte UTF-8 characters?
+
+        LLM Integration:
+        - Are prompts ever constructed by concatenating raw user input? Flag as prompt injection.
+        - Are LLM API keys accessed only via environment variables — never hardcoded or logged?
+        - Is the full LLM response logged anywhere? This can leak sensitive user code.
+        - Are token limits validated before calling the LLM?
+        - Is there exponential backoff with jitter on 429 rate-limit responses?
+        - Are LLM call timeouts set? A hung call must not hang the SSE connection indefinitely.
+        - Is the LLM response parsed defensively — never assume a fixed shape.
+
+        Auth & Authorization:
+        - Is every route authenticated AND authorized for the specific resource?
+        - Are JWTs validated for `alg` to prevent the `alg: none` attack?
+        - Are unauthenticated requests to SSE endpoints rejected before opening the stream?
+        - Are refresh tokens stored as httpOnly Secure SameSite=Strict cookies, never localStorage?
+
+        Input Validation:
+        - All request bodies must be validated with a schema (Zod/Joi). No raw `req.body.anything`.
+        - Are query params sanitized before use in file paths or shell commands?
+        - Are file upload MIME types validated server-side, not just by extension?
+
+        Error Handling:
+        - Are errors logged with structured context (request ID, user ID, route)?
+        - Are internal error details (stack traces, DB queries) ever leaking in HTTP responses?
+        - Is there a global unhandledRejection and uncaughtException handler?
+
+        Performance:
+        - Are database queries inside SSE event loops?
+        - N+1 patterns: any `await` inside `.forEach` or `.map`?
+        - Is there request-level timeout middleware?
+        - Is helmet.js or equivalent applied before all routes?
+        - Are CORS origins explicitly whitelisted — never `*` in production?
+        - Is rate limiting applied per-user, not just per-IP, on authenticated endpoints?
+
+    - path: "apps/web/**"
+      instructions: |
+        You are reviewing a Next.js application.
+
+        Next.js:
+        - Is `'use client'` added only when truly necessary?
+        - Is sensitive data accidentally serialized into Server Component props sent to the client?
+        - Are `generateMetadata` functions implemented for all public pages?
+        - Are dynamic route params typed correctly — in Next.js 15 `params` and `searchParams` are async?
+        - Is `loading.tsx` implemented for routes with async data fetching?
+        - Is `error.tsx` implemented for all route segments?
+        - Is there a `middleware.ts` guarding protected routes — or are routes unprotected?
+        - Are environment variables prefixed `NEXT_PUBLIC_` only when truly safe to expose to the browser?
+
+        SSE Client:
+        - Is the EventSource connection closed on component unmount (useEffect cleanup)?
+        - Is there reconnection logic with exponential backoff on `EventSource.onerror`?
+        - Are SSE messages parsed with try/catch? A malformed JSON chunk will crash the parser.
+        - Is O(n²) string concatenation avoided when accumulating streamed content?
+
+        Security:
+        - Is `dangerouslySetInnerHTML` absent or sanitized with DOMPurify?
+        - Is user-generated code rendered in a sandboxed iframe, not eval'd directly?
+        - Are external URLs validated before use in `<a href>` or redirects?
+        - Is `rel="noopener noreferrer"` present on all `target="_blank"` links?
+
+        Performance:
+        - Are large dependencies imported selectively?
+        - Is streamed or generated code output (potentially very large) virtualized?
+        - Are images using `next/image` with explicit dimensions to prevent CLS?
+
+        Accessibility:
+        - Do interactive elements have proper ARIA roles and labels?
+        - Is keyboard navigation supported for the code editor and streaming output?
+        - Are animations respecting `prefers-reduced-motion`?
+
+    - path: "packages/auth/**"
+      instructions: |
+        This is the shared auth package. Apply the highest level of security scrutiny.
+
+        - Are passwords hashed with bcrypt or argon2 at an appropriate cost factor? Never MD5 or SHA1.
+        - Is timing-safe comparison used for token verification — never `===` on secrets?
+        - Are token secrets a minimum of 256 bits of entropy?
+        - Is there protection against user enumeration — constant-time response regardless of whether a user exists?
+        - Are CSRF tokens implemented for state-changing operations?
+        - Is there account lockout or rate limiting on authentication attempts?
+        - Is the JWT `sub` claim an opaque ID — not an email or sequential integer?
+        - Are token rotation and revocation (refresh token families) implemented?
+        - Are session tokens invalidated server-side on logout, not just deleted client-side?
+        - Does the package export any function that bypasses auth checks? Mark these INTERNAL.
+        - Is there a test for each attack scenario: expired token, tampered token, replay attack?
+
+    - path: "packages/ui/**"
+      instructions: |
+        Shared component library — breaking changes here cascade to every app.
+
+        - Are all components fully accessible: ARIA, keyboard navigation, focus management?
+        - Are prop types exhaustive — no missing optional vs required distinctions?
+        - Do components that may need ref forwarding use `React.forwardRef`?
+        - Is `dangerouslySetInnerHTML` absent or properly guarded?
+        - Is the component API stable? Breaking changes cascade to all consuming apps.
+        - Are loading, error, and empty states handled for every data-displaying component?
+        - Are animations respecting `prefers-reduced-motion`?
+
+    - path: "scripts/**"
+      instructions: |
+        Build, deploy, and migration scripts.
+
+        - Does any script accept untrusted input and pass it to shell commands (shell injection)?
+        - Are destructive operations gated behind a dry-run flag or explicit confirmation?
+        - Are credentials ever hardcoded or logged to stdout?
+        - Are scripts idempotent — safe to run twice without corruption?
+        - Are non-zero exit codes set on failure so CI/CD catches errors?
+        - Are file paths constructed safely — no path traversal via `../`?
+
+    - path: "docker/**"
+      instructions: |
+        Docker and container security.
+
+        - Are images running as a non-root user?
+        - Are base images pinned to a specific digest, not just a mutable tag like `node:20`?
+        - Is `.dockerignore` comprehensive — excludes .env, node_modules, .git?
+        - Are multi-stage builds used to keep production images lean?
+        - Are secrets ever baked into image layers via a RUN command? They persist in layer history.
+        - Is HEALTHCHECK defined?
+        - Is NODE_ENV set to `production` in production images?
+
+    - path: ".github/**"
+      instructions: |
+        CI/CD pipeline security and correctness.
+
+        - Are third-party Actions pinned to a specific commit SHA, not a mutable tag?
+        - Are secrets accessed only via `${{ secrets.NAME }}` — never hardcoded?
+        - Are `GITHUB_TOKEN` permissions scoped to the minimum required via a `permissions:` block?
+        - Are `pull_request_target` workflows carefully audited? They run with write permissions even from forks.
+        - Is the Turborepo cache correctly configured — cache restore and save both present?
+        - Is pnpm version pinned, not latest?
+        - Are environment variables for staging and production correctly separated?
+        - Is deployment to production gated behind a successful build and test matrix?
+
+    - path: ".agent/**"
+      instructions: |
+        - Are any API keys or secrets committed in these files?
+        - Are skill definitions scoped to only what they need — principle of least privilege?
+        - Are there prompt injection risks in skill descriptions?
+
+    - path: ".agents/**"
+      instructions: |
+        - Are any API keys or secrets committed in these files?
+        - Are skill definitions scoped to only what they need — principle of least privilege?
+        - Are there prompt injection risks in skill descriptions?
+
+    - path: ".gemini/**"
+      instructions: |
+        - Are Gemini API keys absent?
+        - Are safety settings configured (harm categories and threshold levels)?
+
+    - path: ".kilocode/**"
+      instructions: |
+        - Are model API keys or tokens absent?
+        - Are permitted tool scopes minimal?
+
+    - path: "turbo.json"
+      instructions: |
+        - Are task dependencies (`dependsOn`) correct for all pipeline tasks?
+        - Is the `outputs` array correct? Missing outputs cause cache misses or stale artifacts.
+        - Are secrets listed under `env` keys so cache is invalidated when they change?
+
+    - path: "tsconfig.json"
+      instructions: |
+        - Is `strict: true` enabled?
+        - Is `noUncheckedIndexedAccess` enabled?
+        - Is `exactOptionalPropertyTypes` enabled?
+        - Is `noImplicitReturns` enabled?
+        - Is the `paths` alias mapping consistent with monorepo package names?
+
+    - path: "**/*.ts"
+      instructions: |
+        - No `any` without a comment explaining why it's unavoidable.
+        - No `as` type casts without a preceding type guard or runtime check.
+        - No non-null assertions (`!`) on values that could realistically be null.
+        - No `@ts-ignore` or `@ts-expect-error` without a linked issue or ticket reference.
+        - Are all async functions' return types explicitly declared?
+        - Are error objects in catch blocks typed — not silently ignored?
+        - Are discriminated unions used for result types instead of throw/catch where appropriate?
+
+    - path: "**/*.tsx"
+      instructions: |
+        - All TypeScript rules from **/*.ts apply here.
+        - Are all optional props actually optional in practice?
+        - Are event handler types explicit (e.g. `React.MouseEvent<HTMLButtonElement>`)?
+        - Are `key` props stable and meaningful — not array indexes in dynamic lists?
+
+    - path: "**/*.test.ts"
+      instructions: |
+        - Is every exported function from the modified module covered?
+        - Are edge cases tested: empty input, null, undefined, max values, concurrent calls?
+        - Are SSE streaming tests simulating: normal flow, mid-stream error, client disconnect, timeout?
+        - Are auth tests covering: expired token, tampered token, missing token, wrong scope?
+        - Are mocks reset between tests to prevent pollution?
+        - Is at least one integration test verifying the full request → SSE stream → response cycle?
+        - Are tests deterministic — no bare `Date.now()`, `Math.random()`, or real network calls?
+
+    - path: "**/*.test.tsx"
+      instructions: |
+        - Are React components tested for accessibility with jest-axe or equivalent?
+        - Are async state updates wrapped in `act()`?
+        - Are EventSource mocks correctly simulating connect, message, error, and close events?
+
+  finishing_touches:
+    docstrings:
+      enabled: true
+    unit_tests:
+      enabled: true
+
+  pre_merge_checks:
+    title:
+      mode: error
+      requirements: "Must follow Conventional Commits format: type(scope): description. Valid types: feat, fix, chore, refactor, perf, test, docs, ci, build, revert. Description must be lowercase and not end with a period."
+    description:
+      mode: warning
+    issue_assessment:
+      mode: warning
+    docstrings:
+      mode: warning
+      threshold: 70
+    custom_checks:
+      - name: "No hardcoded secrets"
+        mode: error
+        instructions: "Fail if the diff introduces any hardcoded API keys, tokens, passwords, or secrets. Look for patterns like sk-, Bearer , _SECRET, _KEY, _TOKEN assigned to string literals. Environment variable references like process.env.X are acceptable."
+      - name: "Env vars documented"
+        mode: warning
+        instructions: "If the diff introduces a new environment variable reference (process.env.NEW_VAR), check that it is also added to .env.example or an equivalent documentation file. Fail if a new env var is used but not documented."
+      - name: "No console.log in production code"
+        mode: warning
+        instructions: "Fail if the diff adds console.log, console.warn, or console.error statements in non-test source files under apps/ or packages/. Structured logging via a logger utility is acceptable."
+      - name: "SSE cleanup present"
+        mode: error
+        instructions: "If the diff modifies any SSE endpoint handler or EventSource client code, verify that the connection is explicitly closed in all exit paths on the server (error handler, timeout, SIGTERM) and that the EventSource is closed in the cleanup function on the client (useEffect return). Fail if cleanup is missing."
+      - name: "TypeScript strict compliance"
+        mode: warning
+        instructions: "Fail if the diff introduces `any` type without an explanatory comment, a `@ts-ignore` or `@ts-expect-error` without a ticket reference, or a non-null assertion `!` on a value that could be null based on context."
+
+  tools:
+    eslint:
+      enabled: true
+    actionlint:
+      enabled: true
+    hadolint:
+      enabled: true
+    stylelint:
+      enabled: true
+    gitleaks:
+      enabled: true
+    trufflehog:
+      enabled: true
+    shellcheck:
+      enabled: true
+    yamllint:
+      enabled: true
+    dotenvLint:
+      enabled: true
+    semgrep:
+      enabled: true
+    osvScanner:
+      enabled: true
+    github-checks:
+      enabled: true
+      timeout_ms: 120000
+    ast-grep:
+      essential_rules: true
+
+chat:
+  auto_reply: true
+  integrations:
+    linear:
+      usage: enabled
+
+knowledge_base:
+  web_search:
+    enabled: true
+  code_guidelines:
+    enabled: true
+  learnings:
+    scope: local
+  issues:
+    scope: local
+  pull_requests:
+    scope: local
+  linear:
+    usage: enabled
+  mcp:
+    usage: enabled
+
+code_generation:
+  docstrings:
+    language: "en-US"
+    path_instructions:
+      - path: "apps/api/**"
+        instructions: "Document all route handlers with: HTTP method, path, auth requirement, request body shape, response shape, and any SSE-specific behavior. Document error cases."
+      - path: "packages/auth/**"
+        instructions: "Document all exported functions with: purpose, parameters, return type, security assumptions, and known attack vectors this function defends against."
+      - path: "packages/ui/**"
+        instructions: "Document all exported components with: purpose, all props with types and defaults, accessibility requirements, and usage examples."
+  unit_tests:
+    path_instructions:
+      - path: "apps/api/**"
+        instructions: "Generate tests using vitest or jest. Cover: happy path, missing auth, invalid input, SSE mid-stream error, and LLM timeout scenarios. Mock all external services."
+      - path: "packages/auth/**"
+        instructions: "Generate tests covering: valid credentials, invalid credentials, expired tokens, tampered tokens, replay attacks, and timing attack resistance."
+      - path: "packages/ui/**"
+        instructions: "Generate tests using React Testing Library. Cover: rendering, user interactions, accessibility (via jest-axe), and loading/error/empty states."
+
+issue_enrichment:
+  auto_enrich:
+    enabled: true
+  planning:
+    enabled: true
+    auto_planning:
+      enabled: true
+      labels:
+        - "feature"
+        - "enhancement"
+        - "bug"
