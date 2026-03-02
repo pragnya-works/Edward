@@ -54,7 +54,6 @@ reviews:
       - "^hotfix/.+$"
 
   path_filters:
-    - "!pnpm-lock.yaml"
     - "!**/*.generated.ts"
     - "!**/dist/**"
     - "!**/.next/**"
@@ -115,7 +114,7 @@ reviews:
         - Is `'use client'` added only when truly necessary?
         - Is sensitive data accidentally serialized into Server Component props sent to the client?
         - Are `generateMetadata` functions implemented for all public pages?
-        - Are dynamic route params typed correctly — in Next.js 15 `params` and `searchParams` are async?
+        - Are dynamic route params typed correctly — as of Next.js 15+, `params` and `searchParams` are async (applies to the project's current Next.js 16.1.6)?
         - Is `loading.tsx` implemented for routes with async data fetching?
         - Is `error.tsx` implemented for all route segments?
         - Is there a `middleware.ts` guarding protected routes — or are routes unprotected?
