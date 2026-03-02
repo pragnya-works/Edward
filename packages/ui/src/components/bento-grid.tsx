@@ -42,10 +42,10 @@ const BentoCard = memo(function BentoCard({
                 "group relative flex flex-col justify-end overflow-hidden rounded-2xl",
                 "bg-card border border-white/10 dark:border-white/10 backdrop-blur-md",
                 "transform-gpu hover:shadow-[0_8px_30px_rgba(0,0,0,0.12)] hover:border-white/20",
-                "transition-[box-shadow,border-color,transform,background-color] duration-300", // Avoid transition-all
-                "will-change-transform will-change-[box-shadow]", // GPU hint
+                "transition-[box-shadow,border-color,transform,background-color] duration-300",
+                "will-change-transform will-change-[box-shadow]",
                 "min-h-[18rem] md:min-h-0",
-                "content-visibility-auto", // Layout optimization
+                "content-visibility-auto",
                 className,
             )}
         >

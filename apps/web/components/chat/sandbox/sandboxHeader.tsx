@@ -1,26 +1,16 @@
 "use client";
 
-import { m } from "motion/react";
-import { RefreshCw, X, Code2, AlertCircle, Monitor } from "lucide-react";
+import { X, Code2, Monitor } from "lucide-react";
 import { Button } from "@edward/ui/components/button";
 import { cn } from "@edward/ui/lib/utils";
 import { useSandbox } from "@/contexts/sandboxContext";
 import { useChatWorkspaceContext } from "@/components/chat/chatWorkspaceContext";
-import { BuildStatus, SandboxMode } from "@/stores/sandbox/types";
+import { SandboxMode } from "@/stores/sandbox/types";
 import { GithubIntegrationBar } from "@/components/chat/sandbox/githubIntegrationBar";
 
 export function SandboxHeader() {
-  const { projectName, stream } = useChatWorkspaceContext();
-  const {
-    mode,
-    files,
-    buildStatus,
-    isStreaming,
-    setMode,
-    closeSandbox,
-  } = useSandbox();
-
-  const isInstallingDependencies = stream.installingDeps.length > 0;
+  const { projectName } = useChatWorkspaceContext();
+  const { mode, files, setMode, closeSandbox } = useSandbox();
 
   return (
     <div className="flex items-center justify-between gap-2.5 px-3 md:px-4 py-2.5 border-b border-workspace-border bg-workspace-sidebar text-workspace-header-fg shrink-0">
@@ -62,64 +52,9 @@ export function SandboxHeader() {
             {projectName ?? "Workspace"}
           </span>
           <div className="flex items-center gap-1.5 leading-none">
-            {isStreaming ||
-              isInstallingDependencies ||
-              buildStatus === BuildStatus.QUEUED ||
-              buildStatus === BuildStatus.BUILDING ||
-              (files.length === 0 && buildStatus === BuildStatus.IDLE) ||
-              buildStatus === BuildStatus.FAILED ? (
-              <m.div
-                initial={{ opacity: 0, y: 2 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="h-4 px-1.5 gap-1 rounded-sm border border-workspace-border bg-workspace-sidebar text-workspace-foreground text-[8px] font-bold uppercase tracking-tighter flex items-center"
-              >
-                {buildStatus === BuildStatus.FAILED ? (
-                  <AlertCircle className="h-2.5 w-2.5 text-destructive" />
-                ) : (
-                  <m.div
-                    animate={{
-                      scale: [1, 1.2, 1],
-                      opacity: [0.5, 1, 0.5]
-                    }}
-                    transition={{
-                      duration: 2,
-                      repeat: Infinity,
-                      ease: "easeInOut",
-                    }}
-                  >
-                    <RefreshCw className="h-2.5 w-2.5 text-workspace-accent animate-spin-slow" />
-                  </m.div>
-                )}
-                <span
-                  className={cn(
-                    "text-[8px] font-bold uppercase tracking-tighter",
-                    buildStatus === BuildStatus.FAILED
-                      ? "text-destructive"
-                      : "text-workspace-accent",
-                  )}
-                >
-                  {buildStatus === BuildStatus.FAILED
-                    ? "Error"
-                    : isStreaming
-                      ? "Coding"
-                      : isInstallingDependencies
-                        ? "Installing"
-                      : buildStatus === BuildStatus.QUEUED
-                        ? "Queued"
-                        : buildStatus === BuildStatus.BUILDING
-                          ? "Deploying"
-                      : "Initializing"}
-                </span>
-              </m.div>
-            ) : (
-              <m.span
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="text-[8px] text-workspace-header-fg/60 font-medium uppercase tracking-tighter"
-              >
-                {files.length} Files
-              </m.span>
-            )}
+            <span className="text-[8px] text-workspace-header-fg/60 font-medium uppercase tracking-tighter">
+              {files.length} {files.length === 1 ? "File" : "Files"}
+            </span>
           </div>
         </div>
       </div>

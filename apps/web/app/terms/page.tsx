@@ -24,7 +24,7 @@ export const metadata: Metadata = {
 };
 
 const TERMS_AND_CONDITIONS_CONTENT = (
-    <main className="min-h-[100dvh] bg-background text-foreground">
+    <main className="min-h-[100dvh] text-foreground">
       <div className="container max-w-3xl mx-auto px-4 sm:px-6 py-12 md:py-16 lg:py-20">
         <div className="mb-12 md:mb-16 lg:mb-20">
           <div className="flex items-center gap-3 mb-4">

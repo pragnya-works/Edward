@@ -6,7 +6,9 @@ const RESPONSE_BLOCK_PATTERN = /<Response>([\s\S]*?)<\/Response>/gi;
 const FILE_BLOCK_PATTERN = /<file\b[^>]*path="([^"]+)"[^>]*>([\s\S]*?)<\/file>/gi;
 const TOOL_BLOCK_SEPARATOR = "\n---\n";
 const ADDITIONAL_FILES_OMITTED_MARKER = "...[additional files omitted]";
-const SOFT_CONTINUATION_PROMPT_CHARS = 8_200;
+const SOFT_CONTINUATION_PROMPT_CHARS = 12_000;
+const TOOL_BUDGET_PADDING_CHARS = 64;
+const MIN_TOOL_BLOCK_CHARS = 96;
 
 interface ContinuationCaps {
   userChars: number;
@@ -14,31 +16,31 @@ interface ContinuationCaps {
   previousFilesChars: number;
   previousSourceChars: number;
   fileEntryChars: number;
-  toolPerBlockChars: number;
-  toolTotalChars: number;
+  toolTotalCharsTarget: number;
+  toolTotalCharsMin: number;
   previousResponseEnvelopeChars: number;
 }
 
 const PRIMARY_CONTINUATION_CAPS: ContinuationCaps = {
-  userChars: 2_200,
-  previousNarrativeChars: 800,
-  previousFilesChars: 1_800,
+  userChars: 1_800,
+  previousNarrativeChars: 700,
+  previousFilesChars: 1_200,
   previousSourceChars: 80_000,
-  fileEntryChars: 800,
-  toolPerBlockChars: 1_100,
-  toolTotalChars: 3_800,
-  previousResponseEnvelopeChars: 2_600,
+  fileEntryChars: 500,
+  toolTotalCharsTarget: 11_000,
+  toolTotalCharsMin: 2_200,
+  previousResponseEnvelopeChars: 2_200,
 };
 
 const COMPACT_CONTINUATION_CAPS: ContinuationCaps = {
   userChars: 1_200,
   previousNarrativeChars: 400,
-  previousFilesChars: 1_000,
+  previousFilesChars: 700,
   previousSourceChars: 40_000,
-  fileEntryChars: 450,
-  toolPerBlockChars: 700,
-  toolTotalChars: 2_200,
-  previousResponseEnvelopeChars: 1_400,
+  fileEntryChars: 300,
+  toolTotalCharsTarget: 6_400,
+  toolTotalCharsMin: 1_200,
+  previousResponseEnvelopeChars: 1_200,
 };
 
 function truncateWithMarker(input: string, maxChars: number): string {
@@ -172,19 +174,34 @@ function extractSandboxFileContext(
 
 function compactToolResultsForContinuation(
   toolResults: AgentToolResult[],
-  caps: ContinuationCaps,
+  maxChars: number,
 ): string {
-  const raw = formatToolResults(toolResults);
-  if (!raw) {
+  if (maxChars <= 0) {
     return "";
   }
 
-  const compacted = raw
-    .split(TOOL_BLOCK_SEPARATOR)
-    .map((block) => truncateMiddle(block, caps.toolPerBlockChars))
+  if (toolResults.length === 0) {
+    return "";
+  }
+
+  const blocks = toolResults
+    .map((result) => formatToolResults([result]))
+    .filter(Boolean);
+  if (blocks.length === 0) {
+    return "";
+  }
+
+  const separatorBudget = TOOL_BLOCK_SEPARATOR.length * (blocks.length - 1);
+  const availableForBlocks = Math.max(0, maxChars - separatorBudget);
+  const perBlockBudget = Math.max(
+    MIN_TOOL_BLOCK_CHARS,
+    Math.floor(availableForBlocks / blocks.length),
+  );
+  const compacted = blocks
+    .map((block) => truncateMiddle(block, perBlockBudget))
     .join(TOOL_BLOCK_SEPARATOR);
 
-  return truncateMiddle(compacted, caps.toolTotalChars);
+  return truncateMiddle(compacted, maxChars);
 }
 
 function composeContinuationPrompt(
@@ -220,9 +237,25 @@ function buildPromptWithCaps(
     caps.previousResponseEnvelopeChars,
     ADDITIONAL_FILES_OMITTED_MARKER,
   );
-  const formattedResults = truncateWithMarker(
-    compactToolResultsForContinuation(toolResults, caps),
-    caps.toolTotalChars,
+  const basePromptLength = composeContinuationPrompt(
+    userContent,
+    previousResponse,
+    "",
+  ).length;
+  const availableForTools =
+    MAX_AGENT_CONTINUATION_PROMPT_CHARS -
+    basePromptLength -
+    TOOL_BUDGET_PADDING_CHARS;
+  const toolBudget =
+    availableForTools <= 0
+      ? 0
+      : Math.max(
+          caps.toolTotalCharsMin,
+          Math.min(caps.toolTotalCharsTarget, availableForTools),
+        );
+  const formattedResults = compactToolResultsForContinuation(
+    toolResults,
+    toolBudget,
   );
 
   return composeContinuationPrompt(userContent, previousResponse, formattedResults);

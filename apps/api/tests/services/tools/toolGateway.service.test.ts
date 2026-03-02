@@ -1,5 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { MAX_TOOL_STDIO_CHARS } from "../../../utils/constants.js";
+import {
+  MAX_RAW_TOOL_STDIO_CHARS,
+  MAX_TOOL_STDIO_CHARS,
+} from "../../../utils/constants.js";
 
 const { executeSandboxCommandMock } = vi.hoisted(() => ({
   executeSandboxCommandMock: vi.fn(),
@@ -126,7 +129,7 @@ describe("toolGateway command output sanitation", () => {
   it("bounds raw-output commands with truncation markers", async () => {
     executeSandboxCommandMock.mockResolvedValue({
       exitCode: 0,
-      stdout: "a".repeat(MAX_TOOL_STDIO_CHARS + 500),
+      stdout: "a".repeat(MAX_RAW_TOOL_STDIO_CHARS + 500),
       stderr: "",
     });
 
@@ -139,8 +142,29 @@ describe("toolGateway command output sanitation", () => {
 
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("...[truncated]");
-    expect(result.stdout.length).toBeLessThanOrEqual(MAX_TOOL_STDIO_CHARS + 20);
+    expect(result.stdout.length).toBeLessThanOrEqual(
+      MAX_RAW_TOOL_STDIO_CHARS + 20,
+    );
     expect(result.stderr).toBe("");
+  });
+
+  it("does not truncate raw command output at the sanitized-command limit", async () => {
+    executeSandboxCommandMock.mockResolvedValue({
+      exitCode: 0,
+      stdout: "x".repeat(MAX_TOOL_STDIO_CHARS + 250),
+      stderr: "",
+    });
+
+    const result = await executeCommandTool({
+      turn: 1,
+      sandboxId: "sb-1",
+      command: "cat",
+      args: ["README.md"],
+    });
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toHaveLength(MAX_TOOL_STDIO_CHARS + 250);
+    expect(result.stdout).not.toContain("...[truncated]");
   });
 
   it("pre-truncates oversized output before repeated-line sanitization", async () => {

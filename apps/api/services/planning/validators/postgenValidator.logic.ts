@@ -2,6 +2,7 @@ import {
   COMMENT_STUB_PATTERN,
   EMPTY_HANDLER_PATTERN,
   EMPTY_ROOT_COMPONENT_PATTERN,
+  GENERATED_OUTPUT_FRAMEWORK,
   INVALID_ZUSTAND_DEFAULT_IMPORT_PATTERN,
   PLACEHOLDER_PATTERN,
   SAMPLE_CONTENT_PATTERN,
@@ -11,17 +12,18 @@ import type { GeneratedOutput, ValidationViolation } from './postgenValidator.ty
 import {
   VALIDATION_VIOLATION_TYPE,
   VALIDATION_SEVERITY,
+  isGenerateMode,
 } from './postgenValidator.types.js';
 
 export function validateFrameworkEntrypoints(output: GeneratedOutput): ValidationViolation[] {
   const violations: ValidationViolation[] = [];
 
   const mainFile = output.files.get('src/main.tsx');
-  if (output.framework === 'vite-react' && mainFile) {
+  if (output.framework === GENERATED_OUTPUT_FRAMEWORK.VITE_REACT && mainFile) {
     if (!/from\s+['"]react-dom\/client['"]/.test(mainFile)) {
       violations.push({
-        type: 'missing-entry-point',
-        severity: 'error',
+        type: VALIDATION_VIOLATION_TYPE.MISSING_ENTRY_POINT,
+        severity: VALIDATION_SEVERITY.ERROR,
         message: `src/main.tsx must import createRoot from react-dom/client.`,
         file: 'src/main.tsx',
       });
@@ -29,8 +31,8 @@ export function validateFrameworkEntrypoints(output: GeneratedOutput): Validatio
 
     if (!/import\s+App\s+from\s+['"]\.\/App['"]/.test(mainFile)) {
       violations.push({
-        type: 'missing-entry-point',
-        severity: 'error',
+        type: VALIDATION_VIOLATION_TYPE.MISSING_ENTRY_POINT,
+        severity: VALIDATION_SEVERITY.ERROR,
         message: `src/main.tsx must import App from './App'.`,
         file: 'src/main.tsx',
       });
@@ -38,8 +40,8 @@ export function validateFrameworkEntrypoints(output: GeneratedOutput): Validatio
 
     if (!/createRoot\s*\(/.test(mainFile) || !/document\.getElementById\(\s*['"]root['"]\s*\)/.test(mainFile)) {
       violations.push({
-        type: 'missing-entry-point',
-        severity: 'error',
+        type: VALIDATION_VIOLATION_TYPE.MISSING_ENTRY_POINT,
+        severity: VALIDATION_SEVERITY.ERROR,
         message: `src/main.tsx must mount using createRoot(document.getElementById('root')).`,
         file: 'src/main.tsx',
       });
@@ -47,10 +49,14 @@ export function validateFrameworkEntrypoints(output: GeneratedOutput): Validatio
   }
 
   const indexHtml = output.files.get('index.html');
-  if (output.framework === 'vite-react' && indexHtml && !/id=["']root["']/.test(indexHtml)) {
+  if (
+    output.framework === GENERATED_OUTPUT_FRAMEWORK.VITE_REACT &&
+    indexHtml &&
+    !/id=["']root["']/.test(indexHtml)
+  ) {
     violations.push({
-      type: 'missing-entry-point',
-      severity: 'error',
+      type: VALIDATION_VIOLATION_TYPE.MISSING_ENTRY_POINT,
+      severity: VALIDATION_SEVERITY.ERROR,
       message: `index.html must include a root mount node with id="root".`,
       file: 'index.html',
     });
@@ -66,7 +72,9 @@ export function validateLogicQualityForFile(
 ): ValidationViolation[] {
   const violations: ValidationViolation[] = [];
   const isSourceFile = SOURCE_FILE_PATTERN.test(filePath);
-  const severity = mode === 'generate' ? 'error' : 'warning';
+  const severity = isGenerateMode(mode)
+    ? VALIDATION_SEVERITY.ERROR
+    : VALIDATION_SEVERITY.WARNING;
 
   if (isSourceFile && COMMENT_STUB_PATTERN.test(content)) {
     violations.push({
@@ -88,7 +96,7 @@ export function validateLogicQualityForFile(
 
   if (isSourceFile && PLACEHOLDER_PATTERN.test(content)) {
     violations.push({
-      type: 'logic-quality',
+      type: VALIDATION_VIOLATION_TYPE.LOGIC_QUALITY,
       severity,
       message: `${filePath} contains placeholder markers (FIXME/TBD/lorem ipsum). Provide complete implementation.`,
       file: filePath,
@@ -100,8 +108,8 @@ export function validateLogicQualityForFile(
     EMPTY_ROOT_COMPONENT_PATTERN.test(content)
   ) {
     violations.push({
-      type: 'logic-quality',
-      severity: 'error',
+      type: VALIDATION_VIOLATION_TYPE.LOGIC_QUALITY,
+      severity: VALIDATION_SEVERITY.ERROR,
       message: `${filePath} returns an empty UI (null/empty fragment). Root components must render meaningful content.`,
       file: filePath,
     });
@@ -109,8 +117,8 @@ export function validateLogicQualityForFile(
 
   if (isSourceFile && EMPTY_HANDLER_PATTERN.test(content)) {
     violations.push({
-      type: 'logic-quality',
-      severity: 'warning',
+      type: VALIDATION_VIOLATION_TYPE.LOGIC_QUALITY,
+      severity: VALIDATION_SEVERITY.WARNING,
       message: `${filePath} includes no-op event handlers. Replace empty handlers with actual logic or remove them.`,
       file: filePath,
     });
@@ -118,7 +126,7 @@ export function validateLogicQualityForFile(
 
   if (isSourceFile && INVALID_ZUSTAND_DEFAULT_IMPORT_PATTERN.test(content)) {
     violations.push({
-      type: 'logic-quality',
+      type: VALIDATION_VIOLATION_TYPE.LOGIC_QUALITY,
       severity,
       message: `${filePath} uses a default import from "zustand". Use named import syntax (for example: import { create } from "zustand").`,
       file: filePath,
@@ -147,7 +155,7 @@ const FEATURE_PRESENCE_RULES: Record<string, { patterns: RegExp[]; message: stri
 export function validateFeatureSkeletonForOutput(
   output: GeneratedOutput,
 ): ValidationViolation[] {
-  if (output.mode !== 'generate' || !output.intentType) {
+  if (!isGenerateMode(output.mode) || !output.intentType) {
     return [];
   }
 

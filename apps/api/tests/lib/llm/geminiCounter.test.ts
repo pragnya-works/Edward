@@ -4,13 +4,11 @@ import { countGeminiInputTokens } from "../../../lib/llm/tokens/geminiCounter.js
 
 const countTokensMock = vi.fn();
 
-vi.mock("@google/generative-ai", () => ({
-  GoogleGenerativeAI: class {
-    getGenerativeModel() {
-      return {
-        countTokens: countTokensMock,
-      };
-    }
+vi.mock("@google/genai", () => ({
+  GoogleGenAI: class {
+    models = {
+      countTokens: countTokensMock,
+    };
   },
 }));
 
@@ -52,6 +50,9 @@ describe("countGeminiInputTokens", () => {
         },
       },
     ]);
+    expect(messageCountRequest).toMatchObject({
+      model: "gemini-2.5-flash",
+    });
   });
 
   it("reports only current userPrompt tokens as inputTokens", async () => {

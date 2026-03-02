@@ -43,6 +43,7 @@ import {
 } from "@/lib/streaming/processors/chatStreamProcessor";
 import {
   clearRunStopIntent,
+  markRunStopNotice,
   markRunStopIntent,
 } from "@/lib/chat/runStopIntent";
 
@@ -163,6 +164,7 @@ export function useChatStreamController(): UseChatStreamControllerResult {
       }
 
       markRunStopIntent(cancelChatId);
+      markRunStopNotice(cancelChatId, streamState?.meta?.userMessageId);
 
       void (async () => {
         try {

@@ -67,9 +67,13 @@ export const MAX_AGENT_CONTINUATION_PROMPT_CHARS = parsePositiveInt(
 );
 export const MAX_AGENT_TOOL_RESULT_PAYLOAD_CHARS = parsePositiveInt(
   "MAX_AGENT_TOOL_RESULT_PAYLOAD_CHARS",
-  28_000,
+  180_000,
 );
 export const MAX_TOOL_STDIO_CHARS = parsePositiveInt("MAX_TOOL_STDIO_CHARS", 6_000);
+export const MAX_RAW_TOOL_STDIO_CHARS = parsePositiveInt(
+  "MAX_RAW_TOOL_STDIO_CHARS",
+  64_000,
+);
 export const MAX_WEB_SEARCH_SNIPPET_CHARS = 700;
 export const TOOL_GATEWAY_TIMEOUT_MS = parsePositiveInt(
   "TOOL_GATEWAY_TIMEOUT_MS",
@@ -123,3 +127,7 @@ export const RUN_MAX_RUNNING_AGE_MS = parsePositiveInt(
 export const MAX_SSE_QUEUE_BYTES = 768 * 1024;
 export const MAX_SSE_QUEUE_EVENTS = 700;
 export const CLEANUP_INTERVAL_MS = 60 * 1000;
+export const WORKER_GRACEFUL_SHUTDOWN_TIMEOUT_MS = parsePositiveInt(
+  "WORKER_GRACEFUL_SHUTDOWN_TIMEOUT_MS",
+  12_000,
+);

@@ -166,6 +166,25 @@
   --ed-toast-accent: var(--sonner-success);
 }
 
+[data-sonner-toaster].toaster
+  [data-sonner-toast].ed-toast.ed-toast--success
+  .ed-toast__icon {
+  width: 20px;
+  height: 20px;
+  border: 0;
+  background: transparent;
+  border-radius: 0;
+  padding: 0;
+}
+
+[data-sonner-toaster].toaster
+  [data-sonner-toast].ed-toast.ed-toast--success
+  .ed-toast__icon
+  > svg {
+  width: 18px;
+  height: 18px;
+}
+
 [data-sonner-toaster].toaster [data-sonner-toast].ed-toast.ed-toast--error {
   --ed-toast-accent: var(--sonner-error);
 }

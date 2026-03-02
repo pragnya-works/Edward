@@ -7,6 +7,7 @@ function violationTypeToErrorType(type: ValidationViolation["type"]): string {
   const ERROR_TYPE_BY_VIOLATION: Partial<Record<ValidationViolation["type"], string>> = {
     "missing-entry-point": "missing_import",
     "missing-project-file": "config",
+    "file-line-limit-exceeded": "config",
     "import-placement": "syntax",
     "logic-quality": "runtime",
     "orphaned-import": "missing_import",

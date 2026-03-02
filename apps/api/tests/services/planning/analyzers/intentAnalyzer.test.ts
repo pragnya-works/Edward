@@ -75,6 +75,33 @@ describe("IntentAnalyzer", () => {
     expect(result.reasoning).toContain("Fallback logic");
   });
 
+  it("should honor explicit Next.js request when LLM suggests a different framework", async () => {
+    const mockLlmResponse = JSON.stringify({
+      type: "landing",
+      complexity: "moderate",
+      features: ["hero section"],
+      recommendedPackages: [],
+      suggestedFramework: "vite-react",
+      reasoning: "Defaulting to React SPA.",
+    });
+
+    vi.mocked(generateResponse).mockResolvedValue(mockLlmResponse);
+
+    const result = await analyzeIntent("Build this in Next.js App Router", mockApiKey);
+
+    expect(result.suggestedFramework).toBe("nextjs");
+    expect(result.reasoning).toContain("Explicit framework preference");
+  });
+
+  it("should use explicit Next.js preference in fallback mode", async () => {
+    vi.mocked(generateResponse).mockRejectedValue(new Error("Network error"));
+
+    const result = await analyzeIntent("Create a Next.js ecommerce app", mockApiKey);
+
+    expect(result.suggestedFramework).toBe("nextjs");
+    expect(result.reasoning).toContain("explicit framework preference");
+  });
+
   it("should return fallback logic if LLM call fails", async () => {
     vi.mocked(generateResponse).mockRejectedValue(new Error("Network error"));
 

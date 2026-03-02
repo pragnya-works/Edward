@@ -1,5 +1,5 @@
 import OpenAI from "openai";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenAI } from "@google/genai";
 import { Provider, API_KEY_REGEX } from "@edward/shared/constants";
 import { composePrompt, type ComposeOptions } from "./compose.js";
 import { ensureError } from "../../utils/error.js";
@@ -48,7 +48,7 @@ function getClient(apiKey: string, modelOverride?: string) {
     const model = resolveModelForProvider(Provider.GEMINI, modelOverride);
     return {
       type: Provider.GEMINI,
-      client: new GoogleGenerativeAI(apiKey),
+      client: new GoogleGenAI({ apiKey }),
       model,
     };
   } else {
@@ -145,11 +145,7 @@ export async function* streamResponse(
         }
       }
     } else {
-      const genAI = client as GoogleGenerativeAI;
-      const geminiModel = genAI.getGenerativeModel({
-        model,
-        systemInstruction: fullSystemPrompt,
-      });
+      const genAI = client as GoogleGenAI;
 
       const contents = normalized.map((msg) => {
         const geminiRole = toGeminiRole(msg.role!);
@@ -163,21 +159,21 @@ export async function* streamResponse(
         };
       });
 
-      const result = await geminiModel.generateContentStream(
-        {
-          contents,
-          generationConfig: {
-            maxOutputTokens: GENERATION_CONFIG.geminiMaxOutputTokens,
-            topP: GENERATION_CONFIG.topP,
-            temperature: GENERATION_CONFIG.temperature,
-          },
+      const stream = await genAI.models.generateContentStream({
+        model,
+        contents,
+        config: {
+          systemInstruction: fullSystemPrompt,
+          maxOutputTokens: GENERATION_CONFIG.geminiMaxOutputTokens,
+          topP: GENERATION_CONFIG.topP,
+          temperature: GENERATION_CONFIG.temperature,
+          abortSignal: signal,
         },
-        { signal },
-      );
+      });
 
-      for await (const chunk of result.stream) {
+      for await (const chunk of stream) {
         if (signal?.aborted) break;
-        const text = chunk.text();
+        const text = chunk.text;
         if (text) yield text;
       }
     }
@@ -262,20 +258,17 @@ export async function generateResponse(
         return completion.choices[0]?.text || "";
       }
     } else {
-      const genAI = client as GoogleGenerativeAI;
+      const genAI = client as GoogleGenAI;
 
-      const result = await genAI
-        .getGenerativeModel({
-          model,
+      const result = await genAI.models.generateContent({
+        model,
+        contents: [{ role: MessageRole.User, parts: [{ text: content }] }],
+        config: {
           systemInstruction: fullSystemPrompt,
-          ...(jsonMode && {
-            generationConfig: { responseMimeType: "application/json" },
-          }),
-        })
-        .generateContent({
-          contents: [{ role: MessageRole.User, parts: [{ text: content }] }],
-        });
-      return result.response.text();
+          ...(jsonMode && { responseMimeType: "application/json" }),
+        },
+      });
+      return result.text ?? "";
     }
   } catch (error) {
     logger.error(ensureError(error), "LLM response generation failed");

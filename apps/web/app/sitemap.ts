@@ -1,11 +1,11 @@
 import type { MetadataRoute } from "next";
 import { getCanonicalUrl } from "@/lib/seo/siteUrl";
 
-type StaticRoute = {
+interface StaticRoute {
   path: string;
   changeFrequency: "always" | "hourly" | "daily" | "weekly" | "monthly" | "yearly" | "never";
   priority: number;
-};
+}
 
 const STATIC_ROUTES: StaticRoute[] = [
   { path: "/", changeFrequency: "daily", priority: 1 },

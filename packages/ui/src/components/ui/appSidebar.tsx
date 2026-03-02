@@ -121,6 +121,19 @@ export function AppSidebar({
     [pathname, recentProjectsHref, router],
   );
 
+  const isRouteActive = useCallback(
+    (href: string) => {
+      if (href === "/") {
+        return pathname === "/";
+      }
+
+      return pathname === href || pathname.startsWith(`${href}/`);
+    },
+    [pathname],
+  );
+
+  const isChatConversationRoute = pathname.startsWith("/chat/");
+
   const links = [
     {
       label: "Home",
@@ -128,6 +141,7 @@ export function AppSidebar({
       icon: (
         <Home className="text-neutral-700 dark:text-neutral-200 h-5 w-5 shrink-0" />
       ),
+      isActive: isRouteActive("/"),
     },
     {
       label: "Changelog",
@@ -135,6 +149,7 @@ export function AppSidebar({
       icon: (
         <ScrollText className="text-neutral-700 dark:text-neutral-200 h-5 w-5 shrink-0" />
       ),
+      isActive: isRouteActive("/changelog"),
     },
   ];
   const visibleRecentChats = recentChats.slice(0, MAX_VISIBLE_RECENT_CHATS);
@@ -161,7 +176,16 @@ export function AppSidebar({
           )}
         >
           {links.map((link) => (
-            <SidebarLink key={link.href} link={link} />
+            <SidebarLink
+              key={link.href}
+              link={link}
+              className={cn(
+                link.isActive &&
+                  (isExpanded
+                    ? "bg-neutral-200 dark:bg-neutral-700/60"
+                    : "border-neutral-300 dark:border-neutral-600 bg-neutral-100 dark:bg-neutral-800"),
+              )}
+            />
           ))}
         </div>
 
@@ -172,7 +196,13 @@ export function AppSidebar({
           )}
         >
           {isExpanded ? (
-            <div className="rounded-xl border border-neutral-200/80 dark:border-neutral-700/70 bg-white/70 dark:bg-neutral-900/40 backdrop-blur-sm p-2.5">
+            <div
+              className={cn(
+                "rounded-xl border border-neutral-200/80 dark:border-neutral-700/70 bg-white/70 dark:bg-neutral-900/40 backdrop-blur-sm p-2.5",
+                isChatConversationRoute &&
+                  "border-neutral-300/90 dark:border-neutral-600/80 bg-neutral-100/80 dark:bg-neutral-900/70",
+              )}
+            >
               <div className="mb-2 flex items-center justify-between gap-2 px-1">
                 <div className="flex items-center gap-1.5 text-neutral-700 dark:text-neutral-200">
                   <FolderClock className="h-3.5 w-3.5" />
@@ -198,20 +228,30 @@ export function AppSidebar({
                 </div>
               ) : visibleRecentChats.length > 0 ? (
                 <div className="space-y-1">
-                  {visibleRecentChats.map((chat) => (
-                    <Link
-                      key={chat.id}
-                      href={`/chat/${chat.id}`}
-                      className="flex items-center justify-between gap-2 rounded-md px-2 py-1.5 text-neutral-700 dark:text-neutral-200 hover:bg-neutral-200/70 dark:hover:bg-neutral-800 transition-colors"
-                    >
-                      <span className="truncate text-[12px] font-medium">
-                        {getChatTitle(chat.title)}
-                      </span>
-                      <span className="shrink-0 text-[10px] text-neutral-500 dark:text-neutral-400">
-                        {formatRelativeTime(chat.updatedAt)}
-                      </span>
-                    </Link>
-                  ))}
+                  {visibleRecentChats.map((chat) => {
+                    const chatHref = `/chat/${chat.id}`;
+                    const isActiveChat =
+                      pathname === chatHref || pathname.startsWith(`${chatHref}/`);
+
+                    return (
+                      <Link
+                        key={chat.id}
+                        href={chatHref}
+                        className={cn(
+                          "flex items-center justify-between gap-2 rounded-md px-2 py-1.5 text-neutral-700 dark:text-neutral-200 hover:bg-neutral-200/70 dark:hover:bg-neutral-800 transition-colors",
+                          isActiveChat &&
+                            "bg-neutral-200/90 dark:bg-neutral-800 text-neutral-900 dark:text-white",
+                        )}
+                      >
+                        <span className="truncate text-[12px] font-medium">
+                          {getChatTitle(chat.title)}
+                        </span>
+                        <span className="shrink-0 text-[10px] text-neutral-500 dark:text-neutral-400">
+                          {formatRelativeTime(chat.updatedAt)}
+                        </span>
+                      </Link>
+                    );
+                  })}
                 </div>
               ) : (
                 <p className="px-2 py-1 text-[11px] text-neutral-500 dark:text-neutral-400">
@@ -221,7 +261,13 @@ export function AppSidebar({
             </div>
           ) : (
             <div className="flex flex-col items-center gap-2">
-              <div className="relative flex h-12 w-12 items-center justify-center rounded-xl border border-neutral-200/85 dark:border-neutral-700/80 bg-white/90 dark:bg-neutral-900/75 shadow-sm">
+              <div
+                className={cn(
+                  "relative flex h-12 w-12 items-center justify-center rounded-xl border border-neutral-200/85 dark:border-neutral-700/80 bg-white/90 dark:bg-neutral-900/75 shadow-sm",
+                  isChatConversationRoute &&
+                    "border-neutral-300 dark:border-neutral-600 bg-neutral-100 dark:bg-neutral-800",
+                )}
+              >
                 <FolderClock className="h-4.5 w-4.5 text-neutral-600 dark:text-neutral-300" />
                 {totalRecentChats > 0 && (
                   <span className="absolute -top-1 -right-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-neutral-900 px-1 text-[9px] font-semibold leading-none text-white dark:bg-neutral-100 dark:text-neutral-900">

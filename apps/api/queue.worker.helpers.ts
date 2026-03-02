@@ -1,10 +1,10 @@
 import { getSandboxState } from "./services/sandbox/state.service.js";
 import { createErrorReport } from "./services/diagnostics/errorReport.js";
 
-type WorkerLogger = {
+interface WorkerLogger {
   info(payload: unknown, message: string): void;
   warn(payload: unknown, message: string): void;
-};
+}
 
 export async function createErrorReportIfPossible(
   sandboxId: string,

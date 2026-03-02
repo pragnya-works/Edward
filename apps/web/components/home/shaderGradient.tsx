@@ -48,7 +48,7 @@ const CANVAS_STYLE = {
   pointerEvents: "none",
 } as const
 
-type ShaderCanvasProps = {
+interface ShaderCanvasProps {
   pixelDensity?: number
   fov?: number
   style?: React.CSSProperties
@@ -81,7 +81,7 @@ const FALLBACK_GRADIENT_STYLE = {
 
 const StaticGradientFallback = memo(function StaticGradientFallback({ opacity }: { opacity: number }) {
   return (
-    <m.div 
+    <m.div
       className="absolute inset-0 z-0"
       initial={{ opacity: 0.4 }}
       animate={{ opacity }}
@@ -91,11 +91,11 @@ const StaticGradientFallback = memo(function StaticGradientFallback({ opacity }:
   )
 })
 
-const ShaderContent = memo(function ShaderContent({ 
-  shouldRender, 
+const ShaderContent = memo(function ShaderContent({
+  shouldRender,
   isReady,
   onReady,
-}: { 
+}: {
   shouldRender: boolean
   isReady: boolean
   onReady: () => void
@@ -107,7 +107,7 @@ const ShaderContent = memo(function ShaderContent({
   }, [])
 
   if (!shouldRender) return null
-  
+
   return (
     <Suspense fallback={null}>
       <m.div
@@ -117,7 +117,7 @@ const ShaderContent = memo(function ShaderContent({
         className="w-full h-full [&_canvas]:!bg-transparent"
       >
         <ShaderGradientCanvas
-          pixelDensity={1} 
+          pixelDensity={1}
           fov={45}
           style={CANVAS_STYLE}
           powerPreference="low-power"
@@ -145,7 +145,7 @@ export function ShaderGradientBackground() {
   const isDocumentVisible = useTabVisibility()
   const { ref: containerRef, isInView: isInViewport } = useInView({ threshold: 0.1 })
   const readyFallbackRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  
+
   const shouldRenderShader = isMounted && isDocumentVisible && isInViewport
 
   const handleShaderReady = useCallback(() => {
@@ -180,7 +180,7 @@ export function ShaderGradientBackground() {
   const fallbackOpacity = isShaderReady ? 0.15 : 0.4
 
   return (
-    <div 
+    <div
       ref={containerRef}
       className="fixed inset-0 opacity-75 w-full h-full -z-50 overflow-hidden select-none pointer-events-none"
       style={{ backgroundColor: CONTAINER_BG }}

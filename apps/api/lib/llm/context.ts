@@ -39,20 +39,20 @@ const HISTORY_LIMIT = 8;
 const HISTORY_LOOKBACK_LIMIT = 64;
 const MAX_HISTORY_IMAGE_URLS_PER_MESSAGE = 4;
 
-export type LlmChatMessage = {
+export interface LlmChatMessage {
   role: LlmConversationRole;
   content: MessageContent;
-};
+}
 
 interface BuildConversationMessagesOptions {
   excludeMessageIds?: string[];
   maxCreatedAt?: Date;
 }
 
-type HistoryAttachment = {
+interface HistoryAttachment {
   type: string;
   url: string;
-};
+}
 
 export async function buildConversationMessages(
   chatId: string,
@@ -260,20 +260,20 @@ export async function buildConversationMessages(
 
       const affectedFiles = errorReport
         ? [
-            ...new Set(
-              errorReport.errors
-                .flatMap((e: (typeof errorReport.errors)[number]) => [
-                  e.error.file,
-                  ...(e.relatedFiles?.map(
-                    (rf: (typeof e.relatedFiles)[number]) => rf.path,
-                  ) || []),
-                ])
-                .filter(
-                  (f: string): f is string =>
-                    typeof f === "string" && f !== "unknown",
-                ),
-            ),
-          ]
+          ...new Set(
+            errorReport.errors
+              .flatMap((e: (typeof errorReport.errors)[number]) => [
+                e.error.file,
+                ...(e.relatedFiles?.map(
+                  (rf: (typeof e.relatedFiles)[number]) => rf.path,
+                ) || []),
+              ])
+              .filter(
+                (f: string): f is string =>
+                  typeof f === "string" && f !== "unknown",
+              ),
+          ),
+        ]
         : [];
 
       if (affectedFiles.length > 0) {

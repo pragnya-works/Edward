@@ -56,9 +56,9 @@ export function groupRelatedErrors(errors: BuildError[]): BuildError[] {
   return errors;
 }
 
-type DiagnosticContext = {
+interface DiagnosticContext {
   packageJson?: Record<string, unknown>;
-};
+}
 
 interface DiagnosticStrategy {
   layman: (error: BuildError, context: DiagnosticContext) => string;
