@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useMemo } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
 import { m } from "motion/react";
 import { Brain, Zap, ChevronRight } from "lucide-react";
 import {
@@ -29,6 +29,19 @@ export const ThinkingIndicator = memo(function ThinkingIndicator({
   duration,
   isCodeMode = false,
 }: ThinkingIndicatorProps) {
+  const [openItems, setOpenItems] = useState<string[]>(() =>
+    isActive ? ["thinking"] : [],
+  );
+
+  useEffect(() => {
+    if (!isActive) {
+      return;
+    }
+    setOpenItems((previous) =>
+      previous.includes("thinking") ? previous : ["thinking"],
+    );
+  }, [isActive]);
+
   const elapsed = useTimer(isActive);
   const hasValidDuration = (duration ?? 0) > 0;
   const displayDuration = isActive
@@ -60,7 +73,8 @@ export const ThinkingIndicator = memo(function ThinkingIndicator({
       )}>
         <Accordion
           className="w-full"
-          defaultValue={isActive ? ["thinking"] : undefined}
+          value={openItems}
+          onValueChange={setOpenItems}
         >
           <AccordionItem value="thinking" className="border-none bg-transparent">
             <AccordionTrigger

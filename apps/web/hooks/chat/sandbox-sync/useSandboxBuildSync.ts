@@ -60,6 +60,8 @@ export function useSandboxBuildSync({
   const pushConnectedRef = useRef(false);
   const pushTerminalRef = useRef(false);
   const buildInFlightRef = useRef(false);
+  const buildExpectedFromMsRef = useRef<number | null>(null);
+  const hadBuildSignalsRef = useRef(false);
   const [sseErrorCount, setSseErrorCount] = useState(0);
 
   const isCurrentRoute = useCallback((chatId: string, epoch: number): boolean => {
@@ -229,6 +231,8 @@ export function useSandboxBuildSync({
     pushConnectedRef.current = false;
     pushTerminalRef.current = false;
     buildInFlightRef.current = false;
+    buildExpectedFromMsRef.current = null;
+    hadBuildSignalsRef.current = false;
     filesLoadInFlightChatIdRef.current = null;
     pollAttemptsRef.current = 0;
     setSseErrorCount(0);
@@ -302,6 +306,7 @@ export function useSandboxBuildSync({
         pushConnectedRef,
         pushTerminalRef,
         buildInFlightRef,
+        buildExpectedFromMsRef,
       });
     },
     [
@@ -328,12 +333,34 @@ export function useSandboxBuildSync({
 
   useEffect(() => {
     if (!hasStreamBuildSignals) {
+      hadBuildSignalsRef.current = false;
       return;
     }
+
+    if (hadBuildSignalsRef.current) {
+      return;
+    }
+    hadBuildSignalsRef.current = true;
+
+    buildExpectedFromMsRef.current = Date.now();
     buildInFlightRef.current = true;
     pushTerminalRef.current = false;
     lastPolledChatIdRef.current = null;
-  }, [hasStreamBuildSignals]);
+    if (
+      buildStatus === BuildStatus.FAILED ||
+      buildStatus === BuildStatus.SUCCESS
+    ) {
+      setBuildStatus(BuildStatus.QUEUED);
+      setBuildError(null);
+      setFullErrorReport(null);
+    }
+  }, [
+    buildStatus,
+    hasStreamBuildSignals,
+    setBuildError,
+    setBuildStatus,
+    setFullErrorReport,
+  ]);
 
   useEffect(() => {
     const targetChatId = stream.meta?.chatId || chatIdFromUrl;
@@ -342,11 +369,12 @@ export function useSandboxBuildSync({
       buildStatus === BuildStatus.FAILED;
     const shouldConnect =
       Boolean(targetChatId) &&
-      !isBuildTerminal &&
-      (hasStreamBuildSignals ||
-        buildStatus === BuildStatus.QUEUED ||
-        buildStatus === BuildStatus.BUILDING ||
-        buildInFlightRef.current);
+      (stream.isStreaming ||
+        (!isBuildTerminal &&
+          (hasStreamBuildSignals ||
+            buildStatus === BuildStatus.QUEUED ||
+            buildStatus === BuildStatus.BUILDING ||
+            buildInFlightRef.current)));
 
     if (!targetChatId || !shouldConnect) {
       closeBuildEvents();
@@ -360,6 +388,8 @@ export function useSandboxBuildSync({
     closeBuildEvents,
     connectRouteBuildEvents,
     hasStreamBuildSignals,
+    sseErrorCount,
+    stream.isStreaming,
     stream.meta?.chatId,
   ]);
 

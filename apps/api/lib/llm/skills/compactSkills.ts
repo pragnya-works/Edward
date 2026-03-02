@@ -5,7 +5,7 @@ Design quality rules:
 - Use intentional typography and color systems (define variables/tokens).
 - Build visual depth with gradients/shapes/textures; avoid flat default screens.
 - Add meaningful motion (entry/reveal/feedback), not noisy micro-animation spam.
-- Ensure responsive behavior on mobile and desktop.
+- Ensure full responsive behavior across mobile, tablet, laptop, and desktop (including narrow and ultra-wide screens).
 - Keep style consistent across all generated files.
 - UI must feel human-crafted and brand-specific, never AI-template-like.
 </skill:ui-design-core>
@@ -125,6 +125,7 @@ Production completeness rules (non-negotiable):
 - Primary user journeys must work end-to-end before finishing output.
 - Scale files to the task: multi-feature apps require separate files per feature/domain.
 - Ensure imports resolve and code is syntactically valid.
+- Treat responsive layout breakage on any major screen size as an incomplete delivery.
 </skill:code-quality-compact>
 `;
 

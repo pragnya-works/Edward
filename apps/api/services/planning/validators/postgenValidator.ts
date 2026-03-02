@@ -1,6 +1,7 @@
 import { createLogger } from '../../../utils/logger.js';
 import {
   MARKDOWN_FENCE_PATTERN,
+  MAX_GENERATED_FILE_LINES,
   REQUIRED_CSS_IMPORTS,
   REQUIRED_ENTRY_POINTS,
   REQUIRED_GENERATE_PROJECT_FILES,
@@ -31,6 +32,20 @@ import {
 } from './postgenValidator.types.js';
 
 const logger = createLogger('PostGenValidator');
+
+function countContentLines(content: string): number {
+  if (content.length === 0) {
+    return 0;
+  }
+
+  const normalized = content.replace(/\r\n/g, '\n');
+  const withoutTrailingNewline = normalized.endsWith('\n')
+    ? normalized.slice(0, -1)
+    : normalized;
+  return withoutTrailingNewline.length === 0
+    ? 0
+    : withoutTrailingNewline.split('\n').length;
+}
 
 function resolveValidationFramework(
   framework: GeneratedOutput["framework"],
@@ -139,6 +154,16 @@ export function validateGeneratedOutput(output: GeneratedOutput): ValidationResu
   }
 
   for (const [filePath, content] of validatedOutput.files) {
+    const lineCount = countContentLines(content);
+    if (lineCount > MAX_GENERATED_FILE_LINES) {
+      violations.push({
+        type: VALIDATION_VIOLATION_TYPE.FILE_LINE_LIMIT_EXCEEDED,
+        severity: VALIDATION_SEVERITY.ERROR,
+        message: `${filePath} exceeds the maximum allowed ${MAX_GENERATED_FILE_LINES} lines (${lineCount} lines).`,
+        file: filePath,
+      });
+    }
+
     if (MARKDOWN_FENCE_PATTERN.test(content)) {
       violations.push({
         type: VALIDATION_VIOLATION_TYPE.MARKDOWN_FENCE,

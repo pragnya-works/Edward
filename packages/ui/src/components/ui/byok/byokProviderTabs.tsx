@@ -7,13 +7,6 @@ import {
   TabsList,
   TabsTrigger,
 } from "@edward/ui/components/tabs";
-import { Badge } from "@edward/ui/components/badge";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipPositioner,
-  TooltipTrigger,
-} from "@edward/ui/components/tooltip";
 import { ApiKeyInput } from "@edward/ui/components/ui/apiKeyInput";
 import { ModelSelector } from "@edward/ui/components/ui/modelSelector";
 import { cn } from "@edward/ui/lib/utils";
@@ -71,28 +64,6 @@ export function BYOKProviderTabs({
                   className="relative overflow-visible gap-2 rounded-lg data-[state=active]:bg-background dark:data-[state=active]:bg-white/[0.1] data-[state=active]:shadow-sm data-[state=active]:text-foreground dark:text-muted-foreground/80 transition-all"
                   aria-selected={selectedProvider === id}
                 >
-                  {id === Provider.OPENAI ? (
-                    <Tooltip>
-                      <TooltipTrigger
-                        render={
-                          <Badge
-                            variant="outline"
-                            className="absolute -top-4 right-1.5 sm:-top-3 sm:right-0 h-4 px-1.5 sm:px-2 text-[7px] sm:text-[8px] font-semibold tracking-[0.08em] uppercase border-amber-300 bg-amber-100 text-amber-900 shadow-sm dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200 cursor-help"
-                            aria-label="Why OpenAI is recommended for Edward"
-                          >
-                            Recommended
-                          </Badge>
-                        }
-                      />
-                      <TooltipPositioner side="top" align="end">
-                        <TooltipContent className="max-w-[220px] leading-relaxed">
-                          Recommended because OpenAI gives <strong>Edward</strong> the most
-                          consistent code quality, tool reliability, and lower
-                          runtime failures.
-                        </TooltipContent>
-                      </TooltipPositioner>
-                    </Tooltip>
-                  ) : null}
                   <Icon className="h-4 w-4" aria-hidden="true" />
                   <span className="text-sm font-semibold">{label}</span>
                 </TabsTrigger>

@@ -37,6 +37,7 @@ describe('composePrompt', () => {
     expect(prompt).toContain('- src/app/layout.tsx');
     expect(prompt).toContain('Required project files in generate mode:');
     expect(prompt).toContain('- README.md');
+    expect(prompt).toContain('Each emitted <file> must be <= 200 total lines.');
     expect(prompt).not.toContain('<skill:react-performance>');
 
     const approxTokens = estimatePromptTokensApprox(prompt);

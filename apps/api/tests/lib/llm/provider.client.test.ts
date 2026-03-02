@@ -4,8 +4,11 @@ import { MessageRole } from "@edward/auth";
 const mocks = vi.hoisted(() => ({
   responsesCreateMock: vi.fn(),
   completionsCreateMock: vi.fn(),
+  geminiModelsGenerateContentStreamMock: vi.fn(),
+  geminiModelsGenerateContentMock: vi.fn(),
 }));
 const OPENAI_TEST_KEY = `sk-${"a".repeat(48)}`;
+const GEMINI_TEST_KEY = `AIza${"a".repeat(35)}`;
 
 vi.mock("openai", () => ({
   default: vi.fn().mockImplementation(() => ({
@@ -14,6 +17,15 @@ vi.mock("openai", () => ({
     },
     completions: {
       create: mocks.completionsCreateMock,
+    },
+  })),
+}));
+
+vi.mock("@google/genai", () => ({
+  GoogleGenAI: vi.fn().mockImplementation(() => ({
+    models: {
+      generateContentStream: mocks.geminiModelsGenerateContentStreamMock,
+      generateContent: mocks.geminiModelsGenerateContentMock,
     },
   })),
 }));
@@ -117,5 +129,81 @@ describe("provider.client legacy completions fallback", () => {
     }
 
     expect(output).toBe("");
+  });
+});
+
+describe("provider.client gemini stream resilience", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("fails the stream when Gemini stream throws", async () => {
+    const { streamResponse } = await import("../../../lib/llm/provider.client.js");
+    const streamError = new Error("stream read failed");
+
+    mocks.geminiModelsGenerateContentStreamMock.mockResolvedValueOnce(
+      (async function* () {
+        throw streamError;
+      })(),
+    );
+
+    const collect = async () => {
+      let output = "";
+      for await (const chunk of streamResponse(GEMINI_TEST_KEY, [
+        { role: MessageRole.User, content: "Say hello" },
+      ])) {
+        output += chunk;
+      }
+      return output;
+    };
+
+    await expect(collect()).rejects.toThrow("stream read failed");
+  });
+
+  it("yields text chunks from Gemini stream", async () => {
+    const { streamResponse } = await import("../../../lib/llm/provider.client.js");
+    mocks.geminiModelsGenerateContentStreamMock.mockResolvedValueOnce(
+      (async function* () {
+        yield { text: "Hello" };
+        yield { text: " world" };
+      })(),
+    );
+
+    let output = "";
+    for await (const chunk of streamResponse(GEMINI_TEST_KEY, [
+      { role: MessageRole.User, content: "Say hello" },
+    ])) {
+      output += chunk;
+    }
+
+    expect(output).toBe("Hello world");
+  });
+
+  it("uses Gemini non-stream text output", async () => {
+    const { generateResponse } = await import("../../../lib/llm/provider.client.js");
+    mocks.geminiModelsGenerateContentMock.mockResolvedValueOnce({
+      text: "Gemini response",
+    });
+
+    const output = await generateResponse(GEMINI_TEST_KEY, "Say hello");
+
+    expect(output).toBe("Gemini response");
+    expect(mocks.geminiModelsGenerateContentMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("sets responseMimeType to JSON for Gemini jsonMode", async () => {
+    const { generateResponse } = await import("../../../lib/llm/provider.client.js");
+    mocks.geminiModelsGenerateContentMock.mockResolvedValueOnce({
+      text: "{\"ok\":true}",
+    });
+
+    await generateResponse(GEMINI_TEST_KEY, "Return json", undefined, undefined, {
+      jsonMode: true,
+    });
+
+    const request = mocks.geminiModelsGenerateContentMock.mock.calls[0]?.[0] as {
+      config?: { responseMimeType?: string };
+    };
+    expect(request.config?.responseMimeType).toBe("application/json");
   });
 });

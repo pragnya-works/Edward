@@ -20,9 +20,11 @@ import { CodeWorkspace } from "@/components/chat/sandbox/codeWorkspace";
 import { PreviewWorkspace } from "@/components/chat/sandbox/previewWorkspace";
 import { usePreviewNavigation } from "@/hooks/chat/usePreviewNavigation";
 import { useMobileViewport } from "@edward/ui/hooks/useMobileViewport";
+import { useOptionalChatWorkspaceContext } from "@/components/chat/chatWorkspaceContext";
 
 export function SandboxPanel() {
   const [isMobileExplorerOpen, setIsMobileExplorerOpen] = useState(false);
+  const workspace = useOptionalChatWorkspaceContext();
 
   const {
     mode,
@@ -59,6 +61,8 @@ export function SandboxPanel() {
   );
 
   const isMobile = useMobileViewport();
+  const isInstallingDependencies =
+    (workspace?.stream.installingDeps.length ?? 0) > 0;
 
   const switchToCodeMode = useCallback(() => setMode(SandboxMode.CODE), [setMode]);
 
@@ -70,6 +74,7 @@ export function SandboxPanel() {
           code={getFileContent(activeFile.path)}
           filename={activeFile.path}
           isStreaming={isStreaming && streamingFilePath === activeFile.path}
+          isInstallingDependencies={isInstallingDependencies}
           buildStatus={buildStatus}
         />
       </div>

@@ -31,6 +31,7 @@ import { processScheduledFlushes } from "./services/sandbox/write/flush.schedule
 import { reapStaleRuns } from "./services/runs/staleRunReaper.service.js";
 import { createErrorReportIfPossible } from "./queue.worker.helpers.js";
 import { registerProcessHandlerOnce } from "./utils/processHandlers.js";
+import { ensureError } from "./utils/error.js";
 
 const logger = createLogger("WORKER");
 const pubClient = createRedisClient();
@@ -283,6 +284,9 @@ const staleRunReaperInterval = setInterval(() => {
 }, CLEANUP_INTERVAL_MS);
 staleRunReaperInterval.unref();
 
+let shutdownPromise: Promise<void> | null = null;
+let shutdownExitCode = 0;
+
 buildWorker.on("completed", (job) => {
   logger.debug({ jobId: job.id, jobName: job.name }, "[Worker] Job completed");
 });
@@ -316,12 +320,21 @@ agentRunWorker.on("error", (error) => {
   logger.error({ error }, "[Worker] Worker error");
 });
 
-async function gracefulShutdown() {
-  clearInterval(scheduledFlushInterval);
-  clearInterval(staleRunReaperInterval);
-  await Promise.all([buildWorker.close(), agentRunWorker.close()]);
-  await pubClient.quit();
-  process.exit(0);
+async function gracefulShutdown(exitCode = 0) {
+  shutdownExitCode = Math.max(shutdownExitCode, exitCode);
+  if (shutdownPromise) {
+    return shutdownPromise;
+  }
+
+  shutdownPromise = (async () => {
+    clearInterval(scheduledFlushInterval);
+    clearInterval(staleRunReaperInterval);
+    await Promise.all([buildWorker.close(), agentRunWorker.close()]);
+    await pubClient.quit();
+    process.exit(shutdownExitCode);
+  })();
+
+  return shutdownPromise;
 }
 
 registerProcessHandlerOnce("worker:SIGINT", "SIGINT", () => {
@@ -330,6 +343,25 @@ registerProcessHandlerOnce("worker:SIGINT", "SIGINT", () => {
 registerProcessHandlerOnce("worker:SIGTERM", "SIGTERM", () => {
   void gracefulShutdown();
 });
+registerProcessHandlerOnce(
+  "worker:uncaughtException",
+  "uncaughtException",
+  (error) => {
+    logger.fatal(ensureError(error), "[Worker] Uncaught Exception");
+    void gracefulShutdown(1);
+  },
+);
+registerProcessHandlerOnce(
+  "worker:unhandledRejection",
+  "unhandledRejection",
+  (reason) => {
+    logger.fatal(
+      { reason: ensureError(reason) },
+      "[Worker] Unhandled Rejection",
+    );
+    void gracefulShutdown(1);
+  },
+);
 
 logger.info(
   {

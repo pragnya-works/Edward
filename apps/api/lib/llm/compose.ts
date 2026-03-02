@@ -6,6 +6,7 @@ import {
 } from "./skills/index.js";
 import { Framework, ChatAction } from "../../services/planning/schemas.js";
 import {
+  MAX_GENERATED_FILE_LINES,
   REQUIRED_CSS_IMPORTS,
   REQUIRED_ENTRY_POINTS,
   REQUIRED_GENERATE_PROJECT_FILES,
@@ -70,6 +71,7 @@ function buildPostgenOutputContract(
   const lines: string[] = [
     "[POSTGEN OUTPUT CONTRACT - HARD REQUIREMENT]",
     "Do not rely on template defaults. Required files must be explicitly present in <edward_sandbox> output.",
+    `Each emitted <file> must be <= ${MAX_GENERATED_FILE_LINES} total lines.`,
   ];
 
   if (requiredEntrypoints.length > 0) {

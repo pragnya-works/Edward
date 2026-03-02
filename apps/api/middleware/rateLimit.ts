@@ -75,7 +75,18 @@ function createRateLimiterForScope(
     skip?: (req: Request, res: Response) => boolean;
   } = {},
 ) {
-  const policy = RATE_LIMIT_POLICY_BY_SCOPE[scope];
+  const policy = (
+    RATE_LIMIT_POLICY_BY_SCOPE as Partial<
+      Record<KnownRateLimitScope, RateLimitPolicy>
+    >
+  )[scope];
+
+  if (!policy) {
+    throw new Error(
+      `Missing rate-limit policy for scope "${String(scope)}". Rebuild @edward/shared so exported dist constants match source.`,
+    );
+  }
+
   return rateLimit({
     windowMs: policy.windowMs,
     max: policy.max,

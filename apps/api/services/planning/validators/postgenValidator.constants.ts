@@ -13,6 +13,7 @@ export const REQUIRED_CSS_IMPORTS: Record<string, { file: string; importPattern:
 
 export const REQUIRED_GENERATE_PROJECT_FILES = ['README.md'] as const;
 export const REQUIRED_GENERATE_PROJECT_FILES_BY_FRAMEWORK: Record<string, readonly string[]> = {};
+export const MAX_GENERATED_FILE_LINES = 200;
 export const SOURCE_FILE_PATTERN = /\.(ts|tsx|js|jsx)$/i;
 export const MARKDOWN_FENCE_PATTERN = /^```/m;
 export const RELATIVE_IMPORT_PATTERN = /(?:import|from)\s+['"](\.[^'"]+)['"]/g;

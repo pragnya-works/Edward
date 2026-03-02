@@ -38,6 +38,7 @@ interface CodeEditorProps {
   filename: string;
   readOnly?: boolean;
   isStreaming?: boolean;
+  isInstallingDependencies?: boolean;
   buildStatus?: BuildStatus;
   className?: string;
 }
@@ -53,7 +54,7 @@ const getLanguageFromFilename = (filename: string) => {
   return "plaintext";
 };
 
-type EditorStatusTone = "accent" | "destructive";
+type EditorStatusTone = "accent" | "destructive" | "success";
 
 interface EditorStatusBadgeProps {
   statusKey: string;
@@ -71,7 +72,9 @@ function EditorStatusBadge({
   const toneClassName =
     tone === "destructive"
       ? "bg-destructive/10 border-destructive/20 shadow-destructive/10 text-destructive"
-      : "bg-workspace-sidebar/90 border-workspace-border shadow-workspace-accent/10 text-workspace-accent";
+      : tone === "success"
+        ? "bg-emerald-500/10 border-emerald-500/25 shadow-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+        : "bg-workspace-sidebar/90 border-workspace-border shadow-workspace-accent/10 text-workspace-accent";
 
   return (
     <m.div
@@ -95,6 +98,7 @@ export const CodeEditor = memo(function CodeEditor({
   filename,
   readOnly = true,
   isStreaming = false,
+  isInstallingDependencies = false,
   buildStatus = BuildStatus.IDLE,
   className,
 }: CodeEditorProps) {
@@ -102,21 +106,57 @@ export const CodeEditor = memo(function CodeEditor({
   const monacoRef = useRef<MonacoApi | null>(null);
   const [isEditorMounted, setIsEditorMounted] = useState(false);
   const editorValue = typeof code === "string" ? code : String(code ?? "");
-  const statusBadge = isStreaming
-    ? {
-      key: "streaming",
-      label: "Streaming",
-      tone: "accent" as const,
-      indicatorClassName: "bg-workspace-accent animate-pulse",
-    }
-    : buildStatus === BuildStatus.FAILED
+  const statusBadge =
+    isStreaming && isInstallingDependencies
       ? {
-        key: "failed",
-        label: "Build Failed",
-        tone: "destructive" as const,
-        indicatorClassName: "bg-destructive",
-      }
-      : null;
+          key: "streaming-installing",
+          label: "Streaming + Installing",
+          tone: "accent" as const,
+          indicatorClassName: "bg-workspace-accent animate-pulse",
+        }
+      : isInstallingDependencies
+      ? {
+          key: "installing",
+          label: "Installing",
+          tone: "accent" as const,
+          indicatorClassName: "bg-workspace-accent animate-spin-slow",
+        }
+      : isStreaming
+        ? {
+            key: "streaming",
+            label: "Streaming",
+            tone: "accent" as const,
+            indicatorClassName: "bg-workspace-accent animate-pulse",
+          }
+      : buildStatus === BuildStatus.FAILED
+      ? {
+          key: "failed",
+          label: "Build Failed",
+          tone: "destructive" as const,
+          indicatorClassName: "bg-destructive",
+        }
+      : buildStatus === BuildStatus.BUILDING
+        ? {
+            key: "building",
+            label: "Building",
+            tone: "accent" as const,
+            indicatorClassName: "bg-workspace-accent animate-spin-slow",
+          }
+        : buildStatus === BuildStatus.QUEUED
+          ? {
+              key: "queued",
+              label: "Queued",
+              tone: "accent" as const,
+              indicatorClassName: "bg-workspace-accent animate-pulse",
+            }
+          : buildStatus === BuildStatus.SUCCESS
+          ? {
+              key: "running",
+              label: "Running",
+              tone: "success" as const,
+              indicatorClassName: "bg-emerald-500",
+            }
+            : null;
 
   const handleEditorWillMount = (monaco: MonacoApi) => {
     applyWorkspaceMonacoTheme(monaco);
