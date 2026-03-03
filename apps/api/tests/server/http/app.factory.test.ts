@@ -23,7 +23,10 @@ type ForceHttpsRequest = {
   originalUrl: string;
 };
 
-function assertFunction<T extends Function>(value: unknown, name: string): asserts value is T {
+function assertFunction<T extends (...args: never[]) => unknown>(
+  value: unknown,
+  name: string,
+): asserts value is T {
   if (typeof value !== "function") {
     throw new Error(`Expected ${name} to be a function`);
   }

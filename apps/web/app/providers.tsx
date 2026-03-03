@@ -3,7 +3,7 @@
 import { useState, type ReactNode } from "react";
 import { ThemeProvider as NextThemesProvider } from "next-themes";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { LazyMotion, MotionConfig, domAnimation } from "motion/react";
+import { LazyMotion, MotionConfig, domAnimation, useReducedMotion } from "motion/react";
 import { ChatStreamProvider } from "@/contexts/chatStreamContext";
 import { SandboxProvider } from "@/contexts/sandboxContext";
 import { Toaster } from "@edward/ui/components/sonner";
@@ -26,6 +26,7 @@ function makeQueryClient() {
 export function Providers({ children }: { children: ReactNode }) {
   const [queryClient] = useState(makeQueryClient);
   const { data: session, isPending } = useSession();
+  const prefersReducedMotion = useReducedMotion();
   useNotificationManager();
   const forcedTheme = !isPending && !session?.user ? "dark" : undefined;
 
@@ -39,7 +40,10 @@ export function Providers({ children }: { children: ReactNode }) {
       enableColorScheme
     >
       <LazyMotion features={domAnimation}>
-        <MotionConfig reducedMotion="user">
+        <MotionConfig
+          reducedMotion="user"
+          transition={prefersReducedMotion ? { duration: 0 } : undefined}
+        >
           <QueryClientProvider client={queryClient}>
             <ChatStreamProvider>
               <SandboxProvider>

@@ -90,6 +90,47 @@ describe("agent run processor helpers", () => {
     expect(mocks.logger.error).toHaveBeenCalled();
   });
 
+  it("accepts Buffer chunks and stops writes after end", async () => {
+    const { createRunEventCaptureResponse } = await import(
+      "../../../services/runs/agent-run-worker/processor.helpers.js"
+    );
+
+    const onEvent = vi.fn().mockResolvedValue(undefined);
+    const response = createRunEventCaptureResponse(onEvent);
+
+    expect(
+      response.write(
+        Buffer.from(
+          `data: ${JSON.stringify({ type: ParserEventType.TEXT, chunk: "buffer" })}\n\n`,
+        ),
+      ),
+    ).toBe(true);
+
+    response.end();
+    expect(response.write(`data: ${JSON.stringify({ type: ParserEventType.TEXT })}\n\n`)).toBe(
+      false,
+    );
+
+    await response.flushPending();
+    expect(onEvent).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects invalid stream payload shapes and skips future writes after failure", async () => {
+    const { createRunEventCaptureResponse } = await import(
+      "../../../services/runs/agent-run-worker/processor.helpers.js"
+    );
+
+    const onEvent = vi.fn().mockResolvedValue(undefined);
+    const response = createRunEventCaptureResponse(onEvent);
+
+    response.write("data: {}\n\n");
+    await expect(response.flushPending()).rejects.toThrow();
+
+    response.write(`data: ${JSON.stringify({ type: ParserEventType.TEXT, chunk: "late" })}\n\n`);
+    await expect(response.flushPending()).rejects.toThrow();
+    expect(onEvent).not.toHaveBeenCalled();
+  });
+
   it("maps termination reasons to run status/state", async () => {
     const { mapTerminationToStatus } = await import(
       "../../../services/runs/agent-run-worker/processor.helpers.js"
@@ -101,6 +142,18 @@ describe("agent run processor helpers", () => {
       state: "CANCELLED",
     });
     expect(mapTerminationToStatus(StreamTerminationReason.STREAM_FAILED)).toEqual({
+      status: "failed",
+      state: "FAILED",
+    });
+    expect(mapTerminationToStatus(StreamTerminationReason.ABORTED)).toEqual({
+      status: "failed",
+      state: "FAILED",
+    });
+    expect(mapTerminationToStatus(StreamTerminationReason.STREAM_TIMEOUT)).toEqual({
+      status: "failed",
+      state: "FAILED",
+    });
+    expect(mapTerminationToStatus(StreamTerminationReason.SLOW_CLIENT)).toEqual({
       status: "failed",
       state: "FAILED",
     });
@@ -133,6 +186,13 @@ describe("agent run processor helpers", () => {
         terminationReason: StreamTerminationReason.STREAM_FAILED,
       } as never),
     ).toBe(StreamTerminationReason.STREAM_FAILED);
+
+    expect(
+      readTerminationFromTerminalEvent({
+        type: ParserEventType.META,
+        phase: MetaPhase.SESSION_COMPLETE,
+      } as never),
+    ).toBeNull();
   });
 
   it("transitions run to running only when queued", async () => {
@@ -157,6 +217,15 @@ describe("agent run processor helpers", () => {
     expect(mocks.logger.error).toHaveBeenCalled();
   });
 
+  it("returns true when run update succeeds", async () => {
+    const { updateRunWithLog } = await import(
+      "../../../services/runs/agent-run-worker/processor.helpers.js"
+    );
+
+    await expect(updateRunWithLog("run-1", { state: "FAILED" }, "ctx")).resolves.toBe(true);
+    expect(mocks.logger.error).not.toHaveBeenCalled();
+  });
+
   it("logs and returns false when event persistence fails", async () => {
     const { persistRunEventWithLog } = await import(
       "../../../services/runs/agent-run-worker/processor.helpers.js"
@@ -168,5 +237,16 @@ describe("agent run processor helpers", () => {
       persistRunEventWithLog("run-1", { type: ParserEventType.TEXT } as never, { publish: vi.fn() }, "ctx"),
     ).resolves.toBe(false);
     expect(mocks.logger.error).toHaveBeenCalled();
+  });
+
+  it("returns true when event persistence succeeds", async () => {
+    const { persistRunEventWithLog } = await import(
+      "../../../services/runs/agent-run-worker/processor.helpers.js"
+    );
+
+    await expect(
+      persistRunEventWithLog("run-1", { type: ParserEventType.TEXT } as never, { publish: vi.fn() }, "ctx"),
+    ).resolves.toBe(true);
+    expect(mocks.logger.error).not.toHaveBeenCalled();
   });
 });

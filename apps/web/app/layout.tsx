@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google"
 
 import "@edward/ui/globals.css"
 import "@edward/ui/sonner.css"
+import "@/app/motion-accessibility.css"
 import { Providers } from "@/app/providers"
 import ConditionalSidebarLayout from "@/components/layouts/conditionalSidebarLayout"
 import Navbar from "@/components/navbar"

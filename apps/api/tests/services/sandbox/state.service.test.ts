@@ -105,6 +105,38 @@ describe("sandbox state service", () => {
     expect(mocks.logger.error).toHaveBeenCalled();
   });
 
+  it("throws when redis pipeline returns null while saving", async () => {
+    const { saveSandboxState } = await import("../../../services/sandbox/state.service.js");
+
+    mocks.pipelineRef.exec.mockResolvedValueOnce(null as never);
+
+    await expect(
+      saveSandboxState({
+        id: "sb-null-pipeline",
+        containerId: "ctr-null-pipeline",
+        expiresAt: Date.now() + 60_000,
+        userId: "user-null-pipeline",
+        chatId: "chat-null-pipeline",
+      }),
+    ).rejects.toThrow("Failed to persist sandbox state");
+    expect(mocks.logger.error).toHaveBeenCalled();
+  });
+
+  it("returns null when sandbox state key is absent", async () => {
+    const { getSandboxState } = await import("../../../services/sandbox/state.service.js");
+
+    mocks.get.mockResolvedValueOnce(null);
+    await expect(getSandboxState("sb-missing")).resolves.toBeNull();
+  });
+
+  it("returns null when sandbox state read errors", async () => {
+    const { getSandboxState } = await import("../../../services/sandbox/state.service.js");
+
+    mocks.get.mockRejectedValueOnce(new Error("redis read failed"));
+    await expect(getSandboxState("sb-read-fail")).resolves.toBeNull();
+    expect(mocks.logger.error).toHaveBeenCalled();
+  });
+
   it("returns null and deletes corrupted sandbox state", async () => {
     const { getSandboxState } = await import("../../../services/sandbox/state.service.js");
 
@@ -164,6 +196,51 @@ describe("sandbox state service", () => {
     expect(mocks.del).toHaveBeenCalledWith("edward:sandbox:sb-invalid");
   });
 
+  it("drops payloads that parse but are not objects", async () => {
+    const { getSandboxState } = await import("../../../services/sandbox/state.service.js");
+
+    mocks.get.mockResolvedValueOnce("123");
+
+    await expect(getSandboxState("sb-primitive")).resolves.toBeNull();
+    expect(mocks.del).toHaveBeenCalledWith("edward:sandbox:sb-primitive");
+  });
+
+  it("drops payloads with invalid scaffoldedFramework type", async () => {
+    const { getSandboxState } = await import("../../../services/sandbox/state.service.js");
+
+    mocks.get.mockResolvedValueOnce(
+      JSON.stringify({
+        id: "sb-framework-invalid",
+        containerId: "ctr-framework-invalid",
+        expiresAt: 123,
+        userId: "user-framework-invalid",
+        chatId: "chat-framework-invalid",
+        scaffoldedFramework: 12,
+      }),
+    );
+
+    await expect(getSandboxState("sb-framework-invalid")).resolves.toBeNull();
+    expect(mocks.del).toHaveBeenCalledWith("edward:sandbox:sb-framework-invalid");
+  });
+
+  it("drops payloads with non-string requested packages", async () => {
+    const { getSandboxState } = await import("../../../services/sandbox/state.service.js");
+
+    mocks.get.mockResolvedValueOnce(
+      JSON.stringify({
+        id: "sb-packages-invalid",
+        containerId: "ctr-packages-invalid",
+        expiresAt: 123,
+        userId: "user-packages-invalid",
+        chatId: "chat-packages-invalid",
+        requestedPackages: ["react", 5],
+      }),
+    );
+
+    await expect(getSandboxState("sb-packages-invalid")).resolves.toBeNull();
+    expect(mocks.del).toHaveBeenCalledWith("edward:sandbox:sb-packages-invalid");
+  });
+
   it("loads active sandbox state by chat id", async () => {
     const { getActiveSandboxState } = await import("../../../services/sandbox/state.service.js");
 
@@ -186,6 +263,14 @@ describe("sandbox state service", () => {
     expect(mocks.get).toHaveBeenNthCalledWith(2, "edward:sandbox:sb-3");
   });
 
+  it("returns null when no active sandbox id exists for the chat", async () => {
+    const { getActiveSandboxState } = await import("../../../services/sandbox/state.service.js");
+
+    mocks.get.mockResolvedValueOnce(null);
+    await expect(getActiveSandboxState("chat-none")).resolves.toBeNull();
+    expect(mocks.get).toHaveBeenCalledWith("edward:chat:sandbox:chat-none");
+  });
+
   it("returns null when sandbox lookup by chat id fails", async () => {
     const { getActiveSandboxState } = await import("../../../services/sandbox/state.service.js");
 
@@ -203,6 +288,14 @@ describe("sandbox state service", () => {
     expect(mocks.pipeline).toHaveBeenCalledTimes(1);
     expect(mocks.pipelineRef.pexpire).toHaveBeenCalledTimes(2);
     expect(mocks.pipelineRef.exec).toHaveBeenCalledTimes(1);
+  });
+
+  it("logs refresh TTL failures without throwing", async () => {
+    const { refreshSandboxTTL } = await import("../../../services/sandbox/state.service.js");
+
+    mocks.pipelineRef.exec.mockRejectedValueOnce(new Error("refresh failed"));
+    await expect(refreshSandboxTTL("sb-refresh-fail", "chat-refresh-fail")).resolves.toBeUndefined();
+    expect(mocks.logger.error).toHaveBeenCalled();
   });
 
   it("refreshes only sandbox TTL when chat id is not provided", async () => {
@@ -232,5 +325,24 @@ describe("sandbox state service", () => {
 
     await expect(getChatFramework("chat-5")).resolves.toBeNull();
     expect(mocks.logger.warn).toHaveBeenCalled();
+  });
+
+  it("deletes sandbox and chat index when chat id is provided", async () => {
+    const { deleteSandboxState } = await import("../../../services/sandbox/state.service.js");
+
+    await deleteSandboxState("sb-del-1", "chat-del-1");
+
+    expect(mocks.del).toHaveBeenCalledWith("edward:sandbox:sb-del-1");
+    expect(mocks.del).toHaveBeenCalledWith("edward:chat:sandbox:chat-del-1");
+  });
+
+  it("deletes sandbox only when resolved chat id is missing", async () => {
+    const { deleteSandboxState } = await import("../../../services/sandbox/state.service.js");
+
+    mocks.get.mockResolvedValueOnce(null);
+    await deleteSandboxState("sb-del-2");
+
+    expect(mocks.del).toHaveBeenCalledWith("edward:sandbox:sb-del-2");
+    expect(mocks.del).not.toHaveBeenCalledWith("edward:chat:sandbox:chat-del-2");
   });
 });
