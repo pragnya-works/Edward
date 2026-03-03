@@ -1,69 +1,62 @@
-# `apps/api`
+# apps/api
 
-Express + TypeScript backend for Edward.
+TypeScript + Express backend for Edward.
 
-This app runs:
-- the HTTP API server (`server.http.ts`)
-- the background queue worker (`queue.worker.ts`)
+## Runtime Entrypoints
 
-## What Lives Here
+- `server.http.ts`: HTTP process bootstrap (composition root)
+- `queue.worker.ts`: background worker bootstrap (composition root)
 
-- `server.http.ts`: API bootstrap, middleware, route mounting, health check, graceful shutdown
-- `queue.worker.ts`: BullMQ worker for build, backup, and agent-run jobs
-- `routes/`: route registration (`chat`, `api-key`, `github`, `share`)
-- `controllers/`: request handlers by domain
-- `services/`: core business logic (sandbox, runs, queue, storage, diagnostics, websearch)
-- `middleware/`: auth, rate limit, request validation, telemetry
-- `schemas/`: Zod request schemas
-- `tests/`: API/service unit and integration tests
-- `app.config.ts`: validated runtime config derived from env
+## Architecture Layers
 
-## Route Groups
+- `routes/`: HTTP surface and middleware wiring
+- `controllers/`: delivery handlers for multi-step request flows (query/run/build/history)
+- `services/**`: application/infrastructure orchestration and use-cases
+- `lib/**`: shared adapters/clients (Redis, queue binding, LLM helpers)
+- `schemas/`: request contracts (Zod)
+- `middleware/`: auth, validation, telemetry, throttling
 
-Mounted in `server.http.ts`:
+## Delivery Rules
 
-- `GET /health` (public)
-- `/api-key` (auth + rate-limited)
-- `/chat` (auth)
-- `/github` (auth + rate-limited)
-- `/share/chats/:chatId/history` (public share-history endpoint)
+- Prefer importing concrete service/use-case handlers directly in routes.
+- Keep controllers focused on request context, response mapping, and SSE stream control.
+- Avoid no-op wrappers/re-exports (function pass-throughs, barrel re-exports, type alias pass-throughs).
+
+## Core Module Map
+
+- Chat delivery: `controllers/chat/README.md`
+- Chat stream runtime: `services/chat/session/README.md`
+- Runs orchestration: `services/runs/README.md`
+- Agent run worker internals: `services/runs/agent-run-worker/README.md`
+- Sandbox lifecycle/build/read/write: `services/sandbox/README.md`
+- Sandbox build internals: `services/sandbox/builder/README.md`
+- Queue execution and policies: `services/queue/README.md`
+- Planning workflow engine: `services/planning/workflow/README.md`
 
 ## Local Commands
 
-Run from workspace root:
-
 ```bash
+pnpm --filter api dev:deps
 pnpm --filter api dev
+pnpm --filter api dev:api
+pnpm --filter api dev:worker
 pnpm --filter api build
 pnpm --filter api start
-pnpm --filter api lint
 pnpm --filter api typecheck
+pnpm --filter api lint
 pnpm --filter api test
 pnpm --filter api test:coverage
+pnpm --filter api quality:baseline
+pnpm --filter api quality:file-audit
+pnpm --filter api quality:coverage
+pnpm --filter api quality:functions
+pnpm --filter api quality:boundaries
+pnpm --filter api quality:duplication
+pnpm --filter api quality:gates
 ```
-
-`pnpm --filter api dev` starts both API and worker concurrently.
-
-## Environment
-
-Copy `apps/api/.env.example` to `.env` and set values.
-
-Core required values include:
-- `EDWARD_API_PORT`, `NODE_ENV`, `CORS_ORIGIN`, `TRUST_PROXY`
-- `DATABASE_URL`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`
-- `ENCRYPTION_KEY`
-- `REDIS_HOST`/`REDIS_PORT` or `REDIS_URL`
-- `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_BUCKET_NAME`, `AWS_CDN_BUCKET_NAME`
-- `OPENAI_MODEL`, `GEMINI_MODEL`
-
-Feature-specific values:
-- GitHub auth: `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`
-- Preview routing/subdomain: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_KV_NAMESPACE_ID`, `PREVIEW_ROOT_DOMAIN`
-- Sandbox/docker: `PREWARM_SANDBOX_IMAGE`, `DOCKER_REGISTRY_BASE`
-- Web search: `TAVILY_API_KEY`
 
 ## Operational Notes
 
-- Auth is handled via `@edward/auth` session checks in `middleware/auth.ts`.
-- Rate limiting uses Redis-backed stores in `middleware/rateLimit.ts`.
-- Build/run status events are published for streaming consumers by worker/services.
+- `securityTelemetryMiddleware` issues/propagates `x-request-id` for traceability.
+- Worker handlers enforce timeout budgets and publish-retry policy for build status events.
+- Architecture boundary, duplication, and function-length checks are required quality gates.

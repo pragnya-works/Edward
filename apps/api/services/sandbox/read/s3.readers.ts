@@ -8,12 +8,12 @@ import {
   getSnapshotCacheEntry,
   setSnapshotCacheEntry,
 } from "./cache.js";
-import { readProjectFilesFromSnapshot } from "./snapshotReader.js";
+import { readProjectFilesFromSnapshot } from "./snapshot.js";
 import {
   readFileFromBackupArchive,
   readProjectFilesFromBackupArchive,
-} from "./backupReader.js";
-import { readProjectFilesFromLegacySources } from "./legacyReader.js";
+} from "./backup.js";
+import { readProjectFilesFromLegacySources } from "./legacy.js";
 
 const logger = createLogger("READ_SANDBOX");
 

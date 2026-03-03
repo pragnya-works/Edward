@@ -179,7 +179,7 @@ export async function executeSandboxCommand(
   }
 
   try {
-    const result = await execCommand(
+    return await execCommand(
       container,
       [params.command, ...params.args],
       false,
@@ -187,8 +187,6 @@ export async function executeSandboxCommand(
       "node",
       CONTAINER_WORKDIR,
     );
-
-    return result;
   } catch (error) {
     logger.error(
       { error, sandboxId, command: params.command, args: params.args },

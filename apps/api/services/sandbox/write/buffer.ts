@@ -4,7 +4,7 @@ import { logger } from "../../../utils/logger.js";
 import { getSandboxState } from "../state.service.js";
 import { CONTAINER_WORKDIR, execCommand, getContainer } from "../docker.service.js";
 import { acquireDistributedLock, releaseDistributedLock } from "../../../lib/distributedLock.js";
-import { scheduleSandboxFlush } from "./scheduler.js";
+import { scheduleSandboxFlush } from "./flush.scheduler.js";
 import {
   BUFFER_FILES_SET_PREFIX,
   BUFFER_KEY_PREFIX,
@@ -16,30 +16,71 @@ import {
 } from "./shared.js";
 import { SANDBOX_TTL } from "../lifecycle/state.js";
 
+function normalizeSandboxPath(filePath: string): string {
+  const normalizedPath = path.posix
+    .normalize(filePath)
+    .replace(/^\.\/+/, "");
+  if (
+    normalizedPath.length === 0 ||
+    normalizedPath === "." ||
+    normalizedPath.startsWith("..") ||
+    path.posix.isAbsolute(normalizedPath)
+  ) {
+    throw new Error(`Invalid path: ${filePath}`);
+  }
+  return normalizedPath;
+}
+
+async function resolveWritablePath(params: {
+  sandboxId: string;
+  filePath: string;
+  blockedMessage: string;
+  throwIfSandboxMissing?: boolean;
+}): Promise<
+  | {
+    sandbox: NonNullable<Awaited<ReturnType<typeof getSandboxState>>>;
+    normalizedPath: string;
+  }
+  | null
+> {
+  const sandbox = await getSandboxState(params.sandboxId);
+  if (!sandbox) {
+    if (params.throwIfSandboxMissing) {
+      throw new Error(`Sandbox not found: ${params.sandboxId}`);
+    }
+    return null;
+  }
+
+  const normalizedPath = normalizeSandboxPath(params.filePath);
+  if (isProtectedFile(normalizedPath, sandbox.scaffoldedFramework)) {
+    logger.info(
+      {
+        sandboxId: params.sandboxId,
+        filePath: normalizedPath,
+        framework: sandbox.scaffoldedFramework,
+      },
+      params.blockedMessage,
+    );
+    return null;
+  }
+
+  return { sandbox, normalizedPath };
+}
+
 export async function writeSandboxFile(
   sandboxId: string,
   filePath: string,
   content: string,
 ): Promise<void> {
-  const sandbox = await getSandboxState(sandboxId);
-  if (!sandbox) return;
-
-  const normalizedPath = path.posix.normalize(filePath);
-  if (normalizedPath.startsWith("..") || path.posix.isAbsolute(normalizedPath)) {
-    throw new Error(`Invalid path: ${filePath}`);
-  }
-
-  if (isProtectedFile(normalizedPath, sandbox.scaffoldedFramework)) {
-    logger.info(
-      {
-        sandboxId,
-        filePath: normalizedPath,
-        framework: sandbox.scaffoldedFramework,
-      },
-      "Blocked write to protected framework file",
-    );
+  const resolved = await resolveWritablePath({
+    sandboxId,
+    filePath,
+    blockedMessage: "Blocked write to protected framework file",
+  });
+  if (!resolved) {
     return;
   }
+  const { normalizedPath } = resolved;
 
   const bufferKey = `${BUFFER_KEY_PREFIX}${sandboxId}:${normalizedPath}`;
   const filesSetKey = `${BUFFER_FILES_SET_PREFIX}${sandboxId}`;
@@ -87,27 +128,16 @@ export async function prepareSandboxFile(
   sandboxId: string,
   filePath: string,
 ): Promise<void> {
-  const sandbox = await getSandboxState(sandboxId);
-  if (!sandbox) {
-    throw new Error(`Sandbox not found: ${sandboxId}`);
-  }
-
-  const normalizedPath = path.posix.normalize(filePath);
-  if (normalizedPath.startsWith("..") || path.posix.isAbsolute(normalizedPath)) {
-    throw new Error(`Invalid path: ${filePath}`);
-  }
-
-  if (isProtectedFile(normalizedPath, sandbox.scaffoldedFramework)) {
-    logger.info(
-      {
-        sandboxId,
-        filePath: normalizedPath,
-        framework: sandbox.scaffoldedFramework,
-      },
-      "Blocked prepare/truncate for protected framework file",
-    );
+  const resolved = await resolveWritablePath({
+    sandboxId,
+    filePath,
+    blockedMessage: "Blocked prepare/truncate for protected framework file",
+    throwIfSandboxMissing: true,
+  });
+  if (!resolved) {
     return;
   }
+  const { sandbox, normalizedPath } = resolved;
 
   const lockKey = `${FLUSH_LOCK_PREFIX}${sandboxId}`;
   const handle = await acquireDistributedLock(lockKey, {
@@ -136,25 +166,15 @@ export async function sanitizeSandboxFile(
   sandboxId: string,
   filePath: string,
 ): Promise<void> {
-  const sandbox = await getSandboxState(sandboxId);
-  if (!sandbox) return;
-
-  const normalizedPath = path.posix.normalize(filePath);
-  if (normalizedPath.startsWith("..") || path.posix.isAbsolute(normalizedPath)) {
-    throw new Error(`Invalid path: ${filePath}`);
-  }
-
-  if (isProtectedFile(normalizedPath, sandbox.scaffoldedFramework)) {
-    logger.info(
-      {
-        sandboxId,
-        filePath: normalizedPath,
-        framework: sandbox.scaffoldedFramework,
-      },
-      "Blocked sanitize for protected framework file",
-    );
+  const resolved = await resolveWritablePath({
+    sandboxId,
+    filePath,
+    blockedMessage: "Blocked sanitize for protected framework file",
+  });
+  if (!resolved) {
     return;
   }
+  const { sandbox, normalizedPath } = resolved;
 
   const fullPath = path.posix.join(CONTAINER_WORKDIR, normalizedPath);
   const container = getContainer(sandbox.containerId);

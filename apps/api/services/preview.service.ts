@@ -29,7 +29,3 @@ export function buildSubdomainPreviewUrl(subdomain: string): string | null {
   if (!rootDomain) return null;
   return `https://${subdomain}.${rootDomain}`;
 }
-
-export function buildPreviewUrl(userId: string, chatId: string): string | null {
-  return buildPathPreviewUrl(userId, chatId);
-}

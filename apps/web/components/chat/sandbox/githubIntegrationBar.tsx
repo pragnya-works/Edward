@@ -5,7 +5,7 @@ import { LoaderIcon } from "lucide-react";
 import { Button } from "@edward/ui/components/button";
 import { GitHub } from "@edward/ui/components/icons/github";
 import { useSandbox } from "@/contexts/sandboxContext";
-import { useChatStream } from "@/contexts/chatStreamContext";
+import { useChatStreamState } from "@/stores/chatStream/hooks";
 import { useChatWorkspaceContext } from "@/components/chat/chatWorkspaceContext";
 import { GithubIntegrationDialog } from "./github/githubIntegrationDialog";
 import { useGithubIntegration } from "./github/useGithubIntegration";
@@ -14,7 +14,7 @@ import { INITIAL_STREAM_STATE } from "@edward/shared/chat/types";
 export function GithubIntegrationBar() {
   const { chatId, projectName } = useChatWorkspaceContext();
   const { files } = useSandbox();
-  const { streams } = useChatStream();
+  const { streams } = useChatStreamState();
   const hasGeneratedCode = files.length > 0;
 
   const integration = useGithubIntegration({ chatId, projectName });

@@ -126,9 +126,15 @@ vi.mock("../../../utils/logger.js", () => ({
 
 vi.mock("../../../services/previewRouting/registration.js", () => ({
   checkSubdomainAvailability: mockRefs.checkSubdomainAvailability,
-  isPreviewRoutingConfigured: mockRefs.isPreviewRoutingConfigured,
   registerPreviewSubdomain: mockRefs.registerPreviewSubdomain,
   deletePreviewSubdomain: mockRefs.deletePreviewSubdomain,
+}));
+
+vi.mock("../../../services/previewRouting/kvClient.js", () => ({
+  isPreviewRoutingConfigured: mockRefs.isPreviewRoutingConfigured,
+}));
+
+vi.mock("../../../services/previewRouting/subdomain.js", () => ({
   generatePreviewSubdomain: mockRefs.generatePreviewSubdomain,
 }));
 

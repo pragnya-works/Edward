@@ -6,15 +6,20 @@ import {
   INDEX_HTML_PATH,
   INSTALL_COMMAND_BY_PACKAGE_MANAGER,
   LOCKFILE_BY_PACKAGE_MANAGER,
-  MAX_DEP_LIST_ITEMS,
   PACKAGE_JSON_PATH,
   PACKAGE_MANAGER,
   SCRIPT_NAME,
   TAILWIND_PATH_PATTERN,
   TYPESCRIPT_FILE_PATTERN,
   type PackageManager,
-  type ScriptName,
 } from "./readme.constants.js";
+import {
+  buildScriptList,
+  buildStructureSnippet,
+  collectKeyDependencies,
+  detectTopLevelPaths,
+  formatScriptCommand,
+} from "./readme.presentation.js";
 
 interface PackageJsonShape {
   name?: string;
@@ -142,19 +147,6 @@ function detectPackageManager(files: GithubFile[]): PackageManager {
   return PACKAGE_MANAGER.NPM;
 }
 
-const SCRIPT_COMMAND_FORMATTER_BY_PACKAGE_MANAGER: Record<
-  PackageManager,
-  (script: string) => string
-> = {
-  [PACKAGE_MANAGER.PNPM]: (script) => `pnpm ${script}`,
-  [PACKAGE_MANAGER.YARN]: (script) => `yarn ${script}`,
-  [PACKAGE_MANAGER.NPM]: (script) => `npm run ${script}`,
-};
-
-function formatScriptCommand(packageManager: PackageManager, script: string): string {
-  return SCRIPT_COMMAND_FORMATTER_BY_PACKAGE_MANAGER[packageManager](script);
-}
-
 function countByPathPattern(files: GithubFile[], pattern: RegExp): number {
   return files.filter((file) => pattern.test(normalizePath(file.path))).length;
 }
@@ -218,93 +210,6 @@ function buildHighlights(
   }
 
   return highlights.slice(0, 5);
-}
-
-function detectTopLevelPaths(files: GithubFile[]): string[] {
-  const roots = new Set<string>();
-  for (const file of files) {
-    const normalized = normalizePath(file.path);
-    const [root] = normalized.split("/");
-    if (root) roots.add(root);
-  }
-
-  const preferred = [
-    "src",
-    "public",
-    "app",
-    "components",
-    "styles",
-    "assets",
-    "package.json",
-    "README.md",
-  ];
-  const preferredSet = new Set(preferred);
-
-  const ordered = preferred.filter((item) => roots.has(item));
-  const additional = Array.from(roots)
-    .filter((item) => !preferredSet.has(item))
-    .sort();
-
-  return [...ordered, ...additional].slice(0, 10);
-}
-
-function collectKeyDependencies(packageJson: PackageJsonShape | null): string[] {
-  const deps = {
-    ...packageJson?.dependencies,
-    ...packageJson?.devDependencies,
-  };
-
-  const preferred = [
-    "react",
-    "next",
-    "vite",
-    "typescript",
-    "tailwindcss",
-    "@tanstack/react-query",
-    "zustand",
-    "framer-motion",
-    "motion",
-    "lucide-react",
-    "zod",
-  ];
-
-  const listed = preferred.filter((name) => Boolean(deps[name]));
-  if (listed.length > 0) {
-    return listed.slice(0, MAX_DEP_LIST_ITEMS);
-  }
-
-  return Object.keys(deps).slice(0, MAX_DEP_LIST_ITEMS);
-}
-
-function buildScriptList(
-  packageJson: PackageJsonShape | null,
-  packageManager: PackageManager,
-): string[] {
-  const scripts = packageJson?.scripts ?? {};
-  const priority: ScriptName[] = [
-    SCRIPT_NAME.DEV,
-    SCRIPT_NAME.BUILD,
-    SCRIPT_NAME.START,
-    SCRIPT_NAME.LINT,
-    SCRIPT_NAME.TEST,
-  ];
-  const scriptNames = priority.filter((name) => Boolean(scripts[name]));
-
-  if (scriptNames.length === 0) return [];
-
-  return scriptNames.map(
-    (name) => `- \`${formatScriptCommand(packageManager, name)}\` - runs \`${name}\``,
-  );
-}
-
-function buildStructureSnippet(topLevelPaths: string[]): string {
-  if (topLevelPaths.length === 0) {
-    return "```text\n.\n```";
-  }
-
-  return ["```text", ".", ...topLevelPaths.map((item) => `|-- ${item}`), "```"].join(
-    "\n",
-  );
 }
 
 export function buildReadmeContent(

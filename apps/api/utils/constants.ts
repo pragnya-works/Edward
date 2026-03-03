@@ -19,6 +19,7 @@ export enum HttpStatus {
   CONFLICT = 409,
   TOO_MANY_REQUESTS = 429,
   MOVED_PERMANENTLY = 301,
+  PERMANENT_REDIRECT = 308,
   INTERNAL_SERVER_ERROR = 500,
 }
 
@@ -116,6 +117,10 @@ export const AGENT_RUN_WORKER_CONCURRENCY = Math.max(
   CONFIGURED_AGENT_RUN_WORKER_CONCURRENCY,
   MAX_ACTIVE_RUNS_PER_USER,
 );
+const RUN_CANCEL_CHANNEL_PREFIX = "edward:run-cancel:";
+export function getRunCancelChannel(runId: string): string {
+  return `${RUN_CANCEL_CHANNEL_PREFIX}${runId}`;
+}
 export const RUN_MAX_QUEUED_AGE_MS = parsePositiveInt(
   "RUN_MAX_QUEUED_AGE_MS",
   10 * 60 * 1000,
@@ -124,10 +129,30 @@ export const RUN_MAX_RUNNING_AGE_MS = parsePositiveInt(
   "RUN_MAX_RUNNING_AGE_MS",
   45 * 60 * 1000,
 );
+export const RUN_TERMINAL_STATUS_POLL_INTERVAL_MS = parsePositiveInt(
+  "RUN_TERMINAL_STATUS_POLL_INTERVAL_MS",
+  2_000,
+);
 export const MAX_SSE_QUEUE_BYTES = 768 * 1024;
 export const MAX_SSE_QUEUE_EVENTS = 700;
 export const CLEANUP_INTERVAL_MS = 60 * 1000;
 export const WORKER_GRACEFUL_SHUTDOWN_TIMEOUT_MS = parsePositiveInt(
   "WORKER_GRACEFUL_SHUTDOWN_TIMEOUT_MS",
   12_000,
+);
+export const WORKER_BUILD_JOB_TIMEOUT_MS = parsePositiveInt(
+  "WORKER_BUILD_JOB_TIMEOUT_MS",
+  15 * 60 * 1000,
+);
+export const WORKER_BACKUP_JOB_TIMEOUT_MS = parsePositiveInt(
+  "WORKER_BACKUP_JOB_TIMEOUT_MS",
+  5 * 60 * 1000,
+);
+export const WORKER_REDIS_PUBLISH_RETRY_ATTEMPTS = parsePositiveInt(
+  "WORKER_REDIS_PUBLISH_RETRY_ATTEMPTS",
+  3,
+);
+export const WORKER_REDIS_PUBLISH_TIMEOUT_MS = parsePositiveInt(
+  "WORKER_REDIS_PUBLISH_TIMEOUT_MS",
+  2_000,
 );

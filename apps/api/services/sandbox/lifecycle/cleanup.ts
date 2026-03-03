@@ -3,17 +3,34 @@ import { deleteSandboxState, getSandboxState } from '../state.service.js';
 import { destroyContainer, listContainers } from '../docker.service.js';
 import { backupSandboxInstance } from '../backup.service.js';
 import { flushSandbox } from "../write/flush.js";
-import { clearWriteTimers } from "../write/scheduler.js";
+import { clearScheduledFlush } from "../write/flush.scheduler.js";
 import { clearBuffers } from "../write/buffer.js";
 import { SANDBOX_DOCKER_LABEL } from "./state.js";
 import { deleteContainerStatus } from "./runtimeState.store.js";
+import {
+  SandboxLifecycleState,
+  transitionSandboxLifecycleState,
+} from "./runtimeLifecycle.store.js";
 
 export async function cleanupSandbox(sandboxId: string): Promise<void> {
   try {
-    const sandbox = await getSandboxState(sandboxId);
-    if (!sandbox) return;
+    await transitionSandboxLifecycleState({
+      sandboxId,
+      nextState: SandboxLifecycleState.CLEANING_UP,
+      allowFromMissing: true,
+    });
 
-    clearWriteTimers(sandboxId);
+    const sandbox = await getSandboxState(sandboxId);
+    if (!sandbox) {
+      await transitionSandboxLifecycleState({
+        sandboxId,
+        nextState: SandboxLifecycleState.TERMINATED,
+        allowFromMissing: true,
+      });
+      return;
+    }
+
+    await clearScheduledFlush(sandboxId);
 
     try {
       await flushSandbox(sandboxId);
@@ -35,9 +52,20 @@ export async function cleanupSandbox(sandboxId: string): Promise<void> {
     }
 
     await deleteSandboxState(sandboxId, sandbox.chatId);
-    clearBuffers(sandboxId);
+    await clearBuffers(sandboxId);
+    await transitionSandboxLifecycleState({
+      sandboxId,
+      nextState: SandboxLifecycleState.TERMINATED,
+      allowFromMissing: true,
+    });
   } catch (error) {
     logger.error({ error, sandboxId }, 'Unexpected error during sandbox cleanup');
+    await transitionSandboxLifecycleState({
+      sandboxId,
+      nextState: SandboxLifecycleState.FAILED,
+      reason: error instanceof Error ? error.message : String(error),
+      allowFromMissing: true,
+    });
   }
 }
 
@@ -70,6 +98,11 @@ export async function cleanupExpiredSandboxContainers(): Promise<void> {
             logger.error({ err, sandboxId }, 'Failed to cleanup orphaned container')
           );
           await deleteContainerStatus(info.Id);
+          await transitionSandboxLifecycleState({
+            sandboxId,
+            nextState: SandboxLifecycleState.TERMINATED,
+            allowFromMissing: true,
+          });
         } else {
           logger.debug({ sandboxId, containerId: info.Id, chatId }, 'Skipping lone orphan container (eligible for label recovery)');
         }

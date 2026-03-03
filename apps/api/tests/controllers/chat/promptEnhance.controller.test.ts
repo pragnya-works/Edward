@@ -47,7 +47,7 @@ vi.mock("../../../utils/error.js", () => ({
   ensureError: mockRefs.ensureError,
 }));
 
-describe("promptEnhance controller", () => {
+describe("promptEnhance use case", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockRefs.getUserWithApiKey.mockResolvedValue({
@@ -64,8 +64,8 @@ describe("promptEnhance controller", () => {
   it("uses requested Gemini provider with cheapest Gemini model", async () => {
     mockRefs.decrypt.mockReturnValue("AIzaSyAaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
 
-    const { enhancePrompt } = await import(
-      "../../../controllers/chat/promptEnhance.controller.js"
+    const { enhancePromptUseCase } = await import(
+      "../../../services/chat/promptEnhance.useCase.js"
     );
 
     const req = {
@@ -76,7 +76,7 @@ describe("promptEnhance controller", () => {
     } as never;
     const res = {} as never;
 
-    await enhancePrompt(req, res);
+    await enhancePromptUseCase(req, res);
 
     expect(mockRefs.generateResponse).toHaveBeenCalledWith(
       "AIzaSyAaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -97,8 +97,8 @@ describe("promptEnhance controller", () => {
   });
 
   it("uses cheapest OpenAI model inferred from preferred model", async () => {
-    const { enhancePrompt } = await import(
-      "../../../controllers/chat/promptEnhance.controller.js"
+    const { enhancePromptUseCase } = await import(
+      "../../../services/chat/promptEnhance.useCase.js"
     );
 
     const req = {
@@ -108,7 +108,7 @@ describe("promptEnhance controller", () => {
     } as never;
     const res = {} as never;
 
-    await enhancePrompt(req, res);
+    await enhancePromptUseCase(req, res);
 
     expect(mockRefs.generateResponse).toHaveBeenCalledWith(
       expect.any(String),
@@ -122,8 +122,8 @@ describe("promptEnhance controller", () => {
   it("rejects provider and API key mismatch", async () => {
     mockRefs.decrypt.mockReturnValue("sk-proj-abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz");
 
-    const { enhancePrompt } = await import(
-      "../../../controllers/chat/promptEnhance.controller.js"
+    const { enhancePromptUseCase } = await import(
+      "../../../services/chat/promptEnhance.useCase.js"
     );
 
     const req = {
@@ -134,7 +134,7 @@ describe("promptEnhance controller", () => {
     } as never;
     const res = {} as never;
 
-    await enhancePrompt(req, res);
+    await enhancePromptUseCase(req, res);
 
     expect(mockRefs.generateResponse).not.toHaveBeenCalled();
     expect(mockRefs.sendError).toHaveBeenCalledWith(
@@ -145,8 +145,8 @@ describe("promptEnhance controller", () => {
   });
 
   it("rejects unsupported provider values", async () => {
-    const { enhancePrompt } = await import(
-      "../../../controllers/chat/promptEnhance.controller.js"
+    const { enhancePromptUseCase } = await import(
+      "../../../services/chat/promptEnhance.useCase.js"
     );
 
     const req = {
@@ -157,7 +157,7 @@ describe("promptEnhance controller", () => {
     } as never;
     const res = {} as never;
 
-    await enhancePrompt(req, res);
+    await enhancePromptUseCase(req, res);
 
     expect(mockRefs.generateResponse).not.toHaveBeenCalled();
     expect(mockRefs.sendError).toHaveBeenCalledWith(

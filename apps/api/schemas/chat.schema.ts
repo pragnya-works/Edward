@@ -22,8 +22,6 @@ import {
 
 const ModelValues = Object.values(Model) as [string, ...string[]];
 
-export { ParserEventType, AgentLoopStopReason, MetaPhase, StreamTerminationReason };
-
 export enum StreamState {
   TEXT = "TEXT",
   THINKING = "THINKING",
@@ -111,8 +109,6 @@ export const StreamRunEventsRequestSchema = z.object({
 export const CancelRunRequestSchema = z.object({
   params: RunStreamParamsSchema,
 });
-
-
 
 export const RecentChatsQuerySchema = z.object({
   query: z.object({

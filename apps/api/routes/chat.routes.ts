@@ -1,9 +1,9 @@
 import express, { Router, type Router as ExpressRouter } from "express";
 import {
-  uploadChatImage,
-} from "../controllers/chat/image.controller.js";
-import { unifiedSendMessage } from "../controllers/chat/message.controller.js";
-import { enhancePrompt } from "../controllers/chat/promptEnhance.controller.js";
+  uploadChatImageUseCase,
+} from "../services/chat/imageUpload.useCase.js";
+import { unifiedSendMessage } from "../services/runs/messageOrchestrator.service.js";
+import { enhancePromptUseCase } from "../services/chat/promptEnhance.useCase.js";
 import {
   getChatHistory,
   getChatMeta,
@@ -22,9 +22,9 @@ import {
 import { getSandboxFiles } from "../controllers/chat/query/sandbox.controller.js";
 
 import {
-  checkSubdomainAvailabilityHandler,
-  updateChatSubdomainHandler,
-} from "../controllers/chat/subdomain.controller.js";
+  checkSubdomainAvailability,
+  updateChatSubdomain,
+} from "../services/previewRouting/subdomainUpdate.service.js";
 import { validateRequest } from "../middleware/validateRequest.js";
 import {
   GetChatHistoryRequestSchema,
@@ -51,7 +51,7 @@ chatRouter.post(
     type: [...IMAGE_UPLOAD_CONFIG.ALLOWED_MIME_TYPES],
     limit: `${IMAGE_UPLOAD_CONFIG.MAX_SIZE_BYTES / (1024 * 1024)}mb`,
   }),
-  uploadChatImage,
+  uploadChatImageUseCase,
 );
 chatRouter.post(
   "/message",
@@ -64,7 +64,7 @@ chatRouter.post(
   "/prompt-enhance",
   promptEnhanceRateLimiter,
   validateRequest(PromptEnhanceRequestSchema),
-  enhancePrompt,
+  enhancePromptUseCase,
 );
 chatRouter.get(
   "/recent",
@@ -118,10 +118,10 @@ chatRouter.delete(
 );
 chatRouter.get(
   "/subdomain/check",
-  checkSubdomainAvailabilityHandler,
+  checkSubdomainAvailability,
 );
 chatRouter.patch(
   "/:chatId/subdomain",
   validateRequest(GetChatHistoryRequestSchema),
-  updateChatSubdomainHandler,
+  updateChatSubdomain,
 );

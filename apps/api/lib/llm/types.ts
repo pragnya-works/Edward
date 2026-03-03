@@ -1,28 +1,30 @@
 import type {
   MessageContentPart,
 } from "@edward/shared/llm/types";
-import {
-  getTextFromContent as getSharedTextFromContent,
-  hasImages as hasSharedImages,
-  isMultimodalContent as isSharedMultimodalContent,
-} from "@edward/shared/llm/types";
 
 type VisionImage = Extract<MessageContentPart, { type: "image" }>;
 
 export function isMultimodalContent(
   content: string | MessageContentPart[],
 ): content is MessageContentPart[] {
-  return isSharedMultimodalContent(content);
+  return typeof content !== "string";
 }
 
-export function getTextFromContent(
-  content: string | MessageContentPart[],
-): string {
-  return getSharedTextFromContent(content);
+export function getTextFromContent(content: string | MessageContentPart[]): string {
+  if (typeof content === "string") {
+    return content;
+  }
+
+  return content
+    .filter((part): part is Extract<MessageContentPart, { type: "text" }> =>
+      part.type === "text"
+    )
+    .map((part) => part.text)
+    .join("\n");
 }
 
 export function hasImages(content: string | MessageContentPart[]): boolean {
-  return hasSharedImages(content);
+  return Array.isArray(content) && content.some((part) => part.type === "image");
 }
 
 export type OpenAIContentPart =

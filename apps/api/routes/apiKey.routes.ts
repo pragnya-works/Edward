@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getApiKey, createApiKey, updateApiKey } from '../controllers/apiKey.controller.js';
+import { getApiKey, createApiKey, updateApiKey } from '../services/apiKey/apiKey.useCase.js';
 import { validateRequest } from '../middleware/validateRequest.js';
 import {
   CreateApiKeyRequestSchema,

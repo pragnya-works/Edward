@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { ParserEventType } from "../../../schemas/chat.schema.js";
+import { ParserEventType } from "@edward/shared/streamEvents";
 import type { WorkflowState } from "../../../services/planning/schemas.js";
-import type { EventHandlerContext } from "../../../controllers/chat/session/events/handler.js";
+import type { EventHandlerContext } from "../../../services/chat/session/events/handler.js";
 
 const ensureSandboxMock = vi.fn();
 const executeInstallPhaseMock = vi.fn();
@@ -10,8 +10,11 @@ const sendSSEErrorMock = vi.fn();
 const sendSSERecoverableErrorMock = vi.fn();
 const getActiveSandboxMock = vi.fn();
 
-vi.mock("../../../services/planning/workflow/steps.js", () => ({
+vi.mock("../../../services/planning/workflow/steps/ensureSandbox.js", () => ({
   ensureSandbox: ensureSandboxMock,
+}));
+
+vi.mock("../../../services/planning/workflow/steps/executeInstallPhase.js", () => ({
   executeInstallPhase: executeInstallPhaseMock,
 }));
 
@@ -42,7 +45,7 @@ vi.mock("../../../services/tools/toolGateway.service.js", () => ({
   executeWebSearchTool: vi.fn(),
 }));
 
-vi.mock("../../../controllers/chat/sse.utils.js", () => ({
+vi.mock("../../../services/sse-utils/service.js", () => ({
   sendSSEEvent: sendSSEEventMock,
   sendSSEError: sendSSEErrorMock,
   sendSSERecoverableError: sendSSERecoverableErrorMock,
@@ -128,7 +131,7 @@ describe("event handlers sandbox gating", () => {
     });
 
     const { handleParserEvent } = await import(
-      "../../../controllers/chat/session/events/handler.js"
+      "../../../services/chat/session/events/handler.js"
     );
     const ctx = createCtx();
 
@@ -144,7 +147,7 @@ describe("event handlers sandbox gating", () => {
 
   it("provisions sandbox only when sandbox tag is detected", async () => {
     const { handleParserEvent } = await import(
-      "../../../controllers/chat/session/events/handler.js"
+      "../../../services/chat/session/events/handler.js"
     );
     const ctx = createCtx();
 
@@ -175,7 +178,7 @@ describe("event handlers sandbox gating", () => {
     });
 
     const { handleParserEvent } = await import(
-      "../../../controllers/chat/session/events/handler.js"
+      "../../../services/chat/session/events/handler.js"
     );
     const ctx = createCtx();
 
@@ -222,7 +225,7 @@ describe("event handlers sandbox gating", () => {
     );
 
     const { handleParserEvent } = await import(
-      "../../../controllers/chat/session/events/handler.js"
+      "../../../services/chat/session/events/handler.js"
     );
     const ctx = createCtx();
 
@@ -270,7 +273,7 @@ describe("event handlers sandbox gating", () => {
 
   it("rejects empty web search query without emitting search events", async () => {
     const { handleParserEvent } = await import(
-      "../../../controllers/chat/session/events/handler.js"
+      "../../../services/chat/session/events/handler.js"
     );
     const ctx = createCtx();
 
@@ -311,7 +314,7 @@ describe("event handlers sandbox gating", () => {
     executeInstallPhaseMock.mockReturnValueOnce(pendingInstall.promise);
 
     const { handleParserEvent } = await import(
-      "../../../controllers/chat/session/events/handler.js"
+      "../../../services/chat/session/events/handler.js"
     );
     const ctx = createCtx();
     const installTaskQueue = createInstallQueue();
@@ -353,7 +356,7 @@ describe("event handlers sandbox gating", () => {
     });
 
     const { handleParserEvent } = await import(
-      "../../../controllers/chat/session/events/handler.js"
+      "../../../services/chat/session/events/handler.js"
     );
     const ctx = createCtx();
     ctx.workflow.sandboxId = "sb-existing";
@@ -395,7 +398,7 @@ describe("event handlers sandbox gating", () => {
     getActiveSandboxMock.mockResolvedValueOnce("sb-recovered");
 
     const { handleParserEvent } = await import(
-      "../../../controllers/chat/session/events/handler.js"
+      "../../../services/chat/session/events/handler.js"
     );
     const ctx = createCtx();
     ctx.workflow.sandboxId = undefined;
@@ -430,7 +433,7 @@ describe("event handlers sandbox gating", () => {
     getActiveSandboxMock.mockRejectedValueOnce(new Error("redis unavailable"));
 
     const { handleParserEvent } = await import(
-      "../../../controllers/chat/session/events/handler.js"
+      "../../../services/chat/session/events/handler.js"
     );
     const ctx = createCtx();
     ctx.workflow.sandboxId = undefined;
@@ -464,7 +467,7 @@ describe("event handlers sandbox gating", () => {
       .mockResolvedValueOnce(undefined);
 
     const { handleParserEvent } = await import(
-      "../../../controllers/chat/session/events/handler.js"
+      "../../../services/chat/session/events/handler.js"
     );
     const ctx = createCtx();
     ctx.workflow.sandboxId = "sb-stale";
@@ -502,7 +505,7 @@ describe("event handlers sandbox gating", () => {
       .mockResolvedValueOnce(undefined);
 
     const { handleParserEvent } = await import(
-      "../../../controllers/chat/session/events/handler.js"
+      "../../../services/chat/session/events/handler.js"
     );
     const ctx = createCtx();
     ctx.workflow.sandboxId = "sb-existing";
@@ -541,7 +544,7 @@ describe("event handlers sandbox gating", () => {
     getActiveSandboxMock.mockResolvedValueOnce("sb-existing");
 
     const { handleParserEvent } = await import(
-      "../../../controllers/chat/session/events/handler.js"
+      "../../../services/chat/session/events/handler.js"
     );
     const ctx = createCtx();
     ctx.workflow.sandboxId = "sb-existing";
@@ -568,7 +571,7 @@ describe("event handlers sandbox gating", () => {
       "../../../services/tools/toolGateway.service.js"
     );
     const { handleParserEvent } = await import(
-      "../../../controllers/chat/session/events/handler.js"
+      "../../../services/chat/session/events/handler.js"
     );
     const ctx = createCtx();
     ctx.workflow.sandboxId = undefined;
@@ -621,7 +624,7 @@ describe("event handlers sandbox gating", () => {
     });
 
     const { handleParserEvent } = await import(
-      "../../../controllers/chat/session/events/handler.js"
+      "../../../services/chat/session/events/handler.js"
     );
     const ctx = createCtx();
     ctx.sandboxTagDetected = true;
@@ -664,7 +667,7 @@ describe("event handlers sandbox gating", () => {
     );
 
     const { handleParserEvent } = await import(
-      "../../../controllers/chat/session/events/handler.js"
+      "../../../services/chat/session/events/handler.js"
     );
     const ctx = createCtx();
     ctx.workflow.sandboxId = "sb-1";
@@ -704,7 +707,7 @@ describe("event handlers sandbox gating", () => {
     executeInstallPhaseMock.mockReturnValueOnce(pendingInstall.promise);
 
     const { handleParserEvent } = await import(
-      "../../../controllers/chat/session/events/handler.js"
+      "../../../services/chat/session/events/handler.js"
     );
     const ctx = createCtx();
     const installTaskQueue = createInstallQueue();

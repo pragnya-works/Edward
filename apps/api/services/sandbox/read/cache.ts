@@ -22,7 +22,7 @@ export async function getSnapshotCacheEntry(
     return null;
   }
 
-  let raw: string | null = null;
+  let raw: string | null;
   try {
     raw = await redis.get(snapshotCacheKey(cacheKey));
   } catch {

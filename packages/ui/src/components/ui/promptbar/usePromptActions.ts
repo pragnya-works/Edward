@@ -6,7 +6,7 @@ import type { UploadedImageRef } from "./promptbar.constants";
 
 export const ENHANCE_PROMPT_MIN_CHARS = 30;
 
-export function defaultEnhancePrompt(text: string): string {
+function defaultEnhancePrompt(text: string): string {
     const normalized = text
         .trim()
         .replace(/\r\n/g, "\n")

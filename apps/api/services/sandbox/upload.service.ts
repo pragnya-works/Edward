@@ -10,7 +10,7 @@ import {
   generatePreviewRuntimeScript,
   injectRuntimeScriptIntoHtml,
   PREVIEW_RUNTIME_FILENAME,
-} from "./builder/spaFallback.js";
+} from "./builder/spaFallback/orchestrator.js";
 import { Framework } from "../planning/schemas.js";
 import { isS3Configured } from "../storage/storage.config.js";
 import { buildS3Key } from "../storage/key.utils.js";
@@ -295,14 +295,6 @@ export async function uploadSpaFallback(
     );
     return { success: false, error: err.message };
   }
-}
-
-export async function processIndexHtmlWithRuntime(
-  indexHtml: string,
-  sandbox: SandboxInstance,
-  framework: Framework,
-): Promise<string> {
-  return processHtmlWithRuntime(indexHtml, sandbox, framework);
 }
 
 function isHtmlFile(path: string): boolean {

@@ -166,8 +166,7 @@ function extractVisibleTextFromDom(document: DOMWindow["document"]): string {
       "main, article, [role='main'], #content, .content, .article, .post, .docs",
     ) || document.body;
 
-  const text = normalizeWhitespace(target?.textContent || "");
-  return text;
+  return normalizeWhitespace(target?.textContent || "");
 }
 
 function extractReadableContentFromHtml(input: {

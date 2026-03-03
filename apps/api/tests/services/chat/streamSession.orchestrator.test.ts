@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MessageRole } from "@edward/auth";
-import { ParserEventType } from "../../../schemas/chat.schema.js";
+import { ParserEventType } from "@edward/shared/streamEvents";
 
 const streamResponseMock = vi.fn();
 const saveMessageMock = vi.fn();
@@ -28,6 +28,9 @@ vi.mock("../../../lib/llm/tokens.js", () => ({
     perMessage: [],
   })),
   isOverContextLimit: vi.fn(() => false),
+}));
+
+vi.mock("../../../lib/llm/tokens/openaiCounter.js", () => ({
   countOutputTokens: vi.fn(() => 32),
 }));
 
@@ -38,6 +41,9 @@ vi.mock("../../../services/chat.service.js", () => ({
 
 vi.mock("../../../services/websearch/urlScraper.service.js", () => ({
   prepareUrlScrapeContext: vi.fn(async () => ({ results: [], contextMessage: null })),
+}));
+
+vi.mock("../../../services/websearch/urlScraper/context.js", () => ({
   formatUrlScrapeAssistantTags: vi.fn(() => ""),
 }));
 
@@ -69,7 +75,7 @@ vi.mock("../../../services/planning/validators/postgenValidator.js", () => ({
   validateGeneratedOutput: vi.fn(() => ({ valid: true, violations: [] })),
 }));
 
-vi.mock("../../../controllers/chat/session/events/handler.js", () => ({
+vi.mock("../../../services/chat/session/events/handler.js", () => ({
   handleParserEvent: handleParserEventMock,
 }));
 
@@ -118,7 +124,7 @@ describe("runStreamSession", () => {
 
   it("continues after tool turn even when DONE appears in the same turn", async () => {
     const { runStreamSession } = await import(
-      "../../../controllers/chat/session/orchestrator/runStreamSession.orchestrator.js"
+      "../../../services/chat/session/orchestrator/runStreamSession.orchestrator.js"
     );
 
     const writes: string[] = [];

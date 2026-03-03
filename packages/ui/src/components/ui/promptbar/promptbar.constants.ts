@@ -46,7 +46,7 @@ export interface UploadedImageRef {
   sizeBytes?: number;
 }
 
-export interface PromptbarAuthController {
+interface PromptbarAuthController {
   isAuthenticated?: boolean;
   onSignIn?: () => void | Promise<void>;
 }
@@ -55,7 +55,7 @@ export interface PromptbarRef {
   prefill: (text: string) => void;
 }
 
-export interface PromptbarSubmissionController {
+interface PromptbarSubmissionController {
   onProtectedAction?: (
     text: string,
     images?: UploadedImageRef[],
@@ -68,7 +68,7 @@ export interface PromptbarSubmissionController {
   submissionDisabledReason?: string;
 }
 
-export interface PromptbarAttachmentController {
+interface PromptbarAttachmentController {
   onImageUpload?: (
     file: File,
   ) => Promise<{ url: string; mimeType: string; sizeBytes?: number }>;

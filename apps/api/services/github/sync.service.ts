@@ -24,25 +24,38 @@ import { loadFilesForGithubSync } from "./sync.files.js";
 import { getGithubToken } from "./token.service.js";
 
 const MISSING_GITHUB_TOKEN_MESSAGE = "User has no GitHub account connected";
+type GithubClient = ReturnType<typeof createGithubClient>;
+type RepoSnapshot = NonNullable<Awaited<ReturnType<typeof getRepoSnapshot>>>;
 
-export async function syncChatToGithub(
-  chatId: string,
-  userId: string,
-  branch: string,
-  commitMessage: string,
-) {
+interface ConnectedRepoContext {
+  chatData: Awaited<ReturnType<typeof getChatRepoBinding>>;
+  octokit: GithubClient;
+  owner: string;
+  repo: string;
+  repoSnapshot: RepoSnapshot;
+}
+
+async function getGithubClientForUser(userId: string): Promise<GithubClient> {
   const token = await getGithubToken(userId);
   if (!token) {
     throw new Error(MISSING_GITHUB_TOKEN_MESSAGE);
   }
 
+  return createGithubClient(token);
+}
+
+async function getConnectedRepoContext(
+  chatId: string,
+  userId: string,
+  permissionMessage: (repoFullName: string) => string,
+): Promise<ConnectedRepoContext> {
+  const octokit = await getGithubClientForUser(userId);
   const chatData = await getChatRepoBinding(chatId, userId);
   if (!chatData.repoFullName) {
     throw new Error("Chat is not connected to a GitHub repository");
   }
 
   const { owner, repo } = parseRepoFullName(chatData.repoFullName);
-  const octokit = createGithubClient(token);
   const repoSnapshot = await getRepoSnapshot(octokit, owner, repo);
 
   if (!repoSnapshot) {
@@ -51,10 +64,34 @@ export async function syncChatToGithub(
   }
 
   if (!repoSnapshot.canPush) {
-    throw new Error(
-      `Permission Denied: You do not have push access to '${chatData.repoFullName}'`,
-    );
+    throw new Error(permissionMessage(chatData.repoFullName));
   }
+
+  return {
+    chatData,
+    octokit,
+    owner,
+    repo,
+    repoSnapshot,
+  };
+}
+
+export async function syncChatToGithub(
+  chatId: string,
+  userId: string,
+  branch: string,
+  commitMessage: string,
+): Promise<{
+  sha: string;
+  fileCount: number;
+  noChanges: boolean;
+}> {
+  const { chatData, octokit, owner, repo } = await getConnectedRepoContext(
+    chatId,
+    userId,
+    (repoFullName) =>
+      `Permission Denied: You do not have push access to '${repoFullName}'`,
+  );
 
   const files = await loadFilesForGithubSync(chatId, userId);
   if (files.length === 0) {
@@ -108,31 +145,18 @@ export async function createChatBranch(
   userId: string,
   branchName: string,
   baseBranch?: string,
-) {
-  const token = await getGithubToken(userId);
-  if (!token) {
-    throw new Error(MISSING_GITHUB_TOKEN_MESSAGE);
-  }
-
-  const chatData = await getChatRepoBinding(chatId, userId);
-  if (!chatData.repoFullName) {
-    throw new Error("Chat is not connected to a GitHub repository");
-  }
-
-  const { owner, repo } = parseRepoFullName(chatData.repoFullName);
-  const octokit = createGithubClient(token);
-  const repoSnapshot = await getRepoSnapshot(octokit, owner, repo);
-
-  if (!repoSnapshot) {
-    await clearChatRepoBinding(chatId, userId);
-    throw new Error(REPO_MISSING_RECONNECT_MESSAGE);
-  }
-
-  if (!repoSnapshot.canPush) {
-    throw new Error(
-      `Permission Denied: You do not have permission to create branches in '${chatData.repoFullName}'`,
-    );
-  }
+): Promise<{
+  success: true;
+  existed: boolean;
+  branchName: string;
+  baseBranch: string;
+}> {
+  const { octokit, owner, repo, repoSnapshot } = await getConnectedRepoContext(
+    chatId,
+    userId,
+    (repoFullName) =>
+      `Permission Denied: You do not have permission to create branches in '${repoFullName}'`,
+  );
 
   const normalizedBaseBranch =
     baseBranch?.trim() ||
@@ -173,16 +197,19 @@ export async function connectChatToRepo(
   userId: string,
   repoFullName?: string,
   repoName?: string,
-) {
+): Promise<{
+  success: true;
+  repoFullName: string;
+  created: boolean;
+  isPrivate: boolean;
+  defaultBranch: string;
+  privacyDefaultApplied: boolean;
+  privacyEnforced: boolean;
+}> {
   const chatData = await getChatRepoBinding(chatId, userId);
   const currentlyConnectedRepo = chatData.repoFullName;
 
-  const token = await getGithubToken(userId);
-  if (!token) {
-    throw new Error(MISSING_GITHUB_TOKEN_MESSAGE);
-  }
-
-  const octokit = createGithubClient(token);
+  const octokit = await getGithubClientForUser(userId);
   let finalRepoFullName = repoFullName;
   const githubUser = await getAuthenticatedUser(octokit);
 

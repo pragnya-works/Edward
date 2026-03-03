@@ -45,8 +45,17 @@ jobs:
       - name: Lint
         run: pnpm turbo lint
 
+      - name: API Boundary Check
+        run: pnpm --filter api quality:boundaries
+
+      - name: API Duplication Check
+        run: pnpm --filter api quality:duplication
+
       - name: Test with Coverage
         run: pnpm --filter api test:coverage
+
+      - name: API Coverage Quality Check
+        run: pnpm --filter api quality:coverage
 
       - name: Build
         run: pnpm turbo build

@@ -1,7 +1,5 @@
 import { GithubDisconnectReason } from "@edward/shared/constants";
 import {
-  suggestGithubBranchNames,
-  suggestGithubRepositoryInputs,
   validateGithubBranchName,
   validateGithubRepositoryInput,
 } from "@edward/shared/github/naming";
@@ -72,14 +70,6 @@ export function getBranchNameValidationError(rawValue: string): string | null {
     return null;
   }
   return validation.message;
-}
-
-export function getRepoInputSuggestions(rawValue: string): string[] {
-  return suggestGithubRepositoryInputs(rawValue);
-}
-
-export function getBranchNameSuggestions(rawValue: string): string[] {
-  return suggestGithubBranchNames(rawValue);
 }
 
 export function getErrorMessage(error: unknown): string {

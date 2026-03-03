@@ -34,6 +34,10 @@ import {
   getContainerStatus,
   setContainerStatus,
 } from "./runtimeState.store.js";
+import {
+  SandboxLifecycleState,
+  transitionSandboxLifecycleState,
+} from "./runtimeLifecycle.store.js";
 
 const DEFAULT_GITIGNORE_CONTENT = `node_modules
 .pnpm-store
@@ -129,9 +133,20 @@ export async function getActiveSandbox(
           { sandboxId: sandbox.id, chatId },
           "Cached container is dead, cleaning up stale Redis state",
         );
+        await transitionSandboxLifecycleState({
+          sandboxId: sandbox.id,
+          nextState: SandboxLifecycleState.FAILED,
+          reason: "cached_container_dead",
+          allowFromMissing: true,
+        });
         await deleteSandboxState(sandbox.id, chatId);
         await deleteContainerStatus(sandbox.containerId);
       } else {
+        await transitionSandboxLifecycleState({
+          sandboxId: sandbox.id,
+          nextState: SandboxLifecycleState.ACTIVE,
+          allowFromMissing: true,
+        });
         await refreshSandboxTTL(sandbox.id, sandbox.chatId);
         return sandbox.id;
       }
@@ -141,12 +156,23 @@ export async function getActiveSandbox(
         await container.inspect();
 
         await setContainerStatus(sandbox.containerId, true);
+        await transitionSandboxLifecycleState({
+          sandboxId: sandbox.id,
+          nextState: SandboxLifecycleState.ACTIVE,
+          allowFromMissing: true,
+        });
         await refreshSandboxTTL(sandbox.id, sandbox.chatId);
 
         return sandbox.id;
       } catch (error) {
         const err = ensureError(error);
         await setContainerStatus(sandbox.containerId, false);
+        await transitionSandboxLifecycleState({
+          sandboxId: sandbox.id,
+          nextState: SandboxLifecycleState.FAILED,
+          reason: err.message,
+          allowFromMissing: true,
+        });
         logger.warn(
           { error: err, sandboxId: sandbox.id, chatId },
           "Active sandbox container not found or error inspecting, cleaning up",
@@ -185,6 +211,11 @@ export async function getActiveSandbox(
         };
 
         await saveSandboxState(recovered);
+        await transitionSandboxLifecycleState({
+          sandboxId,
+          nextState: SandboxLifecycleState.ACTIVE,
+          allowFromMissing: true,
+        });
         await setContainerStatus(chatContainer.Id, true);
         return sandboxId;
       }
@@ -226,6 +257,7 @@ export async function provisionSandbox(
         continue;
       }
 
+      let sandboxId: string | null = null;
       try {
         const doubleCheckId = await getActiveSandbox(chatId);
         if (doubleCheckId) {
@@ -233,7 +265,13 @@ export async function provisionSandbox(
           return doubleCheckId;
         }
 
-        const sandboxId = nanoid(12);
+        sandboxId = nanoid(12);
+        await transitionSandboxLifecycleState({
+          sandboxId,
+          nextState: SandboxLifecycleState.PROVISIONING,
+          allowFromMissing: true,
+        });
+
         const image = normalizedFramework
           ? getTemplateConfig(normalizedFramework)?.image || getDefaultImage()
           : getDefaultImage();
@@ -276,10 +314,23 @@ export async function provisionSandbox(
         );
 
         await saveSandboxState(sandbox);
+        await transitionSandboxLifecycleState({
+          sandboxId,
+          nextState: SandboxLifecycleState.ACTIVE,
+          allowFromMissing: true,
+        });
 
         await releaseDistributedLock(handle);
         return sandboxId;
       } catch (provisionError) {
+        if (sandboxId) {
+          await transitionSandboxLifecycleState({
+            sandboxId,
+            nextState: SandboxLifecycleState.FAILED,
+            reason: ensureError(provisionError).message,
+            allowFromMissing: true,
+          });
+        }
         await releaseDistributedLock(handle);
         throw provisionError;
       }

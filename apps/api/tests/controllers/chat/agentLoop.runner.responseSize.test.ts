@@ -28,12 +28,12 @@ vi.mock("../../../lib/llm/parser.js", () => ({
   })),
 }));
 
-vi.mock("../../../controllers/chat/session/loop/events.js", () => ({
+vi.mock("../../../services/chat/session/loop/events.js", () => ({
   createTurnEventState: createTurnEventStateMock,
   processParserEvents: processParserEventsMock,
 }));
 
-vi.mock("../../../controllers/chat/session/loop/budgets.js", () => ({
+vi.mock("../../../services/chat/session/loop/budgets.js", () => ({
   createTurnBudgetState: vi.fn(() => ({
     toolBudgetExceededThisTurn: false,
     toolRunBudgetExceededThisTurn: false,
@@ -42,7 +42,7 @@ vi.mock("../../../controllers/chat/session/loop/budgets.js", () => ({
   hasAnyTurnBudgetExceeded: vi.fn(() => false),
 }));
 
-vi.mock("../../../controllers/chat/sse.utils.js", () => ({
+vi.mock("../../../services/sse-utils/service.js", () => ({
   sendSSEError: sendSSEErrorMock,
 }));
 
@@ -72,7 +72,7 @@ describe("runAgentLoop response size handling", () => {
 
   it("does not process flush events when response size is exceeded mid-turn", async () => {
     const { runAgentLoop } = await import(
-      "../../../controllers/chat/session/loop/internal/agentLoop.runner.js"
+      "../../../services/chat/session/loop/agentLoop.runner.js"
     );
 
     const result = await runAgentLoop({

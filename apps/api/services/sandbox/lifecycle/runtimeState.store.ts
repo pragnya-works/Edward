@@ -15,7 +15,7 @@ function containerStatusKey(containerId: string): string {
 export async function getContainerStatus(
   containerId: string,
 ): Promise<ContainerStatusCacheEntry | null> {
-  let raw: string | null = null;
+  let raw: string | null;
   try {
     raw = await redis.get(containerStatusKey(containerId));
   } catch {

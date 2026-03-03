@@ -37,7 +37,7 @@ const mockRefs = vi.hoisted(() => {
     runUnifiedBuildMock: vi.fn(),
     uploadBuildFilesToS3Mock: vi.fn(),
     uploadSpaFallbackMock: vi.fn().mockResolvedValue(undefined),
-    buildPreviewUrlMock: vi.fn(),
+    buildPathPreviewUrlMock: vi.fn(),
     cleanupS3FolderExceptMock: vi.fn().mockResolvedValue(undefined),
     buildS3KeyMock: vi.fn(),
     mergeAndInstallDependenciesMock: vi.fn(),
@@ -84,7 +84,7 @@ vi.mock("../../../../services/sandbox/upload.service.js", () => ({
 }));
 
 vi.mock("../../../../services/preview.service.js", () => ({
-  buildPreviewUrl: mockRefs.buildPreviewUrlMock,
+  buildPathPreviewUrl: mockRefs.buildPathPreviewUrlMock,
 }));
 
 vi.mock("../../../../services/storage.service.js", () => ({
@@ -144,7 +144,7 @@ vi.mock("@edward/auth", async () => {
   };
 });
 
-import { buildAndUploadUnified } from "../../../../services/sandbox/builder/unified.build.js";
+import { buildAndUploadUnified } from "../../../../services/sandbox/builder/unified-build/orchestrator.js";
 
 function setupCommonMocks() {
   mockRefs.getSandboxStateMock.mockResolvedValue({ ...mockRefs.sandbox });
@@ -185,7 +185,7 @@ function setupCommonMocks() {
       suffix ? `${userId}/${chatId}/${suffix}` : `${userId}/${chatId}`,
   );
 
-  mockRefs.buildPreviewUrlMock.mockReturnValue(mockRefs.pathPreviewUrl);
+  mockRefs.buildPathPreviewUrlMock.mockReturnValue(mockRefs.pathPreviewUrl);
 
   mockRefs.registerPreviewSubdomainMock.mockImplementation(async () => {
     if (mockRefs.routeThrows) {
@@ -239,7 +239,7 @@ describe("buildAndUploadUnified preview URL routing", () => {
     expect(result.previewUploaded).toBe(true);
     expect(result.previewUrl).toBeNull();
     expect(result.error).toContain("subdomain routing is unavailable");
-    expect(mockRefs.buildPreviewUrlMock).not.toHaveBeenCalled();
+    expect(mockRefs.buildPathPreviewUrlMock).not.toHaveBeenCalled();
   });
 
   it("returns no preview URL and preserves warnings on routing failure + partial upload", async () => {
@@ -262,6 +262,6 @@ describe("buildAndUploadUnified preview URL routing", () => {
     expect(result.previewUrl).toBeNull();
     expect(result.error).toContain("subdomain routing failed");
     expect(result.error).toContain("files failed to upload to S3");
-    expect(mockRefs.buildPreviewUrlMock).not.toHaveBeenCalled();
+    expect(mockRefs.buildPathPreviewUrlMock).not.toHaveBeenCalled();
   });
 });

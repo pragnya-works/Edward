@@ -6,6 +6,7 @@ import {
   LoaderIcon,
   ShieldCheck,
 } from "lucide-react";
+import { useId } from "react";
 import { Button } from "@edward/ui/components/button";
 import {
   Dialog,
@@ -28,6 +29,9 @@ export function GithubIntegrationDialog({
 }: GithubIntegrationDialogProps) {
   const isRateLimited = integration.isGithubRateLimited;
   const rateLimitMessage = integration.githubRateLimitMessage;
+  const repoInputId = useId();
+  const branchInputId = useId();
+  const commitMessageInputId = useId();
 
   return (
     <Dialog open={integration.isModalOpen} onOpenChange={integration.setIsModalOpen}>
@@ -58,11 +62,15 @@ export function GithubIntegrationDialog({
 
         <div className="space-y-4 px-5 py-4">
           <div className="space-y-1.5">
-            <label className="flex items-center gap-1.5 text-[12px] font-semibold text-workspace-foreground/85">
+            <label
+              htmlFor={repoInputId}
+              className="flex items-center gap-1.5 text-[12px] font-semibold text-workspace-foreground/85"
+            >
               <GitPullRequestCreateArrow className="h-3.5 w-3.5 text-workspace-foreground/70" />
               Repository
             </label>
             <Input
+              id={repoInputId}
               value={integration.repoInput}
               onChange={(event) => integration.setRepoInput(event.target.value)}
               placeholder="owner/repo or repo-name"
@@ -107,11 +115,15 @@ export function GithubIntegrationDialog({
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <label className="flex items-center gap-1.5 text-[12px] font-semibold text-workspace-foreground/85">
+              <label
+                htmlFor={branchInputId}
+                className="flex items-center gap-1.5 text-[12px] font-semibold text-workspace-foreground/85"
+              >
                 <GitBranch className="h-3.5 w-3.5 text-workspace-foreground/70" />
                 Branch
               </label>
               <Input
+                id={branchInputId}
                 value={integration.branchInput}
                 onChange={(event) => integration.setBranchInput(event.target.value)}
                 placeholder="feature/my-change"
@@ -153,11 +165,15 @@ export function GithubIntegrationDialog({
             </div>
 
             <div className="space-y-1.5">
-              <label className="flex items-center gap-1.5 text-[12px] font-semibold text-workspace-foreground/85">
+              <label
+                htmlFor={commitMessageInputId}
+                className="flex items-center gap-1.5 text-[12px] font-semibold text-workspace-foreground/85"
+              >
                 <GitCommitHorizontal className="h-3.5 w-3.5 text-workspace-foreground/70" />
                 Commit message
               </label>
               <Input
+                id={commitMessageInputId}
                 value={integration.commitMessage}
                 onChange={(event) => integration.setCommitMessage(event.target.value)}
                 placeholder="chore: sync project changes"

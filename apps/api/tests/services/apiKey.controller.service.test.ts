@@ -4,7 +4,7 @@ import {
   getApiKey,
   createApiKey,
   updateApiKey,
-} from "../../services/apiKey/controller.service.js";
+} from "../../services/apiKey/apiKey.useCase.js";
 import * as apiKeyService from "../../services/apiKey.service.js";
 import * as encryption from "../../utils/encryption.js";
 import type { AuthenticatedRequest } from "../../middleware/auth.js";

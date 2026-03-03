@@ -4,10 +4,13 @@ import type { LlmChatMessage } from "../context.js";
 import { MessageRole } from "@edward/auth";
 import { encodingForModel, getEncoding } from "js-tiktoken";
 import { getTextFromContent, hasImages } from "../types.js";
-import type { MessageContentPart } from "@edward/shared/llm/types";
 import { DEFAULT_OPENAI_MODEL } from "@edward/shared/schema";
 import { getContextWindowOverride, getReservedOutputTokens } from "./config.js";
-import type { TokenUsage, TokenUsageMessageBreakdown } from "../tokens.js";
+import { estimateVisionTokens } from "./vision.js";
+import type {
+  TokenUsage,
+  TokenUsageMessageBreakdown,
+} from "./usage.types.js";
 
 function getEncodingForOpenAIModel(model: string) {
   try {
@@ -15,32 +18,6 @@ function getEncodingForOpenAIModel(model: string) {
   } catch {
     return null;
   }
-}
-
-function estimateVisionTokens(content: MessageContentPart[] | string): number {
-  if (typeof content === "string") return 0;
-
-  let visionTokens = 0;
-  for (const part of content) {
-    if (part.type === "image") {
-      const base64Length = part.base64.length;
-      const estimatedBytes = Math.ceil(base64Length * 0.75);
-      const estimatedPixels = estimatedBytes;
-
-      if (estimatedPixels <= 512 * 512 * 3) {
-        visionTokens += 85;
-      } else if (estimatedPixels <= 768 * 768 * 3) {
-        visionTokens += 170;
-      } else if (estimatedPixels <= 1024 * 1024 * 3) {
-        visionTokens += 255;
-      } else if (estimatedPixels <= 2048 * 2048 * 3) {
-        visionTokens += 425;
-      } else {
-        visionTokens += 595;
-      }
-    }
-  }
-  return visionTokens;
 }
 
 export function countOpenAIInputTokens(

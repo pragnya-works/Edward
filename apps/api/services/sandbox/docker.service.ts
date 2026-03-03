@@ -226,7 +226,7 @@ export async function initializeWorkspaceWithFiles(
 }
 
 async function verifyNetworkIsolation(containerId: string): Promise<void> {
-  const container = docker.getContainer(containerId);
+  const container = getContainer(containerId);
   const info = await container.inspect();
   const networks = info.NetworkSettings?.Networks ?? {};
   const connectedNetworks = Object.keys(networks);
@@ -286,12 +286,17 @@ export async function listContainers(): Promise<Docker.ContainerInfo[]> {
 }
 
 export function getContainer(id: string): Docker.Container {
-  return docker.getContainer(id);
+  const containerId = id.trim();
+  if (!containerId) {
+    throw new Error("Container ID is required");
+  }
+
+  return docker.getContainer(containerId);
 }
 
 export async function isContainerAlive(containerId: string): Promise<boolean> {
   try {
-    const container = docker.getContainer(containerId);
+    const container = getContainer(containerId);
     const info = await container.inspect();
     return info.State.Status !== "removing" && !info.State.Dead;
   } catch (error) {
@@ -305,7 +310,7 @@ export async function isContainerAlive(containerId: string): Promise<boolean> {
 
 export async function destroyContainer(containerId: string): Promise<void> {
   try {
-    const container = docker.getContainer(containerId);
+    const container = getContainer(containerId);
     await container.remove({ force: true });
   } catch (error) {
     if (error instanceof Error && error.message.includes("404")) {
@@ -320,8 +325,9 @@ export async function connectToNetwork(
   networkName = "bridge",
 ): Promise<void> {
   try {
+    const container = getContainer(containerId);
     const network = docker.getNetwork(networkName);
-    await network.connect({ Container: containerId });
+    await network.connect({ Container: container.id });
   } catch (error) {
     if (error instanceof Error && error.message.includes("already exists")) {
       return;
@@ -335,8 +341,9 @@ export async function disconnectFromNetwork(
   networkName = "bridge",
 ): Promise<void> {
   try {
+    const container = getContainer(containerId);
     const network = docker.getNetwork(networkName);
-    await network.disconnect({ Container: containerId, Force: true });
+    await network.disconnect({ Container: container.id, Force: true });
   } catch (error) {
     if (
       error instanceof Error &&

@@ -1,23 +1,13 @@
-import { Queue, Job } from 'bullmq';
+import { Queue } from "bullmq";
 import {
   AGENT_RUN_QUEUE_NAME,
   BUILD_QUEUE_NAME,
   connection,
-} from '../../lib/queue.binding.js';
-import { JobPayload } from './queue.schemas.js';
+} from "../../lib/queue.binding.js";
+import { JobPayload } from "./queue.schemas.js";
 
-export type TypedJob<T extends JobPayload = JobPayload> = Job<T>;
-
-const buildQueue = new Queue<JobPayload>(BUILD_QUEUE_NAME, { connection });
-const agentRunQueue = new Queue<JobPayload>(AGENT_RUN_QUEUE_NAME, { connection });
-
-export function getBuildQueue(): Queue<JobPayload> {
-  return buildQueue;
-}
-
-export function getAgentRunQueue(): Queue<JobPayload> {
-  return agentRunQueue;
-}
+export const buildQueue = new Queue<JobPayload>(BUILD_QUEUE_NAME, { connection });
+export const agentRunQueue = new Queue<JobPayload>(AGENT_RUN_QUEUE_NAME, { connection });
 
 export function createQueueJobId(
   prefix: string,

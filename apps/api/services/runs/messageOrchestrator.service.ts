@@ -28,10 +28,10 @@ import {
   buildMultimodalContentForLLM,
   parseMultimodalContent,
   toImageAttachments,
-} from "../multimodal.utils/service.js";
-import { sendStreamError } from "../../controllers/chat/response/streamErrors.js";
+} from "../multimodal-utils/service.js";
+import { sendStreamError } from "../../utils/streamError.js";
 import { createAgentRunMetadata } from "./runMetadata.js";
-import { streamRunEventsFromPersistence } from "../runEventStream.utils/service.js";
+import { streamRunEventsFromPersistence } from "../run-event-stream-utils/service.js";
 import {
   createAdmittedRun,
   enqueueAdmittedRun,
@@ -166,16 +166,18 @@ export async function unifiedSendMessage(
     res.setHeader("Cache-Control", "no-cache");
     res.setHeader("Connection", "keep-alive");
 
-    res.write(
-      `data: ${JSON.stringify({
-        type: ParserEventType.META,
-        chatId,
-        userMessageId,
-        assistantMessageId,
-        isNewChat,
-        intent,
-      })}\n\n`,
-    );
+    if (isResponseWritable(res)) {
+      res.write(
+        `data: ${JSON.stringify({
+          type: ParserEventType.META,
+          chatId,
+          userMessageId,
+          assistantMessageId,
+          isNewChat,
+          intent,
+        })}\n\n`,
+      );
+    }
 
     const workflow = await createWorkflow(userId, chatId, {
       userRequest: parsedContent.textContent || "[Image message]",
@@ -242,17 +244,19 @@ export async function unifiedSendMessage(
     }
     runId = run.id;
 
-    res.write(
-      `data: ${JSON.stringify({
-        type: ParserEventType.META,
-        chatId,
-        userMessageId,
-        assistantMessageId,
-        isNewChat,
-        runId: run.id,
-        intent,
-      })}\n\n`,
-    );
+    if (isResponseWritable(res)) {
+      res.write(
+        `data: ${JSON.stringify({
+          type: ParserEventType.META,
+          chatId,
+          userMessageId,
+          assistantMessageId,
+          isNewChat,
+          runId: run.id,
+          intent,
+        })}\n\n`,
+      );
+    }
 
     const enqueueResult = await enqueueAdmittedRun(run.id);
     if (!enqueueResult.queued) {
@@ -268,6 +272,14 @@ export async function unifiedSendMessage(
       { runId: run.id, chatId, userId, activeRunDepth, userRunLimit },
       "Queued durable agent run",
     );
+
+    if (!isResponseWritable(res)) {
+      logger.info(
+        { runId: run.id, chatId, userId },
+        "Client disconnected before run stream handoff; run continues in background",
+      );
+      return;
+    }
 
     await streamRunEventsFromPersistence({
       req,
@@ -285,4 +297,8 @@ export async function unifiedSendMessage(
       ERROR_MESSAGES.INTERNAL_SERVER_ERROR,
     );
   }
+}
+
+function isResponseWritable(res: Response): boolean {
+  return !res.writableEnded && res.writable;
 }
