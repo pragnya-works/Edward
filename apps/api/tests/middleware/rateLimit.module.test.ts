@@ -81,7 +81,9 @@ describe("rateLimit middleware module", () => {
   it("uses authenticated user id for API key scope and falls back to IP", async () => {
     await import("../../middleware/rateLimit.js");
 
-    const apiKeyLimiterOptions = refs.options[0];
+    const apiKeyLimiterOptions = refs.options.find(
+      (options) => typeof options.skip === "function",
+    );
     const keyGenerator = apiKeyLimiterOptions?.keyGenerator;
     expect(keyGenerator).toBeTypeOf("function");
 
@@ -102,7 +104,9 @@ describe("rateLimit middleware module", () => {
   it("logs and responds when rate-limit handler is triggered", async () => {
     await import("../../middleware/rateLimit.js");
 
-    const apiKeyLimiterOptions = refs.options[0];
+    const apiKeyLimiterOptions = refs.options.find(
+      (options) => typeof options.skip === "function",
+    );
     const handler = apiKeyLimiterOptions?.handler;
     expect(handler).toBeTypeOf("function");
 
@@ -146,7 +150,7 @@ describe("rateLimit middleware module", () => {
     await expect(config?.sendCommand("PING", "one")).resolves.toBe("OK");
     expect(refs.redisCall).toHaveBeenCalledWith("PING", "one");
 
-    await expect(config?.sendCommand("" as string)).rejects.toThrow(
+    await expect(config?.sendCommand("")).rejects.toThrow(
       "Redis command is missing",
     );
   });

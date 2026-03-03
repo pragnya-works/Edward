@@ -13,20 +13,30 @@ export async function saveSandboxState(sandbox: SandboxInstance): Promise<void> 
 
   try {
     const key = `${SANDBOX_KEY_PREFIX}${snapshot.id}`;
-    await redis.set(key, JSON.stringify(snapshot), "PX", SANDBOX_TTL);
-    await redis.set(
+    const pipeline = redis.pipeline();
+    pipeline.set(key, JSON.stringify(snapshot), "PX", SANDBOX_TTL);
+    pipeline.set(
       `${CHAT_SANDBOX_INDEX_PREFIX}${snapshot.chatId}`,
       snapshot.id,
       "PX",
       SANDBOX_TTL,
     );
     if (snapshot.scaffoldedFramework) {
-      await redis.set(
+      pipeline.set(
         `${CHAT_FRAMEWORK_PREFIX}${snapshot.chatId}`,
         snapshot.scaffoldedFramework,
         "EX",
         FRAMEWORK_TTL,
       );
+    }
+    const results = await pipeline.exec();
+    if (!results) {
+      throw new Error("Redis pipeline returned null while saving sandbox state");
+    }
+    for (const [error] of results) {
+      if (error) {
+        throw error;
+      }
     }
   } catch (error) {
     logger.error({ error, sandboxId: snapshot.id }, "Failed to save sandbox state to Redis");
@@ -62,9 +72,12 @@ export async function deleteSandboxState(
   chatId?: string,
 ): Promise<void> {
   try {
+    const resolvedChatId =
+      chatId ??
+      (await getSandboxState(sandboxId).then((state) => state?.chatId ?? null));
     await redis.del(`${SANDBOX_KEY_PREFIX}${sandboxId}`);
-    if (chatId) {
-      await redis.del(`${CHAT_SANDBOX_INDEX_PREFIX}${chatId}`);
+    if (resolvedChatId) {
+      await redis.del(`${CHAT_SANDBOX_INDEX_PREFIX}${resolvedChatId}`);
     }
   } catch (error) {
     logger.error({ error, sandboxId }, "Failed to delete sandbox state from Redis");
@@ -137,6 +150,7 @@ function parseSandboxState(raw: string): SandboxInstance | null {
     typeof candidate.id !== "string" ||
     typeof candidate.containerId !== "string" ||
     typeof candidate.expiresAt !== "number" ||
+    !Number.isFinite(candidate.expiresAt) ||
     typeof candidate.userId !== "string" ||
     typeof candidate.chatId !== "string"
   ) {

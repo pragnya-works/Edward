@@ -29,21 +29,41 @@ const app = createHttpApp({
   trustProxy: config.server.trustProxy,
 });
 
-const serverInstance = app.listen(PORT, async () => {
-  logger.info(`Edward API v${VERSION} listening on port ${PORT} [Mode: ${ENV}]`);
+let serverInstance: ReturnType<typeof app.listen> | null = null;
+let isShuttingDown = false;
 
+async function bootstrapServer(): Promise<void> {
   try {
     await initSandboxService();
     logger.info("Sandbox Service initialized.");
   } catch (error) {
     logger.error(ensureError(error), "Failed during startup");
     process.exit(1);
+    return;
   }
-});
 
-let isShuttingDown = false;
+  serverInstance = app.listen(PORT, () => {
+    logger.info(`Edward API v${VERSION} listening on port ${PORT} [Mode: ${ENV}]`);
+  });
+}
+await bootstrapServer();
+async function closeHttpServer(): Promise<void> {
+  if (!serverInstance) {
+    return;
+  }
 
-async function handleGracefulShutdown(signal: string) {
+  await new Promise<void>((resolve, reject) => {
+    serverInstance?.close((error?: Error) => {
+      if (error) {
+        reject(error);
+        return;
+      }
+      resolve();
+    });
+  });
+}
+
+async function handleGracefulShutdown(signal: string, exitCode: number = 0) {
   if (isShuttingDown) {
     return;
   }
@@ -56,22 +76,21 @@ async function handleGracefulShutdown(signal: string) {
     process.exit(1);
   }, 15_000);
 
-  serverInstance.close(async () => {
-    try {
-      await Promise.all([
-        shutdownSandboxService(),
-        shutdownRedisPubSub(),
-        redis.quit(),
-      ]);
-
-      logger.info("Graceful shutdown successful.");
-      clearTimeout(shutdownTimeout);
-      process.exit(0);
-    } catch (error) {
-      logger.error(ensureError(error), "Error during shutdown");
-      process.exit(1);
-    }
-  });
+  try {
+    await closeHttpServer();
+    await Promise.all([
+      shutdownSandboxService(),
+      shutdownRedisPubSub(),
+      redis.quit(),
+    ]);
+    logger.info("Graceful shutdown successful.");
+    clearTimeout(shutdownTimeout);
+    process.exit(exitCode);
+  } catch (error) {
+    logger.error(ensureError(error), "Error during shutdown");
+    clearTimeout(shutdownTimeout);
+    process.exit(1);
+  }
 }
 
 registerProcessHandlerOnce("api:SIGINT", "SIGINT", () => {
@@ -85,11 +104,11 @@ registerProcessHandlerOnce("api:SIGTERM", "SIGTERM", () => {
 registerProcessHandlerOnce("api:uncaughtException", "uncaughtException", (error) => {
   logger.fatal(error, "Uncaught Exception");
   captureException(error);
-  void handleGracefulShutdown("uncaughtException");
+  void handleGracefulShutdown("uncaughtException", 1);
 });
 
 registerProcessHandlerOnce("api:unhandledRejection", "unhandledRejection", (reason) => {
   logger.fatal({ reason }, "Unhandled Rejection");
   captureException(reason);
-  void handleGracefulShutdown("unhandledRejection");
+  void handleGracefulShutdown("unhandledRejection", 1);
 });

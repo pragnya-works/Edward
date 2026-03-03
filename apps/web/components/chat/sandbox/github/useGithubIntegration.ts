@@ -2,6 +2,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "@edward/ui/components/sonner";
 import type { GithubRepoStatusData } from "@edward/shared/github/types";
 import {
+  suggestGithubBranchNames,
+  suggestGithubRepositoryInputs,
+} from "@edward/shared/github/naming";
+import {
   useGithubIntegrationMutations,
   useGithubRepoStatus,
 } from "@/hooks/server-state/useGithub";
@@ -9,12 +13,10 @@ import {
   buildDefaultBranchName,
   buildDefaultCommitMessage,
   buildDefaultRepoName,
-  getBranchNameSuggestions,
   DEFAULT_BASE_BRANCH,
   getBranchNameValidationError,
   getErrorMessage,
   getGithubToastId,
-  getRepoInputSuggestions,
   getRepoInputValidationError,
   isRepoMissingDisconnect,
   normalizeChatId,
@@ -246,7 +248,7 @@ export function useGithubIntegration({
       if (!branchValidationError) {
         return [];
       }
-      return getBranchNameSuggestions(normalizedBranchInput || branchInput);
+      return suggestGithubBranchNames(normalizedBranchInput || branchInput);
     },
     [branchValidationError, normalizedBranchInput, branchInput],
   );
@@ -255,7 +257,7 @@ export function useGithubIntegration({
       if (isRepoLocked || !repoValidationError) {
         return [];
       }
-      return getRepoInputSuggestions(normalizedRepoInput || repoInput);
+      return suggestGithubRepositoryInputs(normalizedRepoInput || repoInput);
     },
     [isRepoLocked, repoValidationError, normalizedRepoInput, repoInput],
   );

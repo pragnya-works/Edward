@@ -40,7 +40,7 @@ async function checkpointContinuationMessages(params: {
   totalToolCallsInRun: number;
 }): Promise<LlmChatMessage[]> {
   const agentMessages: LlmChatMessage[] = [{
-    role: MessageRole.User as LlmChatMessage["role"],
+    role: MessageRole.User,
     content: params.prompt,
   }];
   await params.onCheckpoint?.({
@@ -334,12 +334,12 @@ export async function resolveTurnOutcome(
   }
 
   emitTurnCompleteMeta(params.emitMeta, params.agentTurn, params.toolResultsThisTurn.length);
+  const reachedMaxTurns = params.agentTurn >= MAX_AGENT_TURNS;
   return {
     action: "break",
-    loopStopReason:
-      params.toolResultsThisTurn.length === 0
-        ? AgentLoopStopReason.NO_TOOL_RESULTS
-        : AgentLoopStopReason.MAX_TURNS_REACHED,
+    loopStopReason: reachedMaxTurns
+      ? AgentLoopStopReason.MAX_TURNS_REACHED
+      : AgentLoopStopReason.NO_TOOL_RESULTS,
     agentMessages: params.agentMessages,
     noProgressContinuations: params.noProgressContinuations,
   };

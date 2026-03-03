@@ -1,4 +1,5 @@
 import { EventEmitter } from "node:events";
+import { StringDecoder } from "node:string_decoder";
 import {
   and,
   db,
@@ -44,6 +45,7 @@ export function createRunEventCaptureResponse(
 ): RunEventCaptureResponse {
   const response = new EventEmitter() as RunEventCaptureResponse;
   let sseBuffer = "";
+  const utf8Decoder = new StringDecoder("utf8");
   let pending = Promise.resolve();
   let persistFailure: Error | null = null;
 
@@ -57,7 +59,7 @@ export function createRunEventCaptureResponse(
       return false;
     }
 
-    const text = typeof chunk === "string" ? chunk : chunk.toString("utf8");
+    const text = typeof chunk === "string" ? chunk : utf8Decoder.write(chunk);
     sseBuffer += text;
 
     const normalized = sseBuffer.replaceAll("\r\n", "\n");
@@ -81,7 +83,10 @@ export function createRunEventCaptureResponse(
 
       pending = pending.then(async () => {
         try {
-          const parsed = JSON.parse(payload) as StreamEvent;
+          const parsed = JSON.parse(payload) as unknown;
+          if (!isStreamEventPayload(parsed)) {
+            throw new Error("Invalid stream event payload shape");
+          }
           await onEvent(parsed);
         } catch (error) {
           const err = ensureError(error);
@@ -111,6 +116,15 @@ export function createRunEventCaptureResponse(
   };
 
   return response;
+}
+
+function isStreamEventPayload(value: unknown): value is StreamEvent {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "type" in value &&
+    typeof (value as { type?: unknown }).type === "string"
+  );
 }
 
 export function mapTerminationToStatus(

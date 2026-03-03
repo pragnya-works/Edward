@@ -4,8 +4,8 @@ import { ParserEventType } from "@edward/shared/streamEvents";
 
 const getLatestBuildRecordMock = vi.fn();
 
-vi.mock("../../../services/chat/query/build.repository.js", () => ({
-  getLatestBuildRecord: getLatestBuildRecordMock,
+vi.mock("@edward/auth", () => ({
+  getLatestBuildByChatId: getLatestBuildRecordMock,
 }));
 
 describe("build query use-case", () => {
@@ -104,6 +104,47 @@ describe("build query use-case", () => {
       context: {
         chatId: "chat-3",
         userId: "user-3",
+      },
+    });
+
+    expect(parsed).toEqual({
+      events: [],
+      terminal: false,
+    });
+  });
+
+  it("returns no events when payload is malformed JSON", async () => {
+    const { parseBuildStreamPayload } = await import(
+      "../../../services/chat/query/build.useCase.js"
+    );
+
+    const parsed = parseBuildStreamPayload({
+      payload: "{not-json",
+      context: {
+        chatId: "chat-json",
+        userId: "user-json",
+      },
+    });
+
+    expect(parsed).toEqual({
+      events: [],
+      terminal: false,
+    });
+  });
+
+  it("returns no events when status is not a valid build status value", async () => {
+    const { parseBuildStreamPayload } = await import(
+      "../../../services/chat/query/build.useCase.js"
+    );
+
+    const parsed = parseBuildStreamPayload({
+      payload: JSON.stringify({
+        buildId: "build-invalid-status",
+        status: "not-a-real-status",
+      }),
+      context: {
+        chatId: "chat-invalid",
+        userId: "user-invalid",
       },
     });
 

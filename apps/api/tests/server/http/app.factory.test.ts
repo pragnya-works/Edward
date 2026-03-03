@@ -1,10 +1,33 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { Environment } from "../../../utils/logger.js";
+import { Environment as LoggerEnvironment } from "../../../utils/logger.js";
 
 type MockApp = {
   set: ReturnType<typeof vi.fn>;
   use: ReturnType<typeof vi.fn>;
   get: ReturnType<typeof vi.fn>;
 };
+
+type HealthResponse = {
+  status: (code: number) => { json: (payload: unknown) => void };
+};
+
+type ErrorResponse = HealthResponse & {
+  redirect: (status: number, url: string) => void;
+};
+
+type ForceHttpsRequest = {
+  secure: boolean;
+  header: (name: string) => string | undefined;
+  hostname?: string;
+  originalUrl: string;
+};
+
+function assertFunction<T extends Function>(value: unknown, name: string): asserts value is T {
+  if (typeof value !== "function") {
+    throw new Error(`Expected ${name} to be a function`);
+  }
+}
 
 const refs = vi.hoisted(() => {
   const createAppMock = (): MockApp => {
@@ -17,13 +40,14 @@ const refs = vi.hoisted(() => {
   };
 
   const appRef: { current: MockApp } = { current: createAppMock() };
-  const expressMock = vi.fn(() => appRef.current);
-  (expressMock as unknown as Record<string, unknown>).json = vi.fn(
-    () => "json-parser-middleware",
-  );
-  (expressMock as unknown as Record<string, unknown>).urlencoded = vi.fn(
-    () => "urlencoded-parser-middleware",
-  );
+  const expressMock = Object.assign(vi.fn(() => appRef.current), {
+    json: vi.fn(
+      () => "json-parser-middleware",
+    ),
+    urlencoded: vi.fn(
+      () => "urlencoded-parser-middleware",
+    ),
+  });
 
   return {
     appRef,
@@ -102,6 +126,11 @@ vi.mock("../../../middleware/securityTelemetry.js", () => ({
 }));
 
 vi.mock("../../../utils/logger.js", () => ({
+  Environment: {
+    Development: "development",
+    Production: "production",
+    Test: "test",
+  },
   createLogger: vi.fn(() => refs.logger),
 }));
 
@@ -119,17 +148,17 @@ describe("createHttpApp", () => {
 
   it("wires middleware/routes and serves health + error handlers", async () => {
     const { createHttpApp } = await import("../../../server/http/app.factory.js");
+    const environment: Environment = LoggerEnvironment.Development;
 
     const app = createHttpApp({
       isDev: true,
       isProd: false,
       allowedOrigins: ["https://allowed.example.com"],
-      environment:
-        "development" as unknown as import("../../../utils/logger.js").Environment,
+      environment,
       trustProxy: 1,
     });
 
-    expect(app).toBe(refs.appRef.current as never);
+    expect(app).toBe(refs.appRef.current);
     expect(refs.appRef.current.set).toHaveBeenCalledWith("trust proxy", 1);
 
     expect(refs.appRef.current.use).toHaveBeenCalledWith(
@@ -152,34 +181,44 @@ describe("createHttpApp", () => {
     const healthCall = refs.appRef.current.get.mock.calls.find(
       ([path]) => path === "/health",
     );
-    const healthHandler = healthCall?.[1] as
-      | ((req: unknown, res: { status: (code: number) => { json: (payload: unknown) => void } }) => void)
-      | undefined;
+    const healthHandler = healthCall?.[1];
+    assertFunction<(req: unknown, res: HealthResponse) => void>(
+      healthHandler,
+      "healthHandler",
+    );
     expect(healthHandler).toBeTypeOf("function");
 
     const healthStatus = vi.fn(() => ({ json: vi.fn() }));
-    healthHandler?.({}, { status: healthStatus });
+    healthHandler({}, { status: healthStatus });
     expect(healthStatus).toHaveBeenCalledWith(200);
 
     const notFoundHandler = refs.appRef.current.use.mock.calls
       .map(([arg]) => arg)
-      .find((arg) => typeof arg === "function" && arg.length === 2) as
-      | ((req: unknown, res: { status: (code: number) => { json: (payload: unknown) => void } }) => void)
-      | undefined;
+      .find((arg) => typeof arg === "function" && arg.length === 2);
+    assertFunction<(req: unknown, res: HealthResponse) => void>(
+      notFoundHandler,
+      "notFoundHandler",
+    );
     expect(notFoundHandler).toBeTypeOf("function");
     const notFoundStatus = vi.fn(() => ({ json: vi.fn() }));
-    notFoundHandler?.({}, { status: notFoundStatus });
+    notFoundHandler({}, { status: notFoundStatus });
     expect(notFoundStatus).toHaveBeenCalledWith(404);
 
     const errorHandler = refs.appRef.current.use.mock.calls
       .map(([arg]) => arg)
-      .find((arg) => typeof arg === "function" && arg.length === 4) as
-      | ((err: unknown, req: unknown, res: { status: (code: number) => { json: (payload: unknown) => void } }, next: () => void) => void)
-      | undefined;
+      .find((arg) => typeof arg === "function" && arg.length === 4);
+    assertFunction<
+      (
+        err: unknown,
+        req: unknown,
+        res: HealthResponse,
+        next: () => void,
+      ) => void
+    >(errorHandler, "errorHandler");
     expect(errorHandler).toBeTypeOf("function");
 
     const errorStatus = vi.fn(() => ({ json: vi.fn() }));
-    errorHandler?.(new Error("boom"), {}, { status: errorStatus }, vi.fn());
+    errorHandler(new Error("boom"), {}, { status: errorStatus }, vi.fn());
     expect(refs.logger.error).toHaveBeenCalledTimes(1);
     expect(refs.sentry.captureException).toHaveBeenCalledTimes(1);
     expect(errorStatus).toHaveBeenCalledWith(500);
@@ -187,25 +226,30 @@ describe("createHttpApp", () => {
 
   it("enforces HTTPS in production and validates CORS allowlist", async () => {
     const { createHttpApp } = await import("../../../server/http/app.factory.js");
+    const environment: Environment = LoggerEnvironment.Production;
 
     createHttpApp({
       isDev: false,
       isProd: true,
       allowedOrigins: ["https://allowed.example.com"],
-      environment:
-        "production" as unknown as import("../../../utils/logger.js").Environment,
+      environment,
       trustProxy: true,
     });
 
     const forceHttpsMiddleware = refs.appRef.current.use.mock.calls
       .map(([arg]) => arg)
-      .find((arg) => typeof arg === "function" && arg.name === "forceHttpsMiddleware") as
-      | ((req: { secure: boolean; header: (name: string) => string | undefined; hostname?: string; originalUrl: string }, res: { status: (code: number) => { json: (payload: unknown) => void }; redirect: (status: number, url: string) => void }, next: () => void) => void)
-      | undefined;
+      .find((arg) => typeof arg === "function" && arg.name === "forceHttpsMiddleware");
+    assertFunction<
+      (
+        req: ForceHttpsRequest,
+        res: ErrorResponse,
+        next: () => void,
+      ) => void
+    >(forceHttpsMiddleware, "forceHttpsMiddleware");
     expect(forceHttpsMiddleware).toBeTypeOf("function");
 
     const redirect = vi.fn();
-    forceHttpsMiddleware?.(
+    forceHttpsMiddleware(
       {
         secure: false,
         header: vi.fn(() => "http"),
@@ -218,10 +262,10 @@ describe("createHttpApp", () => {
       },
       vi.fn(),
     );
-    expect(redirect).toHaveBeenCalledWith(301, "https://api.example.com/chat");
+    expect(redirect).toHaveBeenCalledWith(308, "https://api.example.com/chat");
 
     const status = vi.fn(() => ({ json: vi.fn() }));
-    forceHttpsMiddleware?.(
+    forceHttpsMiddleware(
       {
         secure: false,
         header: vi.fn(() => "http"),

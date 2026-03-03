@@ -1,4 +1,5 @@
 import {
+  getRunById,
   isTerminalRunStatus,
 } from "@edward/auth";
 import { redis } from "../../../lib/redis.js";
@@ -17,7 +18,6 @@ import type {
 import {
   cancelActiveRun,
   getActiveRunRecord,
-  getRunRecordById,
   type RunRecord,
 } from "./run.repository.js";
 
@@ -96,7 +96,7 @@ export async function cancelRunUseCase(
   const cancellationRequestedAt = new Date();
   const cancelSignalPublished = await publishCancelSignal(context, cancellationRequestedAt);
 
-  const latestRun = await getRunRecordById(context.runId);
+  const latestRun = (await getRunById(context.runId)) ?? null;
   if (!latestRun) {
     throw new QueryUseCaseError({
       status: HttpStatus.NOT_FOUND,
@@ -121,7 +121,7 @@ export async function cancelRunUseCase(
   });
 
   if (cancelledRowsCount === 0) {
-    const finalRun = await getRunRecordById(context.runId);
+    const finalRun = (await getRunById(context.runId)) ?? null;
     if (!finalRun || isTerminalRunStatus(finalRun.status)) {
       return {
         message: "Run already in terminal state",
@@ -164,7 +164,7 @@ export async function cancelRunUseCase(
 export async function getOwnedRunRecordUseCase(
   context: RunRequestContext,
 ): Promise<RunRecord> {
-  const runRecord = await getRunRecordById(context.runId);
+  const runRecord = (await getRunById(context.runId)) ?? null;
   if (
     !runRecord ||
     runRecord.chatId !== context.chatId ||

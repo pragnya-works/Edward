@@ -4,6 +4,12 @@ import { JobType } from "../../../services/queue/queue.schemas.js";
 
 const mocks = vi.hoisted(() => ({
   selectLimit: vi.fn(),
+  dbUpdate: vi.fn(),
+  dbSet: vi.fn(),
+  dbWhere: vi.fn(),
+  dbReturning: vi.fn(),
+  and: vi.fn(),
+  eq: vi.fn(),
   createBuild: vi.fn(),
   updateBuild: vi.fn(),
   buildAndUploadUnified: vi.fn(),
@@ -34,8 +40,10 @@ vi.mock("@edward/auth", () => ({
         })),
       })),
     })),
+    update: mocks.dbUpdate,
   },
-  eq: vi.fn(),
+  and: mocks.and,
+  eq: mocks.eq,
   updateBuild: mocks.updateBuild,
 }));
 
@@ -86,15 +94,28 @@ describe("workerJobHandlers service", () => {
         status: BuildRecordStatus.QUEUED,
         previewUrl: null,
         errorReport: null,
+        chatId: "chat-1",
+        messageId: "msg-1",
       },
     ]);
+    mocks.dbReturning.mockResolvedValue([{ id: "build-1" }]);
+    mocks.dbWhere.mockReturnValue({ returning: mocks.dbReturning });
+    mocks.dbSet.mockReturnValue({ where: mocks.dbWhere });
+    mocks.dbUpdate.mockReturnValue({ set: mocks.dbSet });
+    mocks.and.mockImplementation((...conditions) => conditions);
+    mocks.eq.mockImplementation((...conditions) => conditions);
     mocks.createBuild.mockResolvedValue({
       id: "build-new",
       status: BuildRecordStatus.QUEUED,
       previewUrl: null,
       errorReport: null,
     });
-    mocks.updateBuild.mockResolvedValue(undefined);
+    mocks.updateBuild.mockImplementation(async (id: string, data: { status?: BuildRecordStatus }) => ({
+      id,
+      status: data.status ?? BuildRecordStatus.QUEUED,
+      previewUrl: null,
+      errorReport: null,
+    }));
     mocks.buildAndUploadUnified.mockResolvedValue({
       success: true,
       previewUrl: "https://preview.example",
@@ -125,6 +146,8 @@ describe("workerJobHandlers service", () => {
         status: BuildRecordStatus.SUCCESS,
         previewUrl: "https://preview.example",
         errorReport: null,
+        chatId: "chat-1",
+        messageId: "msg-1",
       },
     ]);
     mocks.isTerminalBuildStatus.mockReturnValueOnce(true);
@@ -165,11 +188,9 @@ describe("workerJobHandlers service", () => {
     });
 
     expect(mocks.createBuild).toHaveBeenCalledTimes(1);
-    expect(mocks.updateBuild).toHaveBeenNthCalledWith(1, "build-new", {
-      status: BuildRecordStatus.BUILDING,
-    });
-    expect(mocks.updateBuild).toHaveBeenNthCalledWith(
-      2,
+    expect(mocks.dbUpdate).toHaveBeenCalledTimes(1);
+    expect(mocks.updateBuild).toHaveBeenCalledTimes(1);
+    expect(mocks.updateBuild).toHaveBeenCalledWith(
       "build-new",
       expect.objectContaining({
         status: BuildRecordStatus.SUCCESS,
@@ -223,6 +244,16 @@ describe("workerJobHandlers service", () => {
       "../../../services/queue/workerJobHandlers.service.js"
     );
 
+    mocks.selectLimit.mockResolvedValueOnce([
+      {
+        id: "build-1",
+        status: BuildRecordStatus.QUEUED,
+        previewUrl: null,
+        errorReport: null,
+        chatId: "chat-9",
+        messageId: "msg-9",
+      },
+    ]);
     mocks.withTimeout.mockRejectedValueOnce(new Error("timeout"));
 
     await expect(
@@ -245,6 +276,52 @@ describe("workerJobHandlers service", () => {
       "timeout",
       logger,
     );
+  });
+
+  it("skips execution when another worker already claimed the build", async () => {
+    const { processBuildJob } = await import(
+      "../../../services/queue/workerJobHandlers.service.js"
+    );
+
+    mocks.selectLimit
+      .mockResolvedValueOnce([
+        {
+          id: "build-1",
+          status: BuildRecordStatus.QUEUED,
+          previewUrl: null,
+          errorReport: null,
+          chatId: "chat-1",
+          messageId: "msg-1",
+        },
+      ])
+      .mockResolvedValueOnce([
+        {
+          id: "build-1",
+          status: BuildRecordStatus.BUILDING,
+          previewUrl: null,
+          errorReport: null,
+          chatId: "chat-1",
+          messageId: "msg-1",
+        },
+      ]);
+    mocks.dbReturning.mockResolvedValueOnce([]);
+
+    await processBuildJob({
+      payload: {
+        type: JobType.BUILD,
+        sandboxId: "sb-1",
+        chatId: "chat-1",
+        messageId: "msg-1",
+        userId: "user-1",
+        buildId: "build-1",
+      },
+      publishClient: { publish: vi.fn() } as never,
+      logger,
+    });
+
+    expect(mocks.buildAndUploadUnified).not.toHaveBeenCalled();
+    expect(mocks.updateBuild).not.toHaveBeenCalled();
+    expect(mocks.publishBuildStatusWithRetry).not.toHaveBeenCalled();
   });
 
   it("backs up sandbox when state exists", async () => {

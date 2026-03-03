@@ -128,7 +128,6 @@ function createHelmetMiddleware() {
     },
     frameguard: { action: "deny" },
     noSniff: true,
-    xssFilter: true,
   });
 }
 
@@ -154,7 +153,7 @@ function createForceHttpsMiddleware() {
       }
 
       const httpsUrl = `https://${host}${req.originalUrl}`;
-      res.redirect(HttpStatus.MOVED_PERMANENTLY, httpsUrl);
+      res.redirect(HttpStatus.PERMANENT_REDIRECT, httpsUrl);
       return;
     }
 

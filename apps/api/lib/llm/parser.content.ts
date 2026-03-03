@@ -190,11 +190,17 @@ export function processFileOpenTag(
     return;
   }
 
-  const normalizedPath = path.posix
-    .normalize(rawPath)
-    .replace(/^(\.\.{1,2}(\/|\\|$))+/, "");
+  const normalizedPath = path.posix.normalize(rawPath.replaceAll("\\", "/"));
+  const sanitizedPath = normalizedPath.replace(/^\.\/+/, "");
+  const escapesRoot =
+    sanitizedPath === ".." || sanitizedPath.startsWith("../");
 
-  if (!normalizedPath) {
+  if (
+    !sanitizedPath ||
+    sanitizedPath === "." ||
+    path.posix.isAbsolute(sanitizedPath) ||
+    escapesRoot
+  ) {
     events.push({
       type: ParserEventType.ERROR,
       message: `Invalid file path after normalization: ${rawPath}`,
@@ -205,7 +211,7 @@ export function processFileOpenTag(
     return;
   }
 
-  events.push({ type: ParserEventType.FILE_START, path: normalizedPath });
+  events.push({ type: ParserEventType.FILE_START, path: sanitizedPath });
   context.buffer = context.buffer.slice(closeIdx + 1);
   context.state = StreamState.FILE;
 }

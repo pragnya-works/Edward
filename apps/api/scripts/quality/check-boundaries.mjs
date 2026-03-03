@@ -97,11 +97,13 @@ if (untaggedFiles.length > 0 || violations.length > 0) {
     console.error(`Total untagged files: ${untaggedFiles.length}`);
   }
 
-  console.error("Boundary violations found:");
-  for (const item of violations) {
-    console.error(`- ${item.from} -> ${item.to} (${item.reason})`);
+  if (violations.length > 0) {
+    console.error("Boundary violations found:");
+    for (const item of violations) {
+      console.error(`- ${item.from} -> ${item.to} (${item.reason})`);
+    }
+    console.error(`Total violations: ${violations.length}`);
   }
-  console.error(`Total violations: ${violations.length}`);
   process.exit(1);
 }
 

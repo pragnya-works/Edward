@@ -12,7 +12,7 @@ function escapeRegexLiteral(value: string): string {
 
 function buildBrandingAssetPattern(relativePath: string): RegExp {
   return new RegExp(
-    `${escapeRegexLiteral(EDWARD_FAVICON_ASSET_BASE)}\\/${escapeRegexLiteral(relativePath)}`,
+    `${escapeRegexLiteral(EDWARD_FAVICON_ASSET_BASE)}\\/${escapeRegexLiteral(relativePath)}(?=$|[?#"'\\s])`,
   );
 }
 

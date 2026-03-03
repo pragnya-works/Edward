@@ -39,7 +39,7 @@ describe("github schema contract", () => {
     expect(result.success).toBe(false);
   });
 
-  it("validates branch and sync payloads", () => {
+  it("accepts valid branch creation payload", () => {
     const createBranchValid = CreateBranchRequestSchema.safeParse({
       body: {
         chatId: "chat-1",
@@ -47,7 +47,9 @@ describe("github schema contract", () => {
       },
     });
     expect(createBranchValid.success).toBe(true);
+  });
 
+  it("rejects invalid branch creation payload", () => {
     const createBranchInvalid = CreateBranchRequestSchema.safeParse({
       body: {
         chatId: "chat-1",
@@ -55,7 +57,9 @@ describe("github schema contract", () => {
       },
     });
     expect(createBranchInvalid.success).toBe(false);
+  });
 
+  it("accepts valid sync payload", () => {
     const syncValid = SyncRepoRequestSchema.safeParse({
       body: {
         chatId: "chat-1",
@@ -64,7 +68,9 @@ describe("github schema contract", () => {
       },
     });
     expect(syncValid.success).toBe(true);
+  });
 
+  it("rejects invalid sync payload", () => {
     const syncInvalid = SyncRepoRequestSchema.safeParse({
       body: {
         chatId: "chat-1",

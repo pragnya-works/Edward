@@ -26,7 +26,11 @@ export function truncateWithMarker(content: string, maxChars: number): string {
     return content;
   }
 
-  return `${content.slice(0, maxChars)}\n...[truncated]`;
+  const marker = "\n...[truncated]";
+  if (maxChars <= marker.length) {
+    return marker.slice(0, Math.max(0, maxChars));
+  }
+  return `${content.slice(0, maxChars - marker.length)}${marker}`;
 }
 
 function collapseRepeatedLines(input: string, maxConsecutive = 3): string {

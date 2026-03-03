@@ -8,7 +8,12 @@ function isTsSourceFile(fileName) {
 }
 
 export function isTestFile(relPath) {
-  return relPath.endsWith(".test.ts") || relPath.endsWith(".spec.ts");
+  return (
+    relPath.endsWith(".test.ts") ||
+    relPath.endsWith(".spec.ts") ||
+    relPath.endsWith(".test.tsx") ||
+    relPath.endsWith(".spec.tsx")
+  );
 }
 
 export function walkTsFiles(rootDir) {

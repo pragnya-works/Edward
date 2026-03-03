@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { Response } from "express";
+import type { AuthenticatedRequest } from "../../../middleware/auth.js";
 
 const getRunByIdMock = vi.fn();
 const getRunEventsAfterMock = vi.fn();
@@ -55,9 +57,10 @@ function createRedisSubMock(): RedisSubMock {
 }
 
 function createReqMock() {
+  const headers: Record<string, string> = {};
   return {
     query: {},
-    headers: {} as Record<string, string>,
+    headers,
     on: vi.fn(),
   };
 }
@@ -73,6 +76,24 @@ function createResMock(headersSent = false) {
       this.writableEnded = true;
     }),
   };
+}
+
+function asStreamRequest(req: ReturnType<typeof createReqMock>): AuthenticatedRequest {
+  return req as unknown as AuthenticatedRequest;
+}
+
+function asStreamResponse(res: ReturnType<typeof createResMock>): Response {
+  return res as unknown as Response;
+}
+
+function getMessageHandler(
+  redisSub: RedisSubMock,
+): (channel: string, payload: string) => void {
+  const messageHandlerCall = redisSub.on.mock.calls.find(
+    ([event]) => event === "message",
+  );
+  expect(messageHandlerCall?.[1]).toBeTypeOf("function");
+  return messageHandlerCall?.[1] as (channel: string, payload: string) => void;
 }
 
 describe("streamRunEventsFromPersistence", () => {
@@ -104,8 +125,8 @@ describe("streamRunEventsFromPersistence", () => {
     );
 
     await streamRunEventsFromPersistence({
-      req: req as never,
-      res: res as never,
+      req: asStreamRequest(req),
+      res: asStreamResponse(res),
       runId: "run-1",
     });
 
@@ -127,8 +148,8 @@ describe("streamRunEventsFromPersistence", () => {
     );
 
     await streamRunEventsFromPersistence({
-      req: req as never,
-      res: res as never,
+      req: asStreamRequest(req),
+      res: asStreamResponse(res),
       runId: "run-1",
     });
 
@@ -146,12 +167,12 @@ describe("streamRunEventsFromPersistence", () => {
     createRedisClientMock.mockReturnValue(redisSub);
 
     const replayBatchResolver: {
-      current: ((value: unknown[]) => void) | null;
+      current: ((value: Array<unknown>) => void) | null;
     } = { current: null };
     getRunEventsAfterMock.mockImplementation(
       () =>
-        new Promise((resolve) => {
-          replayBatchResolver.current = resolve as (value: unknown[]) => void;
+        new Promise<Array<unknown>>((resolve) => {
+          replayBatchResolver.current = resolve;
         }),
     );
     getRunByIdMock.mockResolvedValue({
@@ -168,25 +189,23 @@ describe("streamRunEventsFromPersistence", () => {
     );
 
     const streamPromise = streamRunEventsFromPersistence({
-      req: req as never,
-      res: res as never,
+      req: asStreamRequest(req),
+      res: asStreamResponse(res),
       runId: "run-1",
     });
 
     await vi.waitFor(() => {
       expect(redisSub.on).toHaveBeenCalledWith("message", expect.any(Function));
     });
+    await vi.waitFor(() => {
+      expect(redisSub.subscribe).toHaveBeenCalledWith("edward:run-events:run-1");
+    });
+    await Promise.resolve();
 
-    const messageHandlerCall = redisSub.on.mock.calls.find(
-      ([event]) => event === "message",
-    );
-    const messageHandler = messageHandlerCall?.[1] as
-      | ((channel: string, payload: string) => void)
-      | undefined;
-    expect(messageHandler).toBeTypeOf("function");
+    const messageHandler = getMessageHandler(redisSub);
 
     for (let seq = 1; seq <= 2001; seq += 1) {
-      messageHandler?.(
+      messageHandler(
         "edward:run-events:run-1",
         JSON.stringify({
           id: `event-${seq}`,
@@ -205,6 +224,9 @@ describe("streamRunEventsFromPersistence", () => {
 
     expect(sendSSEDoneMock).not.toHaveBeenCalled();
     expect(res.end).toHaveBeenCalledTimes(1);
+    await vi.waitFor(() => {
+      expect(redisSub.unsubscribe).toHaveBeenCalledWith("edward:run-events:run-1");
+    });
   });
 
   it("replays from explicit last-event-id and flushes buffered live events in sequence", async () => {
@@ -212,14 +234,14 @@ describe("streamRunEventsFromPersistence", () => {
     createRedisClientMock.mockReturnValue(redisSub);
 
     const replayBatchResolver: {
-      current: ((value: unknown[]) => void) | null;
+      current: ((value: Array<unknown>) => void) | null;
     } = { current: null };
     let firstBatch = true;
     getRunEventsAfterMock.mockImplementation(() => {
       if (firstBatch) {
         firstBatch = false;
-        return new Promise((resolve) => {
-          replayBatchResolver.current = resolve as (value: unknown[]) => void;
+        return new Promise<Array<unknown>>((resolve) => {
+          replayBatchResolver.current = resolve;
         });
       }
       return Promise.resolve([]);
@@ -233,8 +255,8 @@ describe("streamRunEventsFromPersistence", () => {
     );
 
     const streamPromise = streamRunEventsFromPersistence({
-      req: req as never,
-      res: res as never,
+      req: asStreamRequest(req),
+      res: asStreamResponse(res),
       runId: "run-1",
       explicitLastEventId: "run-1:5",
     });
@@ -244,9 +266,7 @@ describe("streamRunEventsFromPersistence", () => {
       expect(getRunEventsAfterMock).toHaveBeenCalledWith("run-1", 5, 500);
     });
 
-    const messageHandler = redisSub.on.mock.calls.find(
-      ([event]) => event === "message",
-    )?.[1] as ((channel: string, payload: string) => void);
+    const messageHandler = getMessageHandler(redisSub);
 
     messageHandler(
       "edward:run-events:run-1",
@@ -304,8 +324,8 @@ describe("streamRunEventsFromPersistence", () => {
     );
 
     await streamRunEventsFromPersistence({
-      req: req as never,
-      res: res as never,
+      req: asStreamRequest(req),
+      res: asStreamResponse(res),
       runId: "run-1",
     });
 

@@ -103,12 +103,15 @@ export function buildWorkerRunSessionInput(
           updatedAt: checkpoint.updatedAt,
         } satisfies RunResumeCheckpoint,
       };
-      onMetadataUpdated(mergedMetadata);
-      onTurnUpdated(checkpoint.turn);
+      const metadataPatch: Record<string, unknown> = JSON.parse(
+        JSON.stringify(mergedMetadata),
+      );
       await updateRun(runId, {
         currentTurn: checkpoint.turn,
-        metadata: mergedMetadata as unknown as Record<string, unknown>,
+        metadata: metadataPatch,
       });
+      onMetadataUpdated(mergedMetadata);
+      onTurnUpdated(checkpoint.turn);
     },
   };
 }

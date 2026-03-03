@@ -20,7 +20,6 @@ import {
 import { toChatRequestContext } from "../../../services/chat/query/requestContext.js";
 import { sendQueryErrorResponse } from "./queryErrorResponse.js";
 import { requireAuthorizedChatRequest } from "./chatRequestAccess.js";
-import { sendStreamError } from "../../../utils/streamError.js";
 import {
   configureSSEBackpressure,
   sendSSEComment,
@@ -36,7 +35,7 @@ export async function getBuildStatus(
     const request = await requireAuthorizedChatRequest({
       req,
       res,
-      sendError: sendStreamError,
+      sendError: sendStandardError,
     });
     if (!request) {
       return;

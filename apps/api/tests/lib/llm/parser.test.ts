@@ -268,9 +268,9 @@ describe('createStreamParser', () => {
     it('should handle FILE tags', () => {
       const parser = createStreamParser();
       parser.process('<edward_sandbox>');
-      const events = parser.process('<file path="/test/file.ts">content</file>');
+      const events = parser.process('<file path="test/file.ts">content</file>');
 
-      expect(events).toContainEqual({ type: ParserEventType.FILE_START, path: '/test/file.ts' });
+      expect(events).toContainEqual({ type: ParserEventType.FILE_START, path: 'test/file.ts' });
       expect(events).toContainEqual({ type: ParserEventType.FILE_CONTENT, content: 'content' });
       expect(events).toContainEqual({ type: ParserEventType.FILE_END });
     });
@@ -278,9 +278,9 @@ describe('createStreamParser', () => {
     it("should handle FILE tags with single-quoted path attribute", () => {
       const parser = createStreamParser();
       parser.process("<edward_sandbox>");
-      const events = parser.process("<file path='/test/file.ts'>content</file>");
+      const events = parser.process("<file path='test/file.ts'>content</file>");
 
-      expect(events).toContainEqual({ type: ParserEventType.FILE_START, path: "/test/file.ts" });
+      expect(events).toContainEqual({ type: ParserEventType.FILE_START, path: "test/file.ts" });
       expect(events).toContainEqual({ type: ParserEventType.FILE_CONTENT, content: "content" });
       expect(events).toContainEqual({ type: ParserEventType.FILE_END });
     });
@@ -288,13 +288,34 @@ describe('createStreamParser', () => {
     it('should normalize file paths', () => {
       const parser = createStreamParser();
       parser.process('<edward_sandbox>');
-      const events = parser.process('<file path="../test/../file.ts">content</file>');
+      const events = parser.process('<file path="./src/../file.ts">content</file>');
 
       const fileStartEvent = events.find((e) => e.type === ParserEventType.FILE_START);
       expect(fileStartEvent).toBeDefined();
       if (fileStartEvent && 'path' in fileStartEvent) {
-        expect(fileStartEvent.path).not.toContain('..');
+        expect(fileStartEvent.path).toBe("file.ts");
       }
+    });
+
+    it("rejects absolute and root-escaping file paths", () => {
+      const parser = createStreamParser();
+      parser.process("<edward_sandbox>");
+
+      const absolutePathEvents = parser.process('<file path="/etc/passwd">x</file>');
+      expect(absolutePathEvents).toContainEqual(
+        expect.objectContaining({
+          type: ParserEventType.ERROR,
+          code: "invalid_file_path",
+        }),
+      );
+
+      const escapingPathEvents = parser.process('<file path="../secrets.txt">x</file>');
+      expect(escapingPathEvents).toContainEqual(
+        expect.objectContaining({
+          type: ParserEventType.ERROR,
+          code: "invalid_file_path",
+        }),
+      );
     });
 
     it('should handle multiple chunks', () => {

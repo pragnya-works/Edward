@@ -147,6 +147,17 @@ function collectRouteSignatures(router: RouterLike): string[] {
     });
 }
 
+function assertRouterLike(router: unknown): asserts router is RouterLike {
+  if (
+    (typeof router !== "object" && typeof router !== "function") ||
+    router === null ||
+    !("stack" in router) ||
+    !Array.isArray((router as { stack?: unknown }).stack)
+  ) {
+    throw new Error("Expected an Express router-like object with a stack array");
+  }
+}
+
 describe("route registration", () => {
   beforeEach(() => {
     vi.resetModules();
@@ -155,14 +166,16 @@ describe("route registration", () => {
 
   it("registers API key routes", async () => {
     const { apiKeyRouter } = await import("../../routes/apiKey.routes.js");
-    const routes = collectRouteSignatures(apiKeyRouter as unknown as RouterLike);
+    assertRouterLike(apiKeyRouter);
+    const routes = collectRouteSignatures(apiKeyRouter);
 
     expect(routes).toEqual(["GET /", "POST /", "PUT /"]);
   });
 
   it("registers chat routes", async () => {
     const { chatRouter } = await import("../../routes/chat.routes.js");
-    const routes = collectRouteSignatures(chatRouter as unknown as RouterLike);
+    assertRouterLike(chatRouter);
+    const routes = collectRouteSignatures(chatRouter);
 
     expect(routes).toContain("POST /image-upload");
     expect(routes).toContain("POST /message");
@@ -183,7 +196,8 @@ describe("route registration", () => {
 
   it("registers github routes", async () => {
     const { githubRouter } = await import("../../routes/github.routes.js");
-    const routes = collectRouteSignatures(githubRouter as unknown as RouterLike);
+    assertRouterLike(githubRouter);
+    const routes = collectRouteSignatures(githubRouter);
 
     expect(routes).toEqual([
       "GET /status",

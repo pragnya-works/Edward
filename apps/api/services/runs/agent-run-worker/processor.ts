@@ -60,9 +60,10 @@ export async function processAgentRunJob(
 
   const terminalEvent = await getLatestSessionCompleteEvent(runId);
   if (terminalEvent) {
-    const terminationReason = readTerminationFromTerminalEvent(
-      terminalEvent.event as StreamEvent,
-    );
+    const event = asStreamEvent(terminalEvent.event);
+    const terminationReason = event
+      ? readTerminationFromTerminalEvent(event)
+      : null;
     const mapped = mapTerminationToStatus(terminationReason);
     await updateRunWithLog(runId, {
       status: mapped.status,
@@ -332,4 +333,16 @@ export async function processAgentRunJob(
       );
     });
   }
+}
+
+function asStreamEvent(value: unknown): StreamEvent | null {
+  if (
+    typeof value === "object" &&
+    value !== null &&
+    "type" in value &&
+    typeof (value as { type?: unknown }).type === "string"
+  ) {
+    return value as StreamEvent;
+  }
+  return null;
 }

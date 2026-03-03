@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
   ApiKeyDataSchema,
-  ApiKeySchema,
   CreateApiKeyRequestSchema,
   UpdateApiKeyRequestSchema,
 } from "../../schemas/apiKey.schema.js";
@@ -23,10 +22,21 @@ describe("api key schema contract", () => {
     const invalid = UpdateApiKeyRequestSchema.safeParse({ body: {} });
     expect(invalid.success).toBe(false);
 
-    const validWithModelOnly = ApiKeySchema.safeParse({
-      model: Model.GEMINI_2_5_FLASH,
+    const validWithModelOnly = UpdateApiKeyRequestSchema.safeParse({
+      body: {
+        model: Model.GEMINI_2_5_FLASH,
+      },
     });
     expect(validWithModelOnly.success).toBe(true);
+  });
+
+  it("rejects update payload with an invalid model value", () => {
+    const invalidModel = UpdateApiKeyRequestSchema.safeParse({
+      body: {
+        model: "invalid-model",
+      },
+    });
+    expect(invalidModel.success).toBe(false);
   });
 
   it("validates stored API key data shape", () => {

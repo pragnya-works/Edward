@@ -24,8 +24,18 @@ import { loadFilesForGithubSync } from "./sync.files.js";
 import { getGithubToken } from "./token.service.js";
 
 const MISSING_GITHUB_TOKEN_MESSAGE = "User has no GitHub account connected";
+type GithubClient = ReturnType<typeof createGithubClient>;
+type RepoSnapshot = NonNullable<Awaited<ReturnType<typeof getRepoSnapshot>>>;
 
-async function getGithubClientForUser(userId: string) {
+interface ConnectedRepoContext {
+  chatData: Awaited<ReturnType<typeof getChatRepoBinding>>;
+  octokit: GithubClient;
+  owner: string;
+  repo: string;
+  repoSnapshot: RepoSnapshot;
+}
+
+async function getGithubClientForUser(userId: string): Promise<GithubClient> {
   const token = await getGithubToken(userId);
   if (!token) {
     throw new Error(MISSING_GITHUB_TOKEN_MESSAGE);
@@ -38,7 +48,7 @@ async function getConnectedRepoContext(
   chatId: string,
   userId: string,
   permissionMessage: (repoFullName: string) => string,
-) {
+): Promise<ConnectedRepoContext> {
   const octokit = await getGithubClientForUser(userId);
   const chatData = await getChatRepoBinding(chatId, userId);
   if (!chatData.repoFullName) {
@@ -71,7 +81,11 @@ export async function syncChatToGithub(
   userId: string,
   branch: string,
   commitMessage: string,
-) {
+): Promise<{
+  sha: string;
+  fileCount: number;
+  noChanges: boolean;
+}> {
   const { chatData, octokit, owner, repo } = await getConnectedRepoContext(
     chatId,
     userId,
@@ -131,7 +145,12 @@ export async function createChatBranch(
   userId: string,
   branchName: string,
   baseBranch?: string,
-) {
+): Promise<{
+  success: true;
+  existed: boolean;
+  branchName: string;
+  baseBranch: string;
+}> {
   const { octokit, owner, repo, repoSnapshot } = await getConnectedRepoContext(
     chatId,
     userId,
@@ -178,7 +197,15 @@ export async function connectChatToRepo(
   userId: string,
   repoFullName?: string,
   repoName?: string,
-) {
+): Promise<{
+  success: true;
+  repoFullName: string;
+  created: boolean;
+  isPrivate: boolean;
+  defaultBranch: string;
+  privacyDefaultApplied: boolean;
+  privacyEnforced: boolean;
+}> {
   const chatData = await getChatRepoBinding(chatId, userId);
   const currentlyConnectedRepo = chatData.repoFullName;
 

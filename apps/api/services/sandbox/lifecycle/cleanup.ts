@@ -30,7 +30,7 @@ export async function cleanupSandbox(sandboxId: string): Promise<void> {
       return;
     }
 
-    void clearScheduledFlush(sandboxId);
+    await clearScheduledFlush(sandboxId);
 
     try {
       await flushSandbox(sandboxId);
@@ -52,7 +52,7 @@ export async function cleanupSandbox(sandboxId: string): Promise<void> {
     }
 
     await deleteSandboxState(sandboxId, sandbox.chatId);
-    clearBuffers(sandboxId);
+    await clearBuffers(sandboxId);
     await transitionSandboxLifecycleState({
       sandboxId,
       nextState: SandboxLifecycleState.TERMINATED,

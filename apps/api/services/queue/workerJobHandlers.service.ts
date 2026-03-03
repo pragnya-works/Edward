@@ -1,4 +1,5 @@
 import {
+  and,
   build,
   createBuild,
   db,
@@ -36,6 +37,11 @@ interface BuildRecordSnapshot {
   previewUrl: string | null;
   errorReport: unknown;
 }
+
+type BuildClaimResult =
+  | { type: "claimed" }
+  | { type: "terminal"; snapshot: BuildRecordSnapshot }
+  | { type: "already_claimed"; status: BuildRecordStatus };
 
 export async function processBuildJob(params: {
   payload: BuildJobPayload;
@@ -75,9 +81,34 @@ export async function processBuildJob(params: {
     return;
   }
 
-  await updateBuild(buildRecord.id, {
-    status: BuildRecordStatus.BUILDING,
-  });
+  const claimResult = await claimBuildForExecution(buildRecord.id);
+  if (claimResult.type === "terminal") {
+    await publishBuildStatusWithRetry({
+      publishClient,
+      logger,
+      chatId,
+      payload: {
+        buildId: claimResult.snapshot.id,
+        runId: correlationRunId,
+        status: claimResult.snapshot.status,
+        previewUrl: claimResult.snapshot.previewUrl,
+        errorReport: claimResult.snapshot.errorReport,
+      },
+    });
+    return;
+  }
+  if (claimResult.type === "already_claimed") {
+    logger.info(
+      {
+        sandboxId,
+        chatId,
+        buildId: buildRecord.id,
+        status: claimResult.status,
+      },
+      "[Worker] Build already claimed by another worker, skipping duplicate execution",
+    );
+    return;
+  }
 
   await publishBuildStatusWithRetry({
     publishClient,
@@ -235,6 +266,8 @@ async function resolveBuildRecord(
         status: build.status,
         previewUrl: build.previewUrl,
         errorReport: build.errorReport,
+        chatId: build.chatId,
+        messageId: build.messageId,
       })
       .from(build)
       .where(eq(build.id, payload.buildId))
@@ -243,7 +276,14 @@ async function resolveBuildRecord(
     if (!existing) {
       throw new Error(`Build record ${payload.buildId} not found`);
     }
-
+    if (
+      existing.chatId !== payload.chatId ||
+      existing.messageId !== payload.messageId
+    ) {
+      throw new Error(
+        `Build record ${payload.buildId} does not match payload context`,
+      );
+    }
     return {
       id: existing.id,
       status: toBuildStatus(existing.status),
@@ -269,6 +309,57 @@ async function resolveBuildRecord(
   };
 }
 
+async function claimBuildForExecution(buildId: string): Promise<BuildClaimResult> {
+  const claimed = await db
+    .update(build)
+    .set({
+      status: BuildRecordStatus.BUILDING,
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(build.id, buildId),
+        eq(build.status, BuildRecordStatus.QUEUED),
+      ),
+    )
+    .returning({ id: build.id });
+  if (claimed.length > 0) {
+    return { type: "claimed" };
+  }
+
+  const latest = await findBuildRecordById(buildId);
+  if (!latest) {
+    throw new Error(`Build record ${buildId} not found`);
+  }
+  if (isTerminalBuildStatus(latest.status)) {
+    return { type: "terminal", snapshot: latest };
+  }
+  return { type: "already_claimed", status: latest.status };
+}
+
+async function findBuildRecordById(buildId: string): Promise<BuildRecordSnapshot | null> {
+  const [existing] = await db
+    .select({
+      id: build.id,
+      status: build.status,
+      previewUrl: build.previewUrl,
+      errorReport: build.errorReport,
+    })
+    .from(build)
+    .where(eq(build.id, buildId))
+    .limit(1);
+
+  if (!existing) {
+    return null;
+  }
+  return {
+    id: existing.id,
+    status: toBuildStatus(existing.status),
+    previewUrl: existing.previewUrl,
+    errorReport: existing.errorReport,
+  };
+}
+
 async function finalizeBuildFailure(params: {
   buildId: string;
   sandboxId: string;
@@ -285,11 +376,25 @@ async function finalizeBuildFailure(params: {
     params.logger,
   );
 
-  await updateBuild(params.buildId, {
+  const updatePatch: Parameters<typeof updateBuild>[1] = {
     status: BuildRecordStatus.FAILED,
-    errorReport: errorReport as Record<string, unknown> | null,
+    errorReport:
+      errorReport && typeof errorReport === "object"
+        ? (errorReport as Record<string, unknown>)
+        : null,
     buildDuration: params.duration ?? null,
-  } as Parameters<typeof updateBuild>[1]).catch(() => {});
+  };
+  await updateBuild(params.buildId, updatePatch).catch((error: unknown) => {
+    params.logger.warn(
+      {
+        buildId: params.buildId,
+        chatId: params.chatId,
+        runId: params.runId,
+        error: ensureError(error),
+      },
+      "[Worker] Failed to persist FAILED build status",
+    );
+  });
 
   await publishBuildStatusWithRetry({
     publishClient: params.publishClient,

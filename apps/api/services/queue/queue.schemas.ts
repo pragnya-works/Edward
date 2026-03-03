@@ -24,6 +24,12 @@ export const BackupJobPayloadSchema = z.object({
 });
 export type BackupJobPayload = z.infer<typeof BackupJobPayloadSchema>;
 
+export const BuildQueueJobPayloadSchema = z.discriminatedUnion("type", [
+  BuildJobPayloadSchema,
+  BackupJobPayloadSchema,
+]);
+export type BuildQueueJobPayload = z.infer<typeof BuildQueueJobPayloadSchema>;
+
 export const AgentRunJobPayloadSchema = z.object({
   type: z.literal(JobType.AGENT_RUN),
   runId: z.string(),

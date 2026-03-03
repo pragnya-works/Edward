@@ -3,6 +3,7 @@ import type { SandboxInstance } from "../../../services/sandbox/types.service.js
 
 const mocks = vi.hoisted(() => {
   const pipeline = {
+    set: vi.fn().mockReturnThis(),
     pexpire: vi.fn().mockReturnThis(),
     exec: vi.fn().mockResolvedValue([]),
   };
@@ -39,6 +40,7 @@ describe("sandbox state service", () => {
     mocks.get.mockReset();
     mocks.set.mockResolvedValue("OK");
     mocks.del.mockResolvedValue(1);
+    mocks.pipelineRef.set.mockReturnThis();
     mocks.pipelineRef.pexpire.mockReturnThis();
     mocks.pipelineRef.exec.mockResolvedValue([]);
   });
@@ -58,8 +60,9 @@ describe("sandbox state service", () => {
 
     await saveSandboxState(sandbox);
 
-    expect(mocks.set).toHaveBeenCalledTimes(3);
-    const statePayload = JSON.parse(mocks.set.mock.calls[0]?.[1] as string);
+    expect(mocks.pipeline).toHaveBeenCalledTimes(1);
+    expect(mocks.pipelineRef.set).toHaveBeenCalledTimes(3);
+    const statePayload = JSON.parse(mocks.pipelineRef.set.mock.calls[0]?.[1] as string);
     expect(statePayload).toMatchObject({
       id: "sb-1",
       chatId: "chat-1",
@@ -79,13 +82,15 @@ describe("sandbox state service", () => {
       chatId: "chat-plain",
     });
 
-    expect(mocks.set).toHaveBeenCalledTimes(2);
+    expect(mocks.pipelineRef.set).toHaveBeenCalledTimes(2);
   });
 
   it("throws a stable persistence error when redis write fails", async () => {
     const { saveSandboxState } = await import("../../../services/sandbox/state.service.js");
 
-    mocks.set.mockRejectedValueOnce(new Error("redis write failed"));
+    mocks.pipelineRef.exec.mockResolvedValueOnce([
+      [new Error("redis write failed"), null],
+    ]);
 
     await expect(
       saveSandboxState({

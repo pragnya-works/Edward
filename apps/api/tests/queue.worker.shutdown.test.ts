@@ -11,6 +11,18 @@ function createDeferred<T = void>() {
   return { promise, resolve, reject };
 }
 
+function createIntervalHandle(): ReturnType<typeof setInterval> {
+  return setInterval(() => undefined, 60_000);
+}
+
+function mockProcessExit() {
+  // `process.exit` is typed as returning `never`; test spies need an explicit adapter.
+  return vi.spyOn(process, "exit").mockImplementation(
+    ((_: number | string | null | undefined) =>
+      undefined as never) as typeof process.exit,
+  );
+}
+
 describe("queue.worker graceful shutdown", () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -26,17 +38,17 @@ describe("queue.worker graceful shutdown", () => {
     const agentRunWorker = { close: vi.fn(async () => undefined) };
     const pubClient = { quit: vi.fn(async () => undefined) };
     const logger = { error: vi.fn() };
-    const processExitSpy = vi
-      .spyOn(process, "exit")
-      .mockImplementation((() => undefined) as never);
+    const processExitSpy = mockProcessExit();
     const clearIntervalSpy = vi.spyOn(globalThis, "clearInterval");
+    const scheduledFlushInterval = createIntervalHandle();
+    const staleRunReaperInterval = createIntervalHandle();
 
     const gracefulShutdown = createGracefulShutdown({
       buildWorker,
       agentRunWorker,
       pubClient,
-      scheduledFlushInterval: 1 as unknown as ReturnType<typeof setInterval>,
-      staleRunReaperInterval: 2 as unknown as ReturnType<typeof setInterval>,
+      scheduledFlushInterval,
+      staleRunReaperInterval,
       logger,
       shutdownTimeoutMs: 5_000,
     });
@@ -57,16 +69,16 @@ describe("queue.worker graceful shutdown", () => {
     const agentRunWorker = { close: vi.fn(async () => undefined) };
     const pubClient = { quit: vi.fn(async () => undefined) };
     const logger = { error: vi.fn() };
-    const processExitSpy = vi
-      .spyOn(process, "exit")
-      .mockImplementation((() => undefined) as never);
+    const processExitSpy = mockProcessExit();
+    const scheduledFlushInterval = createIntervalHandle();
+    const staleRunReaperInterval = createIntervalHandle();
 
     const gracefulShutdown = createGracefulShutdown({
       buildWorker,
       agentRunWorker,
       pubClient,
-      scheduledFlushInterval: 1 as unknown as ReturnType<typeof setInterval>,
-      staleRunReaperInterval: 2 as unknown as ReturnType<typeof setInterval>,
+      scheduledFlushInterval,
+      staleRunReaperInterval,
       logger,
       shutdownTimeoutMs: 5_000,
     });
@@ -89,16 +101,16 @@ describe("queue.worker graceful shutdown", () => {
       throw new Error("quit failed");
     }) };
     const logger = { error: vi.fn() };
-    const processExitSpy = vi
-      .spyOn(process, "exit")
-      .mockImplementation((() => undefined) as never);
+    const processExitSpy = mockProcessExit();
+    const scheduledFlushInterval = createIntervalHandle();
+    const staleRunReaperInterval = createIntervalHandle();
 
     const gracefulShutdown = createGracefulShutdown({
       buildWorker,
       agentRunWorker,
       pubClient,
-      scheduledFlushInterval: 1 as unknown as ReturnType<typeof setInterval>,
-      staleRunReaperInterval: 2 as unknown as ReturnType<typeof setInterval>,
+      scheduledFlushInterval,
+      staleRunReaperInterval,
       logger,
       shutdownTimeoutMs: 5_000,
     });
@@ -121,16 +133,16 @@ describe("queue.worker graceful shutdown", () => {
     const agentRunWorker = { close: vi.fn(async () => undefined) };
     const pubClient = { quit: vi.fn(async () => undefined) };
     const logger = { error: vi.fn() };
-    const processExitSpy = vi
-      .spyOn(process, "exit")
-      .mockImplementation((() => undefined) as never);
+    const processExitSpy = mockProcessExit();
+    const scheduledFlushInterval = createIntervalHandle();
+    const staleRunReaperInterval = createIntervalHandle();
 
     const gracefulShutdown = createGracefulShutdown({
       buildWorker,
       agentRunWorker,
       pubClient,
-      scheduledFlushInterval: 1 as unknown as ReturnType<typeof setInterval>,
-      staleRunReaperInterval: 2 as unknown as ReturnType<typeof setInterval>,
+      scheduledFlushInterval,
+      staleRunReaperInterval,
       logger,
       shutdownTimeoutMs: 25,
     });

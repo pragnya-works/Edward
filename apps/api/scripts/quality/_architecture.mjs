@@ -48,10 +48,7 @@ export function inferLayerTag(relPath) {
     return "shared";
   }
 
-  if (
-    relPath.startsWith("services/") &&
-    INFRA_SERVICE_PREFIXES.some((prefix) => relPath.startsWith(prefix))
-  ) {
+  if (INFRA_SERVICE_PREFIXES.some((prefix) => relPath.startsWith(prefix))) {
     return "infra";
   }
 

@@ -1,6 +1,7 @@
 import "dotenv/config";
 import { Worker } from "bullmq";
 import {
+  BuildQueueJobPayloadSchema,
   JobPayload,
   JobPayloadSchema,
   JobType,
@@ -37,15 +38,18 @@ const pubClient = createRedisClient();
 const buildWorker = new Worker<JobPayload>(
   BUILD_QUEUE_NAME,
   async (job) => {
-    const payload = JobPayloadSchema.parse(job.data);
+    const parsedPayload = BuildQueueJobPayloadSchema.safeParse(job.data);
+    if (!parsedPayload.success) {
+      return throwUnsupportedBuildQueuePayload(getPayloadType(job.data));
+    }
+
+    const payload = parsedPayload.data;
 
     switch (payload.type) {
       case JobType.BUILD:
         return processBuildJob({ payload, publishClient: pubClient, logger });
       case JobType.BACKUP:
         return processBackupJob({ payload, logger });
-      default:
-        return throwUnsupportedBuildQueuePayload(payload.type);
     }
   },
   {
@@ -149,4 +153,12 @@ function throwUnsupportedBuildQueuePayload(type: string): never {
     "[Worker] Unsupported payload type on build queue",
   );
   throw new Error(`Unsupported build queue job type: ${type}`);
+}
+
+function getPayloadType(payload: unknown): string {
+  if (typeof payload !== "object" || payload === null) {
+    return "unknown";
+  }
+  const maybeType = (payload as { type?: unknown }).type;
+  return typeof maybeType === "string" ? maybeType : "unknown";
 }

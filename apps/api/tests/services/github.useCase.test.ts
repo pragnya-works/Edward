@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { Response, NextFunction } from "express";
+import type { AuthenticatedRequest } from "../../middleware/auth.js";
 import { HttpStatus } from "../../utils/constants.js";
 
 const mocks = vi.hoisted(() => ({
@@ -30,6 +32,24 @@ vi.mock("../../utils/response.js", () => ({
   sendError: mocks.sendError,
 }));
 
+function createRequest(input: {
+  body?: Record<string, unknown>;
+  query?: Record<string, unknown>;
+}): AuthenticatedRequest {
+  return {
+    body: input.body ?? {},
+    query: input.query ?? {},
+  } as unknown as AuthenticatedRequest;
+}
+
+function createResponseStub(): Response {
+  return {} as Response;
+}
+
+function createNextStub(): NextFunction {
+  return vi.fn();
+}
+
 describe("github use case", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -43,11 +63,11 @@ describe("github use case", () => {
     const { connectRepo } = await import("../../services/github/github.useCase.js");
 
     await connectRepo(
-      {
+      createRequest({
         body: { chatId: "chat-1", repoFullName: "org/repo", repoName: "repo" },
-      } as never,
-      {} as never,
-      vi.fn(),
+      }),
+      createResponseStub(),
+      createNextStub(),
     );
 
     expect(mocks.connectChatToRepo).toHaveBeenCalledWith(
@@ -70,11 +90,11 @@ describe("github use case", () => {
     mocks.createChatBranch.mockRejectedValueOnce(new Error("already connected"));
 
     await createBranch(
-      {
+      createRequest({
         body: { chatId: "chat-1", branchName: "feat", baseBranch: "main" },
-      } as never,
-      {} as never,
-      vi.fn(),
+      }),
+      createResponseStub(),
+      createNextStub(),
     );
 
     expect(mocks.sendError).toHaveBeenCalledWith(
@@ -90,11 +110,11 @@ describe("github use case", () => {
     mocks.syncChatToGithub.mockRejectedValueOnce(new Error("bad credentials"));
 
     await syncRepo(
-      {
+      createRequest({
         body: { chatId: "chat-1", branch: "main", commitMessage: "msg" },
-      } as never,
-      {} as never,
-      vi.fn(),
+      }),
+      createResponseStub(),
+      createNextStub(),
     );
 
     expect(mocks.sendError).toHaveBeenCalledWith(
@@ -110,11 +130,11 @@ describe("github use case", () => {
     mocks.getChatGithubStatus.mockRejectedValueOnce(new Error("unexpected failure"));
 
     await githubStatus(
-      {
+      createRequest({
         query: { chatId: "chat-1" },
-      } as never,
-      {} as never,
-      vi.fn(),
+      }),
+      createResponseStub(),
+      createNextStub(),
     );
 
     expect(mocks.sendError).toHaveBeenCalledWith(

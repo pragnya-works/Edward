@@ -52,12 +52,6 @@ export async function getActiveRunRecord(params: {
   return activeRun ?? null;
 }
 
-export async function getRunRecordById(
-  runId: string,
-): Promise<RunRecord | null> {
-  return (await getRunById(runId)) ?? null;
-}
-
 export async function cancelActiveRun(params: {
   runId: string;
   cancellationRequestedAt: Date;

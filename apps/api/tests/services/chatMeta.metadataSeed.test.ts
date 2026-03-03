@@ -42,16 +42,23 @@ describe("chat metadata seed derivation", () => {
   });
 
   it("truncates title and description on word boundaries", () => {
-    const longPrompt =
-      "Create an enterprise dashboard with audit logging tenant-aware authorization granular reporting export controls and operational analytics for multiple stakeholder groups";
+    const veryLongWords = Array.from(
+      { length: 15 },
+      (_, index) => `supercalifragilisticexpialidociousword${index}`,
+    );
+    const longPrompt = veryLongWords.join(" ");
 
     const result = deriveInitialChatMetadata({
       userTextContent: longPrompt,
       hasImages: false,
     });
+    const normalizedDescriptionSource = veryLongWords
+      .slice(0, 15)
+      .join(" ");
 
     expect(result.title.length).toBeLessThanOrEqual(100);
     expect(result.description.length).toBeLessThanOrEqual(200);
+    expect(result.description.length).toBeLessThan(normalizedDescriptionSource.length);
     expect(result.title.endsWith(" ")).toBe(false);
     expect(result.description.endsWith(" ")).toBe(false);
   });

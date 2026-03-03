@@ -20,6 +20,9 @@ vi.mock("../../../services/sandbox/read/s3.readers.js", () => ({
 vi.mock("../../../utils/logger.js", () => ({
   logger: {
     info: loggerInfoMock,
+    warn: vi.fn(),
+    error: vi.fn(),
+    debug: vi.fn(),
   },
 }));
 
@@ -85,5 +88,38 @@ describe("sandbox query use-case", () => {
       { chatId: "chat-2", userId: "user-2" },
       "No active sandbox, falling back to S3 for files",
     );
+  });
+
+  it("propagates sandbox read errors when an active sandbox exists", async () => {
+    getActiveSandboxMock.mockResolvedValue("sandbox-err");
+    readAllProjectFilesMock.mockRejectedValueOnce(new Error("sandbox read failed"));
+
+    const { getSandboxFilesUseCase } = await import(
+      "../../../services/chat/query/sandbox.useCase.js"
+    );
+
+    await expect(
+      getSandboxFilesUseCase({
+        userId: "user-3",
+        chatId: "chat-3",
+      }),
+    ).rejects.toThrow("sandbox read failed");
+    expect(readProjectFilesFromS3Mock).not.toHaveBeenCalled();
+  });
+
+  it("propagates storage read errors when no active sandbox exists", async () => {
+    getActiveSandboxMock.mockResolvedValue(null);
+    readProjectFilesFromS3Mock.mockRejectedValueOnce(new Error("s3 read failed"));
+
+    const { getSandboxFilesUseCase } = await import(
+      "../../../services/chat/query/sandbox.useCase.js"
+    );
+
+    await expect(
+      getSandboxFilesUseCase({
+        userId: "user-4",
+        chatId: "chat-4",
+      }),
+    ).rejects.toThrow("s3 read failed");
   });
 });

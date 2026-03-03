@@ -109,7 +109,11 @@ describe("server.http bootstrap", () => {
       environment: "test",
       trustProxy: false,
     });
+    expect(refs.listenMock).toHaveBeenCalledTimes(1);
     expect(refs.initSandboxService).toHaveBeenCalledTimes(1);
+    expect(refs.initSandboxService.mock.invocationCallOrder[0]).toBeLessThan(
+      refs.listenMock.mock.invocationCallOrder[0]!,
+    );
     expect(refs.registerProcessHandlerOnce).toHaveBeenCalledTimes(4);
     expect(refs.logger.info).toHaveBeenCalledWith(
       expect.stringContaining("Edward API v"),
@@ -180,7 +184,7 @@ describe("server.http bootstrap", () => {
       );
       expect(refs.sentry.captureException).toHaveBeenCalledWith("boom");
       expect(refs.closeMock).toHaveBeenCalledTimes(1);
-      expect(processExitSpy).toHaveBeenCalledWith(0);
+      expect(processExitSpy).toHaveBeenCalledWith(1);
     });
   });
 
@@ -194,6 +198,7 @@ describe("server.http bootstrap", () => {
 
     await vi.waitFor(() => {
       expect(refs.logger.error).toHaveBeenCalled();
+      expect(refs.listenMock).not.toHaveBeenCalled();
       expect(processExitSpy).toHaveBeenCalledWith(1);
     });
   });

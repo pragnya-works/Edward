@@ -165,7 +165,12 @@ export function handleTextState(
       const argsRaw = extractTagAttribute(tagContent, "args");
       if (argsRaw) {
         try {
-          args = JSON.parse(argsRaw);
+          const parsedArgs = JSON.parse(argsRaw) as unknown;
+          if (Array.isArray(parsedArgs)) {
+            args = parsedArgs.filter(
+              (value): value is string => typeof value === "string",
+            );
+          }
         } catch {
           /* malformed JSON — keep empty args */
         }
@@ -192,7 +197,11 @@ export function handleTextState(
       const maxRaw =
         extractTagAttribute(tagContent, "max_results") ??
         extractTagAttribute(tagContent, "maxResults");
-      const maxResults = maxRaw ? Number.parseInt(maxRaw, 10) : undefined;
+      const parsedMaxResults = maxRaw ? Number.parseInt(maxRaw, 10) : NaN;
+      const maxResults =
+        Number.isFinite(parsedMaxResults) && parsedMaxResults > 0
+          ? parsedMaxResults
+          : undefined;
       events.push({
         type: ParserEventType.WEB_SEARCH,
         query,

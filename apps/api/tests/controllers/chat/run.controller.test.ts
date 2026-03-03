@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { Response } from "express";
+import type { AuthenticatedRequest } from "../../../middleware/auth.js";
 import { HttpStatus } from "../../../utils/constants.js";
 
 const mocks = vi.hoisted(() => ({
@@ -100,6 +102,21 @@ vi.mock("../../../utils/error.js", () => ({
   ensureError: mocks.ensureError,
 }));
 
+function createRunRequest(
+  params: { chatId: string; runId: string },
+): AuthenticatedRequest {
+  return {
+    params,
+  } as unknown as AuthenticatedRequest;
+}
+
+function createResponseStub(): Response {
+  return {
+    headersSent: false,
+    writableEnded: false,
+  } as unknown as Response;
+}
+
 describe("cancelRunHandler", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -137,10 +154,8 @@ describe("cancelRunHandler", () => {
     );
 
     await cancelRunHandler(
-      {
-        params: { chatId: "chat-1", runId: "run-1" },
-      } as never,
-      {} as never,
+      createRunRequest({ chatId: "chat-1", runId: "run-1" }),
+      createResponseStub(),
     );
 
     expect(mocks.dbUpdateReturning).toHaveBeenCalledTimes(1);
@@ -176,10 +191,8 @@ describe("cancelRunHandler", () => {
     );
 
     await cancelRunHandler(
-      {
-        params: { chatId: "chat-1", runId: "run-1" },
-      } as never,
-      {} as never,
+      createRunRequest({ chatId: "chat-1", runId: "run-1" }),
+      createResponseStub(),
     );
 
     expect(mocks.redisPublish).toHaveBeenCalledTimes(1);
@@ -210,10 +223,8 @@ describe("cancelRunHandler", () => {
     );
 
     await cancelRunHandler(
-      {
-        params: { chatId: "chat-1", runId: "run-1" },
-      } as never,
-      {} as never,
+      createRunRequest({ chatId: "chat-1", runId: "run-1" }),
+      createResponseStub(),
     );
 
     expect(mocks.redisPublish).not.toHaveBeenCalled();
@@ -254,10 +265,8 @@ describe("cancelRunHandler", () => {
     );
 
     await cancelRunHandler(
-      {
-        params: { chatId: "chat-1", runId: "run-1" },
-      } as never,
-      {} as never,
+      createRunRequest({ chatId: "chat-1", runId: "run-1" }),
+      createResponseStub(),
     );
 
     expect(mocks.sendSuccess).toHaveBeenCalledWith(
@@ -302,10 +311,8 @@ describe("cancelRunHandler", () => {
     );
 
     await cancelRunHandler(
-      {
-        params: { chatId: "chat-1", runId: "run-1" },
-      } as never,
-      {} as never,
+      createRunRequest({ chatId: "chat-1", runId: "run-1" }),
+      createResponseStub(),
     );
 
     expect(mocks.sendSuccess).toHaveBeenCalledWith(
@@ -319,5 +326,23 @@ describe("cancelRunHandler", () => {
       },
     );
     expect(mocks.updateRun).not.toHaveBeenCalled();
+  });
+
+  it("returns early when chat authorization fails", async () => {
+    mocks.assertChatAccessOrRespond.mockResolvedValueOnce(false);
+
+    const { cancelRunHandler } = await import(
+      "../../../controllers/chat/query/run.controller.js"
+    );
+
+    await cancelRunHandler(
+      createRunRequest({ chatId: "chat-1", runId: "run-1" }),
+      createResponseStub(),
+    );
+
+    expect(mocks.getRunById).not.toHaveBeenCalled();
+    expect(mocks.redisPublish).not.toHaveBeenCalled();
+    expect(mocks.dbUpdateReturning).not.toHaveBeenCalled();
+    expect(mocks.sendSuccess).not.toHaveBeenCalled();
   });
 });

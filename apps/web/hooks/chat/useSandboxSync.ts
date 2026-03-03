@@ -5,7 +5,7 @@ import {
   type StreamState,
 } from "@edward/shared/chat/types";
 import type { CommandEvent } from "@edward/shared/streamEvents";
-import { useChatStream } from "@/contexts/chatStreamContext";
+import { useChatStreamState } from "@/stores/chatStream/hooks";
 import {
   useSandbox,
 } from "@/contexts/sandboxContext";
@@ -52,7 +52,7 @@ function buildErrorSignature(error: StreamErrorState): string {
 }
 
 export function useSandboxSync(chatIdFromUrl: string | undefined) {
-  const { streams } = useChatStream();
+  const { streams } = useChatStreamState();
   const stream = useMemo(
     () => resolveStreamForChat(streams, chatIdFromUrl),
     [chatIdFromUrl, streams],

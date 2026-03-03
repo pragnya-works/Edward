@@ -41,7 +41,10 @@ export async function createWorkflow(
     sandboxId,
     status: WorkflowStatus.PENDING,
     currentStep: WorkflowStep.ANALYZE,
-    context: { errors: [], ...initialContext },
+    context: {
+      ...initialContext,
+      errors: initialContext.errors ?? [],
+    },
     history: [],
     createdAt: Date.now(),
     updatedAt: Date.now(),

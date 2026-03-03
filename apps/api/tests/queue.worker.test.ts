@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { JobType } from "../services/queue/queue.schemas.js";
 
 const refs = vi.hoisted(() => {
@@ -28,12 +28,6 @@ const refs = vi.hoisted(() => {
     },
     ensureError: vi.fn((error: unknown) =>
       error instanceof Error ? error : new Error(String(error)),
-    ),
-    setInterval: vi.fn(
-      () =>
-        ({
-          unref: vi.fn(),
-        }) as unknown as ReturnType<typeof setInterval>,
     ),
   };
 });
@@ -104,12 +98,16 @@ describe("queue.worker bootstrap", () => {
     vi.resetModules();
     vi.clearAllMocks();
     refs.workerInstances.length = 0;
-    vi.stubGlobal("setInterval", refs.setInterval);
   });
 
-  afterEach(() => {
-    vi.unstubAllGlobals();
-  });
+  function requireWorker(queueName: string) {
+    const worker = refs.workerInstances.find((entry) => entry.queueName === queueName);
+    expect(worker).toBeDefined();
+    if (!worker) {
+      throw new Error(`Missing worker for queue: ${queueName}`);
+    }
+    return worker;
+  }
 
   it("registers workers, events, and process handlers on bootstrap", async () => {
     await import("../queue.worker.js");
@@ -132,17 +130,10 @@ describe("queue.worker bootstrap", () => {
   it("routes jobs to the correct handler and rejects mismatched queue payloads", async () => {
     await import("../queue.worker.js");
 
-    const buildQueueWorker = refs.workerInstances.find(
-      (entry) => entry.queueName === "build-queue",
-    );
-    const agentQueueWorker = refs.workerInstances.find(
-      (entry) => entry.queueName === "agent-run-queue",
-    );
+    const buildQueueWorker = requireWorker("build-queue");
+    const agentQueueWorker = requireWorker("agent-run-queue");
 
-    expect(buildQueueWorker).toBeDefined();
-    expect(agentQueueWorker).toBeDefined();
-
-    await buildQueueWorker?.processor({
+    await buildQueueWorker.processor({
       data: {
         type: JobType.BUILD,
         sandboxId: "sandbox-1",
@@ -153,7 +144,7 @@ describe("queue.worker bootstrap", () => {
     });
     expect(refs.processBuildJob).toHaveBeenCalledTimes(1);
 
-    await buildQueueWorker?.processor({
+    await buildQueueWorker.processor({
       data: {
         type: JobType.BACKUP,
         sandboxId: "sandbox-1",
@@ -163,15 +154,15 @@ describe("queue.worker bootstrap", () => {
     expect(refs.processBackupJob).toHaveBeenCalledTimes(1);
 
     await expect(
-      buildQueueWorker?.processor({
+      buildQueueWorker.processor({
         data: {
           type: JobType.AGENT_RUN,
           runId: "run-1",
         },
-      }) as Promise<unknown>,
+      }),
     ).rejects.toThrow("Unsupported build queue job type: agent_run");
 
-    await agentQueueWorker?.processor({
+    await agentQueueWorker.processor({
       data: {
         type: JobType.AGENT_RUN,
         runId: "run-2",
@@ -183,7 +174,7 @@ describe("queue.worker bootstrap", () => {
     });
 
     await expect(
-      agentQueueWorker?.processor({
+      agentQueueWorker.processor({
         data: {
           type: JobType.BUILD,
           sandboxId: "sandbox-2",
@@ -191,7 +182,7 @@ describe("queue.worker bootstrap", () => {
           chatId: "chat-2",
           messageId: "message-2",
         },
-      }) as Promise<unknown>,
+      }),
     ).rejects.toThrow("Unsupported agent-run queue job type: build");
   });
 });

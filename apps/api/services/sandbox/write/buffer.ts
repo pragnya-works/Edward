@@ -17,8 +17,15 @@ import {
 import { SANDBOX_TTL } from "../lifecycle/state.js";
 
 function normalizeSandboxPath(filePath: string): string {
-  const normalizedPath = path.posix.normalize(filePath);
-  if (normalizedPath.startsWith("..") || path.posix.isAbsolute(normalizedPath)) {
+  const normalizedPath = path.posix
+    .normalize(filePath)
+    .replace(/^\.\/+/, "");
+  if (
+    normalizedPath.length === 0 ||
+    normalizedPath === "." ||
+    normalizedPath.startsWith("..") ||
+    path.posix.isAbsolute(normalizedPath)
+  ) {
     throw new Error(`Invalid path: ${filePath}`);
   }
   return normalizedPath;

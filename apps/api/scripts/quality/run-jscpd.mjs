@@ -30,11 +30,13 @@ function findCachedJscpdBinary() {
       ".bin",
       "jscpd",
     );
-    if (!isExecutable(binPath)) {
+    try {
+      fs.accessSync(binPath, fs.constants.X_OK);
+      const stats = fs.statSync(binPath);
+      candidates.push({ binPath, mtimeMs: stats.mtimeMs });
+    } catch {
       continue;
     }
-    const stats = fs.statSync(binPath);
-    candidates.push({ binPath, mtimeMs: stats.mtimeMs });
   }
 
   if (candidates.length === 0) {

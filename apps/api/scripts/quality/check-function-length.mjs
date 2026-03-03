@@ -1,9 +1,11 @@
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import ts from "typescript";
 import { isTestFile, walkTsFiles } from "./_imports.mjs";
 
-const API_ROOT = process.cwd();
+const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
+const API_ROOT = path.resolve(SCRIPT_DIR, "..", "..");
 const MAX_FUNCTION_LINES = 80;
 const EXCEPTIONS_PATH = path.resolve(
   API_ROOT,
@@ -21,6 +23,7 @@ function loadExceptions() {
   const entries = Array.isArray(parsed.exceptions) ? parsed.exceptions : [];
   const map = new Map();
   const invalid = [];
+  const duplicateKeys = [];
 
   for (const item of entries) {
     const key = typeof item?.key === "string" ? item.key.trim() : "";
@@ -30,12 +33,21 @@ function loadExceptions() {
       invalid.push(item);
       continue;
     }
+    if (map.has(key)) {
+      duplicateKeys.push(key);
+      continue;
+    }
     map.set(key, item);
   }
 
   if (invalid.length > 0) {
     throw new Error(
       `Invalid ADR exception entries: ${invalid.length}. Each entry requires a non-empty key and rationale (>=20 chars).`,
+    );
+  }
+  if (duplicateKeys.length > 0) {
+    throw new Error(
+      `Duplicate ADR exception keys found: ${[...new Set(duplicateKeys)].join(", ")}`,
     );
   }
 

@@ -76,15 +76,9 @@ function runDuplicationReport() {
       "node scripts/quality/run-jscpd.mjs . -p '**/*.ts' -i '**/*.test.ts,**/dist/**,**/coverage/**,**/node_modules/**' --gitignore --min-lines 10 --min-tokens 70 -r json -o .tmp-jscpd",
       { cwd: API_ROOT, stdio: "ignore" },
     );
-  } catch {
-    return null;
-  }
-
-  if (!fs.existsSync(DUP_JSON)) {
-    return null;
-  }
-
-  try {
+    if (!fs.existsSync(DUP_JSON)) {
+      return null;
+    }
     const parsed = JSON.parse(fs.readFileSync(DUP_JSON, "utf8"));
     return parsed.statistics?.total ?? null;
   } catch {

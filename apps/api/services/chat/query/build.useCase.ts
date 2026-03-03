@@ -1,7 +1,7 @@
+import { getLatestBuildByChatId } from "@edward/auth";
 import { BuildRecordStatus } from "@edward/shared/api/contracts";
 import { ParserEventType } from "@edward/shared/streamEvents";
 import type { ChatRequestContext } from "./requestContext.js";
-import { getLatestBuildRecord } from "./build.repository.js";
 
 export interface BuildStatusSummary {
   id: string;
@@ -40,7 +40,7 @@ interface BuildStreamPayload {
 export async function getBuildStatusUseCase(
   context: ChatRequestContext,
 ): Promise<BuildStatusSummary | null> {
-  const latestBuild = await getLatestBuildRecord(context.chatId);
+  const latestBuild = await getLatestBuildByChatId(context.chatId);
   if (!latestBuild) {
     return null;
   }
@@ -58,7 +58,7 @@ export async function getBuildStatusUseCase(
 export async function getBuildBootstrapEventsUseCase(
   context: ChatRequestContext,
 ): Promise<BuildStreamEvent[]> {
-  const latestBuild = await getLatestBuildRecord(context.chatId);
+  const latestBuild = await getLatestBuildByChatId(context.chatId);
   if (!latestBuild) {
     return [];
   }
@@ -94,8 +94,16 @@ export function parseBuildStreamPayload(
   events: BuildStreamEvent[];
   terminal: boolean;
 } {
-  const parsed = JSON.parse(params.payload) as BuildStreamPayload;
-  if (!parsed.status) {
+  let parsed: BuildStreamPayload | null = null;
+  try {
+    const decoded = JSON.parse(params.payload) as unknown;
+    if (decoded && typeof decoded === "object") {
+      parsed = decoded as BuildStreamPayload;
+    }
+  } catch {
+    parsed = null;
+  }
+  if (!parsed || !isBuildRecordStatus(parsed.status)) {
     return {
       events: [],
       terminal: false,
@@ -146,4 +154,13 @@ function toBuildRecordStatus(status: string): BuildRecordStatus {
     default:
       return BuildRecordStatus.FAILED;
   }
+}
+
+function isBuildRecordStatus(value: unknown): value is BuildRecordStatus {
+  return (
+    value === BuildRecordStatus.QUEUED ||
+    value === BuildRecordStatus.BUILDING ||
+    value === BuildRecordStatus.SUCCESS ||
+    value === BuildRecordStatus.FAILED
+  );
 }

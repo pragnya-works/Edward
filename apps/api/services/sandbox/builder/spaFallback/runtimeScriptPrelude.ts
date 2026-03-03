@@ -24,9 +24,46 @@ window.__EDWARD_RUNTIME__ = ${JSON.stringify(runtimeConfig)};
   var hostSource = ${JSON.stringify(params.hostSource)};
   var locationEvent = ${JSON.stringify(params.locationEvent)};
   var readyEvent = ${JSON.stringify(params.readyEvent)};
+  var expectedHostOrigin = '';
   var historyStackKey = '__edward_preview_history_stack';
   var historyIndexKey = '__edward_preview_history_index';
   var maxHistoryEntries = 120;
+
+  try {
+    if (document && typeof document.referrer === 'string' && document.referrer) {
+      expectedHostOrigin = new URL(document.referrer).origin;
+    }
+  } catch (_) {
+    expectedHostOrigin = '';
+  }
+
+  function safeSessionStorageGet(key) {
+    try {
+      return window.sessionStorage ? window.sessionStorage.getItem(key) : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function safeSessionStorageSet(key, value) {
+    try {
+      if (window.sessionStorage) {
+        window.sessionStorage.setItem(key, value);
+      }
+    } catch (_) {
+      // Ignore storage write failures.
+    }
+  }
+
+  function safeSessionStorageRemove(key) {
+    try {
+      if (window.sessionStorage) {
+        window.sessionStorage.removeItem(key);
+      }
+    } catch (_) {
+      // Ignore storage delete failures.
+    }
+  }
 
   if (
     typeof document !== 'undefined' &&
@@ -40,14 +77,14 @@ window.__EDWARD_RUNTIME__ = ${JSON.stringify(runtimeConfig)};
       intendedRoute = intendedRoute.slice(basePath.length);
     }
     if (!intendedRoute) intendedRoute = '/';
-    sessionStorage.setItem(intendedRouteKey, intendedRoute + search + hash);
+    safeSessionStorageSet(intendedRouteKey, intendedRoute + search + hash);
     window.location.replace(basePath + '/' + search + hash);
     return;
   }
 
-  var intendedRoute = sessionStorage.getItem(intendedRouteKey);
+  var intendedRoute = safeSessionStorageGet(intendedRouteKey);
   if (intendedRoute) {
-    sessionStorage.removeItem(intendedRouteKey);
+    safeSessionStorageRemove(intendedRouteKey);
     if (window.history && window.history.replaceState) {
       window.history.replaceState(null, '', basePath + intendedRoute);
     }
@@ -63,14 +100,14 @@ window.__EDWARD_RUNTIME__ = ${JSON.stringify(runtimeConfig)};
     var index = 0;
 
     try {
-      var rawStack = sessionStorage.getItem(historyStackKey);
+      var rawStack = safeSessionStorageGet(historyStackKey);
       var parsedStack = rawStack ? JSON.parse(rawStack) : [];
       if (Array.isArray(parsedStack)) {
         stack = parsedStack.filter(function(entry) {
           return typeof entry === 'string' && entry.length > 0;
         });
       }
-      index = parseStoredIndex(sessionStorage.getItem(historyIndexKey));
+      index = parseStoredIndex(safeSessionStorageGet(historyIndexKey));
     } catch (_) {
       stack = [];
       index = 0;
@@ -128,12 +165,8 @@ window.__EDWARD_RUNTIME__ = ${JSON.stringify(runtimeConfig)};
   var lastObservedHref = window.location.href;
 
   function persistHistory() {
-    try {
-      sessionStorage.setItem(historyStackKey, JSON.stringify(historyStack));
-      sessionStorage.setItem(historyIndexKey, String(historyIndex));
-    } catch (_) {
-      // Ignore persistence failures.
-    }
+    safeSessionStorageSet(historyStackKey, JSON.stringify(historyStack));
+    safeSessionStorageSet(historyIndexKey, String(historyIndex));
   }
 
   function trimHistoryIfNeeded() {

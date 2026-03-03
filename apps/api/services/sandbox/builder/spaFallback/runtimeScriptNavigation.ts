@@ -89,6 +89,14 @@ export const PREVIEW_RUNTIME_SCRIPT_NAVIGATION = `
       return;
     }
 
+    if (event.source !== window.parent) {
+      return;
+    }
+
+    if (expectedHostOrigin && event.origin !== expectedHostOrigin) {
+      return;
+    }
+
     if (data.source !== hostSource || typeof data.type !== 'string') {
       return;
     }

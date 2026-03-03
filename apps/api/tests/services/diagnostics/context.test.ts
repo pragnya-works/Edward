@@ -8,6 +8,8 @@ const mocks = vi.hoisted(() => ({
   },
 }));
 
+const FIXED_TIMESTAMP = 4_102_444_800_000;
+
 vi.mock("../../../services/sandbox/docker.service.js", () => ({
   getContainer: mocks.getContainer,
   execCommand: mocks.execCommand,
@@ -22,6 +24,8 @@ describe("diagnostics context helpers", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.execCommand.mockReset();
+    mocks.getContainer.mockReset();
+    mocks.getContainer.mockReturnValue({ id: "container-1" });
   });
 
   it("reads and caches file content from the sandbox container", async () => {
@@ -82,28 +86,28 @@ describe("diagnostics context helpers", () => {
             "import { useThing } from 'left-pad';",
             "console.log(useThing);",
           ].join("\n"),
-          timestamp: Date.now(),
+          timestamp: FIXED_TIMESTAMP,
         },
       ],
       [
         "src/helper.ts",
         {
           content: "export default 1;",
-          timestamp: Date.now(),
+          timestamp: FIXED_TIMESTAMP,
         },
       ],
       [
         "src/uses-target.ts",
         {
           content: "import { useThing } from 'left-pad';",
-          timestamp: Date.now(),
+          timestamp: FIXED_TIMESTAMP,
         },
       ],
       [
         "src/another.ts",
         {
           content: "const x = 'left-pad';",
-          timestamp: Date.now(),
+          timestamp: FIXED_TIMESTAMP,
         },
       ],
     ]);
@@ -151,5 +155,41 @@ describe("diagnostics context helpers", () => {
 
     expect(context.packageJson).toEqual({ name: "test-project" });
     expect(context.tsConfig).toEqual({ compilerOptions: { strict: true } });
+  });
+
+  it("returns no related files when target token is undefined", async () => {
+    const { findRelatedFiles } = await import("../../../services/diagnostics/context.js");
+
+    const related = await findRelatedFiles(
+      "sandbox-5",
+      undefined,
+      "src/index.ts",
+      new Map(),
+    );
+
+    expect(related).toEqual([]);
+    expect(mocks.execCommand).not.toHaveBeenCalled();
+  });
+
+  it("ignores invalid JSON context files and returns partial metadata", async () => {
+    const { loadProjectContext } = await import("../../../services/diagnostics/context.js");
+
+    mocks.execCommand
+      .mockResolvedValueOnce({
+        exitCode: 0,
+        stdout: "{invalid-json",
+        stderr: "",
+      })
+      .mockResolvedValueOnce({
+        exitCode: 0,
+        stdout: JSON.stringify({ compilerOptions: { module: "esnext" } }),
+        stderr: "",
+      });
+
+    const context = await loadProjectContext("sandbox-6", new Map());
+
+    expect(context.packageJson).toBeUndefined();
+    expect(context.tsConfig).toEqual({ compilerOptions: { module: "esnext" } });
+    expect(mocks.logger.debug).toHaveBeenCalledWith("Failed to parse package.json");
   });
 });

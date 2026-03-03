@@ -94,7 +94,9 @@ export async function streamRunEventsFromPersistence({
   const bufferedLiveEvents = new Map<number, BufferedLiveEvent>();
   let bufferedLiveEventBytes = 0;
 
-  const closeStream = async (options?: { sendDone?: boolean }) => {
+  const closeStream = async (
+    options?: { sendDone?: boolean },
+  ): Promise<void> => {
     if (closed) return;
     closed = true;
     const shouldSendDone = options?.sendDone ?? true;
@@ -147,6 +149,17 @@ export async function streamRunEventsFromPersistence({
   };
 
   const flushBufferedLiveEvents = async (): Promise<boolean> => {
+    for (const [seq, item] of bufferedLiveEvents) {
+      if (seq > lastSeq) {
+        continue;
+      }
+      bufferedLiveEvents.delete(seq);
+      bufferedLiveEventBytes = Math.max(
+        0,
+        bufferedLiveEventBytes - item.payloadBytes,
+      );
+    }
+
     const pending = Array.from(bufferedLiveEvents.values())
       .filter((item) => item.envelope.seq > lastSeq)
       .sort((a, b) => a.envelope.seq - b.envelope.seq);

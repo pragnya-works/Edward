@@ -1,7 +1,10 @@
 import { BuildRecordStatus } from "@edward/shared/api/contracts";
 import type { Redis } from "ioredis";
 import { ensureError } from "../../utils/error.js";
-import { WORKER_REDIS_PUBLISH_RETRY_ATTEMPTS } from "../../utils/constants.js";
+import {
+  WORKER_REDIS_PUBLISH_RETRY_ATTEMPTS,
+  WORKER_REDIS_PUBLISH_TIMEOUT_MS,
+} from "../../utils/constants.js";
 
 export interface WorkerLogger {
   info(payload: unknown, message: string): void;
@@ -20,7 +23,11 @@ export async function publishBuildStatusWithRetry(params: {
 
   for (let attempt = 1; attempt <= WORKER_REDIS_PUBLISH_RETRY_ATTEMPTS; attempt++) {
     try {
-      await params.publishClient.publish(channel, JSON.stringify(params.payload));
+      await withTimeout(
+        params.publishClient.publish(channel, JSON.stringify(params.payload)),
+        WORKER_REDIS_PUBLISH_TIMEOUT_MS,
+        "Redis publish timed out",
+      );
       return true;
     } catch (error) {
       if (attempt >= WORKER_REDIS_PUBLISH_RETRY_ATTEMPTS) {

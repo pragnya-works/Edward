@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { Response } from "express";
+import type { AuthenticatedRequest } from "../../../middleware/auth.js";
 import { HttpStatus } from "../../../utils/constants.js";
 
 const mocks = vi.hoisted(() => ({
@@ -40,6 +42,20 @@ vi.mock("../../../utils/error.js", () => ({
   ensureError: mocks.ensureError,
 }));
 
+function createRequest(input: {
+  headers: Record<string, string>;
+  body: unknown;
+}): AuthenticatedRequest {
+  return {
+    headers: input.headers,
+    body: input.body,
+  } as unknown as AuthenticatedRequest;
+}
+
+function createResponseStub(): Response {
+  return {} as Response;
+}
+
 describe("image upload use case", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -59,11 +75,11 @@ describe("image upload use case", () => {
     );
 
     await uploadChatImageUseCase(
-      {
+      createRequest({
         headers: { "content-type": "text/plain" },
         body: Buffer.from("abc"),
-      } as never,
-      {} as never,
+      }),
+      createResponseStub(),
     );
 
     expect(mocks.sendError).toHaveBeenCalledWith(
@@ -79,14 +95,14 @@ describe("image upload use case", () => {
     );
 
     await uploadChatImageUseCase(
-      {
+      createRequest({
         headers: {
           "content-type": "image/png",
           "x-file-name": "mock.png",
         },
         body: Buffer.from("abc"),
-      } as never,
-      {} as never,
+      }),
+      createResponseStub(),
     );
 
     expect(mocks.uploadUserImageToCdn).toHaveBeenCalledWith(
@@ -101,5 +117,51 @@ describe("image upload use case", () => {
       "Image uploaded successfully",
       expect.objectContaining({ url: "https://cdn.example/image.png" }),
     );
+  });
+
+  it("rejects empty image payloads for valid image content types", async () => {
+    const { uploadChatImageUseCase } = await import(
+      "../../../services/chat/imageUpload.useCase.js"
+    );
+
+    await uploadChatImageUseCase(
+      createRequest({
+        headers: { "content-type": "image/png" },
+        body: Buffer.alloc(0),
+      }),
+      createResponseStub(),
+    );
+
+    expect(mocks.sendError).toHaveBeenCalledWith(
+      expect.anything(),
+      HttpStatus.BAD_REQUEST,
+      "Image payload is empty.",
+    );
+    expect(mocks.uploadUserImageToCdn).not.toHaveBeenCalled();
+  });
+
+  it("returns validator errors without attempting CDN upload", async () => {
+    const { uploadChatImageUseCase } = await import(
+      "../../../services/chat/imageUpload.useCase.js"
+    );
+    mocks.validateImageBuffer.mockReturnValueOnce({
+      success: false,
+      error: { message: "Invalid image payload" },
+    });
+
+    await uploadChatImageUseCase(
+      createRequest({
+        headers: { "content-type": "image/png" },
+        body: Buffer.from("abc"),
+      }),
+      createResponseStub(),
+    );
+
+    expect(mocks.sendError).toHaveBeenCalledWith(
+      expect.anything(),
+      HttpStatus.BAD_REQUEST,
+      "Invalid image payload",
+    );
+    expect(mocks.uploadUserImageToCdn).not.toHaveBeenCalled();
   });
 });
