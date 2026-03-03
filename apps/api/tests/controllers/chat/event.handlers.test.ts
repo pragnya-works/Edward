@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { ParserEventType } from "../../../schemas/chat.schema.js";
+import { ParserEventType } from "@edward/shared/streamEvents";
 import type { WorkflowState } from "../../../services/planning/schemas.js";
 import {
   handleParserEvent,
   type EventHandlerContext,
-} from "../../../controllers/chat/session/events/handler.js";
+} from "../../../services/chat/session/events/handler.js";
 
 function createContext(): EventHandlerContext {
   return {

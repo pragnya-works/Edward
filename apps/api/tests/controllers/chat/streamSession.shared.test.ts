@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildAgentContinuationPrompt } from "../../../controllers/chat/session/shared/continuation.js";
+import { buildAgentContinuationPrompt } from "../../../services/chat/session/shared/continuation.js";
 import { MAX_AGENT_CONTINUATION_PROMPT_CHARS } from "../../../utils/constants.js";
 
 describe("buildAgentContinuationPrompt", () => {

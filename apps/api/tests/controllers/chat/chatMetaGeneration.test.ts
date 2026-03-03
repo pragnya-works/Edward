@@ -22,7 +22,7 @@ describe("scheduleChatMetaGeneration", () => {
     );
 
     const { scheduleChatMetaGeneration } = await import(
-      "../../../controllers/chat/session/orchestrator/chatMetaGeneration.js"
+      "../../../services/chat/session/orchestrator/chatMetaGeneration.js"
     );
 
     scheduleChatMetaGeneration({
@@ -44,7 +44,7 @@ describe("scheduleChatMetaGeneration", () => {
 
   it("skips metadata generation for follow-up turns", async () => {
     const { scheduleChatMetaGeneration } = await import(
-      "../../../controllers/chat/session/orchestrator/chatMetaGeneration.js"
+      "../../../services/chat/session/orchestrator/chatMetaGeneration.js"
     );
 
     scheduleChatMetaGeneration({

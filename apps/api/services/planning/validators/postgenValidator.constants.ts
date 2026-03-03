@@ -1,4 +1,20 @@
-import type { PatternRequirement } from './postgenValidator.types.js';
+interface PatternRequirement {
+  pattern: RegExp;
+  label: string
+}
+
+export const EDWARD_FAVICON_ASSET_BASE =
+  'https://assets.pragnyaa.in/home/favicon_io';
+
+function escapeRegexLiteral(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function buildBrandingAssetPattern(relativePath: string): RegExp {
+  return new RegExp(
+    `${escapeRegexLiteral(EDWARD_FAVICON_ASSET_BASE)}\\/${escapeRegexLiteral(relativePath)}`,
+  );
+}
 
 export const GENERATED_OUTPUT_FRAMEWORK = {
   NEXTJS: 'nextjs',
@@ -33,13 +49,13 @@ export const PACKAGE_IMPORT_PATTERN = /(?:import|from)\s+['"]([^./][^'"]*)['"]/g
 export const EMPTY_ROOT_COMPONENT_PATTERN =
   /export\s+default\s+function[\s\S]*?return\s+(?:null|<>\s*<\/>|<React\.Fragment>\s*<\/React\.Fragment>)\s*;?/m;
 export const PLACEHOLDER_PATTERN =
-  /\b(?:FIXME|TBD)\b|lorem ipsum|your content here|replace with your/i;
+  /\b(?:FIXME|TBD)\b|lorem ipsum|replace with (?:real )?content|placeholder text/i;
 export const COMMENT_STUB_PATTERN =
-  /(?:^|[^\S\r\n])(?:\/\/\s*(?:TODO|implement|add logic|add here|placeholder|stub|coming soon)\b|\/\*[\s\S]*?\b(?:TODO|implement|add logic|add here|placeholder|stub|coming soon)\b[\s\S]*?\*\/)/im;
+  /(?:^\s*\/\/\s*(?:TODO|implement|add logic|add here|placeholder|stub|coming soon)\b|\/\*[\s\S]*?\b(?:TODO|implement|add logic|add here|placeholder|stub|coming soon)\b[\s\S]*?\*\/)/im;
 export const SAMPLE_CONTENT_PATTERN =
-  /\b(?:Sample Product|Product \d+|My Project \d+|\[Your Name\]|\[Company Name\])\b/i;
+  /\b(?:Sample Product|Demo Product|Placeholder(?: Text)?|\[Your Name\]|\[Company Name\])\b/i;
 export const EMPTY_HANDLER_PATTERN =
-  /\b(?:on[A-Z][A-Za-z0-9_]*)\s*=\s*\{\s*(?:\(\s*\))?\s*=>\s*\{\s*\}\s*\}|const\s+[a-z][A-Za-z0-9_]*\s*=\s*\(\s*\)\s*=>\s*\{\s*\}/;
+  /\b(?:on[A-Z][A-Za-z0-9_]*)\s*=\s*\{\s*(?:async\s*)?(?:\([^)]*\)|[A-Za-z_$][\w$]*)\s*=>\s*\{\s*\}\s*\}|const\s+(?:handle|on)[A-Z][A-Za-z0-9_]*\s*=\s*(?:async\s*)?\([^)]*\)\s*=>\s*\{\s*\}/;
 export const INVALID_ZUSTAND_DEFAULT_IMPORT_PATTERN =
   /^\s*import\s+[A-Za-z_$][\w$]*\s*(?:,\s*\{[^}]*\})?\s+from\s+["']zustand["'];?/m;
 export const LOCAL_FILE_EXTENSIONS = [
@@ -71,27 +87,25 @@ export const NEXT_BUILTIN_MODULES = new Set([
   'next-themes',
 ]);
 
-export const EDWARD_FAVICON_ASSET_BASE = 'https://assets.pragnyaa.in/home/favicon_io';
-
 export const NEXT_REQUIRED_BRANDING_PATTERNS: PatternRequirement[] = [
   {
-    pattern: /https:\/\/assets\.pragnyaa\.in\/home\/favicon_io\/favicon\.ico/,
+    pattern: buildBrandingAssetPattern('favicon.ico'),
     label: 'favicon.ico URL',
   },
   {
-    pattern: /https:\/\/assets\.pragnyaa\.in\/home\/favicon_io\/favicon-16x16\.png/,
+    pattern: buildBrandingAssetPattern('favicon-16x16.png'),
     label: 'favicon-16x16 URL',
   },
   {
-    pattern: /https:\/\/assets\.pragnyaa\.in\/home\/favicon_io\/favicon-32x32\.png/,
+    pattern: buildBrandingAssetPattern('favicon-32x32.png'),
     label: 'favicon-32x32 URL',
   },
   {
-    pattern: /https:\/\/assets\.pragnyaa\.in\/home\/favicon_io\/apple-touch-icon\.png/,
+    pattern: buildBrandingAssetPattern('apple-touch-icon.png'),
     label: 'apple-touch-icon URL',
   },
   {
-    pattern: /https:\/\/assets\.pragnyaa\.in\/home\/favicon_io\/site\.webmanifest/,
+    pattern: buildBrandingAssetPattern('site.webmanifest'),
     label: 'site.webmanifest URL',
   },
 ];
@@ -106,15 +120,15 @@ export const NEXT_REQUIRED_SEO_PATTERNS: PatternRequirement[] = [
 ];
 export const HTML_REQUIRED_BRANDING_PATTERNS: PatternRequirement[] = [
   {
-    pattern: /https:\/\/assets\.pragnyaa\.in\/home\/favicon_io\/favicon\.ico/,
+    pattern: buildBrandingAssetPattern('favicon.ico'),
     label: 'favicon.ico URL',
   },
   {
-    pattern: /https:\/\/assets\.pragnyaa\.in\/home\/favicon_io\/apple-touch-icon\.png/,
+    pattern: buildBrandingAssetPattern('apple-touch-icon.png'),
     label: 'apple-touch-icon URL',
   },
   {
-    pattern: /https:\/\/assets\.pragnyaa\.in\/home\/favicon_io\/site\.webmanifest/,
+    pattern: buildBrandingAssetPattern('site.webmanifest'),
     label: 'site.webmanifest URL',
   },
 ];

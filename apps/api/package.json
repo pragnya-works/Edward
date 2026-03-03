@@ -5,8 +5,9 @@
   "main": "dist/server.http.js",
   "type": "module",
   "scripts": {
-    "dev": "pnpm --filter @edward/shared build && pnpm --filter @edward/octokit build && concurrently -n \"API,WORKER\" -c \"cyan,magenta\" \"pnpm dev:api\" \"pnpm dev:worker\"",
-    "dev:clear": "pnpm --filter @edward/shared build && pnpm --filter @edward/octokit build && concurrently -n \"API,WORKER\" -c \"green,magenta\" \"pnpm dev:api\" \"pnpm dev:worker\"",
+    "dev:deps": "pnpm --filter @edward/auth build && pnpm --filter @edward/shared build && pnpm --filter @edward/octokit build",
+    "dev": "pnpm dev:deps && concurrently -n \"API,WORKER\" -c \"cyan,magenta\" \"pnpm dev:api\" \"pnpm dev:worker\"",
+    "dev:clear": "pnpm dev:deps && concurrently -n \"API,WORKER\" -c \"green,magenta\" \"pnpm dev:api\" \"pnpm dev:worker\"",
     "dev:api": "tsx watch server.http.ts",
     "dev:worker": "tsx watch queue.worker.ts",
     "start": "node dist/server.http.js",
@@ -17,7 +18,14 @@
     "lint": "eslint . --max-warnings 0",
     "lint:fix": "eslint . --fix",
     "test:coverage": "vitest run --coverage",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist",
+    "quality:baseline": "node scripts/quality/generate-baseline.mjs",
+    "quality:file-audit": "node scripts/quality/generate-file-audit.mjs",
+    "quality:coverage": "node scripts/quality/check-coverage.mjs",
+    "quality:functions": "node scripts/quality/check-function-length.mjs",
+    "quality:duplication": "node scripts/quality/run-jscpd.mjs . -p '**/*.ts' -i '**/*.test.ts,**/dist/**,**/coverage/**,**/node_modules/**' --gitignore --min-lines 10 --min-tokens 70 --threshold 0.8 -r console",
+    "quality:boundaries": "node scripts/quality/check-boundaries.mjs",
+    "quality:gates": "pnpm typecheck && pnpm lint && pnpm test:coverage && pnpm quality:coverage && pnpm quality:functions && pnpm quality:duplication && pnpm quality:boundaries"
   },
   "keywords": [],
   "author": "",

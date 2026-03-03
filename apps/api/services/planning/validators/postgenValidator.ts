@@ -5,7 +5,6 @@ import {
   REQUIRED_CSS_IMPORTS,
   REQUIRED_ENTRY_POINTS,
   REQUIRED_GENERATE_PROJECT_FILES,
-  REQUIRED_GENERATE_PROJECT_FILES_BY_FRAMEWORK,
 } from './postgenValidator.constants.js';
 import {
   validateImportPlacementForFile,
@@ -70,15 +69,7 @@ export function validateGeneratedOutput(output: GeneratedOutput): ValidationResu
     Boolean(validatedOutput.framework) && modeBehavior.validatesFrameworkRules;
 
   if (modeBehavior.requiresGenerateProjectFiles) {
-    const frameworkSpecificRequiredFiles = validatedOutput.framework
-      ? (REQUIRED_GENERATE_PROJECT_FILES_BY_FRAMEWORK[validatedOutput.framework] ?? [])
-      : [];
-    const requiredFiles = [
-      ...REQUIRED_GENERATE_PROJECT_FILES,
-      ...frameworkSpecificRequiredFiles,
-    ];
-
-    for (const requiredFile of requiredFiles) {
+    for (const requiredFile of REQUIRED_GENERATE_PROJECT_FILES) {
       if (!validatedOutput.files.has(requiredFile)) {
         violations.push({
           type: VALIDATION_VIOLATION_TYPE.MISSING_PROJECT_FILE,

@@ -17,6 +17,7 @@ coverage
 
 # Turbo
 .turbo
+apps/api/turbo-cache/
 
 # Vercel
 .vercel

@@ -286,7 +286,12 @@ export async function listContainers(): Promise<Docker.ContainerInfo[]> {
 }
 
 export function getContainer(id: string): Docker.Container {
-  return docker.getContainer(id);
+  const containerId = id.trim();
+  if (!containerId) {
+    throw new Error("Container ID is required");
+  }
+
+  return docker.getContainer(containerId);
 }
 
 export async function isContainerAlive(containerId: string): Promise<boolean> {

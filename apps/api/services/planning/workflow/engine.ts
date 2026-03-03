@@ -1,5 +1,7 @@
+import { nanoid } from "nanoid";
 import { logger } from "../../../utils/logger.js";
 import {
+  type WorkflowContext,
   WorkflowStatus,
   WorkflowStep,
   type StepResult,
@@ -8,15 +10,45 @@ import {
 import { PHASE_CONFIGS } from "./config.js";
 import { getWorkflow, saveWorkflow, deleteWorkflow } from "./store.js";
 import { cleanupSandbox } from "../../sandbox/lifecycle/cleanup.js";
-import { createWorkflow as createWorkflowState, executeStep } from "./steps.js";
+import { getActiveSandbox } from "../../sandbox/lifecycle/provisioning.js";
+import { executeStep } from "./stepRunner.js";
 import { withRetry } from "./retry.js";
 
 export async function createWorkflow(
   userId: string,
   chatId: string,
-  initialContext: Partial<WorkflowState["context"]> = {},
+  initialContext: Partial<WorkflowContext> = {},
 ): Promise<WorkflowState> {
-  return createWorkflowState(userId, chatId, initialContext);
+  let sandboxId: string | undefined;
+  try {
+    sandboxId = await getActiveSandbox(chatId);
+  } catch (sandboxLookupError) {
+    logger.warn(
+      {
+        chatId,
+        error: sandboxLookupError instanceof Error
+          ? sandboxLookupError.message
+          : String(sandboxLookupError),
+      },
+      "Failed to hydrate active sandbox while creating workflow",
+    );
+  }
+
+  const state: WorkflowState = {
+    id: nanoid(16),
+    userId,
+    chatId,
+    sandboxId,
+    status: WorkflowStatus.PENDING,
+    currentStep: WorkflowStep.ANALYZE,
+    context: { errors: [], ...initialContext },
+    history: [],
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+  };
+
+  await saveWorkflow(state);
+  return state;
 }
 
 export async function advanceWorkflow(
@@ -122,6 +154,10 @@ export async function advanceWorkflow(
 export async function getWorkflowStatus(
   id: string,
 ): Promise<WorkflowState | null> {
+  if (id.trim().length === 0) {
+    return null;
+  }
+
   return getWorkflow(id);
 }
 

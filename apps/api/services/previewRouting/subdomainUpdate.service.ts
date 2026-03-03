@@ -8,14 +8,14 @@ import { ensureError } from "../../utils/error.js";
 import { logger } from "../../utils/logger.js";
 import {
   checkSubdomainAvailability as checkPreviewSubdomainAvailability,
-  isPreviewRoutingConfigured,
   registerPreviewSubdomain,
   deletePreviewSubdomain,
-  generatePreviewSubdomain,
 } from "./registration.js";
+import { isPreviewRoutingConfigured } from "./kvClient.js";
+import { generatePreviewSubdomain } from "./subdomain.js";
 import { buildSubdomainPreviewUrl } from "../preview.service.js";
 import { buildS3Key } from "../storage/key.utils.js";
-import { getChatIdOrRespond } from "../../controllers/chat/access/chatAccess.service.js";
+import { getChatIdOrRespond } from "../chat/access.service.js";
 import {
   CheckSubdomainQuerySchema,
   UpdateSubdomainBodySchema,
@@ -23,6 +23,30 @@ import {
 import { config, DEPLOYMENT_TYPES } from "../../app.config.js";
 
 const SUBDOMAIN_STATE_CHANGED_CODE = "SUBDOMAIN_STATE_CHANGED";
+
+async function getOwnedChatOrRespond(
+  chatId: string,
+  userId: string,
+  res: Response,
+): Promise<{ customSubdomain: string | null } | null> {
+  const [chatData] = await db
+    .select({ userId: chat.userId, customSubdomain: chat.customSubdomain })
+    .from(chat)
+    .where(eq(chat.id, chatId))
+    .limit(1);
+
+  if (!chatData) {
+    sendError(res, HttpStatus.NOT_FOUND, ERROR_MESSAGES.NOT_FOUND);
+    return null;
+  }
+
+  if (chatData.userId !== userId) {
+    sendError(res, HttpStatus.FORBIDDEN, ERROR_MESSAGES.FORBIDDEN);
+    return null;
+  }
+
+  return { customSubdomain: chatData.customSubdomain };
+}
 
 export async function checkSubdomainAvailability(
   req: AuthenticatedRequest,
@@ -37,17 +61,8 @@ export async function checkSubdomainAvailability(
     }
 
     const { subdomain, chatId } = parsed.data;
-    const [chatData] = await db
-      .select({ userId: chat.userId })
-      .from(chat)
-      .where(eq(chat.id, chatId))
-      .limit(1);
+    const chatData = await getOwnedChatOrRespond(chatId, userId, res);
     if (!chatData) {
-      sendError(res, HttpStatus.NOT_FOUND, ERROR_MESSAGES.NOT_FOUND);
-      return;
-    }
-    if (chatData.userId !== userId) {
-      sendError(res, HttpStatus.FORBIDDEN, ERROR_MESSAGES.FORBIDDEN);
       return;
     }
 
@@ -86,18 +101,8 @@ export async function updateChatSubdomain(
 
     const { subdomain: newSubdomain } = parsed.data;
 
-    const [chatData] = await db
-      .select({ userId: chat.userId, customSubdomain: chat.customSubdomain })
-      .from(chat)
-      .where(eq(chat.id, chatId))
-      .limit(1);
-
+    const chatData = await getOwnedChatOrRespond(chatId, userId, res);
     if (!chatData) {
-      sendError(res, HttpStatus.NOT_FOUND, ERROR_MESSAGES.NOT_FOUND);
-      return;
-    }
-    if (chatData.userId !== userId) {
-      sendError(res, HttpStatus.FORBIDDEN, ERROR_MESSAGES.FORBIDDEN);
       return;
     }
 

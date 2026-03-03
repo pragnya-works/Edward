@@ -73,21 +73,6 @@ async function readSandboxFile(
   }
 }
 
-export async function readFileFromS3(
-  userId: string,
-  chatId: string,
-  relPath: string,
-): Promise<string> {
-  return readFileFromS3Storage(userId, chatId, relPath);
-}
-
-export async function readProjectFilesFromS3(
-  userId: string,
-  chatId: string,
-): Promise<Map<string, string>> {
-  return readProjectFilesFromS3Storage(userId, chatId);
-}
-
 export async function readAllProjectFiles(
   sandboxId: string,
 ): Promise<Map<string, string>> {

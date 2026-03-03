@@ -42,9 +42,8 @@ export async function searchTavilyBasic(
     );
   }
 
-  const timeoutMs = DEFAULT_TIMEOUT_MS;
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const timer = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
 
   try {
     const response = await fetch("https://api.tavily.com/search", {

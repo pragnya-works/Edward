@@ -7,7 +7,7 @@ import {
     getWorkflowStatus
 } from '../../../../services/planning/workflow/engine.js';
 import { WorkflowState } from '../../../../services/planning/schemas.js';
-import * as buildService from '../../../../services/sandbox/builder/unified.build.js';
+import * as buildService from '../../../../services/sandbox/builder/unified-build/orchestrator.js';
 
 vi.mock('../../../../lib/redis.js', () => ({
     redis: {
@@ -51,7 +51,7 @@ vi.mock('../../../../services/sandbox/state.service.js', () => ({
     getSandboxState: vi.fn().mockResolvedValue({ containerId: 'mock-container-id' })
 }));
 
-vi.mock('../../../../services/sandbox/builder/unified.build.js', () => ({
+vi.mock('../../../../services/sandbox/builder/unified-build/orchestrator.js', () => ({
     buildAndUploadUnified: vi.fn().mockResolvedValue({
         success: true,
         previewUrl: 'http://preview.test',

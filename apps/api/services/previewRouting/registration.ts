@@ -4,12 +4,10 @@ import {
   deleteKvEntry,
   getChatStoragePrefix,
   getPreviewRoutingConfig,
-  isPreviewRoutingConfigured as isPreviewRoutingConfiguredInternal,
   readKvEntry,
   upsertKvEntry,
 } from "./kvClient.js";
 import {
-  generatePreviewSubdomain as generatePreviewSubdomainInternal,
   resolveSubdomainForRouting,
   validateSubdomainFormat,
 } from "./subdomain.js";
@@ -25,18 +23,6 @@ export interface PreviewRoutingResult {
   subdomain: string;
   previewUrl: string;
   storagePrefix: string;
-}
-
-export function isPreviewRoutingConfigured(): boolean {
-  return isPreviewRoutingConfiguredInternal();
-}
-
-export function generatePreviewSubdomain(
-  userId: string,
-  chatId: string,
-  attempt = 0,
-): string {
-  return generatePreviewSubdomainInternal(userId, chatId, attempt);
 }
 
 export async function checkSubdomainAvailability(

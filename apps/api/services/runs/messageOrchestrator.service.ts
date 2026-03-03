@@ -28,10 +28,10 @@ import {
   buildMultimodalContentForLLM,
   parseMultimodalContent,
   toImageAttachments,
-} from "../multimodal.utils/service.js";
-import { sendStreamError } from "../../controllers/chat/response/streamErrors.js";
+} from "../multimodal-utils/service.js";
+import { sendStreamError } from "../../utils/streamError.js";
 import { createAgentRunMetadata } from "./runMetadata.js";
-import { streamRunEventsFromPersistence } from "../runEventStream.utils/service.js";
+import { streamRunEventsFromPersistence } from "../run-event-stream-utils/service.js";
 import {
   createAdmittedRun,
   enqueueAdmittedRun,

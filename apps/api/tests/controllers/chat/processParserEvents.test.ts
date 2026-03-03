@@ -1,15 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { ParserEventType } from "../../../schemas/chat.schema.js";
+import { ParserEventType } from "@edward/shared/streamEvents";
 import type { WorkflowState } from "../../../services/planning/schemas.js";
 
 const handleParserEventMock = vi.fn();
 const sendSSEEventMock = vi.fn();
 
-vi.mock("../../../controllers/chat/session/events/handler.js", () => ({
+vi.mock("../../../services/chat/session/events/handler.js", () => ({
   handleParserEvent: handleParserEventMock,
 }));
 
-vi.mock("../../../controllers/chat/sse.utils.js", () => ({
+vi.mock("../../../services/sse-utils/service.js", () => ({
   sendSSEEvent: sendSSEEventMock,
 }));
 
@@ -20,10 +20,10 @@ describe("processParserEvents", () => {
 
   it("marks code output only after FILE_START handling succeeds", async () => {
     const { createTurnEventState, processParserEvents } = await import(
-      "../../../controllers/chat/session/loop/events.js"
+      "../../../services/chat/session/loop/events.js"
     );
     const { createTurnBudgetState } = await import(
-      "../../../controllers/chat/session/loop/budgets.js"
+      "../../../services/chat/session/loop/budgets.js"
     );
 
     const context = {

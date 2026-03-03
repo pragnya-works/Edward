@@ -1,13 +1,8 @@
 import type { Response } from "express";
 import { ParserEventType } from "@edward/shared/streamEvents";
-import { BuildRecordStatus } from "@edward/shared/api/contracts";
-import { getLatestBuildByChatId } from "@edward/auth";
 import { subscribeToRedisChannel } from "../../../lib/redisPubSub.js";
 import type { AuthenticatedRequest } from "../../../middleware/auth.js";
-import { getAuthenticatedUserId } from "../../../middleware/auth.js";
 import {
-  ERROR_MESSAGES,
-  HttpStatus,
   MAX_SSE_QUEUE_BYTES,
   MAX_SSE_QUEUE_EVENTS,
 } from "../../../utils/constants.js";
@@ -18,61 +13,49 @@ import {
   sendSuccess,
 } from "../../../utils/response.js";
 import {
-  assertChatOwnedOrRespond,
-  getChatIdOrRespond,
-} from "../access/chatAccess.service.js";
-import { sendStreamError } from "../response/streamErrors.js";
+  getBuildBootstrapEventsUseCase,
+  getBuildStatusUseCase,
+  parseBuildStreamPayload,
+} from "../../../services/chat/query/build.useCase.js";
+import { toChatRequestContext } from "../../../services/chat/query/requestContext.js";
+import { sendQueryErrorResponse } from "./queryErrorResponse.js";
+import { requireAuthorizedChatRequest } from "./chatRequestAccess.js";
+import { sendStreamError } from "../../../utils/streamError.js";
 import {
   configureSSEBackpressure,
   sendSSEComment,
   sendSSEDone,
   sendSSEEvent,
-} from "../sse.utils.js";
+} from "../../../services/sse-utils/service.js";
 
 export async function getBuildStatus(
   req: AuthenticatedRequest,
   res: Response,
 ): Promise<void> {
   try {
-    const userId = getAuthenticatedUserId(req);
-    const chatId = getChatIdOrRespond(req.params.chatId, res, sendStreamError);
-
-    if (!chatId) {
-      return;
-    }
-
-    const hasAccess = await assertChatOwnedOrRespond(
-      chatId,
-      userId,
+    const request = await requireAuthorizedChatRequest({
+      req,
       res,
-      sendStreamError,
-    );
-    if (!hasAccess) {
+      sendError: sendStreamError,
+    });
+    if (!request) {
       return;
     }
 
-    const latestBuild = await getLatestBuildByChatId(chatId);
+    const context = toChatRequestContext(request);
+    const build = await getBuildStatusUseCase(context);
 
-    sendSuccess(res, HttpStatus.OK, "Build status retrieved successfully", {
-      chatId,
-      build: latestBuild
-        ? {
-            id: latestBuild.id,
-            status: latestBuild.status,
-            previewUrl: latestBuild.previewUrl,
-            buildDuration: latestBuild.buildDuration,
-            errorReport: latestBuild.errorReport,
-            createdAt: latestBuild.createdAt,
-          }
-        : null,
+    sendSuccess(res, 200, "Build status retrieved successfully", {
+      chatId: context.chatId,
+      build,
     });
   } catch (error) {
     logger.error(ensureError(error), "getBuildStatus error");
-    sendStandardError(
+    sendQueryErrorResponse({
       res,
-      HttpStatus.INTERNAL_SERVER_ERROR,
-      ERROR_MESSAGES.INTERNAL_SERVER_ERROR,
-    );
+      error,
+      sendError: sendStandardError,
+    });
   }
 }
 
@@ -86,7 +69,9 @@ export async function streamBuildEvents(
   let sseStarted = false;
 
   const closeStream = async () => {
-    if (closed) return;
+    if (closed) {
+      return;
+    }
     closed = true;
 
     if (heartbeat) {
@@ -109,24 +94,17 @@ export async function streamBuildEvents(
   });
 
   try {
-    const userId = getAuthenticatedUserId(req);
-    const chatId = getChatIdOrRespond(req.params.chatId, res, sendStandardError);
-
-    if (!chatId) {
-      await closeStream();
-      return;
-    }
-
-    const hasAccess = await assertChatOwnedOrRespond(
-      chatId,
-      userId,
+    const request = await requireAuthorizedChatRequest({
+      req,
       res,
-      sendStandardError,
-    );
-    if (!hasAccess) {
+      sendError: sendStandardError,
+    });
+    if (!request) {
       await closeStream();
       return;
     }
+
+    const context = toChatRequestContext(request);
 
     res.setHeader("Content-Type", "text/event-stream");
     res.setHeader("Cache-Control", "no-cache");
@@ -138,70 +116,26 @@ export async function streamBuildEvents(
       maxQueueEvents: MAX_SSE_QUEUE_EVENTS,
     });
 
-    const channel = `edward:build-status:${chatId}`;
+    const channel = `edward:build-status:${context.chatId}`;
 
-    const latestBuild = await getLatestBuildByChatId(chatId);
-    if (latestBuild) {
-      sendSSEEvent(res, {
-        type: ParserEventType.BUILD_STATUS,
-        chatId,
-        status: latestBuild.status,
-        buildId: latestBuild.id,
-        previewUrl: latestBuild.previewUrl,
-        errorReport: latestBuild.errorReport,
-      });
-
-      if (latestBuild.previewUrl) {
-        sendSSEEvent(res, {
-          type: ParserEventType.PREVIEW_URL,
-          url: latestBuild.previewUrl,
-          chatId,
-        });
-      }
+    const bootstrapEvents = await getBuildBootstrapEventsUseCase(context);
+    for (const event of bootstrapEvents) {
+      sendSSEEvent(res, event);
     }
 
     const onMessage = (payload: string) => {
       try {
-        const parsed = JSON.parse(payload) as {
-          buildId?: string;
-          runId?: string;
-          status?: BuildRecordStatus;
-          previewUrl?: string | null;
-          errorReport?: unknown;
-        };
-
-        if (!parsed.status) {
-          return;
+        const result = parseBuildStreamPayload({ payload, context });
+        for (const event of result.events) {
+          sendSSEEvent(res, event);
         }
 
-        sendSSEEvent(res, {
-          type: ParserEventType.BUILD_STATUS,
-          chatId,
-          status: parsed.status,
-          buildId: parsed.buildId,
-          runId: parsed.runId,
-          previewUrl: parsed.previewUrl,
-          errorReport: parsed.errorReport,
-        });
-
-        if (parsed.previewUrl) {
-          sendSSEEvent(res, {
-            type: ParserEventType.PREVIEW_URL,
-            url: parsed.previewUrl,
-            chatId,
-            runId: parsed.runId,
-          });
-        }
-
-        if (
-          parsed.status === BuildRecordStatus.SUCCESS ||
-          parsed.status === BuildRecordStatus.FAILED
-        ) {
+        if (result.terminal) {
           void closeStream();
         }
-      } catch (err) {
+      } catch (error) {
         logger.warn(
-          { err: ensureError(err), chatId, payload },
+          { error: ensureError(error), chatId: context.chatId, payload },
           "Failed to parse build SSE payload",
         );
       }
@@ -215,11 +149,11 @@ export async function streamBuildEvents(
   } catch (error) {
     logger.error(ensureError(error), "streamBuildEvents error");
     if (!res.headersSent) {
-      sendStandardError(
+      sendQueryErrorResponse({
         res,
-        HttpStatus.INTERNAL_SERVER_ERROR,
-        ERROR_MESSAGES.INTERNAL_SERVER_ERROR,
-      );
+        error,
+        sendError: sendStandardError,
+      });
     } else if (!res.writableEnded) {
       sendSSEEvent(res, {
         type: ParserEventType.ERROR,
@@ -228,6 +162,7 @@ export async function streamBuildEvents(
       });
       sendSSEDone(res);
     }
+
     await closeStream();
   }
 }

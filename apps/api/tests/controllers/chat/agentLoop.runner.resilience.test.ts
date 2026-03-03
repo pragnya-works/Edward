@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MessageRole } from "@edward/auth";
-import { AgentLoopStopReason } from "@edward/shared/streamEvents";
-import { ParserEventType } from "../../../schemas/chat.schema.js";
+import { AgentLoopStopReason, ParserEventType } from "@edward/shared/streamEvents";
 
 const mocks = vi.hoisted(() => ({
   streamResponseMock: vi.fn(),
@@ -32,12 +31,12 @@ vi.mock("../../../lib/llm/parser.js", () => ({
   })),
 }));
 
-vi.mock("../../../controllers/chat/session/loop/events.js", () => ({
+vi.mock("../../../services/chat/session/loop/events.js", () => ({
   createTurnEventState: mocks.createTurnEventStateMock,
   processParserEvents: mocks.processParserEventsMock,
 }));
 
-vi.mock("../../../controllers/chat/session/loop/budgets.js", () => ({
+vi.mock("../../../services/chat/session/loop/budgets.js", () => ({
   createTurnBudgetState: vi.fn(() => ({
     toolBudgetExceededThisTurn: false,
     toolRunBudgetExceededThisTurn: false,
@@ -55,11 +54,11 @@ vi.mock("../../../controllers/chat/session/loop/budgets.js", () => ({
   ),
 }));
 
-vi.mock("../../../controllers/chat/session/shared/continuation.js", () => ({
+vi.mock("../../../services/chat/session/shared/continuation.js", () => ({
   buildAgentContinuationPrompt: mocks.buildAgentContinuationPromptMock,
 }));
 
-vi.mock("../../../controllers/chat/sse.utils.js", () => ({
+vi.mock("../../../services/sse-utils/service.js", () => ({
   sendSSEError: mocks.sendSSEErrorMock,
   sendSSERecoverableError: mocks.sendSSERecoverableErrorMock,
 }));
@@ -113,7 +112,7 @@ describe("runAgentLoop resilience", () => {
     });
 
     const { runAgentLoop } = await import(
-      "../../../controllers/chat/session/loop/internal/agentLoop.runner.js"
+      "../../../services/chat/session/loop/agentLoop.runner.js"
     );
 
     const result = await runAgentLoop({
@@ -155,7 +154,7 @@ describe("runAgentLoop resilience", () => {
     });
 
     const { runAgentLoop } = await import(
-      "../../../controllers/chat/session/loop/internal/agentLoop.runner.js"
+      "../../../services/chat/session/loop/agentLoop.runner.js"
     );
 
     const result = await runAgentLoop({
@@ -242,7 +241,7 @@ describe("runAgentLoop resilience", () => {
     );
 
     const { runAgentLoop } = await import(
-      "../../../controllers/chat/session/loop/internal/agentLoop.runner.js"
+      "../../../services/chat/session/loop/agentLoop.runner.js"
     );
 
     const result = await runAgentLoop({
@@ -288,7 +287,7 @@ describe("runAgentLoop resilience", () => {
     });
 
     const { runAgentLoop } = await import(
-      "../../../controllers/chat/session/loop/internal/agentLoop.runner.js"
+      "../../../services/chat/session/loop/agentLoop.runner.js"
     );
 
     const result = await runAgentLoop({

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { createStreamParser } from '../../../lib/llm/parser.js';
-import { ParserEventType } from '../../../schemas/chat.schema.js';
+import { ParserEventType } from '@edward/shared/streamEvents';
 
 describe('createStreamParser', () => {
   it('should create a parser instance', () => {
