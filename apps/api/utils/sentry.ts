@@ -17,4 +17,5 @@ if (process.env.SENTRY_DSN && !sentryState.__edwardSentryInitialized) {
   sentryState.__edwardSentryInitialized = true;
 }
 
-export { Sentry };
+export const captureException: typeof Sentry.captureException =
+  Sentry.captureException;

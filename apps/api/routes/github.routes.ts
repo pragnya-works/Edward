@@ -4,7 +4,7 @@ import {
   createBranch,
   syncRepo,
   githubStatus,
-} from '../controllers/github.controller.js';
+} from '../services/github/github.useCase.js';
 import { validateRequest } from '../middleware/validateRequest.js';
 import {
   ConnectRepoRequestSchema,

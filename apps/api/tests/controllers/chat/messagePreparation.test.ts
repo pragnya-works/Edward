@@ -8,7 +8,7 @@ vi.mock("../../../services/websearch/urlScraper.service.js", () => ({
   prepareUrlScrapeContext: prepareUrlScrapeContextMock,
 }));
 
-vi.mock("../../../controllers/chat/sse.utils.js", () => ({
+vi.mock("../../../services/sse-utils/service.js", () => ({
   sendSSEEvent: vi.fn(),
 }));
 
@@ -23,7 +23,7 @@ describe("prepareBaseMessages", () => {
 
   it("uses only user history messages for follow-up turns", async () => {
     const { prepareBaseMessages } = await import(
-      "../../../controllers/chat/session/orchestrator/messagePreparation.js"
+      "../../../services/chat/session/orchestrator/messagePreparation.js"
     );
 
     const result = await prepareBaseMessages({
@@ -62,7 +62,7 @@ describe("prepareBaseMessages", () => {
 
   it("limits follow-up user history to the most recent six messages", async () => {
     const { prepareBaseMessages } = await import(
-      "../../../controllers/chat/session/orchestrator/messagePreparation.js"
+      "../../../services/chat/session/orchestrator/messagePreparation.js"
     );
 
     const historyMessages: LlmChatMessage[] = Array.from({ length: 8 }, (_, index) => ({
@@ -100,7 +100,7 @@ describe("prepareBaseMessages", () => {
 
   it("converts multimodal history into compact text-only context", async () => {
     const { prepareBaseMessages } = await import(
-      "../../../controllers/chat/session/orchestrator/messagePreparation.js"
+      "../../../services/chat/session/orchestrator/messagePreparation.js"
     );
 
     const result = await prepareBaseMessages({

@@ -6,34 +6,35 @@ export interface ParsedPackageSpec {
   version?: string;
 }
 
-export function parsePackageSpec(input: string): ParsedPackageSpec | null {
-  const spec = input.trim();
-  if (!spec) return null;
-
+function splitPackageSpec(spec: string): ParsedPackageSpec | null {
   if (spec.startsWith("@")) {
     const scopeSlash = spec.indexOf("/");
-    if (scopeSlash <= 1) return null;
-
-    const versionSeparator = spec.indexOf("@", scopeSlash + 1);
-    const name =
-      versionSeparator === -1 ? spec : spec.slice(0, versionSeparator);
-    const version =
-      versionSeparator === -1 ? undefined : spec.slice(versionSeparator + 1);
-
-    if (!PACKAGE_NAME_PATTERN.test(name)) return null;
-    if (version !== undefined && version.length === 0) return null;
-    return { name, version };
+    if (scopeSlash <= 1) {
+      return null;
+    }
   }
 
   const versionSeparator = spec.indexOf("@");
+  const scopedVersionSeparator = spec.startsWith("@")
+    ? spec.indexOf("@", spec.indexOf("/") + 1)
+    : versionSeparator;
   const name =
-    versionSeparator === -1 ? spec : spec.slice(0, versionSeparator);
+    scopedVersionSeparator === -1 ? spec : spec.slice(0, scopedVersionSeparator);
   const version =
-    versionSeparator === -1 ? undefined : spec.slice(versionSeparator + 1);
+    scopedVersionSeparator === -1
+      ? undefined
+      : spec.slice(scopedVersionSeparator + 1);
 
   if (!PACKAGE_NAME_PATTERN.test(name)) return null;
   if (version !== undefined && version.length === 0) return null;
   return { name, version };
+}
+
+export function parsePackageSpec(input: string): ParsedPackageSpec | null {
+  const spec = input.trim();
+  if (!spec) return null;
+
+  return splitPackageSpec(spec);
 }
 
 export function toPackageName(input: string): string | null {

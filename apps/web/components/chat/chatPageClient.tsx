@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo } from "react";
 import { useChatHistory } from "@/hooks/server-state/useChatHistory";
-import { useChatStream, useChatStreamActions } from "@/contexts/chatStreamContext";
+import { useChatStreamActions } from "@/contexts/chatStreamContext";
+import { useChatStreamState } from "@/stores/chatStream/hooks";
 import { useSandbox } from "@/contexts/sandboxContext";
 import { ChatWorkspace } from "@/components/chat/chatWorkspace";
 import { ChatErrorState, ChatLoadingState } from "@/components/chat/chatPageStates";
@@ -26,7 +27,7 @@ export default function ChatPageClient({ chatId }: ChatPageClientProps) {
     error: historyError,
   } = useChatHistory(chatId);
 
-  const { streams } = useChatStream();
+  const { streams } = useChatStreamState();
   const { setActiveChatId, resumeRunStream } = useChatStreamActions();
   const { isOpen: sandboxOpen, openSandbox, setRouteChatId } = useSandbox();
 

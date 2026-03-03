@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { ChatAction } from "../../../services/planning/schemas.js";
 import {
   applyDeterministicPostgenAutofixes,
-} from "../../../controllers/chat/session/orchestrator/postgenAutofix.js";
+} from "../../../services/chat/session/orchestrator/postgenAutofix.js";
 
 describe("postgenAutofix", () => {
   it("does not apply deterministic postgen autofix in generate mode for nextjs", async () => {

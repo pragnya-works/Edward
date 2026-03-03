@@ -1,10 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 async function loadService() {
-  const mod = await import("../../services/previewRouting/registration.js");
+  const registration = await import("../../services/previewRouting/registration.js");
+  const subdomain = await import("../../services/previewRouting/subdomain.js");
   return {
-    generatePreviewSubdomain: mod.generatePreviewSubdomain,
-    registerPreviewSubdomain: mod.registerPreviewSubdomain,
+    generatePreviewSubdomain: subdomain.generatePreviewSubdomain,
+    registerPreviewSubdomain: registration.registerPreviewSubdomain,
   };
 }
 

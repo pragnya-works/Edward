@@ -19,10 +19,10 @@ export interface ImageAttachment {
 const DEFAULT_CHAT_DESCRIPTION = "Start building with Edward.";
 
 function isMissingChatSeoColumnError(error: unknown): boolean {
-  const message = error instanceof Error ? error.message : String(error);
+  const errorText = error instanceof Error ? error.message : String(error);
   return (
-    message.includes('column "seo_title" does not exist') ||
-    message.includes('column "seo_description" does not exist')
+    errorText.includes('column "seo_title" does not exist') ||
+    errorText.includes('column "seo_description" does not exist')
   );
 }
 

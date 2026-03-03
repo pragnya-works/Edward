@@ -1,0 +1,607 @@
+{
+  "adr": "ADR-0001",
+  "maxLines": 80,
+  "updatedAt": "2026-03-03T06:03:28.150Z",
+  "exceptions": [
+    {
+      "key": "controllers/chat/query/build.controller.ts#streamBuildEvents",
+      "file": "controllers/chat/query/build.controller.ts",
+      "name": "streamBuildEvents",
+      "startLine": 63,
+      "endLine": 170,
+      "maxLines": 80,
+      "actualLines": 108,
+      "rationale": "Legacy delivery flow is still bridging old contracts; it remains temporarily oversized until endpoint migration is complete."
+    },
+    {
+      "key": "lib/llm/context.ts#buildConversationMessages",
+      "file": "lib/llm/context.ts",
+      "name": "buildConversationMessages",
+      "startLine": 57,
+      "endLine": 317,
+      "maxLines": 80,
+      "actualLines": 261,
+      "rationale": "LLM provider/parser compatibility logic is intentionally centralized to preserve protocol invariants across models; further split is deferred."
+    },
+    {
+      "key": "lib/llm/errorPresentation.ts#classifyAssistantError",
+      "file": "lib/llm/errorPresentation.ts",
+      "name": "classifyAssistantError",
+      "startLine": 56,
+      "endLine": 162,
+      "maxLines": 80,
+      "actualLines": 107,
+      "rationale": "LLM provider/parser compatibility logic is intentionally centralized to preserve protocol invariants across models; further split is deferred."
+    },
+    {
+      "key": "lib/llm/parser.textSandbox.ts#handleTextState",
+      "file": "lib/llm/parser.textSandbox.ts",
+      "name": "handleTextState",
+      "startLine": 47,
+      "endLine": 203,
+      "maxLines": 80,
+      "actualLines": 157,
+      "rationale": "LLM provider/parser compatibility logic is intentionally centralized to preserve protocol invariants across models; further split is deferred."
+    },
+    {
+      "key": "lib/llm/parser.ts#createStreamParser",
+      "file": "lib/llm/parser.ts",
+      "name": "createStreamParser",
+      "startLine": 25,
+      "endLine": 139,
+      "maxLines": 80,
+      "actualLines": 115,
+      "rationale": "LLM provider/parser compatibility logic is intentionally centralized to preserve protocol invariants across models; further split is deferred."
+    },
+    {
+      "key": "lib/llm/provider.client.ts#streamResponse",
+      "file": "lib/llm/provider.client.ts",
+      "name": "streamResponse",
+      "startLine": 62,
+      "endLine": 189,
+      "maxLines": 80,
+      "actualLines": 128,
+      "rationale": "LLM provider/parser compatibility logic is intentionally centralized to preserve protocol invariants across models; further split is deferred."
+    },
+    {
+      "key": "lib/llm/provider.client.ts#generateResponse",
+      "file": "lib/llm/provider.client.ts",
+      "name": "generateResponse",
+      "startLine": 191,
+      "endLine": 277,
+      "maxLines": 80,
+      "actualLines": 87,
+      "rationale": "LLM provider/parser compatibility logic is intentionally centralized to preserve protocol invariants across models; further split is deferred."
+    },
+    {
+      "key": "lib/llm/tokens/geminiCounter.ts#countGeminiInputTokens",
+      "file": "lib/llm/tokens/geminiCounter.ts",
+      "name": "countGeminiInputTokens",
+      "startLine": 15,
+      "endLine": 146,
+      "maxLines": 80,
+      "actualLines": 132,
+      "rationale": "LLM provider/parser compatibility logic is intentionally centralized to preserve protocol invariants across models; further split is deferred."
+    },
+    {
+      "key": "queue.worker.shutdown.ts#createGracefulShutdown",
+      "file": "queue.worker.shutdown.ts",
+      "name": "createGracefulShutdown",
+      "startLine": 33,
+      "endLine": 125,
+      "maxLines": 80,
+      "actualLines": 93,
+      "rationale": "Run/worker orchestration combines retries, idempotency, and terminal-state handling; split is deferred until policy modules are finalized."
+    },
+    {
+      "key": "server/http/app.factory.ts#createHttpApp",
+      "file": "server/http/app.factory.ts",
+      "name": "createHttpApp",
+      "startLine": 30,
+      "endLine": 111,
+      "maxLines": 80,
+      "actualLines": 82,
+      "rationale": "This function remains temporarily oversized due to high-risk control flow; decomposition is deferred under ADR-0001 with gate enforcement."
+    },
+    {
+      "key": "services/apiKey/apiKey.useCase.ts#updateApiKeyHandler",
+      "file": "services/apiKey/apiKey.useCase.ts",
+      "name": "updateApiKeyHandler",
+      "startLine": 141,
+      "endLine": 235,
+      "maxLines": 80,
+      "actualLines": 95,
+      "rationale": "This function remains temporarily oversized due to high-risk control flow; decomposition is deferred under ADR-0001 with gate enforcement."
+    },
+    {
+      "key": "services/builder.service.ts#runUnifiedBuild",
+      "file": "services/builder.service.ts",
+      "name": "runUnifiedBuild",
+      "startLine": 45,
+      "endLine": 182,
+      "maxLines": 80,
+      "actualLines": 138,
+      "rationale": "This function remains temporarily oversized due to high-risk control flow; decomposition is deferred under ADR-0001 with gate enforcement."
+    },
+    {
+      "key": "services/chat/promptEnhance.useCase.ts#enhancePromptUseCase",
+      "file": "services/chat/promptEnhance.useCase.ts",
+      "name": "enhancePromptUseCase",
+      "startLine": 84,
+      "endLine": 195,
+      "maxLines": 80,
+      "actualLines": 112,
+      "rationale": "This function remains temporarily oversized due to high-risk control flow; decomposition is deferred under ADR-0001 with gate enforcement."
+    },
+    {
+      "key": "services/chat/query/run.useCase.ts#cancelRunUseCase",
+      "file": "services/chat/query/run.useCase.ts",
+      "name": "cancelRunUseCase",
+      "startLine": 88,
+      "endLine": 168,
+      "maxLines": 80,
+      "actualLines": 81,
+      "rationale": "This function remains temporarily oversized due to high-risk control flow; decomposition is deferred under ADR-0001 with gate enforcement."
+    },
+    {
+      "key": "services/chat/session/events/handler.helpers.ts#handleInstallContent",
+      "file": "services/chat/session/events/handler.helpers.ts",
+      "name": "handleInstallContent",
+      "startLine": 21,
+      "endLine": 127,
+      "maxLines": 80,
+      "actualLines": 107,
+      "rationale": "Streaming session orchestration carries shared mutable turn state and SSE ordering guarantees; decomposition is planned after state-carrier extraction."
+    },
+    {
+      "key": "services/chat/session/events/handler.ts#handleParserEvent",
+      "file": "services/chat/session/events/handler.ts",
+      "name": "handleParserEvent",
+      "startLine": 110,
+      "endLine": 266,
+      "maxLines": 80,
+      "actualLines": 157,
+      "rationale": "Streaming session orchestration carries shared mutable turn state and SSE ordering guarantees; decomposition is planned after state-carrier extraction."
+    },
+    {
+      "key": "services/chat/session/events/tools/command.ts#handleCommandEvent",
+      "file": "services/chat/session/events/tools/command.ts",
+      "name": "handleCommandEvent",
+      "startLine": 38,
+      "endLine": 182,
+      "maxLines": 80,
+      "actualLines": 145,
+      "rationale": "Streaming session orchestration carries shared mutable turn state and SSE ordering guarantees; decomposition is planned after state-carrier extraction."
+    },
+    {
+      "key": "services/chat/session/loop/agentLoop.runner.ts#runAgentLoop",
+      "file": "services/chat/session/loop/agentLoop.runner.ts",
+      "name": "runAgentLoop",
+      "startLine": 86,
+      "endLine": 268,
+      "maxLines": 80,
+      "actualLines": 183,
+      "rationale": "Streaming session orchestration carries shared mutable turn state and SSE ordering guarantees; decomposition is planned after state-carrier extraction."
+    },
+    {
+      "key": "services/chat/session/loop/agentLoop.stream.ts#executeAgentTurnStream",
+      "file": "services/chat/session/loop/agentLoop.stream.ts",
+      "name": "executeAgentTurnStream",
+      "startLine": 69,
+      "endLine": 198,
+      "maxLines": 80,
+      "actualLines": 130,
+      "rationale": "Streaming session orchestration carries shared mutable turn state and SSE ordering guarantees; decomposition is planned after state-carrier extraction."
+    },
+    {
+      "key": "services/chat/session/loop/agentLoop.turnOutcome.ts#resolveTurnOutcome",
+      "file": "services/chat/session/loop/agentLoop.turnOutcome.ts",
+      "name": "resolveTurnOutcome",
+      "startLine": 116,
+      "endLine": 346,
+      "maxLines": 80,
+      "actualLines": 231,
+      "rationale": "Streaming session orchestration carries shared mutable turn state and SSE ordering guarantees; decomposition is planned after state-carrier extraction."
+    },
+    {
+      "key": "services/chat/session/orchestrator/buildPipeline.ts#processBuildPipeline",
+      "file": "services/chat/session/orchestrator/buildPipeline.ts",
+      "name": "processBuildPipeline",
+      "startLine": 35,
+      "endLine": 230,
+      "maxLines": 80,
+      "actualLines": 196,
+      "rationale": "Streaming session orchestration carries shared mutable turn state and SSE ordering guarantees; decomposition is planned after state-carrier extraction."
+    },
+    {
+      "key": "services/chat/session/orchestrator/runStreamSession.finalize.ts#finalizeStreamSession",
+      "file": "services/chat/session/orchestrator/runStreamSession.finalize.ts",
+      "name": "finalizeStreamSession",
+      "startLine": 33,
+      "endLine": 156,
+      "maxLines": 80,
+      "actualLines": 124,
+      "rationale": "Streaming session orchestration carries shared mutable turn state and SSE ordering guarantees; decomposition is planned after state-carrier extraction."
+    },
+    {
+      "key": "services/chat/session/orchestrator/runStreamSession.orchestrator.ts#runStreamSession",
+      "file": "services/chat/session/orchestrator/runStreamSession.orchestrator.ts",
+      "name": "runStreamSession",
+      "startLine": 38,
+      "endLine": 283,
+      "maxLines": 80,
+      "actualLines": 246,
+      "rationale": "Streaming session orchestration carries shared mutable turn state and SSE ordering guarantees; decomposition is planned after state-carrier extraction."
+    },
+    {
+      "key": "services/chat/session/orchestrator/runStreamSession.strictRetry.ts#maybeRunStrictPostgenRetry",
+      "file": "services/chat/session/orchestrator/runStreamSession.strictRetry.ts",
+      "name": "maybeRunStrictPostgenRetry",
+      "startLine": 64,
+      "endLine": 199,
+      "maxLines": 80,
+      "actualLines": 136,
+      "rationale": "Streaming session orchestration carries shared mutable turn state and SSE ordering guarantees; decomposition is planned after state-carrier extraction."
+    },
+    {
+      "key": "services/diagnostics/analyzer.guidance.ts#buildDiagnosisGuidance",
+      "file": "services/diagnostics/analyzer.guidance.ts",
+      "name": "buildDiagnosisGuidance",
+      "startLine": 32,
+      "endLine": 189,
+      "maxLines": 80,
+      "actualLines": 158,
+      "rationale": "Diagnostics formatter/analyzer remains monolithic to keep report assembly deterministic; extraction requires fixture expansion first."
+    },
+    {
+      "key": "services/diagnostics/analyzer.ts#formatErrorForLLM",
+      "file": "services/diagnostics/analyzer.ts",
+      "name": "formatErrorForLLM",
+      "startLine": 191,
+      "endLine": 292,
+      "maxLines": 80,
+      "actualLines": 102,
+      "rationale": "Diagnostics formatter/analyzer remains monolithic to keep report assembly deterministic; extraction requires fixture expansion first."
+    },
+    {
+      "key": "services/diagnostics/errorReport.ts#createErrorReport",
+      "file": "services/diagnostics/errorReport.ts",
+      "name": "createErrorReport",
+      "startLine": 118,
+      "endLine": 290,
+      "maxLines": 80,
+      "actualLines": 173,
+      "rationale": "Diagnostics formatter/analyzer remains monolithic to keep report assembly deterministic; extraction requires fixture expansion first."
+    },
+    {
+      "key": "services/diagnostics/parser.ts#parseErrors",
+      "file": "services/diagnostics/parser.ts",
+      "name": "parseErrors",
+      "startLine": 129,
+      "endLine": 231,
+      "maxLines": 80,
+      "actualLines": 103,
+      "rationale": "Diagnostics formatter/analyzer remains monolithic to keep report assembly deterministic; extraction requires fixture expansion first."
+    },
+    {
+      "key": "services/github/sync.service.ts#connectChatToRepo",
+      "file": "services/github/sync.service.ts",
+      "name": "connectChatToRepo",
+      "startLine": 176,
+      "endLine": 299,
+      "maxLines": 80,
+      "actualLines": 124,
+      "rationale": "This function remains temporarily oversized due to high-risk control flow; decomposition is deferred under ADR-0001 with gate enforcement."
+    },
+    {
+      "key": "services/planning/resolvers/dependency.resolver.ts#resolveDependencies",
+      "file": "services/planning/resolvers/dependency.resolver.ts",
+      "name": "resolveDependencies",
+      "startLine": 16,
+      "endLine": 103,
+      "maxLines": 80,
+      "actualLines": 88,
+      "rationale": "Planning pipeline function spans tightly-coupled phase transitions and error mapping; decomposition is queued after phase contract stabilization."
+    },
+    {
+      "key": "services/planning/validators/postgenValidator.ts#validateGeneratedOutput",
+      "file": "services/planning/validators/postgenValidator.ts",
+      "name": "validateGeneratedOutput",
+      "startLine": 49,
+      "endLine": 175,
+      "maxLines": 80,
+      "actualLines": 127,
+      "rationale": "Planning pipeline function spans tightly-coupled phase transitions and error mapping; decomposition is queued after phase contract stabilization."
+    },
+    {
+      "key": "services/planning/workflow/engine.ts#advanceWorkflow",
+      "file": "services/planning/workflow/engine.ts",
+      "name": "advanceWorkflow",
+      "startLine": 54,
+      "endLine": 152,
+      "maxLines": 80,
+      "actualLines": 99,
+      "rationale": "Planning pipeline function spans tightly-coupled phase transitions and error mapping; decomposition is queued after phase contract stabilization."
+    },
+    {
+      "key": "services/planning/workflow/steps/executeBuildPhase.ts#executeBuildPhase",
+      "file": "services/planning/workflow/steps/executeBuildPhase.ts",
+      "name": "executeBuildPhase",
+      "startLine": 8,
+      "endLine": 103,
+      "maxLines": 80,
+      "actualLines": 96,
+      "rationale": "Planning pipeline function spans tightly-coupled phase transitions and error mapping; decomposition is queued after phase contract stabilization."
+    },
+    {
+      "key": "services/planning/workflow/steps/executeInstallPhase.ts#executeInstallPhase",
+      "file": "services/planning/workflow/steps/executeInstallPhase.ts",
+      "name": "executeInstallPhase",
+      "startLine": 10,
+      "endLine": 104,
+      "maxLines": 80,
+      "actualLines": 95,
+      "rationale": "Planning pipeline function spans tightly-coupled phase transitions and error mapping; decomposition is queued after phase contract stabilization."
+    },
+    {
+      "key": "services/previewRouting/subdomainUpdate.service.ts#updateChatSubdomain",
+      "file": "services/previewRouting/subdomainUpdate.service.ts",
+      "name": "updateChatSubdomain",
+      "startLine": 87,
+      "endLine": 256,
+      "maxLines": 80,
+      "actualLines": 170,
+      "rationale": "This function remains temporarily oversized due to high-risk control flow; decomposition is deferred under ADR-0001 with gate enforcement."
+    },
+    {
+      "key": "services/queue/workerJobHandlers.service.ts#processBuildJob",
+      "file": "services/queue/workerJobHandlers.service.ts",
+      "name": "processBuildJob",
+      "startLine": 40,
+      "endLine": 194,
+      "maxLines": 80,
+      "actualLines": 155,
+      "rationale": "Run/worker orchestration combines retries, idempotency, and terminal-state handling; split is deferred until policy modules are finalized."
+    },
+    {
+      "key": "services/run-event-stream-utils/service.ts#streamRunEventsFromPersistence",
+      "file": "services/run-event-stream-utils/service.ts",
+      "name": "streamRunEventsFromPersistence",
+      "startLine": 82,
+      "endLine": 316,
+      "maxLines": 80,
+      "actualLines": 235,
+      "rationale": "This function remains temporarily oversized due to high-risk control flow; decomposition is deferred under ADR-0001 with gate enforcement."
+    },
+    {
+      "key": "services/runs/agent-run-worker/processor.events.ts#trackRunEventProgress",
+      "file": "services/runs/agent-run-worker/processor.events.ts",
+      "name": "trackRunEventProgress",
+      "startLine": 19,
+      "endLine": 99,
+      "maxLines": 80,
+      "actualLines": 81,
+      "rationale": "Run/worker orchestration combines retries, idempotency, and terminal-state handling; split is deferred until policy modules are finalized."
+    },
+    {
+      "key": "services/runs/agent-run-worker/processor.finalize.ts#finalizeFailedRun",
+      "file": "services/runs/agent-run-worker/processor.finalize.ts",
+      "name": "finalizeFailedRun",
+      "startLine": 85,
+      "endLine": 168,
+      "maxLines": 80,
+      "actualLines": 84,
+      "rationale": "Run/worker orchestration combines retries, idempotency, and terminal-state handling; split is deferred until policy modules are finalized."
+    },
+    {
+      "key": "services/runs/agent-run-worker/processor.ts#processAgentRunJob",
+      "file": "services/runs/agent-run-worker/processor.ts",
+      "name": "processAgentRunJob",
+      "startLine": 48,
+      "endLine": 335,
+      "maxLines": 80,
+      "actualLines": 288,
+      "rationale": "Run/worker orchestration combines retries, idempotency, and terminal-state handling; split is deferred until policy modules are finalized."
+    },
+    {
+      "key": "services/runs/messageOrchestrator.service.ts#unifiedSendMessage",
+      "file": "services/runs/messageOrchestrator.service.ts",
+      "name": "unifiedSendMessage",
+      "startLine": 45,
+      "endLine": 288,
+      "maxLines": 80,
+      "actualLines": 244,
+      "rationale": "Run/worker orchestration combines retries, idempotency, and terminal-state handling; split is deferred until policy modules are finalized."
+    },
+    {
+      "key": "services/sandbox/backup/snapshot.ts#createSourceSnapshot",
+      "file": "services/sandbox/backup/snapshot.ts",
+      "name": "createSourceSnapshot",
+      "startLine": 30,
+      "endLine": 137,
+      "maxLines": 80,
+      "actualLines": 108,
+      "rationale": "Sandbox lifecycle/build logic must preserve transactional cleanup and remote side effects; decomposition is staged behind dedicated safety tests."
+    },
+    {
+      "key": "services/sandbox/builder/basePathInjector.ts#injectBasePathConfigs",
+      "file": "services/sandbox/builder/basePathInjector.ts",
+      "name": "injectBasePathConfigs",
+      "startLine": 227,
+      "endLine": 328,
+      "maxLines": 80,
+      "actualLines": 102,
+      "rationale": "Sandbox lifecycle/build logic must preserve transactional cleanup and remote side effects; decomposition is staged behind dedicated safety tests."
+    },
+    {
+      "key": "services/sandbox/builder/spaFallback/runtimeScriptPrelude.ts#renderPreviewRuntimeScriptPrelude",
+      "file": "services/sandbox/builder/spaFallback/runtimeScriptPrelude.ts",
+      "name": "renderPreviewRuntimeScriptPrelude",
+      "startLine": 10,
+      "endLine": 282,
+      "maxLines": 80,
+      "actualLines": 273,
+      "rationale": "Sandbox lifecycle/build logic must preserve transactional cleanup and remote side effects; decomposition is staged behind dedicated safety tests."
+    },
+    {
+      "key": "services/sandbox/builder/unified-build/orchestrator.ts#buildAndUploadUnified",
+      "file": "services/sandbox/builder/unified-build/orchestrator.ts",
+      "name": "buildAndUploadUnified",
+      "startLine": 25,
+      "endLine": 349,
+      "maxLines": 80,
+      "actualLines": 325,
+      "rationale": "Sandbox lifecycle/build logic must preserve transactional cleanup and remote side effects; decomposition is staged behind dedicated safety tests."
+    },
+    {
+      "key": "services/sandbox/docker.service.ts#execCommand",
+      "file": "services/sandbox/docker.service.ts",
+      "name": "execCommand",
+      "startLine": 29,
+      "endLine": 171,
+      "maxLines": 80,
+      "actualLines": 143,
+      "rationale": "Sandbox lifecycle/build logic must preserve transactional cleanup and remote side effects; decomposition is staged behind dedicated safety tests."
+    },
+    {
+      "key": "services/sandbox/docker.service.ts#L56",
+      "file": "services/sandbox/docker.service.ts",
+      "name": "<anonymous>",
+      "startLine": 56,
+      "endLine": 162,
+      "maxLines": 80,
+      "actualLines": 107,
+      "rationale": "Sandbox lifecycle/build logic must preserve transactional cleanup and remote side effects; decomposition is staged behind dedicated safety tests."
+    },
+    {
+      "key": "services/sandbox/lifecycle/provisioning.ts#getActiveSandbox",
+      "file": "services/sandbox/lifecycle/provisioning.ts",
+      "name": "getActiveSandbox",
+      "startLine": 124,
+      "endLine": 231,
+      "maxLines": 80,
+      "actualLines": 108,
+      "rationale": "Sandbox lifecycle/build logic must preserve transactional cleanup and remote side effects; decomposition is staged behind dedicated safety tests."
+    },
+    {
+      "key": "services/sandbox/lifecycle/provisioning.ts#provisionSandbox",
+      "file": "services/sandbox/lifecycle/provisioning.ts",
+      "name": "provisionSandbox",
+      "startLine": 233,
+      "endLine": 344,
+      "maxLines": 80,
+      "actualLines": 112,
+      "rationale": "Sandbox lifecycle/build logic must preserve transactional cleanup and remote side effects; decomposition is staged behind dedicated safety tests."
+    },
+    {
+      "key": "services/sandbox/read.service.ts#readAllProjectFiles",
+      "file": "services/sandbox/read.service.ts",
+      "name": "readAllProjectFiles",
+      "startLine": 76,
+      "endLine": 178,
+      "maxLines": 80,
+      "actualLines": 103,
+      "rationale": "Sandbox lifecycle/build logic must preserve transactional cleanup and remote side effects; decomposition is staged behind dedicated safety tests."
+    },
+    {
+      "key": "services/sandbox/read/backup.ts#readProjectFilesFromBackupArchive",
+      "file": "services/sandbox/read/backup.ts",
+      "name": "readProjectFilesFromBackupArchive",
+      "startLine": 100,
+      "endLine": 198,
+      "maxLines": 80,
+      "actualLines": 99,
+      "rationale": "Sandbox lifecycle/build logic must preserve transactional cleanup and remote side effects; decomposition is staged behind dedicated safety tests."
+    },
+    {
+      "key": "services/sandbox/templates/dependency.merger.ts#mergeAndInstallDependencies",
+      "file": "services/sandbox/templates/dependency.merger.ts",
+      "name": "mergeAndInstallDependencies",
+      "startLine": 66,
+      "endLine": 245,
+      "maxLines": 80,
+      "actualLines": 180,
+      "rationale": "Sandbox lifecycle/build logic must preserve transactional cleanup and remote side effects; decomposition is staged behind dedicated safety tests."
+    },
+    {
+      "key": "services/sandbox/upload.service.ts#uploadBuildFilesToS3",
+      "file": "services/sandbox/upload.service.ts",
+      "name": "uploadBuildFilesToS3",
+      "startLine": 26,
+      "endLine": 215,
+      "maxLines": 80,
+      "actualLines": 190,
+      "rationale": "Sandbox lifecycle/build logic must preserve transactional cleanup and remote side effects; decomposition is staged behind dedicated safety tests."
+    },
+    {
+      "key": "services/sandbox/upload.service.ts#L80",
+      "file": "services/sandbox/upload.service.ts",
+      "name": "<anonymous>",
+      "startLine": 80,
+      "endLine": 187,
+      "maxLines": 80,
+      "actualLines": 108,
+      "rationale": "Sandbox lifecycle/build logic must preserve transactional cleanup and remote side effects; decomposition is staged behind dedicated safety tests."
+    },
+    {
+      "key": "services/sandbox/upload.service.ts#L81",
+      "file": "services/sandbox/upload.service.ts",
+      "name": "<anonymous>",
+      "startLine": 81,
+      "endLine": 177,
+      "maxLines": 80,
+      "actualLines": 97,
+      "rationale": "Sandbox lifecycle/build logic must preserve transactional cleanup and remote side effects; decomposition is staged behind dedicated safety tests."
+    },
+    {
+      "key": "services/sandbox/write/flush.ts#flushSandbox",
+      "file": "services/sandbox/write/flush.ts",
+      "name": "flushSandbox",
+      "startLine": 20,
+      "endLine": 121,
+      "maxLines": 80,
+      "actualLines": 102,
+      "rationale": "Sandbox lifecycle/build logic must preserve transactional cleanup and remote side effects; decomposition is staged behind dedicated safety tests."
+    },
+    {
+      "key": "services/storage.service.ts#cleanupS3FolderExcept",
+      "file": "services/storage.service.ts",
+      "name": "cleanupS3FolderExcept",
+      "startLine": 132,
+      "endLine": 225,
+      "maxLines": 80,
+      "actualLines": 94,
+      "rationale": "This function remains temporarily oversized due to high-risk control flow; decomposition is deferred under ADR-0001 with gate enforcement."
+    },
+    {
+      "key": "services/tools/toolGateway.service.ts#executeToolWithGateway",
+      "file": "services/tools/toolGateway.service.ts",
+      "name": "executeToolWithGateway",
+      "startLine": 85,
+      "endLine": 180,
+      "maxLines": 80,
+      "actualLines": 96,
+      "rationale": "This function remains temporarily oversized due to high-risk control flow; decomposition is deferred under ADR-0001 with gate enforcement."
+    },
+    {
+      "key": "services/websearch/urlScraper/network.ts#scrapeUrl",
+      "file": "services/websearch/urlScraper/network.ts",
+      "name": "scrapeUrl",
+      "startLine": 20,
+      "endLine": 111,
+      "maxLines": 80,
+      "actualLines": 92,
+      "rationale": "This function remains temporarily oversized due to high-risk control flow; decomposition is deferred under ADR-0001 with gate enforcement."
+    },
+    {
+      "key": "utils/imageValidation/network.ts#validateImageUrl",
+      "file": "utils/imageValidation/network.ts",
+      "name": "validateImageUrl",
+      "startLine": 20,
+      "endLine": 126,
+      "maxLines": 80,
+      "actualLines": 107,
+      "rationale": "This function remains temporarily oversized due to high-risk control flow; decomposition is deferred under ADR-0001 with gate enforcement."
+    }
+  ]
+}

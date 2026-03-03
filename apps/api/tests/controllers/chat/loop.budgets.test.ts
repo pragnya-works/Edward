@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   createTurnBudgetState,
   updateToolBudgetState,
-} from "../../../controllers/chat/session/loop/budgets.js";
+} from "../../../services/chat/session/loop/budgets.js";
 import {
   MAX_AGENT_TOOL_CALLS_PER_RUN,
   MAX_AGENT_TOOL_CALLS_PER_TURN,

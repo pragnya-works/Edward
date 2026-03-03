@@ -42,8 +42,7 @@ export function getContentType(filePath: string): string {
     return 'text/css';
   }
 
-  const contentType = lookup(filePath) || 'application/octet-stream';
-  return contentType;
+  return lookup(filePath) || 'application/octet-stream';
 }
 
 export function buildS3Key(userId: string, chatId: string, filePath?: string): string {

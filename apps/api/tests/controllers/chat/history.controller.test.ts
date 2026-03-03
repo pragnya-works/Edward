@@ -26,7 +26,7 @@ const mockRefs = vi.hoisted(() => {
     },
     getAuthenticatedUserId: vi.fn(() => "user-1"),
     getChatIdOrRespond: vi.fn(() => "chat-1"),
-    assertChatOwnedOrRespond: vi.fn(async () => true),
+    assertChatAccessOrRespond: vi.fn(async () => true),
     getActiveSandbox: vi.fn(async () => "sandbox-1"),
     cleanupSandbox: vi.fn(async () => undefined),
     buildS3Key: vi.fn((userId: string, chatId: string) => `${userId}/${chatId}/`),
@@ -78,6 +78,9 @@ vi.mock("../../../services/storage.service.js", () => ({
 
 vi.mock("../../../services/previewRouting/registration.js", () => ({
   deletePreviewSubdomain: mockRefs.deletePreviewSubdomain,
+}));
+
+vi.mock("../../../services/previewRouting/subdomain.js", () => ({
   generatePreviewSubdomain: mockRefs.generatePreviewSubdomain,
 }));
 
@@ -85,13 +88,12 @@ vi.mock("../../../utils/response.js", () => ({
   sendSuccess: mockRefs.sendSuccess,
 }));
 
-vi.mock("../../../controllers/chat/response/streamErrors.js", () => ({
+vi.mock("../../../utils/streamError.js", () => ({
   sendStreamError: mockRefs.sendStreamError,
 }));
 
-vi.mock("../../../controllers/chat/access/chatAccess.service.js", () => ({
-  assertChatOwnedOrRespond: mockRefs.assertChatOwnedOrRespond,
-  assertChatReadableOrRespond: vi.fn(),
+vi.mock("../../../services/chat/access.service.js", () => ({
+  assertChatAccessOrRespond: mockRefs.assertChatAccessOrRespond,
   getChatIdOrRespond: mockRefs.getChatIdOrRespond,
 }));
 

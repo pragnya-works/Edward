@@ -22,6 +22,38 @@ import {
 
 const EXCLUDED_DIR_SET = new Set(SANDBOX_EXCLUDED_DIRS);
 
+async function processBackupArchive(params: {
+  stream: Awaited<ReturnType<typeof downloadFile>>;
+  onEntry: (
+    header: tar.Headers,
+    fileStream: Readable,
+    next: () => void,
+    reject: (error: unknown) => void,
+  ) => void;
+}): Promise<void> {
+  const gunzip = zlib.createGunzip();
+  const extract = tar.extract();
+
+  await new Promise<void>((resolve, reject) => {
+    extract.on("entry", (header, fileStream, next) => {
+      params.onEntry(
+        header,
+        fileStream as Readable,
+        next,
+        (error) => reject(error as Error),
+      );
+    });
+
+    const readableStream = params.stream as Readable;
+    readableStream.on("error", reject);
+    gunzip.on("error", reject);
+    extract.on("finish", resolve);
+    extract.on("error", reject);
+
+    readableStream.pipe(gunzip).pipe(extract);
+  });
+}
+
 export async function readFileFromBackupArchive(
   userId: string,
   chatId: string,
@@ -34,12 +66,11 @@ export async function readFileFromBackupArchive(
   const stream = await downloadFile(backupKey);
   if (!stream) return "";
 
-  const gunzip = zlib.createGunzip();
-  const extract = tar.extract();
   let fileContent = "";
 
-  await new Promise<void>((resolve, reject) => {
-    extract.on("entry", (header, fileStream, next) => {
+  await processBackupArchive({
+    stream,
+    onEntry: (header, fileStream, next, reject) => {
       if (header.type !== "file") {
         fileStream.resume();
         next();
@@ -60,15 +91,7 @@ export async function readFileFromBackupArchive(
         next();
       });
       fileStream.on("error", reject);
-    });
-
-    const readableStream = stream as Readable;
-    readableStream.on("error", reject);
-    gunzip.on("error", reject);
-    extract.on("finish", resolve);
-    extract.on("error", reject);
-
-    readableStream.pipe(gunzip).pipe(extract);
+    },
   });
 
   return fileContent;
@@ -86,11 +109,10 @@ export async function readProjectFilesFromBackupArchive(
   const priorityCandidates = new Map<string, string>();
   const regularCandidates = new Map<string, string>();
   let regularCandidateBytes = 0;
-  const gunzip = zlib.createGunzip();
-  const extract = tar.extract();
 
-  await new Promise<void>((resolve, reject) => {
-    extract.on("entry", (header, fileStream, next) => {
+  await processBackupArchive({
+    stream,
+    onEntry: (header, fileStream, next, reject) => {
       if (header.type !== "file") {
         fileStream.resume();
         next();
@@ -142,15 +164,7 @@ export async function readProjectFilesFromBackupArchive(
         next();
       });
       fileStream.on("error", reject);
-    });
-
-    const readableStream = stream as Readable;
-    readableStream.on("error", reject);
-    gunzip.on("error", reject);
-    extract.on("finish", resolve);
-    extract.on("error", reject);
-
-    readableStream.pipe(gunzip).pipe(extract);
+    },
   });
 
   const selected: string[] = [];

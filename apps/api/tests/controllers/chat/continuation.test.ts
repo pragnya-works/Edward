@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildAgentContinuationPrompt } from "../../../controllers/chat/session/shared/continuation.js";
+import { buildAgentContinuationPrompt } from "../../../services/chat/session/shared/continuation.js";
 
 describe("buildAgentContinuationPrompt", () => {
   it("preserves compact emitted file context for continuation turns", () => {

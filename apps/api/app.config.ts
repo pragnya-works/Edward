@@ -1,6 +1,7 @@
 import { ConnectionOptions } from "bullmq";
 import { Environment } from "./utils/logger.js";
-import type { DeploymentType } from "./services/sandbox/builder/basePathInjector.js";
+
+export type DeploymentType = "path" | "subdomain";
 
 function validateEnvVar(name: string, value: string | undefined): string {
   if (!value || value.trim() === "") {

@@ -11,10 +11,8 @@ import type { StreamState } from "@edward/shared/chat/types";
 import {
   useChatStreamController,
   type ChatStreamActionsContextValue,
-  type ChatStreamStateContextValue,
 } from "@/stores/chatStream/controller";
 import { useChatStreamStore } from "@/stores/chatStream/store";
-import { useChatStreamState } from "@/stores/chatStream/hooks";
 
 const ChatStreamActionsContext =
   createContext<ChatStreamActionsContextValue | null>(null);
@@ -57,10 +55,6 @@ export function ChatStreamProvider({ children }: { children: ReactNode }) {
       {children}
     </ChatStreamActionsContext.Provider>
   );
-}
-
-export function useChatStream(): ChatStreamStateContextValue {
-  return useChatStreamState();
 }
 
 export function useChatStreamActions() {

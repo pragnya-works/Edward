@@ -5,8 +5,8 @@ import { useSession, signIn } from "@/lib/auth-client";
 import { useApiKey } from "@/hooks/server-state/useApiKey";
 import {
   useChatStreamActions,
-  useChatStream,
 } from "@/contexts/chatStreamContext";
+import { useChatStreamState } from "@/stores/chatStream/hooks";
 import { useOptionalChatWorkspaceContext } from "@/components/chat/chatWorkspaceContext";
 import {
   filesToMessageContent,
@@ -48,7 +48,7 @@ export default function AuthenticatedPromptbar({
   } = useApiKey();
   const router = useRouter();
   const { startStream, onMetaRef, cancelStream } = useChatStreamActions();
-  const { streams } = useChatStream();
+  const { streams } = useChatStreamState();
   const chatSubmissionGuards = useChatSubmissionGuards();
   const {
     uploadImage,
