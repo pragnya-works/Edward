@@ -38,6 +38,29 @@ import {
 
 const logger = createLogger("WORKER");
 const pubClient = createRedisClient();
+const WORKER_DEPENDENCY_PING_TIMEOUT_MS = 5000;
+
+async function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  timeoutLabel: string,
+): Promise<T> {
+  let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutHandle = setTimeout(() => {
+      reject(new Error(`${timeoutLabel} timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
+  });
+
+  try {
+    return await Promise.race([promise, timeoutPromise]);
+  } finally {
+    if (timeoutHandle) {
+      clearTimeout(timeoutHandle);
+    }
+  }
+}
 
 async function verifyWorkerDependencies(): Promise<void> {
   if (isSandboxEnabled()) {
@@ -53,7 +76,11 @@ async function verifyWorkerDependencies(): Promise<void> {
     );
   }
 
-  const response = await pubClient.ping();
+  const response = await withTimeout(
+    pubClient.ping(),
+    WORKER_DEPENDENCY_PING_TIMEOUT_MS,
+    "Redis ping",
+  );
   if (typeof response !== "string" || response.toUpperCase() !== "PONG") {
     throw new Error(`Unexpected Redis ping response: ${String(response)}`);
   }

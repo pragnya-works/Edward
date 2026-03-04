@@ -70,7 +70,7 @@ output "postgres_endpoint" {
 
 output "redis_endpoint" {
   description = "ElastiCache Redis endpoint hostname."
-  value       = aws_elasticache_cluster.redis.cache_nodes[0].address
+  value       = aws_elasticache_replication_group.redis.primary_endpoint_address
 }
 
 output "ecs_cluster_name" {

@@ -2,6 +2,53 @@ resource "random_id" "bucket_suffix" {
   byte_length = 4
 }
 
+resource "aws_kms_key" "s3" {
+  description         = "CMK for Edward S3 buckets"
+  enable_key_rotation = true
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "EnableRootPermissions"
+        Effect = "Allow"
+        Principal = {
+          AWS = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:root"
+        }
+        Action   = "kms:*"
+        Resource = "*"
+      },
+      {
+        Sid    = "AllowCloudFrontUseOfKey"
+        Effect = "Allow"
+        Principal = {
+          Service = "cloudfront.amazonaws.com"
+        }
+        Action = [
+          "kms:Decrypt",
+          "kms:Encrypt",
+          "kms:GenerateDataKey*",
+          "kms:DescribeKey"
+        ]
+        Resource = "*"
+        Condition = {
+          StringEquals = {
+            "AWS:SourceAccount" = data.aws_caller_identity.current.account_id
+          }
+          ArnLike = {
+            "AWS:SourceArn" = "arn:aws:cloudfront::${data.aws_caller_identity.current.account_id}:distribution/*"
+          }
+        }
+      }
+    ]
+  })
+}
+
+resource "aws_kms_alias" "s3" {
+  name          = "alias/${local.name_prefix}-s3"
+  target_key_id = aws_kms_key.s3.key_id
+}
+
 resource "aws_s3_bucket" "source" {
   bucket = lower("${local.name_prefix}-${random_id.bucket_suffix.hex}-source")
 }
@@ -19,8 +66,10 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "source" {
 
   rule {
     apply_server_side_encryption_by_default {
-      sse_algorithm = "AES256"
+      sse_algorithm     = "aws:kms"
+      kms_master_key_id = aws_kms_key.s3.arn
     }
+    bucket_key_enabled = true
   }
 }
 
@@ -56,8 +105,10 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "cdn" {
 
   rule {
     apply_server_side_encryption_by_default {
-      sse_algorithm = "AES256"
+      sse_algorithm     = "aws:kms"
+      kms_master_key_id = aws_kms_key.s3.arn
     }
+    bucket_key_enabled = true
   }
 }
 
@@ -82,13 +133,73 @@ resource "aws_cloudfront_origin_access_control" "cdn" {
   signing_protocol                  = "sigv4"
 }
 
+resource "aws_s3_bucket" "cloudfront_logs" {
+  count = var.use_external_cdn ? 0 : 1
+
+  bucket = lower("${local.name_prefix}-${random_id.bucket_suffix.hex}-cf-logs")
+}
+
+resource "aws_s3_bucket_ownership_controls" "cloudfront_logs" {
+  count = var.use_external_cdn ? 0 : 1
+
+  bucket = aws_s3_bucket.cloudfront_logs[0].id
+
+  rule {
+    object_ownership = "BucketOwnerPreferred"
+  }
+}
+
+resource "aws_s3_bucket_public_access_block" "cloudfront_logs" {
+  count = var.use_external_cdn ? 0 : 1
+
+  bucket = aws_s3_bucket.cloudfront_logs[0].id
+
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+resource "aws_s3_bucket_acl" "cloudfront_logs" {
+  count = var.use_external_cdn ? 0 : 1
+
+  bucket = aws_s3_bucket.cloudfront_logs[0].id
+  acl    = "log-delivery-write"
+
+  depends_on = [
+    aws_s3_bucket_ownership_controls.cloudfront_logs,
+    aws_s3_bucket_public_access_block.cloudfront_logs,
+  ]
+}
+
+resource "aws_s3_bucket_server_side_encryption_configuration" "cloudfront_logs" {
+  count = var.use_external_cdn ? 0 : 1
+
+  bucket = aws_s3_bucket.cloudfront_logs[0].id
+
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm     = "aws:kms"
+      kms_master_key_id = aws_kms_key.s3.arn
+    }
+    bucket_key_enabled = true
+  }
+}
+
 resource "aws_cloudfront_distribution" "cdn" {
   count = var.use_external_cdn ? 0 : 1
 
+  web_acl_id          = trim(var.cloudfront_web_acl_arn, " ") != "" ? trim(var.cloudfront_web_acl_arn, " ") : null
   enabled             = true
   is_ipv6_enabled     = true
   default_root_object = "index.html"
   price_class         = "PriceClass_100"
+
+  logging_config {
+    bucket          = aws_s3_bucket.cloudfront_logs[0].bucket_domain_name
+    include_cookies = false
+    prefix          = "cloudfront/"
+  }
 
   origin {
     domain_name              = aws_s3_bucket.cdn[0].bucket_regional_domain_name

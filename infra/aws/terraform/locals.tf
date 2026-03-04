@@ -65,10 +65,10 @@ locals {
     API_BASE_PATH               = local.normalized_api_path_prefix
     EDWARD_API_PORT             = tostring(var.api_container_port)
     CORS_ORIGIN                 = local.app_url
-    DATABASE_URL                = local.database_url
-    REDIS_HOST                  = aws_elasticache_cluster.redis.cache_nodes[0].address
-    REDIS_PORT                  = tostring(aws_elasticache_cluster.redis.port)
-    REDIS_TLS                   = "false"
+    REDIS_HOST                  = aws_elasticache_replication_group.redis.primary_endpoint_address
+    REDIS_PORT                  = tostring(aws_elasticache_replication_group.redis.port)
+    REDIS_PASSWORD              = var.redis_auth_token
+    REDIS_TLS                   = "true"
     TRUST_PROXY                 = "true"
     OPENAI_MODEL                = var.openai_model
     GEMINI_MODEL                = var.gemini_model
@@ -103,10 +103,21 @@ locals {
     INTERNAL_API_URL            = local.api_url
     NEXT_PUBLIC_BETTER_AUTH_URL = local.app_url
     NEXT_PUBLIC_ASSETS_URL      = local.effective_cloudfront_distribution_url
-    DATABASE_URL                = local.database_url
   }
 
   web_environment = merge(local.web_generated_environment, var.web_environment)
+
+  api_generated_secrets = {
+    DATABASE_URL = aws_secretsmanager_secret.database_url.arn
+  }
+
+  web_generated_secrets = {
+    DATABASE_URL = aws_secretsmanager_secret.database_url.arn
+  }
+
+  api_secrets    = merge(local.api_generated_secrets, var.api_secrets)
+  worker_secrets = merge(local.api_secrets, var.worker_secrets)
+  web_secrets    = merge(local.web_generated_secrets, var.web_secrets)
 
   api_environment_list = [
     for key, value in local.api_environment : {
@@ -130,30 +141,30 @@ locals {
   ]
 
   api_secrets_list = [
-    for key, value in var.api_secrets : {
+    for key, value in local.api_secrets : {
       name      = key
       valueFrom = value
     }
   ]
 
   worker_secrets_list = [
-    for key, value in merge(var.api_secrets, var.worker_secrets) : {
+    for key, value in local.worker_secrets : {
       name      = key
       valueFrom = value
     }
   ]
 
   web_secrets_list = [
-    for key, value in var.web_secrets : {
+    for key, value in local.web_secrets : {
       name      = key
       valueFrom = value
     }
   ]
 
   app_secret_sources = toset(concat(
-    [for _, value in var.api_secrets : value],
-    [for _, value in var.worker_secrets : value],
-    [for _, value in var.web_secrets : value],
+    [for _, value in local.api_secrets : value],
+    [for _, value in local.worker_secrets : value],
+    [for _, value in local.web_secrets : value],
   ))
 
   app_secret_arns = [

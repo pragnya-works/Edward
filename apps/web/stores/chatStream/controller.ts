@@ -61,8 +61,8 @@ export interface ChatStreamActionsContextValue {
   cancelStream: (chatId: string) => void;
   resetStream: (chatId: string) => void;
   setActiveChatId: (id: string | null) => void;
-  /** Pass `null` to unregister. Stored in a ref — no re-renders. */
-  setOnMeta: (fn: ((meta: MetaEvent) => void) | null) => void;
+  registerOnMeta: (id: string, fn: (meta: MetaEvent) => void) => void;
+  unregisterOnMeta: (id: string) => void;
 }
 
 export function useChatStreamController(): ChatStreamActionsContextValue {
@@ -76,7 +76,20 @@ export function useChatStreamController(): ChatStreamActionsContextValue {
   const abortControllersRef = useRef<Map<string, AbortControllerEntry>>(new Map());
   const latestMutationByChatRef = useRef<Map<string, string>>(new Map());
   const mutationChatKeyRef = useRef<Map<string, string>>(new Map());
-  const onMetaRef = useRef<((meta: MetaEvent) => void) | null>(null);
+  const onMetaHandlersRef = useRef<Map<string, (meta: MetaEvent) => void>>(new Map());
+  const onMetaRef = useRef<((meta: MetaEvent) => void) | null>(
+    (meta: MetaEvent) => {
+      for (const handler of onMetaHandlersRef.current.values()) {
+        try {
+          handler(meta);
+        } catch (error) {
+          if (process.env.NODE_ENV !== "production") {
+            console.error("[chatStreamController] onMeta handler failed", error);
+          }
+        }
+      }
+    },
+  );
   const streamsRef = useRef(getChatStreamState().streams);
 
   const cursorPersistence: StreamCursorPersistence = useMemo(
@@ -103,6 +116,7 @@ export function useChatStreamController(): ChatStreamActionsContextValue {
       abortControllersRef.current.clear();
       latestMutationByChatRef.current.clear();
       mutationChatKeyRef.current.clear();
+      onMetaHandlersRef.current.clear();
     },
     [],
   );
@@ -215,9 +229,16 @@ export function useChatStreamController(): ChatStreamActionsContextValue {
     [dispatch, queryClient],
   );
 
-  const setOnMeta = useCallback(
-    (fn: ((meta: MetaEvent) => void) | null) => {
-      onMetaRef.current = fn;
+  const registerOnMeta = useCallback(
+    (id: string, fn: (meta: MetaEvent) => void) => {
+      onMetaHandlersRef.current.set(id, fn);
+    },
+    [],
+  );
+
+  const unregisterOnMeta = useCallback(
+    (id: string) => {
+      onMetaHandlersRef.current.delete(id);
     },
     [],
   );
@@ -266,7 +287,8 @@ export function useChatStreamController(): ChatStreamActionsContextValue {
       cancelStream,
       resetStream,
       setActiveChatId,
-      setOnMeta,
+      registerOnMeta,
+      unregisterOnMeta,
     }),
     [
       startStream,
@@ -274,7 +296,8 @@ export function useChatStreamController(): ChatStreamActionsContextValue {
       cancelStream,
       resetStream,
       setActiveChatId,
-      setOnMeta,
+      registerOnMeta,
+      unregisterOnMeta,
     ],
   );
 

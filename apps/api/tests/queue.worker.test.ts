@@ -208,9 +208,13 @@ describe("queue.worker bootstrap", () => {
     refs.sandboxControl.isSandboxRuntimeAvailable.mockResolvedValueOnce(false);
     const processExitSpy = vi
       .spyOn(process, "exit")
-      .mockImplementation((() => undefined) as never);
+      .mockImplementation(() => {
+        throw new Error("process.exit was called");
+      });
 
-    await import("../queue.worker.js");
+    await expect(import("../queue.worker.js")).rejects.toThrow(
+      "process.exit was called",
+    );
 
     expect(refs.workerInstances).toHaveLength(0);
     expect(refs.registerWorkerEventHandlers).not.toHaveBeenCalled();
@@ -225,9 +229,13 @@ describe("queue.worker bootstrap", () => {
     refs.redisClient.ping.mockResolvedValueOnce("NOPE");
     const processExitSpy = vi
       .spyOn(process, "exit")
-      .mockImplementation((() => undefined) as never);
+      .mockImplementation(() => {
+        throw new Error("process.exit was called");
+      });
 
-    await import("../queue.worker.js");
+    await expect(import("../queue.worker.js")).rejects.toThrow(
+      "process.exit was called",
+    );
 
     expect(refs.workerInstances).toHaveLength(0);
     expect(refs.registerWorkerEventHandlers).not.toHaveBeenCalled();

@@ -17,6 +17,8 @@ type PreflightCheck = {
   run: () => Promise<void>;
 };
 
+const CLOUDFLARE_CHECK_TIMEOUT_MS = 5000;
+
 function formatError(error: unknown): string {
   if (error instanceof Error) {
     return error.message;
@@ -141,13 +143,28 @@ async function checkCloudflareRouting(): Promise<void> {
     accountId: routingConfig.accountId,
     namespaceId: routingConfig.namespaceId,
   });
-  const response = await fetch(endpoint, {
-    method: "GET",
-    headers: {
-      Authorization: `Bearer ${routingConfig.apiToken}`,
-      "Content-Type": "application/json",
-    },
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), CLOUDFLARE_CHECK_TIMEOUT_MS);
+  let response: Response;
+  try {
+    response = await fetch(endpoint, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${routingConfig.apiToken}`,
+        "Content-Type": "application/json",
+      },
+      signal: controller.signal,
+    });
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new Error(
+        `Cloudflare KV namespace check timed out after ${CLOUDFLARE_CHECK_TIMEOUT_MS}ms.`,
+      );
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
 
   if (!response.ok) {
     const details = await response.text().catch(() => "");

@@ -45,6 +45,46 @@ interface ReadinessSummary {
   sandbox: ReadinessCheck;
 }
 
+const READINESS_TIMEOUT_MS = 2500;
+const READINESS_DETAIL_DISABLED = "disabled";
+const READINESS_DETAIL_TIMEOUT = "timeout";
+const READINESS_DETAIL_UNAVAILABLE = "unavailable";
+const READINESS_DETAIL_UNEXPECTED_RESPONSE = "unexpected_response";
+const readinessLogger = createLogger("API_READINESS");
+
+class ReadinessTimeoutError extends Error {
+  constructor(target: string, timeoutMs: number) {
+    super(`${target} readiness probe timed out after ${timeoutMs}ms`);
+    this.name = "ReadinessTimeoutError";
+  }
+}
+
+function isReadinessTimeoutError(error: unknown): boolean {
+  return error instanceof ReadinessTimeoutError;
+}
+
+async function withReadinessTimeout<T>(
+  promise: Promise<T>,
+  target: string,
+  timeoutMs: number = READINESS_TIMEOUT_MS,
+): Promise<T> {
+  let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutHandle = setTimeout(() => {
+      reject(new ReadinessTimeoutError(target, timeoutMs));
+    }, timeoutMs);
+  });
+
+  try {
+    return await Promise.race([promise, timeoutPromise]);
+  } finally {
+    if (timeoutHandle) {
+      clearTimeout(timeoutHandle);
+    }
+  }
+}
+
 export function createHttpApp(params: CreateHttpAppParams): express.Express {
   const { isDev, isProd, allowedOrigins, environment, trustProxy, apiBasePath } = params;
   const logger = createLogger("API");
@@ -189,31 +229,50 @@ async function evaluateReadiness(): Promise<ReadinessSummary> {
 
 async function checkDatabaseReadiness(): Promise<ReadinessCheck> {
   try {
-    await db.select({ id: user.id }).from(user).limit(1);
+    await withReadinessTimeout(
+      db.select({ id: user.id }).from(user).limit(1),
+      "database",
+    );
     return { ok: true };
   } catch (error) {
+    readinessLogger.error(
+      { error: ensureError(error) },
+      "Database readiness probe failed",
+    );
     return {
       ok: false,
-      detail: ensureError(error).message,
+      detail: isReadinessTimeoutError(error)
+        ? READINESS_DETAIL_TIMEOUT
+        : READINESS_DETAIL_UNAVAILABLE,
     };
   }
 }
 
 async function checkRedisReadiness(): Promise<ReadinessCheck> {
   try {
-    const response = await redis.ping();
+    const response = await withReadinessTimeout(redis.ping(), "redis");
     if (typeof response === "string" && response.toUpperCase() === "PONG") {
       return { ok: true };
     }
 
+    readinessLogger.error(
+      { response },
+      "Redis readiness probe returned unexpected response",
+    );
     return {
       ok: false,
-      detail: `Unexpected Redis ping response: ${String(response)}`,
+      detail: READINESS_DETAIL_UNEXPECTED_RESPONSE,
     };
   } catch (error) {
+    readinessLogger.error(
+      { error: ensureError(error) },
+      "Redis readiness probe failed",
+    );
     return {
       ok: false,
-      detail: ensureError(error).message,
+      detail: isReadinessTimeoutError(error)
+        ? READINESS_DETAIL_TIMEOUT
+        : READINESS_DETAIL_UNAVAILABLE,
     };
   }
 }
@@ -222,19 +281,35 @@ async function checkSandboxReadiness(): Promise<ReadinessCheck> {
   if (!isSandboxEnabled()) {
     return {
       ok: true,
-      detail: "disabled",
+      detail: READINESS_DETAIL_DISABLED,
     };
   }
 
-  const available = await isSandboxRuntimeAvailable();
-  if (available) {
-    return { ok: true };
-  }
+  try {
+    const available = await withReadinessTimeout(
+      isSandboxRuntimeAvailable(),
+      "sandbox",
+    );
+    if (available) {
+      return { ok: true };
+    }
 
-  return {
-    ok: false,
-    detail: "Docker runtime unavailable",
-  };
+    return {
+      ok: false,
+      detail: READINESS_DETAIL_UNAVAILABLE,
+    };
+  } catch (error) {
+    readinessLogger.error(
+      { error: ensureError(error) },
+      "Sandbox readiness probe failed",
+    );
+    return {
+      ok: false,
+      detail: isReadinessTimeoutError(error)
+        ? READINESS_DETAIL_TIMEOUT
+        : READINESS_DETAIL_UNAVAILABLE,
+    };
+  }
 }
 
 function createHelmetMiddleware() {

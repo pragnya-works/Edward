@@ -3,11 +3,11 @@ import { logger } from "../../utils/logger.js";
 import { config } from "../../app.config.js";
 import { getCloudFrontClient } from "./cloudfront.config.js";
 
-const DISTRIBUTION_ID = config.aws.cloudfrontDistributionId;
+const DISTRIBUTION_ID = config.aws.cloudfrontDistributionId?.trim() || "";
 
 async function invalidateCloudFrontPaths(paths: string[]): Promise<void> {
   const client = await getCloudFrontClient();
-  if (!client || paths.length === 0) return;
+  if (!client || !DISTRIBUTION_ID || paths.length === 0) return;
 
   try {
     const command = new CreateInvalidationCommand({

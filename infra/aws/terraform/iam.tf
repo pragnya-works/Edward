@@ -58,22 +58,29 @@ resource "aws_iam_role_policy_attachment" "ecs_task_execution_managed" {
 }
 
 resource "aws_iam_role_policy" "ecs_task_execution_secrets" {
+  count = (length(local.app_secret_arns) + length(local.app_parameter_arns)) > 0 ? 1 : 0
+
   name = "${local.name_prefix}-ecs-task-execution-secrets"
   role = aws_iam_role.ecs_task_execution.id
 
   policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Action = [
-          "secretsmanager:GetSecretValue",
-          "ssm:GetParameter",
-          "ssm:GetParameters"
-        ]
-        Resource = "*"
-      }
-    ]
+    Statement = concat(
+      length(local.app_secret_arns) > 0 ? [
+        {
+          Effect   = "Allow"
+          Action   = ["secretsmanager:GetSecretValue"]
+          Resource = local.app_secret_arns
+        }
+      ] : [],
+      length(local.app_parameter_arns) > 0 ? [
+        {
+          Effect   = "Allow"
+          Action   = ["ssm:GetParameter", "ssm:GetParameters"]
+          Resource = local.app_parameter_arns
+        }
+      ] : [],
+    )
   })
 }
 
@@ -117,6 +124,17 @@ resource "aws_iam_role_policy" "ecs_task_app" {
             local.effective_cdn_bucket_arn,
             "${local.effective_cdn_bucket_arn}/*"
           ]
+        },
+        {
+          Effect = "Allow"
+          Action = [
+            "kms:Decrypt",
+            "kms:Encrypt",
+            "kms:GenerateDataKey",
+            "kms:GenerateDataKeyWithoutPlaintext",
+            "kms:DescribeKey"
+          ]
+          Resource = [aws_kms_key.s3.arn]
         },
         {
           Effect = "Allow"

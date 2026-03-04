@@ -1,6 +1,6 @@
 resource "aws_ecr_repository" "api" {
   name                 = "${local.name_prefix}/api"
-  image_tag_mutability = "MUTABLE"
+  image_tag_mutability = "IMMUTABLE"
 
   image_scanning_configuration {
     scan_on_push = true
@@ -9,7 +9,7 @@ resource "aws_ecr_repository" "api" {
 
 resource "aws_ecr_repository" "web" {
   name                 = "${local.name_prefix}/web"
-  image_tag_mutability = "MUTABLE"
+  image_tag_mutability = "IMMUTABLE"
 
   image_scanning_configuration {
     scan_on_push = true
@@ -101,7 +101,7 @@ resource "aws_launch_template" "ecs" {
   metadata_options {
     http_endpoint               = "enabled"
     http_tokens                 = "required"
-    http_put_response_hop_limit = 2
+    http_put_response_hop_limit = 1
   }
 
   monitoring {
@@ -355,9 +355,13 @@ resource "aws_ecs_task_definition" "api" {
   execution_role_arn       = aws_iam_role.ecs_task_execution.arn
   task_role_arn            = aws_iam_role.ecs_task.arn
 
-  volume {
-    name      = "docker-socket"
-    host_path = "/var/run/docker.sock"
+  dynamic "volume" {
+    for_each = var.sandbox_enabled ? [1] : []
+
+    content {
+      name      = "docker-socket"
+      host_path = "/var/run/docker.sock"
+    }
   }
 
   container_definitions = jsonencode([
@@ -373,13 +377,13 @@ resource "aws_ecs_task_definition" "api" {
           protocol      = "tcp"
         }
       ]
-      mountPoints = [
+      mountPoints = var.sandbox_enabled ? [
         {
           sourceVolume  = "docker-socket"
           containerPath = "/var/run/docker.sock"
           readOnly      = false
         }
-      ]
+      ] : []
       environment = local.api_environment_list
       secrets     = local.api_secrets_list
       logConfiguration = {
@@ -403,9 +407,13 @@ resource "aws_ecs_task_definition" "worker" {
   execution_role_arn       = aws_iam_role.ecs_task_execution.arn
   task_role_arn            = aws_iam_role.ecs_task.arn
 
-  volume {
-    name      = "docker-socket"
-    host_path = "/var/run/docker.sock"
+  dynamic "volume" {
+    for_each = var.sandbox_enabled ? [1] : []
+
+    content {
+      name      = "docker-socket"
+      host_path = "/var/run/docker.sock"
+    }
   }
 
   container_definitions = jsonencode([
@@ -414,13 +422,13 @@ resource "aws_ecs_task_definition" "worker" {
       image     = var.api_image
       essential = true
       command   = ["node", "dist/queue.worker.js"]
-      mountPoints = [
+      mountPoints = var.sandbox_enabled ? [
         {
           sourceVolume  = "docker-socket"
           containerPath = "/var/run/docker.sock"
           readOnly      = false
         }
-      ]
+      ] : []
       environment = local.worker_environment_list
       secrets     = local.worker_secrets_list
       logConfiguration = {
@@ -471,11 +479,13 @@ resource "aws_ecs_task_definition" "web" {
 }
 
 resource "aws_ecs_service" "api" {
-  name            = "${local.name_prefix}-api"
-  cluster         = aws_ecs_cluster.main.id
-  task_definition = aws_ecs_task_definition.api.arn
-  desired_count   = 1
-  launch_type     = "EC2"
+  name                               = "${local.name_prefix}-api"
+  cluster                            = aws_ecs_cluster.main.id
+  task_definition                    = aws_ecs_task_definition.api.arn
+  desired_count                      = 1
+  launch_type                        = "EC2"
+  deployment_minimum_healthy_percent = 0
+  deployment_maximum_percent         = 100
 
   deployment_circuit_breaker {
     enable   = true
@@ -525,11 +535,13 @@ resource "aws_ecs_service" "worker" {
 }
 
 resource "aws_ecs_service" "web" {
-  name            = "${local.name_prefix}-web"
-  cluster         = aws_ecs_cluster.main.id
-  task_definition = aws_ecs_task_definition.web.arn
-  desired_count   = 1
-  launch_type     = "EC2"
+  name                               = "${local.name_prefix}-web"
+  cluster                            = aws_ecs_cluster.main.id
+  task_definition                    = aws_ecs_task_definition.web.arn
+  desired_count                      = 1
+  launch_type                        = "EC2"
+  deployment_minimum_healthy_percent = 0
+  deployment_maximum_percent         = 100
 
   deployment_circuit_breaker {
     enable   = true

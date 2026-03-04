@@ -60,7 +60,11 @@ function normalizeBasePath(value: string | undefined): string {
   return normalized === "/" ? "" : normalized;
 }
 
-function parseBoolean(value: string | undefined, fallback: boolean): boolean {
+function parseBoolean(
+  name: string,
+  value: string | undefined,
+  fallback: boolean,
+): boolean {
   if (!value || value.trim() === "") {
     return fallback;
   }
@@ -71,7 +75,7 @@ function parseBoolean(value: string | undefined, fallback: boolean): boolean {
   if (normalized === "0" || normalized === "false" || normalized === "no") {
     return false;
   }
-  return fallback;
+  throw new Error(`${name} must be one of: true,false,1,0,yes,no`);
 }
 
 export function parseTrustProxy(
@@ -108,12 +112,12 @@ function parseRedisUrl(url: string): RedisConnectionConfig {
     }
 
     const dbSegment = parsed.pathname.replace(/^\//, "").trim();
+    if (dbSegment !== "" && !/^\d+$/.test(dbSegment)) {
+      throw new Error("REDIS_URL contains invalid DB index");
+    }
     const db = dbSegment === ""
       ? DEFAULT_REDIS_DB
       : Number.parseInt(dbSegment, 10);
-    if (Number.isNaN(db) || db < 0) {
-      throw new Error("REDIS_URL contains invalid DB index");
-    }
 
     const username = parsed.username
       ? decodeURIComponent(parsed.username)
@@ -145,10 +149,11 @@ function parseOptionalInt(
   if (!value || value.trim() === "") {
     return undefined;
   }
-  const parsed = Number.parseInt(value.trim(), 10);
-  if (Number.isNaN(parsed) || parsed < 0) {
+  const trimmed = value.trim();
+  if (!/^\d+$/.test(trimmed)) {
     throw new Error(`${name} must be a non-negative integer`);
   }
+  const parsed = Number.parseInt(trimmed, 10);
   return parsed;
 }
 
@@ -164,7 +169,7 @@ function resolveRedisConnectionConfig(
   const username = env.REDIS_USERNAME?.trim() || undefined;
   const password = env.REDIS_PASSWORD?.trim() || undefined;
   const db = parseOptionalInt("REDIS_DB", env.REDIS_DB);
-  const tlsEnabled = parseBoolean(env.REDIS_TLS, false);
+  const tlsEnabled = parseBoolean("REDIS_TLS", env.REDIS_TLS, false);
 
   return {
     host,
@@ -319,6 +324,8 @@ export const config = {
     cloudfrontDistributionUrl: process.env.CLOUDFRONT_DISTRIBUTION_URL,
     cloudfrontDistributionId: process.env.CLOUDFRONT_DISTRIBUTION_ID,
     cloudfrontRoleArn: process.env.AWS_CLOUDFRONT_ROLE_ARN?.trim() || undefined,
+    cloudfrontRoleSessionName: process.env.AWS_CLOUDFRONT_ROLE_SESSION_NAME
+      ?.trim() || undefined,
   },
 
   github: {
@@ -356,7 +363,7 @@ export const config = {
 
   sandbox: {
     get enabled(): boolean {
-      return parseBoolean(process.env.SANDBOX_ENABLED, true);
+      return parseBoolean("SANDBOX_ENABLED", process.env.SANDBOX_ENABLED, true);
     },
   },
 

@@ -3,18 +3,33 @@ import { CLEANUP_INTERVAL_MS } from "./state.js";
 import { pingDocker } from "../docker.service.js";
 import { config } from "../../../app.config.js";
 import { createLogger } from "../../../utils/logger.js";
+import { ensureError } from "../../../utils/error.js";
 
 let cleanupInterval: NodeJS.Timeout | null = null;
 const logger = createLogger("SANDBOX_LIFECYCLE");
 
 function startCleanupInterval(): NodeJS.Timeout {
+  let cleanupInProgress = false;
+
   const timer = setInterval(() => {
-    void cleanupExpiredSandboxContainers().catch((error: unknown) => {
-      logger.error(
-        { error: error instanceof Error ? error.message : String(error) },
-        "Sandbox cleanup interval failed",
+    if (cleanupInProgress) {
+      logger.warn(
+        "Skipping sandbox cleanup tick because previous cleanup is still running",
       );
-    });
+      return;
+    }
+
+    cleanupInProgress = true;
+    void cleanupExpiredSandboxContainers()
+      .catch((error: unknown) => {
+        logger.error(
+          { error: ensureError(error) },
+          "Sandbox cleanup interval failed",
+        );
+      })
+      .finally(() => {
+        cleanupInProgress = false;
+      });
   }, CLEANUP_INTERVAL_MS);
 
   timer.unref();

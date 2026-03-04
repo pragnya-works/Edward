@@ -8,7 +8,8 @@ This stack runs the full Edward runtime (`web`, `api`, `worker`, `redis`, `postg
 - Built/published container images for:
   - `API_IMAGE` (contains `apps/api/dist`)
   - `WEB_IMAGE` (contains Next.js production server)
-- Host Docker socket access if sandboxing is enabled (`SANDBOX_ENABLED=true`)
+- Host Docker socket access only if sandboxing is enabled (`SANDBOX_ENABLED=true`)
+  - Security warning: mounting `/var/run/docker.sock` gives container code host-level Docker control. Enable only on trusted hosts.
 
 ## Required environment
 
@@ -32,6 +33,15 @@ Then run:
 
 ```bash
 docker compose -f docker/compose.production.yml up -d
+```
+
+If sandbox is enabled, include the socket-mount override:
+
+```bash
+docker compose \
+  -f docker/compose.production.yml \
+  -f docker/compose.production.sandbox.yml \
+  up -d
 ```
 
 ## Health endpoints

@@ -10,11 +10,44 @@ interface ChatPageProps {
   params: Promise<{ id: string }>;
 }
 
-const DEFAULT_API_URL = "https://api.edwardd.app";
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || DEFAULT_API_URL;
+const DEFAULT_DEV_API_URL = "http://localhost:8000";
 const CHAT_ID_PATTERN = /^[A-Za-z0-9_-]+$/;
 const CHAT_ID_MIN_LENGTH = 20;
 const CHAT_ID_MAX_LENGTH = 64;
+
+function normalizeApiBaseUrl(value: string): string | null {
+  try {
+    const parsed = new URL(value);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      return null;
+    }
+    const normalizedPath = parsed.pathname.replace(/\/+$/, "");
+    return `${parsed.origin}${normalizedPath}`;
+  } catch {
+    return null;
+  }
+}
+
+function resolveApiBaseUrl(): string {
+  const internalApiUrl = process.env.INTERNAL_API_URL?.trim();
+  const publicApiUrl = process.env.NEXT_PUBLIC_API_URL?.trim();
+  const configured = internalApiUrl || publicApiUrl;
+  const normalized = configured ? normalizeApiBaseUrl(configured) : null;
+
+  if (normalized) {
+    return normalized;
+  }
+
+  if (process.env.NODE_ENV === "production") {
+    throw new Error(
+      "INTERNAL_API_URL or NEXT_PUBLIC_API_URL must be a valid absolute http(s) URL in production.",
+    );
+  }
+
+  return DEFAULT_DEV_API_URL;
+}
+
+const API_BASE_URL = resolveApiBaseUrl();
 
 const DEFAULT_CHAT_METADATA: Metadata = {
   title: "Chat",

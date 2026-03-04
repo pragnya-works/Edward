@@ -67,11 +67,6 @@ const nextConfig = {
         hostname: "edward-cdn.s3.us-east-1.amazonaws.com",
         pathname: "/**",
       },
-      {
-        protocol: "https",
-        hostname: "**.cloudfront.net",
-        pathname: "/**",
-      },
       ...(cdnHostname
         ? [
             {

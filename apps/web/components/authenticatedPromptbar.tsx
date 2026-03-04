@@ -47,7 +47,7 @@ export default function AuthenticatedPromptbar({
     keyPreview,
   } = useApiKey();
   const router = useRouter();
-  const { startStream, setOnMeta, cancelStream } = useChatStreamActions();
+  const { startStream, registerOnMeta, unregisterOnMeta, cancelStream } = useChatStreamActions();
   const { streams } = useChatStreamState();
   const chatSubmissionGuards = useChatSubmissionGuards();
   const {
@@ -56,6 +56,7 @@ export default function AuthenticatedPromptbar({
     rateLimitMessage: imageUploadRateLimitMessage,
   } = useImageUpload();
   const shouldAutoNavigateToNewChatRef = useRef(false);
+  const metaHandlerIdRef = useRef(`promptbar:${crypto.randomUUID()}`);
 
   const { stream, activeStreamKey } = useMemo(() => {
     if (effectiveChatId) {
@@ -102,11 +103,12 @@ export default function AuthenticatedPromptbar({
   );
 
   useEffect(() => {
-    setOnMeta(handleMeta);
+    const handlerId = metaHandlerIdRef.current;
+    registerOnMeta(handlerId, handleMeta);
     return () => {
-      setOnMeta(null);
+      unregisterOnMeta(handlerId);
     };
-  }, [handleMeta, setOnMeta]);
+  }, [handleMeta, registerOnMeta, unregisterOnMeta]);
 
   const handleProtectedAction = useCallback(
     async (text: string, images?: UploadedImage[]) => {

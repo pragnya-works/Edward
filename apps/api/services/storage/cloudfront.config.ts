@@ -15,14 +15,23 @@ let assumedClientCache:
       expiresAt: number;
     }
   | null = null;
+let assumedClientRefresh:
+  | {
+      roleArn: string;
+      promise: Promise<{
+        client: CloudFrontClient;
+        expiresAt: number;
+      }>;
+    }
+  | null = null;
 
 function getCloudFrontRoleArn(): string | null {
-  const roleArn = process.env.AWS_CLOUDFRONT_ROLE_ARN?.trim();
+  const roleArn = config.aws.cloudfrontRoleArn?.trim();
   return roleArn && roleArn.length > 0 ? roleArn : null;
 }
 
 function getRoleSessionName(): string {
-  const configured = process.env.AWS_CLOUDFRONT_ROLE_SESSION_NAME
+  const configured = config.aws.cloudfrontRoleSessionName
     ?.trim()
     .replace(/[^a-zA-Z0-9+=,.@-]/g, "-");
   if (configured && configured.length > 0) {
@@ -104,11 +113,25 @@ export async function getCloudFrontClient(): Promise<CloudFrontClient | null> {
     return assumedClientCache.client;
   }
 
-  const assumed = await createAssumedClient(roleArn);
-  assumedClientCache = {
-    roleArn,
-    client: assumed.client,
-    expiresAt: assumed.expiresAt,
-  };
-  return assumed.client;
+  if (!assumedClientRefresh || assumedClientRefresh.roleArn !== roleArn) {
+    assumedClientRefresh = {
+      roleArn,
+      promise: createAssumedClient(roleArn),
+    };
+  }
+
+  const refresh = assumedClientRefresh;
+  try {
+    const assumed = await refresh.promise;
+    assumedClientCache = {
+      roleArn,
+      client: assumed.client,
+      expiresAt: assumed.expiresAt,
+    };
+    return assumed.client;
+  } finally {
+    if (assumedClientRefresh === refresh) {
+      assumedClientRefresh = null;
+    }
+  }
 }

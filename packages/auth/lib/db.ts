@@ -22,10 +22,11 @@ function parseOptionalPositiveInt(name: string, value: string | undefined): numb
     return undefined;
   }
 
-  const parsed = Number.parseInt(value.trim(), 10);
-  if (!Number.isInteger(parsed) || parsed <= 0) {
+  const trimmed = value.trim();
+  if (!/^[1-9]\d*$/.test(trimmed)) {
     throw new Error(`${name} must be a positive integer`);
   }
+  const parsed = Number(trimmed);
 
   return parsed;
 }

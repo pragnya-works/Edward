@@ -28,14 +28,17 @@ terraform init
 terraform apply
 ```
 
-3. Build and push images to the output ECR repos.
-4. Re-apply Terraform with updated image tags (`api_image`, `web_image`) to roll out new task definitions.
+1. Build and push images to the output ECR repos.
+2. Re-apply Terraform with updated image tags (`api_image`, `web_image`) to roll out new task definitions.
 
 ## Notes
 
 - Recommended production ingress uses host-based routing with `domain_name=edwardd.app`, `api_domain_name=api.edwardd.app`, and `api_path_prefix=""`.
 - If `api_domain_name` is not set, Terraform falls back to shared-domain path routing at `API_BASE_PATH` (`/backend` by default).
 - When HTTPS is enabled, use an ACM certificate that covers both hostnames.
+- Managed CDN mode (`use_external_cdn=false`) requires `cloudfront_web_acl_arn` so CloudFront is always protected by WAF.
+- Set `redis_auth_token` in tfvars. Redis now runs as a replication group with TLS+AUTH enabled.
+- `DATABASE_URL` is injected via AWS Secrets Manager (`${project}-${environment}/database-url`) instead of plain ECS environment values.
 - External CDN mode requires these tfvars values:
   - `use_external_cdn=true`
   - `external_cdn_bucket_name`

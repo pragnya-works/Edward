@@ -45,3 +45,13 @@ check "https_configuration" {
     error_message = "certificate_arn must be set when enable_https=true."
   }
 }
+
+check "managed_cdn_waf_configuration" {
+  assert {
+    condition = (
+      var.use_external_cdn ||
+      trim(var.cloudfront_web_acl_arn, " ") != ""
+    )
+    error_message = "cloudfront_web_acl_arn must be provided when use_external_cdn=false."
+  }
+}

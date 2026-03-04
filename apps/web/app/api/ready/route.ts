@@ -8,12 +8,15 @@ type ReadinessCheck = {
   detail?: string;
 };
 
-function getErrorMessage(error: unknown): string {
-  if (error instanceof Error) {
-    return error.message;
-  }
+const READINESS_DETAIL_TIMEOUT = "timeout";
+const READINESS_DETAIL_UNAVAILABLE = "unavailable";
 
-  return String(error);
+function isAbortLikeError(error: unknown): boolean {
+  return error instanceof Error && error.name === "TimeoutError";
+}
+
+function logReadinessProbeFailure(target: string, error: unknown): void {
+  console.error(`[ready] ${target} probe failed`, error);
 }
 
 function resolveApiHealthUrl(): string | null {
@@ -36,9 +39,10 @@ async function checkDatabaseReadiness(): Promise<ReadinessCheck> {
     await db.select({ id: user.id }).from(user).limit(1);
     return { ok: true };
   } catch (error) {
+    logReadinessProbeFailure("database", error);
     return {
       ok: false,
-      detail: getErrorMessage(error),
+      detail: READINESS_DETAIL_UNAVAILABLE,
     };
   }
 }
@@ -68,14 +72,17 @@ async function checkApiReadiness(): Promise<ReadinessCheck> {
 
     return { ok: true };
   } catch (error) {
+    logReadinessProbeFailure("api", error);
     return {
       ok: false,
-      detail: getErrorMessage(error),
+      detail: isAbortLikeError(error)
+        ? READINESS_DETAIL_TIMEOUT
+        : READINESS_DETAIL_UNAVAILABLE,
     };
   }
 }
 
-export async function GET() {
+export async function GET(): Promise<Response> {
   const [database, api] = await Promise.all([
     checkDatabaseReadiness(),
     checkApiReadiness(),

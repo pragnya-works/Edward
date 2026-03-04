@@ -35,6 +35,31 @@ const app = createHttpApp({
 
 let serverInstance: ReturnType<typeof app.listen> | null = null;
 let isShuttingDown = false;
+const STARTUP_DATABASE_TIMEOUT_MS = 5000;
+const STARTUP_REDIS_TIMEOUT_MS = 5000;
+const STARTUP_SANDBOX_TIMEOUT_MS = 8000;
+
+async function withStartupTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  label: string,
+): Promise<T> {
+  let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutHandle = setTimeout(() => {
+      reject(new Error(`${label} timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
+  });
+
+  try {
+    return await Promise.race([promise, timeoutPromise]);
+  } finally {
+    if (timeoutHandle) {
+      clearTimeout(timeoutHandle);
+    }
+  }
+}
 
 async function verifyDatabaseConnection(): Promise<void> {
   await db.select({ id: user.id }).from(user).limit(1);
@@ -67,9 +92,21 @@ async function initializeSandboxRuntime(): Promise<void> {
 
 async function bootstrapServer(): Promise<void> {
   try {
-    await verifyDatabaseConnection();
-    await verifyRedisConnection();
-    await initializeSandboxRuntime();
+    await withStartupTimeout(
+      verifyDatabaseConnection(),
+      STARTUP_DATABASE_TIMEOUT_MS,
+      "Database connectivity check",
+    );
+    await withStartupTimeout(
+      verifyRedisConnection(),
+      STARTUP_REDIS_TIMEOUT_MS,
+      "Redis connectivity check",
+    );
+    await withStartupTimeout(
+      initializeSandboxRuntime(),
+      STARTUP_SANDBOX_TIMEOUT_MS,
+      "Sandbox runtime check",
+    );
   } catch (error) {
     logger.error(ensureError(error), "Failed during startup");
     process.exit(1);

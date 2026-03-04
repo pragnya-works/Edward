@@ -37,12 +37,22 @@ variable "public_subnet_cidrs" {
   description = "Public subnet CIDRs. Must match availability_zones_count."
   type        = list(string)
   default     = ["10.42.0.0/20", "10.42.16.0/20"]
+
+  validation {
+    condition     = length(var.public_subnet_cidrs) == var.availability_zones_count
+    error_message = "public_subnet_cidrs length must equal availability_zones_count."
+  }
 }
 
 variable "private_subnet_cidrs" {
   description = "Private subnet CIDRs for data services. Must match availability_zones_count."
   type        = list(string)
   default     = ["10.42.128.0/20", "10.42.144.0/20"]
+
+  validation {
+    condition     = length(var.private_subnet_cidrs) == var.availability_zones_count
+    error_message = "private_subnet_cidrs length must equal availability_zones_count."
+  }
 }
 
 variable "instance_type" {
@@ -175,6 +185,20 @@ variable "hosted_zone_id" {
   default     = null
 }
 
+variable "cloudfront_web_acl_arn" {
+  description = "WAFv2 Web ACL ARN for managed CloudFront distribution. Required when use_external_cdn=false."
+  type        = string
+  default     = ""
+
+  validation {
+    condition = (
+      trim(var.cloudfront_web_acl_arn, " ") == "" ||
+      can(regex("^arn:aws:wafv2:us-east-1:[0-9]{12}:global/webacl/.+", trim(var.cloudfront_web_acl_arn, " ")))
+    )
+    error_message = "cloudfront_web_acl_arn must be a valid us-east-1 global WAFv2 WebACL ARN."
+  }
+}
+
 variable "use_external_cdn" {
   description = "When true, use an existing external-account S3+CloudFront CDN instead of Terraform-managed CDN resources."
   type        = bool
@@ -285,6 +309,12 @@ variable "db_backup_retention_days" {
   default     = 7
 }
 
+variable "db_maintenance_window" {
+  description = "Preferred weekly maintenance window for RDS (UTC)."
+  type        = string
+  default     = "sun:16:00-sun:17:00"
+}
+
 variable "db_deletion_protection" {
   description = "Enable deletion protection on RDS instance."
   type        = bool
@@ -301,6 +331,35 @@ variable "redis_engine_version" {
   description = "ElastiCache Redis engine version."
   type        = string
   default     = "7.1"
+}
+
+variable "redis_num_cache_clusters" {
+  description = "Number of Redis cache clusters in the replication group."
+  type        = number
+  default     = 2
+
+  validation {
+    condition     = var.redis_num_cache_clusters >= 2
+    error_message = "redis_num_cache_clusters must be at least 2 when automatic failover is enabled."
+  }
+}
+
+variable "redis_snapshot_retention_limit" {
+  description = "Days to retain Redis snapshots."
+  type        = number
+  default     = 7
+}
+
+variable "redis_maintenance_window" {
+  description = "Preferred weekly maintenance window for Redis (UTC)."
+  type        = string
+  default     = "sun:17:00-sun:18:00"
+}
+
+variable "redis_auth_token" {
+  description = "AUTH token for Redis replication group."
+  type        = string
+  sensitive   = true
 }
 
 variable "sandbox_enabled" {

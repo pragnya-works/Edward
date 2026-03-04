@@ -26,7 +26,8 @@ resource "aws_db_instance" "postgres" {
   final_snapshot_identifier    = "${local.name_prefix}-postgres-final"
   deletion_protection          = var.db_deletion_protection
   auto_minor_version_upgrade   = true
-  apply_immediately            = true
+  apply_immediately            = false
+  preferred_maintenance_window = var.db_maintenance_window
   performance_insights_enabled = false
 
   tags = {
@@ -39,19 +40,39 @@ resource "aws_elasticache_subnet_group" "redis" {
   subnet_ids = [for subnet in aws_subnet.private : subnet.id]
 }
 
-resource "aws_elasticache_cluster" "redis" {
-  cluster_id           = "${local.name_prefix}-redis"
-  engine               = "redis"
-  engine_version       = var.redis_engine_version
-  node_type            = var.redis_node_type
-  num_cache_nodes      = 1
-  port                 = 6379
-  subnet_group_name    = aws_elasticache_subnet_group.redis.name
-  security_group_ids   = [aws_security_group.redis.id]
-  parameter_group_name = "default.redis7"
-  apply_immediately    = true
+resource "aws_elasticache_replication_group" "redis" {
+  replication_group_id         = "${local.name_prefix}-redis"
+  description                  = "Edward Redis replication group"
+  engine                       = "redis"
+  engine_version               = var.redis_engine_version
+  node_type                    = var.redis_node_type
+  num_cache_clusters           = var.redis_num_cache_clusters
+  port                         = 6379
+  subnet_group_name            = aws_elasticache_subnet_group.redis.name
+  security_group_ids           = [aws_security_group.redis.id]
+  parameter_group_name         = "default.redis7"
+  automatic_failover_enabled   = true
+  multi_az_enabled             = true
+  apply_immediately            = false
+  preferred_maintenance_window = var.redis_maintenance_window
+  snapshot_retention_limit     = var.redis_snapshot_retention_limit
+  transit_encryption_enabled   = true
+  at_rest_encryption_enabled   = true
+  auth_token                   = var.redis_auth_token
+  auto_minor_version_upgrade   = true
 
   tags = {
     Name = "${local.name_prefix}-redis"
   }
+}
+
+resource "aws_secretsmanager_secret" "database_url" {
+  name                    = "${local.name_prefix}/database-url"
+  description             = "Database URL for Edward ECS services"
+  recovery_window_in_days = 7
+}
+
+resource "aws_secretsmanager_secret_version" "database_url" {
+  secret_id     = aws_secretsmanager_secret.database_url.id
+  secret_string = local.database_url
 }

@@ -19,7 +19,11 @@ export async function pingDocker(): Promise<boolean> {
   try {
     await docker.ping();
     return true;
-  } catch {
+  } catch (error: unknown) {
+    logger.warn(
+      { error: error instanceof Error ? error : new Error(String(error)) },
+      "Docker ping failed",
+    );
     return false;
   }
 }

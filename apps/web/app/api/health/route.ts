@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export function GET(): Response {
   return NextResponse.json(
     {
       status: "ok",

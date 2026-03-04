@@ -356,6 +356,24 @@ describe("createHttpApp", () => {
     expect(healthRedirect).not.toHaveBeenCalled();
     expect(healthNext).toHaveBeenCalledTimes(1);
 
+    const readyNext = vi.fn();
+    const readyRedirect = vi.fn();
+    forceHttpsMiddleware(
+      {
+        secure: false,
+        header: vi.fn(() => "http"),
+        hostname: "api.example.com",
+        originalUrl: "/ready",
+      },
+      {
+        status: vi.fn(() => ({ json: vi.fn() })),
+        redirect: readyRedirect,
+      },
+      readyNext,
+    );
+    expect(readyRedirect).not.toHaveBeenCalled();
+    expect(readyNext).toHaveBeenCalledTimes(1);
+
     expect(refs.corsOptions).toBeTruthy();
     let allowed = false;
     refs.corsOptions?.origin("https://allowed.example.com", (error, isAllowed) => {
@@ -367,5 +385,49 @@ describe("createHttpApp", () => {
     refs.corsOptions?.origin("https://blocked.example.com", (error) => {
       expect(error).toBeInstanceOf(Error);
     });
+  });
+
+  it("returns degraded readiness when dependencies fail without leaking internals", async () => {
+    refs.redis.ping.mockRejectedValueOnce(new Error("redis auth token mismatch"));
+
+    const { createHttpApp } = await import("../../../server/http/app.factory.js");
+    const environment: Environment = LoggerEnvironment.Production;
+
+    createHttpApp({
+      isDev: false,
+      isProd: true,
+      allowedOrigins: ["https://allowed.example.com"],
+      environment,
+      trustProxy: true,
+      apiBasePath: "",
+    });
+
+    const readyCall = refs.appRef.current.get.mock.calls.find(
+      ([path]) => path === "/ready",
+    );
+    const readyHandler = readyCall?.[1];
+    assertFunction<(req: unknown, res: HealthResponse) => Promise<void>>(
+      readyHandler,
+      "readyHandler",
+    );
+
+    const readyJson = vi.fn();
+    const readyStatus = vi.fn(() => ({ json: readyJson }));
+    await readyHandler({}, { status: readyStatus });
+
+    expect(readyStatus).toHaveBeenCalledWith(503);
+    const payload = readyJson.mock.calls[0]?.[0] as {
+      status: string;
+      checks: {
+        redis: {
+          ok: boolean;
+          detail?: string;
+        };
+      };
+    };
+    expect(payload.status).toBe("degraded");
+    expect(payload.checks.redis.ok).toBe(false);
+    expect(payload.checks.redis.detail).toBe("unavailable");
+    expect(payload.checks.redis.detail).not.toContain("auth");
   });
 });
