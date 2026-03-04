@@ -12,7 +12,7 @@ import { ProjectButton } from "@/components/chat/sandbox/workspaceToggleButton";
 import { MessageBlockType, type MessageBlock } from "@/lib/parsing/messageParser";
 import { MarkdownRenderer } from "@/components/chat/messages/markdownRenderer";
 import { ThinkingIndicator } from "@/components/chat/messages/thinkingIndicator";
-import { useSandbox } from "@/contexts/sandboxContext";
+import { useSandbox } from "@/stores/sandbox/hooks";
 
 interface MessageBlockRendererProps {
   blocks: MessageBlock[];

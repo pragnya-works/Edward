@@ -31,8 +31,10 @@ export interface RateLimitedApiError extends ApiErrorBase {
 
 export type ApiError = HttpApiError | RateLimitedApiError;
 
-const DEFAULT_API_URL = "http://localhost:8000";
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || DEFAULT_API_URL;
+const DEFAULT_API_URL = "https://api.edwardd.app";
+const rawApiBaseUrl = process.env.NEXT_PUBLIC_API_URL?.trim();
+const isProduction = process.env.NODE_ENV === "production";
+const API_BASE_URL = rawApiBaseUrl || DEFAULT_API_URL;
 const TYPEOF_UNDEFINED = "undefined";
 const MIN_EPOCH_SECONDS = 1_000_000_000;
 const MIN_EPOCH_MILLISECONDS = 1_000_000_000_000;
@@ -45,7 +47,13 @@ const GITHUB_BURST_LIMIT =
 const GITHUB_DAILY_LIMIT =
   RATE_LIMIT_POLICY_BY_SCOPE[RATE_LIMIT_SCOPE.GITHUB_DAILY].max;
 
-if (!process.env.NEXT_PUBLIC_API_URL) {
+if (!rawApiBaseUrl && isProduction) {
+  throw new Error(
+    "NEXT_PUBLIC_API_URL is required in production. Refusing implicit fallback.",
+  );
+}
+
+if (!rawApiBaseUrl && !isProduction) {
   captureMessage(
     `NEXT_PUBLIC_API_URL is not defined, using default: ${DEFAULT_API_URL}. ` +
       "Please set NEXT_PUBLIC_API_URL in your environment variables for production.",

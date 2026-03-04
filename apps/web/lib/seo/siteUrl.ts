@@ -4,11 +4,7 @@ function parseSiteUrl(input: string | undefined): URL | null {
   const value = input?.trim();
   if (!value) return null;
 
-  const withScheme = /^https?:\/\//i.test(value)
-    ? value
-    : value.startsWith("localhost") || value.startsWith("127.0.0.1")
-      ? `http://${value}`
-      : `https://${value}`;
+  const withScheme = /^https?:\/\//i.test(value) ? value : `https://${value}`;
 
   try {
     const url = new URL(withScheme);

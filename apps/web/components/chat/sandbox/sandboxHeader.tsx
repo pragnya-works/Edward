@@ -3,7 +3,7 @@
 import { X, Code2, Monitor } from "lucide-react";
 import { Button } from "@edward/ui/components/button";
 import { cn } from "@edward/ui/lib/utils";
-import { useSandbox } from "@/contexts/sandboxContext";
+import { useSandbox } from "@/stores/sandbox/hooks";
 import { useChatWorkspaceContext } from "@/components/chat/chatWorkspaceContext";
 import { SandboxMode } from "@/stores/sandbox/types";
 import { GithubIntegrationBar } from "@/components/chat/sandbox/githubIntegrationBar";

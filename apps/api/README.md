@@ -49,14 +49,22 @@ pnpm --filter api test:coverage
 pnpm --filter api quality:baseline
 pnpm --filter api quality:file-audit
 pnpm --filter api quality:coverage
-pnpm --filter api quality:functions
 pnpm --filter api quality:boundaries
 pnpm --filter api quality:duplication
 pnpm --filter api quality:gates
+pnpm --filter api deploy:preflight
 ```
+
+## Environment
+
+- Local dev baseline: `apps/api/.env.example`
+- Production baseline: `apps/api/.env.production.example`
+- Recommended with dedicated API host (`api.edwardd.app`): set `API_BASE_PATH=""`.
+- For shared-domain fallback routing: set `API_BASE_PATH=/backend`.
 
 ## Operational Notes
 
 - `securityTelemetryMiddleware` issues/propagates `x-request-id` for traceability.
 - Worker handlers enforce timeout budgets and publish-retry policy for build status events.
-- Architecture boundary, duplication, and function-length checks are required quality gates.
+- Architecture boundary and duplication checks are required quality gates.
+- Run `deploy:preflight` in production env before releasing to verify DB, Redis, sandbox runtime, S3, CloudFront, and Cloudflare routing access.

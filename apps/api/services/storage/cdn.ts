@@ -1,25 +1,12 @@
-import {
-  CloudFrontClient,
-  CreateInvalidationCommand,
-} from "@aws-sdk/client-cloudfront";
+import { CreateInvalidationCommand } from "@aws-sdk/client-cloudfront";
 import { logger } from "../../utils/logger.js";
-import { REGION } from "./storage.config.js";
 import { config } from "../../app.config.js";
+import { getCloudFrontClient } from "./cloudfront.config.js";
 
 const DISTRIBUTION_ID = config.aws.cloudfrontDistributionId;
 
-let cfClient: CloudFrontClient | null = null;
-
-function getCloudFrontClient(): CloudFrontClient | null {
-  if (!DISTRIBUTION_ID) return null;
-  if (!cfClient) {
-    cfClient = new CloudFrontClient({ region: REGION });
-  }
-  return cfClient;
-}
-
 async function invalidateCloudFrontPaths(paths: string[]): Promise<void> {
-  const client = getCloudFrontClient();
+  const client = await getCloudFrontClient();
   if (!client || paths.length === 0) return;
 
   try {

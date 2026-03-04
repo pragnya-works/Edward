@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "description": "Shared utilities and constants for Edward workspace",
   "type": "module",
+  "files": [
+    "dist"
+  ],
   "exports": {
     "./constants": {
       "types": "./dist/constants.d.ts",

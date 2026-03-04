@@ -5,7 +5,7 @@ import {
   useMemo,
   useState,
 } from "react";
-import { useSandbox } from "@/contexts/sandboxContext";
+import { useSandbox } from "@/stores/sandbox/hooks";
 import { SandboxMode } from "@/stores/sandbox/types";
 import { CodeEditor } from "@/components/chat/editor/codeEditor";
 import { FileSearchModal } from "@/components/chat/editor/fileSearchModal";

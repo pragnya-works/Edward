@@ -47,7 +47,7 @@ export default function AuthenticatedPromptbar({
     keyPreview,
   } = useApiKey();
   const router = useRouter();
-  const { startStream, onMetaRef, cancelStream } = useChatStreamActions();
+  const { startStream, setOnMeta, cancelStream } = useChatStreamActions();
   const { streams } = useChatStreamState();
   const chatSubmissionGuards = useChatSubmissionGuards();
   const {
@@ -102,13 +102,11 @@ export default function AuthenticatedPromptbar({
   );
 
   useEffect(() => {
-    onMetaRef.current = handleMeta;
+    setOnMeta(handleMeta);
     return () => {
-      if (onMetaRef.current === handleMeta) {
-        onMetaRef.current = null;
-      }
+      setOnMeta(null);
     };
-  }, [handleMeta, onMetaRef]);
+  }, [handleMeta, setOnMeta]);
 
   const handleProtectedAction = useCallback(
     async (text: string, images?: UploadedImage[]) => {

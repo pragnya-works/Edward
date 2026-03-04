@@ -2,12 +2,25 @@ import { ConnectionOptions } from "bullmq";
 import { Environment } from "./utils/logger.js";
 
 export type DeploymentType = "path" | "subdomain";
+type AwsCredentialConfig = {
+  accessKeyId: string;
+  secretAccessKey: string;
+  sessionToken?: string;
+};
+type RedisConnectionConfig = {
+  host: string;
+  port: number;
+  username?: string;
+  password?: string;
+  db?: number;
+  tls?: Record<string, never>;
+};
 
 function validateEnvVar(name: string, value: string | undefined): string {
   if (!value || value.trim() === "") {
     throw new Error(`Missing required environment variable: ${name}`);
   }
-  return value;
+  return value.trim();
 }
 
 function validatePort(name: string, value: string | undefined): number {
@@ -35,6 +48,32 @@ function parseTrustProxyList(value: string): string | string[] {
   return entries;
 }
 
+function normalizeBasePath(value: string | undefined): string {
+  if (!value || value.trim() === "") {
+    return "";
+  }
+
+  const trimmed = value.trim();
+  const prefixed = trimmed.startsWith("/") ? trimmed : `/${trimmed}`;
+  const normalized = prefixed.replace(/\/+$/, "");
+
+  return normalized === "/" ? "" : normalized;
+}
+
+function parseBoolean(value: string | undefined, fallback: boolean): boolean {
+  if (!value || value.trim() === "") {
+    return fallback;
+  }
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "1" || normalized === "true" || normalized === "yes") {
+    return true;
+  }
+  if (normalized === "0" || normalized === "false" || normalized === "no") {
+    return false;
+  }
+  return fallback;
+}
+
 export function parseTrustProxy(
   value: string | undefined,
   fallback: boolean,
@@ -56,17 +95,85 @@ export function parseTrustProxy(
 }
 
 const DEFAULT_REDIS_PORT = 6379;
+const DEFAULT_REDIS_DB = 0;
 
-function parseRedisUrl(url: string): { host: string; port: number } {
+function parseRedisUrl(url: string): RedisConnectionConfig {
   try {
     const parsed = new URL(url);
+    if (parsed.protocol !== "redis:" && parsed.protocol !== "rediss:") {
+      throw new Error("Unsupported REDIS_URL protocol");
+    }
+    if (!parsed.hostname) {
+      throw new Error("REDIS_URL must include hostname");
+    }
+
+    const dbSegment = parsed.pathname.replace(/^\//, "").trim();
+    const db = dbSegment === ""
+      ? DEFAULT_REDIS_DB
+      : Number.parseInt(dbSegment, 10);
+    if (Number.isNaN(db) || db < 0) {
+      throw new Error("REDIS_URL contains invalid DB index");
+    }
+
+    const username = parsed.username
+      ? decodeURIComponent(parsed.username)
+      : undefined;
+    const password = parsed.password
+      ? decodeURIComponent(parsed.password)
+      : undefined;
     const port = parsed.port
       ? validatePort("REDIS_URL", parsed.port)
       : DEFAULT_REDIS_PORT;
-    return { host: parsed.hostname, port };
+
+    return {
+      host: parsed.hostname,
+      port,
+      db,
+      ...(username ? { username } : {}),
+      ...(password ? { password } : {}),
+      ...(parsed.protocol === "rediss:" ? { tls: {} } : {}),
+    };
   } catch {
     throw new Error(`Invalid REDIS_URL format: ${url}`);
   }
+}
+
+function parseOptionalInt(
+  name: string,
+  value: string | undefined,
+): number | undefined {
+  if (!value || value.trim() === "") {
+    return undefined;
+  }
+  const parsed = Number.parseInt(value.trim(), 10);
+  if (Number.isNaN(parsed) || parsed < 0) {
+    throw new Error(`${name} must be a non-negative integer`);
+  }
+  return parsed;
+}
+
+function resolveRedisConnectionConfig(
+  env: NodeJS.ProcessEnv = process.env,
+): RedisConnectionConfig {
+  if (env.REDIS_URL && env.REDIS_URL.trim() !== "") {
+    return parseRedisUrl(env.REDIS_URL.trim());
+  }
+
+  const host = validateEnvVar("REDIS_HOST", env.REDIS_HOST);
+  const port = validatePort("REDIS_PORT", env.REDIS_PORT);
+  const username = env.REDIS_USERNAME?.trim() || undefined;
+  const password = env.REDIS_PASSWORD?.trim() || undefined;
+  const db = parseOptionalInt("REDIS_DB", env.REDIS_DB);
+  const tlsEnabled = parseBoolean(env.REDIS_TLS, false);
+
+  return {
+    host,
+    port,
+    ...(username ? { username } : {}),
+    ...(password ? { password } : {}),
+    ...(db !== undefined ? { db } : {}),
+    ...(tlsEnabled ? { tls: {} } : {}),
+  };
 }
 
 function hasValue(value: string | undefined): boolean {
@@ -108,24 +215,59 @@ export function resolveDeploymentType(
     : DEPLOYMENT_TYPES.PATH;
 }
 
+function resolveAwsCredentials(
+  env: NodeJS.ProcessEnv = process.env,
+): AwsCredentialConfig | undefined {
+  const accessKeyId = env.AWS_ACCESS_KEY_ID?.trim();
+  const secretAccessKey = env.AWS_SECRET_ACCESS_KEY?.trim();
+  const sessionToken = env.AWS_SESSION_TOKEN?.trim() || undefined;
+
+  if (!accessKeyId && !secretAccessKey) {
+    return undefined;
+  }
+
+  if (!accessKeyId || !secretAccessKey) {
+    throw new Error(
+      "AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY must both be provided when using static AWS credentials.",
+    );
+  }
+
+  return {
+    accessKeyId,
+    secretAccessKey,
+    ...(sessionToken ? { sessionToken } : {}),
+  };
+}
+
 export const config = {
   redis: {
     get host(): string {
-      if (process.env.REDIS_URL) {
-        return parseRedisUrl(process.env.REDIS_URL).host;
-      }
-      return validateEnvVar("REDIS_HOST", process.env.REDIS_HOST);
+      return resolveRedisConnectionConfig().host;
     },
     get port(): number {
-      if (process.env.REDIS_URL) {
-        return parseRedisUrl(process.env.REDIS_URL).port;
-      }
-      return validatePort("REDIS_PORT", process.env.REDIS_PORT);
+      return resolveRedisConnectionConfig().port;
+    },
+    get username(): string | undefined {
+      return resolveRedisConnectionConfig().username;
+    },
+    get password(): string | undefined {
+      return resolveRedisConnectionConfig().password;
+    },
+    get db(): number | undefined {
+      return resolveRedisConnectionConfig().db;
+    },
+    get tls(): Record<string, never> | undefined {
+      return resolveRedisConnectionConfig().tls;
     },
     get connectionOptions(): ConnectionOptions {
       return {
         host: this.host,
         port: this.port,
+        ...(this.username ? { username: this.username } : {}),
+        ...(this.password ? { password: this.password } : {}),
+        ...(this.db !== undefined ? { db: this.db } : {}),
+        ...(this.tls ? { tls: this.tls } : {}),
+        maxRetriesPerRequest: null,
       };
     },
   },
@@ -134,6 +276,9 @@ export const config = {
     port: validatePort("EDWARD_API_PORT", process.env.EDWARD_API_PORT),
     environment:
       (process.env.NODE_ENV as Environment) || Environment.Development,
+    get apiBasePath(): string {
+      return normalizeBasePath(process.env.API_BASE_PATH);
+    },
     isDevelopment(): boolean {
       return this.environment === Environment.Development;
     },
@@ -161,20 +306,19 @@ export const config = {
   },
 
   aws: {
-    accessKeyId: validateEnvVar(
-      "AWS_ACCESS_KEY_ID",
-      process.env.AWS_ACCESS_KEY_ID,
-    ),
-    secretAccessKey: validateEnvVar(
-      "AWS_SECRET_ACCESS_KEY",
-      process.env.AWS_SECRET_ACCESS_KEY,
-    ),
-    region: process.env.AWS_REGION || "us-east-1",
+    get credentials(): AwsCredentialConfig | undefined {
+      return resolveAwsCredentials();
+    },
+    region: process.env.AWS_REGION || "ap-south-1",
     s3Bucket: validateEnvVar("AWS_BUCKET_NAME", process.env.AWS_BUCKET_NAME),
-    s3CdnBucket: validateEnvVar("AWS_CDN_BUCKET_NAME", process.env.AWS_CDN_BUCKET_NAME),
+    s3CdnBucket: validateEnvVar(
+      "AWS_CDN_BUCKET_NAME",
+      process.env.AWS_CDN_BUCKET_NAME,
+    ),
     assetsUrl: process.env.ASSETS_URL,
     cloudfrontDistributionUrl: process.env.CLOUDFRONT_DISTRIBUTION_URL,
     cloudfrontDistributionId: process.env.CLOUDFRONT_DISTRIBUTION_ID,
+    cloudfrontRoleArn: process.env.AWS_CLOUDFRONT_ROLE_ARN?.trim() || undefined,
   },
 
   github: {
@@ -207,6 +351,12 @@ export const config = {
         "DOCKER_REGISTRY_BASE",
         process.env.DOCKER_REGISTRY_BASE,
       );
+    },
+  },
+
+  sandbox: {
+    get enabled(): boolean {
+      return parseBoolean(process.env.SANDBOX_ENABLED, true);
     },
   },
 

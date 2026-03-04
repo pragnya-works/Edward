@@ -42,6 +42,7 @@ export function inferLayerTag(relPath) {
   if (
     relPath === "app.config.ts" ||
     relPath === "vitest.config.ts" ||
+    relPath.startsWith("scripts/") ||
     relPath.startsWith("lib/") ||
     relPath.startsWith("utils/")
   ) {

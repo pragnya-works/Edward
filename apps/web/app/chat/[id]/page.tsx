@@ -10,7 +10,7 @@ interface ChatPageProps {
   params: Promise<{ id: string }>;
 }
 
-const DEFAULT_API_URL = "http://localhost:8000";
+const DEFAULT_API_URL = "https://api.edwardd.app";
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || DEFAULT_API_URL;
 const CHAT_ID_PATTERN = /^[A-Za-z0-9_-]+$/;
 const CHAT_ID_MIN_LENGTH = 20;

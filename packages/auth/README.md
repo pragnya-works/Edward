@@ -32,6 +32,10 @@ pnpm --filter @edward/auth db:studio
 
 Copy `packages/auth/.env.example` and set:
 - `DATABASE_URL`
+- `DATABASE_SSL` (recommended: `require` in production)
+- `DATABASE_POOL_MAX`
+- `DATABASE_CONNECT_TIMEOUT_SECONDS`
+- `DATABASE_IDLE_TIMEOUT_SECONDS`
 - `BETTER_AUTH_SECRET`
 - `BETTER_AUTH_URL`
 - `GITHUB_CLIENT_ID`

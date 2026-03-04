@@ -81,6 +81,21 @@ const refs = vi.hoisted(() => {
     ensureError: vi.fn((error: unknown) =>
       error instanceof Error ? error : new Error(String(error)),
     ),
+    dbMock: {
+      select: vi.fn(),
+      from: vi.fn(),
+      limit: vi.fn(),
+    },
+    user: {
+      id: "id",
+    },
+    redis: {
+      ping: vi.fn(),
+    },
+    sandboxControl: {
+      isSandboxEnabled: vi.fn(),
+      isSandboxRuntimeAvailable: vi.fn(),
+    },
   };
 });
 
@@ -141,12 +156,38 @@ vi.mock("../../../utils/error.js", () => ({
   ensureError: refs.ensureError,
 }));
 
+vi.mock("@edward/auth", () => ({
+  db: {
+    select: refs.dbMock.select,
+  },
+  user: refs.user,
+}));
+
+vi.mock("../../../lib/redis.js", () => ({
+  redis: refs.redis,
+}));
+
+vi.mock("../../../services/sandbox/lifecycle/control.js", () => ({
+  isSandboxEnabled: refs.sandboxControl.isSandboxEnabled,
+  isSandboxRuntimeAvailable: refs.sandboxControl.isSandboxRuntimeAvailable,
+}));
+
 describe("createHttpApp", () => {
   beforeEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
     refs.appRef.current = refs.createAppMock();
     refs.corsOptions = null;
+    refs.dbMock.select.mockReturnValue({
+      from: refs.dbMock.from,
+    });
+    refs.dbMock.from.mockReturnValue({
+      limit: refs.dbMock.limit,
+    });
+    refs.dbMock.limit.mockResolvedValue([]);
+    refs.redis.ping.mockResolvedValue("PONG");
+    refs.sandboxControl.isSandboxEnabled.mockReturnValue(true);
+    refs.sandboxControl.isSandboxRuntimeAvailable.mockResolvedValue(true);
   });
 
   it("wires middleware/routes and serves health + error handlers", async () => {
@@ -159,6 +200,7 @@ describe("createHttpApp", () => {
       allowedOrigins: ["https://allowed.example.com"],
       environment,
       trustProxy: 1,
+      apiBasePath: "",
     });
 
     expect(app).toBe(refs.appRef.current);
@@ -194,6 +236,18 @@ describe("createHttpApp", () => {
     const healthStatus = vi.fn(() => ({ json: vi.fn() }));
     healthHandler({}, { status: healthStatus });
     expect(healthStatus).toHaveBeenCalledWith(200);
+
+    const readyCall = refs.appRef.current.get.mock.calls.find(
+      ([path]) => path === "/ready",
+    );
+    const readyHandler = readyCall?.[1];
+    assertFunction<(req: unknown, res: HealthResponse) => Promise<void>>(
+      readyHandler,
+      "readyHandler",
+    );
+    const readyStatus = vi.fn(() => ({ json: vi.fn() }));
+    await readyHandler({}, { status: readyStatus });
+    expect(readyStatus).toHaveBeenCalledWith(200);
 
     const notFoundHandler = refs.appRef.current.use.mock.calls
       .map(([arg]) => arg)
@@ -237,6 +291,7 @@ describe("createHttpApp", () => {
       allowedOrigins: ["https://allowed.example.com"],
       environment,
       trustProxy: true,
+      apiBasePath: "",
     });
 
     const forceHttpsMiddleware = refs.appRef.current.use.mock.calls
@@ -282,6 +337,24 @@ describe("createHttpApp", () => {
       vi.fn(),
     );
     expect(status).toHaveBeenCalledWith(400);
+
+    const healthNext = vi.fn();
+    const healthRedirect = vi.fn();
+    forceHttpsMiddleware(
+      {
+        secure: false,
+        header: vi.fn(() => "http"),
+        hostname: "api.example.com",
+        originalUrl: "/health?probe=1",
+      },
+      {
+        status: vi.fn(() => ({ json: vi.fn() })),
+        redirect: healthRedirect,
+      },
+      healthNext,
+    );
+    expect(healthRedirect).not.toHaveBeenCalled();
+    expect(healthNext).toHaveBeenCalledTimes(1);
 
     expect(refs.corsOptions).toBeTruthy();
     let allowed = false;

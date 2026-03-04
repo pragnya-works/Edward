@@ -8,10 +8,16 @@ const refs = vi.hoisted(() => {
     options: unknown;
     close: ReturnType<typeof vi.fn>;
   }> = [];
+  const redisClient = {
+    publish: vi.fn(),
+    quit: vi.fn(),
+    ping: vi.fn(async () => "PONG"),
+  };
 
   return {
     workerInstances,
-    createRedisClient: vi.fn(() => ({ publish: vi.fn(), quit: vi.fn() })),
+    redisClient,
+    createRedisClient: vi.fn(() => redisClient),
     processBuildJob: vi.fn(async () => ({ ok: true })),
     processBackupJob: vi.fn(async () => ({ ok: true })),
     processAgentRun: vi.fn(async () => ({ ok: true })),
@@ -29,6 +35,10 @@ const refs = vi.hoisted(() => {
     ensureError: vi.fn((error: unknown) =>
       error instanceof Error ? error : new Error(String(error)),
     ),
+    sandboxControl: {
+      isSandboxEnabled: vi.fn(() => true),
+      isSandboxRuntimeAvailable: vi.fn(async () => true),
+    },
   };
 });
 
@@ -57,6 +67,11 @@ vi.mock("../lib/queue.binding.js", () => ({
 
 vi.mock("../lib/redis.js", () => ({
   createRedisClient: refs.createRedisClient,
+}));
+
+vi.mock("../services/sandbox/lifecycle/control.js", () => ({
+  isSandboxEnabled: refs.sandboxControl.isSandboxEnabled,
+  isSandboxRuntimeAvailable: refs.sandboxControl.isSandboxRuntimeAvailable,
 }));
 
 vi.mock("../services/queue/workerJobHandlers.service.js", () => ({
@@ -98,6 +113,9 @@ describe("queue.worker bootstrap", () => {
     vi.resetModules();
     vi.clearAllMocks();
     refs.workerInstances.length = 0;
+    refs.redisClient.ping.mockResolvedValue("PONG");
+    refs.sandboxControl.isSandboxEnabled.mockReturnValue(true);
+    refs.sandboxControl.isSandboxRuntimeAvailable.mockResolvedValue(true);
   });
 
   function requireWorker(queueName: string) {
@@ -184,5 +202,39 @@ describe("queue.worker bootstrap", () => {
         },
       }),
     ).rejects.toThrow("Unsupported agent-run queue job type: build");
+  });
+
+  it("fails fast when sandbox runtime is unavailable", async () => {
+    refs.sandboxControl.isSandboxRuntimeAvailable.mockResolvedValueOnce(false);
+    const processExitSpy = vi
+      .spyOn(process, "exit")
+      .mockImplementation((() => undefined) as never);
+
+    await import("../queue.worker.js");
+
+    expect(refs.workerInstances).toHaveLength(0);
+    expect(refs.registerWorkerEventHandlers).not.toHaveBeenCalled();
+    expect(refs.logger.fatal).toHaveBeenCalledWith(
+      expect.any(Error),
+      "[Worker] Startup dependency check failed",
+    );
+    expect(processExitSpy).toHaveBeenCalledWith(1);
+  });
+
+  it("fails fast when redis ping is unhealthy", async () => {
+    refs.redisClient.ping.mockResolvedValueOnce("NOPE");
+    const processExitSpy = vi
+      .spyOn(process, "exit")
+      .mockImplementation((() => undefined) as never);
+
+    await import("../queue.worker.js");
+
+    expect(refs.workerInstances).toHaveLength(0);
+    expect(refs.registerWorkerEventHandlers).not.toHaveBeenCalled();
+    expect(refs.logger.fatal).toHaveBeenCalledWith(
+      expect.any(Error),
+      "[Worker] Startup dependency check failed",
+    );
+    expect(processExitSpy).toHaveBeenCalledWith(1);
   });
 });

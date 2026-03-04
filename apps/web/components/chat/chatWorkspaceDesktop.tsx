@@ -8,7 +8,7 @@ import {
   Separator as PanelResizeHandle,
 } from "react-resizable-panels";
 import { cn } from "@edward/ui/lib/utils";
-import { useSandbox } from "@/contexts/sandboxContext";
+import { useSandbox } from "@/stores/sandbox/hooks";
 import AuthenticatedPromptbar from "@/components/authenticatedPromptbar";
 import { ChatMessageList } from "@/components/chat/messages/chatMessageList";
 import { SandboxPanel } from "@/components/chat/sandbox/sandboxPanel";

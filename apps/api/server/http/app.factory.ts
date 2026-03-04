@@ -1,4 +1,5 @@
 import express, { NextFunction, Request, Response } from "express";
+import { db, user } from "@edward/auth";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import helmet from "helmet";
@@ -18,6 +19,11 @@ import {
   VERSION,
 } from "../../utils/constants.js";
 import { ensureError } from "../../utils/error.js";
+import { redis } from "../../lib/redis.js";
+import {
+  isSandboxEnabled,
+  isSandboxRuntimeAvailable,
+} from "../../services/sandbox/lifecycle/control.js";
 
 interface CreateHttpAppParams {
   isDev: boolean;
@@ -25,10 +31,22 @@ interface CreateHttpAppParams {
   allowedOrigins: string[];
   environment: Environment;
   trustProxy: unknown;
+  apiBasePath: string;
+}
+
+interface ReadinessCheck {
+  ok: boolean;
+  detail?: string;
+}
+
+interface ReadinessSummary {
+  database: ReadinessCheck;
+  redis: ReadinessCheck;
+  sandbox: ReadinessCheck;
 }
 
 export function createHttpApp(params: CreateHttpAppParams): express.Express {
-  const { isDev, isProd, allowedOrigins, environment, trustProxy } = params;
+  const { isDev, isProd, allowedOrigins, environment, trustProxy, apiBasePath } = params;
   const logger = createLogger("API");
   const app = express();
 
@@ -36,7 +54,7 @@ export function createHttpApp(params: CreateHttpAppParams): express.Express {
   app.use(createHelmetMiddleware());
 
   if (isProd) {
-    app.use(createForceHttpsMiddleware());
+    app.use(createForceHttpsMiddleware(apiBasePath));
   }
 
   app.use(
@@ -80,6 +98,12 @@ export function createHttpApp(params: CreateHttpAppParams): express.Express {
   app.use("/chat", authMiddleware, chatRouter);
   app.use("/github", authMiddleware, githubRouter);
 
+  if (apiBasePath) {
+    app.use(`${apiBasePath}/api-key`, authMiddleware, apiKeyRateLimiter, apiKeyRouter);
+    app.use(`${apiBasePath}/chat`, authMiddleware, chatRouter);
+    app.use(`${apiBasePath}/github`, authMiddleware, githubRouter);
+  }
+
   app.get("/health", (_req: Request, res: Response) => {
     res.status(HttpStatus.OK).json({
       status: "ok",
@@ -88,6 +112,45 @@ export function createHttpApp(params: CreateHttpAppParams): express.Express {
       timestamp: new Date().toISOString(),
     });
   });
+
+  app.get("/ready", async (_req: Request, res: Response) => {
+    const checks = await evaluateReadiness();
+    const ready = checks.database.ok && checks.redis.ok && checks.sandbox.ok;
+    const statusCode = ready ? HttpStatus.OK : HttpStatus.SERVICE_UNAVAILABLE;
+
+    res.status(statusCode).json({
+      status: ready ? "ready" : "degraded",
+      version: VERSION,
+      environment,
+      checks,
+      timestamp: new Date().toISOString(),
+    });
+  });
+
+  if (apiBasePath) {
+    app.get(`${apiBasePath}/health`, (_req: Request, res: Response) => {
+      res.status(HttpStatus.OK).json({
+        status: "ok",
+        version: VERSION,
+        environment,
+        timestamp: new Date().toISOString(),
+      });
+    });
+
+    app.get(`${apiBasePath}/ready`, async (_req: Request, res: Response) => {
+      const checks = await evaluateReadiness();
+      const ready = checks.database.ok && checks.redis.ok && checks.sandbox.ok;
+      const statusCode = ready ? HttpStatus.OK : HttpStatus.SERVICE_UNAVAILABLE;
+
+      res.status(statusCode).json({
+        status: ready ? "ready" : "degraded",
+        version: VERSION,
+        environment,
+        checks,
+        timestamp: new Date().toISOString(),
+      });
+    });
+  }
 
   app.use((_req: Request, res: Response) => {
     res.status(HttpStatus.NOT_FOUND).json({
@@ -108,6 +171,70 @@ export function createHttpApp(params: CreateHttpAppParams): express.Express {
   });
 
   return app;
+}
+
+async function evaluateReadiness(): Promise<ReadinessSummary> {
+  const [database, redisCheck, sandbox] = await Promise.all([
+    checkDatabaseReadiness(),
+    checkRedisReadiness(),
+    checkSandboxReadiness(),
+  ]);
+
+  return {
+    database,
+    redis: redisCheck,
+    sandbox,
+  };
+}
+
+async function checkDatabaseReadiness(): Promise<ReadinessCheck> {
+  try {
+    await db.select({ id: user.id }).from(user).limit(1);
+    return { ok: true };
+  } catch (error) {
+    return {
+      ok: false,
+      detail: ensureError(error).message,
+    };
+  }
+}
+
+async function checkRedisReadiness(): Promise<ReadinessCheck> {
+  try {
+    const response = await redis.ping();
+    if (typeof response === "string" && response.toUpperCase() === "PONG") {
+      return { ok: true };
+    }
+
+    return {
+      ok: false,
+      detail: `Unexpected Redis ping response: ${String(response)}`,
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      detail: ensureError(error).message,
+    };
+  }
+}
+
+async function checkSandboxReadiness(): Promise<ReadinessCheck> {
+  if (!isSandboxEnabled()) {
+    return {
+      ok: true,
+      detail: "disabled",
+    };
+  }
+
+  const available = await isSandboxRuntimeAvailable();
+  if (available) {
+    return { ok: true };
+  }
+
+  return {
+    ok: false,
+    detail: "Docker runtime unavailable",
+  };
 }
 
 function createHelmetMiddleware() {
@@ -131,12 +258,18 @@ function createHelmetMiddleware() {
   });
 }
 
-function createForceHttpsMiddleware() {
+function createForceHttpsMiddleware(apiBasePath: string) {
   return function forceHttpsMiddleware(
     req: Request,
     res: Response,
     next: NextFunction,
   ) {
+    const requestPath = req.originalUrl.split("?")[0] ?? "/";
+    if (isProbePath(requestPath, apiBasePath)) {
+      next();
+      return;
+    }
+
     const forwardedProto = req
       .header("x-forwarded-proto")
       ?.split(",")
@@ -159,6 +292,21 @@ function createForceHttpsMiddleware() {
 
     next();
   };
+}
+
+function isProbePath(requestPath: string, apiBasePath: string): boolean {
+  if (requestPath === "/health" || requestPath === "/ready") {
+    return true;
+  }
+
+  if (!apiBasePath) {
+    return false;
+  }
+
+  return (
+    requestPath === `${apiBasePath}/health` ||
+    requestPath === `${apiBasePath}/ready`
+  );
 }
 
 function createCorsOriginChecker(params: {

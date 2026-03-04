@@ -1,8 +1,11 @@
 import "dotenv/config";
 import "./utils/sentry.js";
 import { captureException } from "./utils/sentry.js";
+import { db, user } from "@edward/auth";
 import {
   initSandboxService,
+  isSandboxEnabled,
+  isSandboxRuntimeAvailable,
   shutdownSandboxService,
 } from "./services/sandbox/lifecycle/control.js";
 import { redis } from "./lib/redis.js";
@@ -27,15 +30,46 @@ const app = createHttpApp({
   allowedOrigins,
   environment: ENV,
   trustProxy: config.server.trustProxy,
+  apiBasePath: config.server.apiBasePath,
 });
 
 let serverInstance: ReturnType<typeof app.listen> | null = null;
 let isShuttingDown = false;
 
-async function bootstrapServer(): Promise<void> {
-  try {
+async function verifyDatabaseConnection(): Promise<void> {
+  await db.select({ id: user.id }).from(user).limit(1);
+}
+
+async function verifyRedisConnection(): Promise<void> {
+  const response = await redis.ping();
+  if (typeof response !== "string" || response.toUpperCase() !== "PONG") {
+    throw new Error(`Unexpected Redis ping response: ${String(response)}`);
+  }
+}
+
+async function initializeSandboxRuntime(): Promise<void> {
+  if (isSandboxEnabled()) {
+    const dockerAvailable = await isSandboxRuntimeAvailable();
+    if (!dockerAvailable) {
+      throw new Error(
+        "Sandbox service is enabled but Docker runtime is unavailable.",
+      );
+    }
     await initSandboxService();
     logger.info("Sandbox Service initialized.");
+    return;
+  }
+
+  logger.warn(
+    "Sandbox Service disabled (SANDBOX_ENABLED=false). Build sandbox operations are unavailable.",
+  );
+}
+
+async function bootstrapServer(): Promise<void> {
+  try {
+    await verifyDatabaseConnection();
+    await verifyRedisConnection();
+    await initializeSandboxRuntime();
   } catch (error) {
     logger.error(ensureError(error), "Failed during startup");
     process.exit(1);

@@ -2,7 +2,8 @@ import { withSentryConfig } from "@sentry/nextjs";
 /** @type {import('next').NextConfig} */
 const cdnHostname = (() => {
   try {
-    const cdnUrl = process.env.NEXT_PUBLIC_CDN_URL;
+    const cdnUrl =
+      process.env.NEXT_PUBLIC_ASSETS_URL || process.env.NEXT_PUBLIC_CDN_URL;
     if (!cdnUrl) return null;
     return new URL(cdnUrl).hostname;
   } catch {
@@ -43,6 +44,7 @@ if (process.env.NEXT_PUBLIC_SENTRY_DSN && !hasValidSentryTunnel) {
 }
 
 const nextConfig = {
+  output: "standalone",
   transpilePackages: ["@edward/ui", "@shadergradient/react"],
   experimental: {
     optimizePackageImports: ["lucide-react"],
@@ -56,11 +58,6 @@ const nextConfig = {
         pathname: "/**",
       },
       {
-        protocol: "http",
-        hostname: "localhost",
-        pathname: "/**",
-      },
-      {
         protocol: "https",
         hostname: "edward-cdn.s3.amazonaws.com",
         pathname: "/**",
@@ -68,6 +65,11 @@ const nextConfig = {
       {
         protocol: "https",
         hostname: "edward-cdn.s3.us-east-1.amazonaws.com",
+        pathname: "/**",
+      },
+      {
+        protocol: "https",
+        hostname: "**.cloudfront.net",
         pathname: "/**",
       },
       ...(cdnHostname

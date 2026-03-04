@@ -17,9 +17,20 @@ const refs = vi.hoisted(() => {
     app: { listen: listenMock },
     createHttpApp: vi.fn(() => ({ listen: listenMock })),
     initSandboxService: vi.fn(async () => undefined),
+    isSandboxEnabled: vi.fn(() => true),
+    isSandboxRuntimeAvailable: vi.fn(async () => true),
     shutdownSandboxService: vi.fn(async () => undefined),
     shutdownRedisPubSub: vi.fn(async () => undefined),
+    redisPing: vi.fn(async () => "PONG"),
     redisQuit: vi.fn(async () => undefined),
+    dbMock: {
+      select: vi.fn(),
+      from: vi.fn(),
+      limit: vi.fn(),
+    },
+    user: {
+      id: "id",
+    },
     registerProcessHandlerOnce: vi.fn(
       (key: string, _signal: string, callback: (...args: unknown[]) => void) => {
         refs.handlers.set(key, callback);
@@ -27,6 +38,7 @@ const refs = vi.hoisted(() => {
     ),
     logger: {
       info: vi.fn(),
+      warn: vi.fn(),
       error: vi.fn(),
       fatal: vi.fn(),
     },
@@ -38,6 +50,7 @@ const refs = vi.hoisted(() => {
         port: 9999,
         environment: "test",
         trustProxy: false,
+        apiBasePath: "",
         isDevelopment: vi.fn(() => false),
         isProduction: vi.fn(() => false),
       },
@@ -54,13 +67,23 @@ vi.mock("../utils/sentry.js", () => ({
 
 vi.mock("../services/sandbox/lifecycle/control.js", () => ({
   initSandboxService: refs.initSandboxService,
+  isSandboxEnabled: refs.isSandboxEnabled,
+  isSandboxRuntimeAvailable: refs.isSandboxRuntimeAvailable,
   shutdownSandboxService: refs.shutdownSandboxService,
 }));
 
 vi.mock("../lib/redis.js", () => ({
   redis: {
+    ping: refs.redisPing,
     quit: refs.redisQuit,
   },
+}));
+
+vi.mock("@edward/auth", () => ({
+  db: {
+    select: refs.dbMock.select,
+  },
+  user: refs.user,
 }));
 
 vi.mock("../lib/redisPubSub.js", () => ({
@@ -93,6 +116,16 @@ describe("server.http bootstrap", () => {
     vi.resetModules();
     vi.clearAllMocks();
     refs.handlers.clear();
+    refs.dbMock.select.mockReturnValue({
+      from: refs.dbMock.from,
+    });
+    refs.dbMock.from.mockReturnValue({
+      limit: refs.dbMock.limit,
+    });
+    refs.dbMock.limit.mockResolvedValue([]);
+    refs.redisPing.mockResolvedValue("PONG");
+    refs.isSandboxEnabled.mockReturnValue(true);
+    refs.isSandboxRuntimeAvailable.mockResolvedValue(true);
   });
 
   it("bootstraps app, initializes sandbox service, and registers process handlers", async () => {
@@ -108,9 +141,12 @@ describe("server.http bootstrap", () => {
       allowedOrigins: ["https://example.com"],
       environment: "test",
       trustProxy: false,
+      apiBasePath: "",
     });
     expect(refs.listenMock).toHaveBeenCalledTimes(1);
     expect(refs.initSandboxService).toHaveBeenCalledTimes(1);
+    expect(refs.dbMock.select).toHaveBeenCalledTimes(1);
+    expect(refs.redisPing).toHaveBeenCalledTimes(1);
     expect(refs.initSandboxService.mock.invocationCallOrder[0]).toBeLessThan(
       refs.listenMock.mock.invocationCallOrder[0]!,
     );
@@ -198,6 +234,66 @@ describe("server.http bootstrap", () => {
 
     await vi.waitFor(() => {
       expect(refs.logger.error).toHaveBeenCalled();
+      expect(refs.listenMock).not.toHaveBeenCalled();
+      expect(processExitSpy).toHaveBeenCalledWith(1);
+    });
+  });
+
+  it("starts HTTP server with sandbox disabled", async () => {
+    const processExitSpy = vi
+      .spyOn(process, "exit")
+      .mockImplementation((() => undefined) as never);
+    refs.isSandboxEnabled.mockReturnValueOnce(false);
+
+    await import("../server.http.js");
+
+    expect(refs.isSandboxRuntimeAvailable).not.toHaveBeenCalled();
+    expect(refs.initSandboxService).not.toHaveBeenCalled();
+    expect(refs.listenMock).toHaveBeenCalledTimes(1);
+    expect(refs.logger.warn).toHaveBeenCalledWith(
+      "Sandbox Service disabled (SANDBOX_ENABLED=false). Build sandbox operations are unavailable.",
+    );
+    expect(processExitSpy).not.toHaveBeenCalled();
+  });
+
+  it("exits with code 1 when sandbox runtime is unavailable", async () => {
+    const processExitSpy = vi
+      .spyOn(process, "exit")
+      .mockImplementation((() => undefined) as never);
+    refs.isSandboxRuntimeAvailable.mockResolvedValueOnce(false);
+
+    await import("../server.http.js");
+
+    await vi.waitFor(() => {
+      expect(refs.initSandboxService).not.toHaveBeenCalled();
+      expect(refs.listenMock).not.toHaveBeenCalled();
+      expect(processExitSpy).toHaveBeenCalledWith(1);
+    });
+  });
+
+  it("exits with code 1 when redis is unavailable during startup", async () => {
+    const processExitSpy = vi
+      .spyOn(process, "exit")
+      .mockImplementation((() => undefined) as never);
+    refs.redisPing.mockRejectedValueOnce(new Error("redis down"));
+
+    await import("../server.http.js");
+
+    await vi.waitFor(() => {
+      expect(refs.listenMock).not.toHaveBeenCalled();
+      expect(processExitSpy).toHaveBeenCalledWith(1);
+    });
+  });
+
+  it("exits with code 1 when database is unavailable during startup", async () => {
+    const processExitSpy = vi
+      .spyOn(process, "exit")
+      .mockImplementation((() => undefined) as never);
+    refs.dbMock.limit.mockRejectedValueOnce(new Error("db down"));
+
+    await import("../server.http.js");
+
+    await vi.waitFor(() => {
       expect(refs.listenMock).not.toHaveBeenCalled();
       expect(processExitSpy).toHaveBeenCalledWith(1);
     });

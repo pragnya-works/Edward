@@ -25,6 +25,7 @@ process.env.DOCKER_REGISTRY_BASE = "registry.example.com";
 vi.mock("../lib/redis.js", () => {
   const mockRedis = {
     get: vi.fn(),
+    ping: vi.fn().mockResolvedValue("PONG"),
     set: vi.fn(),
     del: vi.fn(),
     smembers: vi.fn(),
@@ -51,6 +52,7 @@ vi.mock("../lib/redis.js", () => {
 
   const createRedisClient = vi.fn(() => ({
     get: vi.fn(),
+    ping: vi.fn().mockResolvedValue("PONG"),
     set: vi.fn(),
     del: vi.fn(),
     on: vi.fn(),

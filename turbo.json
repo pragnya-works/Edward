@@ -5,7 +5,12 @@
     "GEMINI_CONTEXT_WINDOW_TOKENS",
     "LLM_RESERVED_OUTPUT_TOKENS",
     "NEXT_RUNTIME",
-    "NODE_ENV"
+    "NODE_ENV",
+    "DATABASE_SSL",
+    "DATABASE_POOL_MAX",
+    "DATABASE_CONNECT_TIMEOUT_SECONDS",
+    "DATABASE_IDLE_TIMEOUT_SECONDS",
+    "INTERNAL_API_URL"
   ],
   "tasks": {
     "build": {
@@ -50,6 +55,7 @@
       "outputs": ["dist/**"],
       "env": [
         "API_URL",
+        "API_BASE_PATH",
         "EDWARD_API_PORT",
         "NODE_ENV",
         "CORS_ORIGIN",
@@ -66,15 +72,22 @@
         "LLM_RESERVED_OUTPUT_TOKENS",
         "REDIS_HOST",
         "REDIS_PORT",
+        "REDIS_USERNAME",
+        "REDIS_PASSWORD",
+        "REDIS_DB",
+        "REDIS_TLS",
         "AWS_REGION",
         "AWS_ACCESS_KEY_ID",
         "AWS_SECRET_ACCESS_KEY",
+        "AWS_SESSION_TOKEN",
         "AWS_BUCKET_NAME",
         "AWS_CDN_BUCKET_NAME",
         "ASSETS_URL",
         "CLOUDFRONT_DOMAIN",
         "CLOUDFRONT_DISTRIBUTION_URL",
         "CLOUDFRONT_DISTRIBUTION_ID",
+        "AWS_CLOUDFRONT_ROLE_ARN",
+        "AWS_CLOUDFRONT_ROLE_SESSION_NAME",
         "CLOUDFLARE_API_TOKEN",
         "CLOUDFLARE_ACCOUNT_ID",
         "CLOUDFLARE_KV_NAMESPACE_ID",
@@ -83,6 +96,7 @@
         "TRUST_PROXY",
         "PREWARM_SANDBOX_IMAGE",
         "DOCKER_REGISTRY_BASE",
+        "SANDBOX_ENABLED",
         "REDIS_URL",
         "SENTRY_DSN"
       ]
@@ -100,9 +114,14 @@
       "dependsOn": ["^build"],
       "env": [
         "EDWARD_API_PORT",
+        "API_BASE_PATH",
         "NODE_ENV",
         "REDIS_HOST",
         "REDIS_PORT",
+        "REDIS_USERNAME",
+        "REDIS_PASSWORD",
+        "REDIS_DB",
+        "REDIS_TLS",
         "CORS_ORIGIN",
         "OPENAI_MODEL",
         "GEMINI_MODEL",
@@ -116,6 +135,7 @@
         "AWS_REGION",
         "AWS_ACCESS_KEY_ID",
         "AWS_SECRET_ACCESS_KEY",
+        "AWS_SESSION_TOKEN",
         "ENCRYPTION_KEY",
         "DATABASE_URL",
         "BETTER_AUTH_SECRET",
@@ -125,6 +145,8 @@
         "GITHUB_CLIENT_SECRET",
         "CLOUDFRONT_DISTRIBUTION_URL",
         "CLOUDFRONT_DISTRIBUTION_ID",
+        "AWS_CLOUDFRONT_ROLE_ARN",
+        "AWS_CLOUDFRONT_ROLE_SESSION_NAME",
         "CLOUDFLARE_API_TOKEN",
         "CLOUDFLARE_ACCOUNT_ID",
         "CLOUDFLARE_KV_NAMESPACE_ID",
@@ -132,6 +154,7 @@
         "TRUST_PROXY",
         "PREWARM_SANDBOX_IMAGE",
         "DOCKER_REGISTRY_BASE",
+        "SANDBOX_ENABLED",
         "REDIS_URL",
         "TAVILY_API_KEY"
       ]

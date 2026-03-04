@@ -36,3 +36,6 @@ pnpm lint:fix
 - Turbo task behavior and env passthrough are in `turbo.json`.
 - Package globs are defined in `pnpm-workspace.yaml`.
 - Each app/package README contains local details specific to that directory.
+- Production compose template is in `docker/compose.production.yml` (docs: `docker/README.production.md`).
+- AWS ECS EC2 Terraform stack is in `infra/aws/terraform`.
+- End-to-end AWS runbook is in `docs/AWS_DEPLOYMENT.md`.

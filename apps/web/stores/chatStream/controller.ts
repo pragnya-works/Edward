@@ -8,14 +8,9 @@ import {
 } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import type { MetaEvent } from "@edward/shared/streamEvents";
-import {
-  INITIAL_STREAM_STATE,
-  type StreamState,
-} from "@edward/shared/chat/types";
 import type { MessageContent } from "@/lib/api/messageContent";
 import { cancelRun, getActiveRun } from "@/lib/api/chat";
 import type { StreamAction } from "@edward/shared/chat/streamActions";
-import type { StreamMap } from "@/stores/chatStream/reducer";
 import {
   getChatStreamState,
   useChatStreamStore,
@@ -39,9 +34,6 @@ import {
   StreamActionType,
 } from "@edward/shared/chat/streamActions";
 import {
-  type RefCell,
-} from "@/lib/streaming/processors/chatStreamProcessor";
-import {
   clearRunStopIntent,
   markRunStopNotice,
   markRunStopIntent,
@@ -60,11 +52,6 @@ function reportCancelStreamError(
   console.error(`[chatStreamController:${chatId}] ${context}`, error);
 }
 
-export interface ChatStreamStateContextValue {
-  streams: StreamMap;
-  activeChatId: string | null;
-}
-
 export interface ChatStreamActionsContextValue {
   startStream: (
     content: MessageContent,
@@ -74,18 +61,12 @@ export interface ChatStreamActionsContextValue {
   cancelStream: (chatId: string) => void;
   resetStream: (chatId: string) => void;
   setActiveChatId: (id: string | null) => void;
-  onMetaRef: RefCell<((meta: MetaEvent) => void) | null>;
-  getStreamForChat: (chatId: string | undefined) => StreamState;
+  /** Pass `null` to unregister. Stored in a ref — no re-renders. */
+  setOnMeta: (fn: ((meta: MetaEvent) => void) | null) => void;
 }
 
-interface UseChatStreamControllerResult {
-  stateValue: ChatStreamStateContextValue;
-  actionsValue: ChatStreamActionsContextValue;
-}
-
-export function useChatStreamController(): UseChatStreamControllerResult {
+export function useChatStreamController(): ChatStreamActionsContextValue {
   const streams = useChatStreamStore((state) => state.streams);
-  const activeChatId = useChatStreamStore((state) => state.activeChatId);
   const setActiveChatId = useChatStreamStore((state) => state.setActiveChatId);
   const dispatchStreamAction = useChatStreamStore(
     (state) => state.dispatchStreamAction,
@@ -234,12 +215,9 @@ export function useChatStreamController(): UseChatStreamControllerResult {
     [dispatch, queryClient],
   );
 
-  const getStreamForChat = useCallback(
-    (chatId: string | undefined): StreamState => {
-      if (!chatId) {
-        return INITIAL_STREAM_STATE;
-      }
-      return streamsRef.current[chatId] ?? INITIAL_STREAM_STATE;
+  const setOnMeta = useCallback(
+    (fn: ((meta: MetaEvent) => void) | null) => {
+      onMetaRef.current = fn;
     },
     [],
   );
@@ -288,8 +266,7 @@ export function useChatStreamController(): UseChatStreamControllerResult {
       cancelStream,
       resetStream,
       setActiveChatId,
-      onMetaRef,
-      getStreamForChat,
+      setOnMeta,
     }),
     [
       startStream,
@@ -297,12 +274,9 @@ export function useChatStreamController(): UseChatStreamControllerResult {
       cancelStream,
       resetStream,
       setActiveChatId,
-      getStreamForChat,
+      setOnMeta,
     ],
   );
 
-  return {
-    stateValue: { streams, activeChatId },
-    actionsValue: actions,
-  };
+  return actions;
 }

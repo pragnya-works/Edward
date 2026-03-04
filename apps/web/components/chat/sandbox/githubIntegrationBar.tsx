@@ -4,7 +4,7 @@ import { useMemo } from "react";
 import { LoaderIcon } from "lucide-react";
 import { Button } from "@edward/ui/components/button";
 import { GitHub } from "@edward/ui/components/icons/github";
-import { useSandbox } from "@/contexts/sandboxContext";
+import { useSandbox } from "@/stores/sandbox/hooks";
 import { useChatStreamState } from "@/stores/chatStream/hooks";
 import { useChatWorkspaceContext } from "@/components/chat/chatWorkspaceContext";
 import { GithubIntegrationDialog } from "./github/githubIntegrationDialog";

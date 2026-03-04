@@ -12,7 +12,7 @@ import { Button } from "@edward/ui/components/button";
 import { toast } from "@edward/ui/components/sonner";
 import { copyTextToClipboard } from "@edward/ui/lib/clipboard";
 import { cn } from "@edward/ui/lib/utils";
-import { useSandbox } from "@/contexts/sandboxContext";
+import { useSandbox } from "@/stores/sandbox/hooks";
 import { useChatWorkspaceContext } from "@/components/chat/chatWorkspaceContext";
 import { SubdomainModal } from "@/components/chat/sandbox/subdomain/subdomainModal";
 import { ensureHttpsUrl } from "@/lib/url";

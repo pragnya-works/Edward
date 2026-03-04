@@ -1,6 +1,6 @@
 "use client";
 
-import { useSandbox } from "@/contexts/sandboxContext";
+import { useSandbox } from "@/stores/sandbox/hooks";
 import { X, ChevronRight } from "lucide-react";
 import { cn } from "@edward/ui/lib/utils";
 import { Button } from "@edward/ui/components/button";
