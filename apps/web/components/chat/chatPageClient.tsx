@@ -4,7 +4,7 @@ import { useEffect, useMemo } from "react";
 import { useChatHistory } from "@/hooks/server-state/useChatHistory";
 import { useChatStreamActions } from "@/contexts/chatStreamContext";
 import { useChatStreamState } from "@/stores/chatStream/hooks";
-import { useSandbox } from "@/contexts/sandboxContext";
+import { useSandbox } from "@/stores/sandbox/hooks";
 import { ChatWorkspace } from "@/components/chat/chatWorkspace";
 import { ChatErrorState, ChatLoadingState } from "@/components/chat/chatPageStates";
 import { useChatPageOrchestration } from "@/hooks/chat/useChatPageOrchestration";

@@ -6,9 +6,7 @@ import {
 } from "@edward/shared/chat/types";
 import type { CommandEvent } from "@edward/shared/streamEvents";
 import { useChatStreamState } from "@/stores/chatStream/hooks";
-import {
-  useSandbox,
-} from "@/contexts/sandboxContext";
+import { useSandbox } from "@/stores/sandbox/hooks";
 import { BuildStatus } from "@/stores/sandbox/types";
 import { useBuildStatusSync } from "@/hooks/chat/useBuildStatusSync";
 import { useSandboxStreamFileSync } from "@/hooks/chat/sandbox-sync/useSandboxStreamFileSync";

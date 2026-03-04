@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo } from "react";
 import { Search } from "lucide-react";
-import { useSandbox } from "@/contexts/sandboxContext";
+import { useSandbox } from "@/stores/sandbox/hooks";
 import {
     CommandDialog,
     CommandEmpty,

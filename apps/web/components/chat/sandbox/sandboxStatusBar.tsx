@@ -1,6 +1,6 @@
 "use client";
 
-import { useSandbox } from "@/contexts/sandboxContext";
+import { useSandbox } from "@/stores/sandbox/hooks";
 import { useOptionalChatWorkspaceContext } from "@/components/chat/chatWorkspaceContext";
 import { BuildStatus } from "@/stores/sandbox/types";
 import {

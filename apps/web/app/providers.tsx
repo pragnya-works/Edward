@@ -5,7 +5,7 @@ import { ThemeProvider as NextThemesProvider } from "next-themes";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { LazyMotion, MotionConfig, domAnimation, useReducedMotion } from "motion/react";
 import { ChatStreamProvider } from "@/contexts/chatStreamContext";
-import { SandboxProvider } from "@/contexts/sandboxContext";
+import { SandboxEffects } from "@/components/sandbox/SandboxEffects";
 import { Toaster } from "@edward/ui/components/sonner";
 import { useNotificationManager } from "@/hooks/useNotificationManager";
 import { useSession } from "@/lib/auth-client";
@@ -46,10 +46,10 @@ export function Providers({ children }: { children: ReactNode }) {
         >
           <QueryClientProvider client={queryClient}>
             <ChatStreamProvider>
-              <SandboxProvider>
+              <SandboxEffects>
                 {children}
                 <Toaster />
-              </SandboxProvider>
+              </SandboxEffects>
             </ChatStreamProvider>
           </QueryClientProvider>
         </MotionConfig>

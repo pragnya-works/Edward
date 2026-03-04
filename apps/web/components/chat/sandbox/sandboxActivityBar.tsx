@@ -10,7 +10,7 @@ import {
   TooltipTrigger,
 } from "@edward/ui/components/tooltip";
 import { Separator } from "@edward/ui/components/separator";
-import { useSandbox } from "@/contexts/sandboxContext";
+import { useSandbox } from "@/stores/sandbox/hooks";
 
 export function SandboxActivityBar() {
   const { isSearchOpen, closeSearch, toggleSearch } = useSandbox();
