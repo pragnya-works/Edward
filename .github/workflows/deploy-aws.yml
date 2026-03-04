@@ -153,11 +153,16 @@ jobs:
       - name: Login to Amazon ECR
         uses: aws-actions/amazon-ecr-login@062b18b96a7aff071d4dc91bc00c4c1a7945b076
 
+      - name: Resolve immutable image tag
+        id: image_tag
+        run: |
+          TAG="${GITHUB_SHA::12}-${GITHUB_RUN_NUMBER}-${GITHUB_RUN_ATTEMPT}"
+          echo "value=${TAG}" >> "$GITHUB_OUTPUT"
+
       - name: Build and push API image
         id: api_image
         run: |
-          TAG="${GITHUB_SHA::12}"
-          IMAGE_URI="${{ steps.repos.outputs.api_repo }}:${TAG}"
+          IMAGE_URI="${{ steps.repos.outputs.api_repo }}:${{ steps.image_tag.outputs.value }}"
           docker buildx build \
             --platform linux/arm64 \
             --file apps/api/Dockerfile \
@@ -172,8 +177,7 @@ jobs:
           WEB_PUBLIC_ASSETS_URL: ${{ vars.WEB_PUBLIC_ASSETS_URL }}
           NEXT_PUBLIC_SENTRY_DSN: ${{ secrets.NEXT_PUBLIC_SENTRY_DSN }}
         run: |
-          TAG="${GITHUB_SHA::12}"
-          IMAGE_URI="${{ steps.repos.outputs.web_repo }}:${TAG}"
+          IMAGE_URI="${{ steps.repos.outputs.web_repo }}:${{ steps.image_tag.outputs.value }}"
           docker buildx build \
             --platform linux/arm64 \
             --file apps/web/Dockerfile \
@@ -193,6 +197,34 @@ jobs:
             -var-file=ci.auto.tfvars \
             -var="api_image=${{ steps.api_image.outputs.image }}" \
             -var="web_image=${{ steps.web_image.outputs.image }}"
+
+      - name: Post-deploy readiness checks
+        run: |
+          APP_URL="$(terraform -chdir="${TERRAFORM_DIR}" output -raw app_url)"
+          API_URL="$(terraform -chdir="${TERRAFORM_DIR}" output -raw api_url)"
+
+          check_endpoint() {
+            local name="$1"
+            local url="$2"
+            local attempts=20
+            local sleep_seconds=15
+
+            echo "Checking ${name}: ${url}"
+            for attempt in $(seq 1 "${attempts}"); do
+              if curl -sS --fail --max-time 10 "${url}" >/dev/null; then
+                echo "${name} is healthy."
+                return 0
+              fi
+              echo "Attempt ${attempt}/${attempts} failed for ${name}; retrying in ${sleep_seconds}s..."
+              sleep "${sleep_seconds}"
+            done
+
+            echo "${name} failed readiness checks."
+            return 1
+          }
+
+          check_endpoint "API readiness" "${API_URL%/}/ready"
+          check_endpoint "Web readiness" "${APP_URL%/}/api/ready"
 
       - name: Output deployment endpoints
         run: |

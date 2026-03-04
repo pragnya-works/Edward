@@ -143,19 +143,19 @@ resource "aws_security_group" "alb" {
   }
 
   egress {
-    description     = "Web service traffic to ECS hosts"
-    from_port       = var.web_container_port
-    to_port         = var.web_container_port
-    protocol        = "tcp"
-    security_groups = [aws_security_group.ecs_hosts.id]
+    description = "Web service traffic within VPC"
+    from_port   = var.web_container_port
+    to_port     = var.web_container_port
+    protocol    = "tcp"
+    cidr_blocks = [var.vpc_cidr]
   }
 
   egress {
-    description     = "API service traffic to ECS hosts"
-    from_port       = var.api_container_port
-    to_port         = var.api_container_port
-    protocol        = "tcp"
-    security_groups = [aws_security_group.ecs_hosts.id]
+    description = "API service traffic within VPC"
+    from_port   = var.api_container_port
+    to_port     = var.api_container_port
+    protocol    = "tcp"
+    cidr_blocks = [var.vpc_cidr]
   }
 
   tags = {
@@ -200,7 +200,7 @@ resource "aws_security_group" "ecs_hosts" {
     from_port   = 0
     to_port     = 0
     protocol    = "-1"
-    cidr_blocks = [var.vpc_cidr]
+    cidr_blocks = var.ecs_hosts_egress_cidrs
   }
 
   tags = {

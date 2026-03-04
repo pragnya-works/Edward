@@ -34,6 +34,14 @@ check "network_configuration" {
     condition     = length(var.private_subnet_cidrs) == var.availability_zones_count
     error_message = "private_subnet_cidrs length must equal availability_zones_count."
   }
+
+  assert {
+    condition = (
+      var.asg_min_size <= var.asg_desired_size &&
+      var.asg_desired_size <= var.asg_max_size
+    )
+    error_message = "asg_min_size must be <= asg_desired_size <= asg_max_size."
+  }
 }
 
 check "https_configuration" {
@@ -53,5 +61,18 @@ check "managed_cdn_waf_configuration" {
       trim(var.cloudfront_web_acl_arn, " ") != ""
     )
     error_message = "cloudfront_web_acl_arn must be provided when use_external_cdn=false."
+  }
+}
+
+check "rolling_deploy_capacity" {
+  assert {
+    condition = (
+      (
+        var.api_deployment_min_healthy_percent == 0 &&
+        var.web_deployment_min_healthy_percent == 0
+      ) ||
+      var.asg_desired_size >= 2
+    )
+    error_message = "asg_desired_size must be at least 2 when api/web minimum healthy percent is greater than 0."
   }
 }

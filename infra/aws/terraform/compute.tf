@@ -174,7 +174,7 @@ resource "aws_ecs_cluster_capacity_providers" "main" {
 }
 
 resource "aws_lb" "edge" {
-  name                       = substr(regexreplace("${local.name_prefix}-alb", "[^a-zA-Z0-9-]", "-"), 0, 32)
+  name                       = substr(replace("${local.name_prefix}-alb", "/[^a-zA-Z0-9-]/", "-"), 0, 32)
   internal                   = false
   load_balancer_type         = "application"
   security_groups            = [aws_security_group.alb.id]
@@ -183,7 +183,7 @@ resource "aws_lb" "edge" {
 }
 
 resource "aws_lb_target_group" "web" {
-  name        = substr(regexreplace("${local.name_prefix}-web", "[^a-zA-Z0-9-]", "-"), 0, 32)
+  name        = substr(replace("${local.name_prefix}-web", "/[^a-zA-Z0-9-]/", "-"), 0, 32)
   port        = var.web_container_port
   protocol    = "HTTP"
   target_type = "instance"
@@ -204,7 +204,7 @@ resource "aws_lb_target_group" "web" {
 }
 
 resource "aws_lb_target_group" "api" {
-  name        = substr(regexreplace("${local.name_prefix}-api", "[^a-zA-Z0-9-]", "-"), 0, 32)
+  name        = substr(replace("${local.name_prefix}-api", "/[^a-zA-Z0-9-]/", "-"), 0, 32)
   port        = var.api_container_port
   protocol    = "HTTP"
   target_type = "instance"
@@ -488,8 +488,8 @@ resource "aws_ecs_service" "api" {
   task_definition                    = aws_ecs_task_definition.api.arn
   desired_count                      = 1
   launch_type                        = "EC2"
-  deployment_minimum_healthy_percent = 0
-  deployment_maximum_percent         = 100
+  deployment_minimum_healthy_percent = var.api_deployment_min_healthy_percent
+  deployment_maximum_percent         = var.api_deployment_maximum_percent
 
   deployment_circuit_breaker {
     enable   = true
@@ -544,8 +544,8 @@ resource "aws_ecs_service" "web" {
   task_definition                    = aws_ecs_task_definition.web.arn
   desired_count                      = 1
   launch_type                        = "EC2"
-  deployment_minimum_healthy_percent = 0
-  deployment_maximum_percent         = 100
+  deployment_minimum_healthy_percent = var.web_deployment_min_healthy_percent
+  deployment_maximum_percent         = var.web_deployment_maximum_percent
 
   deployment_circuit_breaker {
     enable   = true

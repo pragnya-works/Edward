@@ -40,3 +40,8 @@ npm-debug.log*
 dia
 plans
 .wrangler
+
+# Terraform local/runtime artifacts
+infra/aws/terraform/.terraform/
+infra/aws/terraform/backend.hcl
+infra/aws/terraform/ci.auto.tfvars

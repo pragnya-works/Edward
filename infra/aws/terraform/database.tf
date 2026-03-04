@@ -27,7 +27,7 @@ resource "aws_db_instance" "postgres" {
   deletion_protection                   = var.db_deletion_protection
   auto_minor_version_upgrade            = true
   apply_immediately                     = false
-  preferred_maintenance_window          = var.db_maintenance_window
+  maintenance_window                    = var.db_maintenance_window
   performance_insights_enabled          = var.environment == "prod"
   performance_insights_retention_period = var.environment == "prod" ? 7 : null
 
@@ -42,25 +42,25 @@ resource "aws_elasticache_subnet_group" "redis" {
 }
 
 resource "aws_elasticache_replication_group" "redis" {
-  replication_group_id         = "${local.name_prefix}-redis"
-  description                  = "Edward Redis replication group"
-  engine                       = "redis"
-  engine_version               = var.redis_engine_version
-  node_type                    = var.redis_node_type
-  num_cache_clusters           = var.redis_num_cache_clusters
-  port                         = 6379
-  subnet_group_name            = aws_elasticache_subnet_group.redis.name
-  security_group_ids           = [aws_security_group.redis.id]
-  parameter_group_name         = "default.redis7"
-  automatic_failover_enabled   = true
-  multi_az_enabled             = true
-  apply_immediately            = false
-  preferred_maintenance_window = var.redis_maintenance_window
-  snapshot_retention_limit     = var.redis_snapshot_retention_limit
-  transit_encryption_enabled   = true
-  at_rest_encryption_enabled   = true
-  auth_token                   = var.redis_auth_token
-  auto_minor_version_upgrade   = true
+  replication_group_id       = "${local.name_prefix}-redis"
+  description                = "Edward Redis replication group"
+  engine                     = "redis"
+  engine_version             = var.redis_engine_version
+  node_type                  = var.redis_node_type
+  num_cache_clusters         = var.redis_num_cache_clusters
+  port                       = 6379
+  subnet_group_name          = aws_elasticache_subnet_group.redis.name
+  security_group_ids         = [aws_security_group.redis.id]
+  parameter_group_name       = "default.redis7"
+  automatic_failover_enabled = true
+  multi_az_enabled           = true
+  apply_immediately          = false
+  maintenance_window         = var.redis_maintenance_window
+  snapshot_retention_limit   = var.redis_snapshot_retention_limit
+  transit_encryption_enabled = true
+  at_rest_encryption_enabled = true
+  auth_token                 = var.redis_auth_token
+  auto_minor_version_upgrade = true
 
   tags = {
     Name = "${local.name_prefix}-redis"

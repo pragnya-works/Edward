@@ -66,19 +66,19 @@ variable "ssh_ingress_cidrs" {
 variable "asg_min_size" {
   description = "Minimum ECS host count."
   type        = number
-  default     = 1
+  default     = 2
 }
 
 variable "asg_desired_size" {
   description = "Desired ECS host count."
   type        = number
-  default     = 1
+  default     = 2
 }
 
 variable "asg_max_size" {
   description = "Maximum ECS host count."
   type        = number
-  default     = 2
+  default     = 3
 }
 
 variable "api_image" {
@@ -143,6 +143,62 @@ variable "web_task_memory" {
   description = "Web task memory (MiB)."
   type        = number
   default     = 1024
+}
+
+variable "api_deployment_min_healthy_percent" {
+  description = "Minimum healthy API tasks during rolling deployment."
+  type        = number
+  default     = 100
+
+  validation {
+    condition = (
+      var.api_deployment_min_healthy_percent >= 0 &&
+      var.api_deployment_min_healthy_percent <= 100
+    )
+    error_message = "api_deployment_min_healthy_percent must be between 0 and 100."
+  }
+}
+
+variable "api_deployment_maximum_percent" {
+  description = "Maximum API tasks allowed during rolling deployment."
+  type        = number
+  default     = 200
+
+  validation {
+    condition = (
+      var.api_deployment_maximum_percent >= 100 &&
+      var.api_deployment_maximum_percent <= 200
+    )
+    error_message = "api_deployment_maximum_percent must be between 100 and 200."
+  }
+}
+
+variable "web_deployment_min_healthy_percent" {
+  description = "Minimum healthy web tasks during rolling deployment."
+  type        = number
+  default     = 100
+
+  validation {
+    condition = (
+      var.web_deployment_min_healthy_percent >= 0 &&
+      var.web_deployment_min_healthy_percent <= 100
+    )
+    error_message = "web_deployment_min_healthy_percent must be between 0 and 100."
+  }
+}
+
+variable "web_deployment_maximum_percent" {
+  description = "Maximum web tasks allowed during rolling deployment."
+  type        = number
+  default     = 200
+
+  validation {
+    condition = (
+      var.web_deployment_maximum_percent >= 100 &&
+      var.web_deployment_maximum_percent <= 200
+    )
+    error_message = "web_deployment_maximum_percent must be between 100 and 200."
+  }
 }
 
 variable "enable_https" {
@@ -430,18 +486,54 @@ variable "api_secrets" {
   description = "Sensitive API secrets map (NAME => valueFrom ARN for ECS secrets)."
   type        = map(string)
   default     = {}
+
+  validation {
+    condition = alltrue([
+      for value in values(var.api_secrets) : can(
+        regex(
+          "^arn:aws[^:]*:(secretsmanager:[^:]+:[0-9]{12}:secret:[^:]+|ssm:[^:]+:[0-9]{12}:parameter/.+)$",
+          trim(value, " "),
+        ),
+      )
+    ])
+    error_message = "api_secrets values must be Secrets Manager secret ARNs or SSM parameter ARNs."
+  }
 }
 
 variable "worker_secrets" {
   description = "Sensitive worker secrets map (NAME => valueFrom ARN for ECS secrets)."
   type        = map(string)
   default     = {}
+
+  validation {
+    condition = alltrue([
+      for value in values(var.worker_secrets) : can(
+        regex(
+          "^arn:aws[^:]*:(secretsmanager:[^:]+:[0-9]{12}:secret:[^:]+|ssm:[^:]+:[0-9]{12}:parameter/.+)$",
+          trim(value, " "),
+        ),
+      )
+    ])
+    error_message = "worker_secrets values must be Secrets Manager secret ARNs or SSM parameter ARNs."
+  }
 }
 
 variable "web_secrets" {
   description = "Sensitive web secrets map (NAME => valueFrom ARN for ECS secrets)."
   type        = map(string)
   default     = {}
+
+  validation {
+    condition = alltrue([
+      for value in values(var.web_secrets) : can(
+        regex(
+          "^arn:aws[^:]*:(secretsmanager:[^:]+:[0-9]{12}:secret:[^:]+|ssm:[^:]+:[0-9]{12}:parameter/.+)$",
+          trim(value, " "),
+        ),
+      )
+    ])
+    error_message = "web_secrets values must be Secrets Manager secret ARNs or SSM parameter ARNs."
+  }
 }
 
 variable "openai_model" {
@@ -484,4 +576,18 @@ variable "allowed_cidr_ingress_web" {
   description = "CIDRs allowed to reach ALB listeners."
   type        = list(string)
   default     = ["0.0.0.0/0"]
+}
+
+variable "ecs_hosts_egress_cidrs" {
+  description = "CIDRs allowed for outbound traffic from ECS hosts."
+  type        = list(string)
+  default     = ["0.0.0.0/0"]
+
+  validation {
+    condition = (
+      length(var.ecs_hosts_egress_cidrs) > 0 &&
+      alltrue([for cidr in var.ecs_hosts_egress_cidrs : can(cidrhost(cidr, 0))])
+    )
+    error_message = "ecs_hosts_egress_cidrs must contain at least one valid CIDR block."
+  }
 }

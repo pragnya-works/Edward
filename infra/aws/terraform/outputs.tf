@@ -66,11 +66,13 @@ output "cdn_managed_by_terraform" {
 output "postgres_endpoint" {
   description = "RDS endpoint hostname."
   value       = aws_db_instance.postgres.address
+  sensitive   = true
 }
 
 output "redis_endpoint" {
   description = "ElastiCache Redis endpoint hostname."
   value       = aws_elasticache_replication_group.redis.primary_endpoint_address
+  sensitive   = true
 }
 
 output "ecs_cluster_name" {

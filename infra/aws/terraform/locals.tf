@@ -87,7 +87,7 @@ locals {
 
   api_override_environment = {
     for key, value in var.api_environment : key => value
-    if key != "REDIS_PASSWORD"
+    if key != "REDIS_PASSWORD" && key != "DATABASE_URL"
   }
 
   api_environment = merge(local.api_generated_environment, local.api_override_environment)
@@ -99,7 +99,7 @@ locals {
 
   worker_override_environment = {
     for key, value in var.worker_environment : key => value
-    if key != "REDIS_PASSWORD"
+    if key != "REDIS_PASSWORD" && key != "DATABASE_URL"
   }
 
   worker_environment = merge(
@@ -119,7 +119,12 @@ locals {
     NEXT_PUBLIC_ASSETS_URL      = local.effective_cloudfront_distribution_url
   }
 
-  web_environment = merge(local.web_generated_environment, var.web_environment)
+  web_override_environment = {
+    for key, value in var.web_environment : key => value
+    if key != "DATABASE_URL"
+  }
+
+  web_environment = merge(local.web_generated_environment, local.web_override_environment)
 
   api_generated_secrets = {
     DATABASE_URL   = aws_secretsmanager_secret.database_url.arn
