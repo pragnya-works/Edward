@@ -3,11 +3,12 @@ import postgres from "postgres";
 import * as schema from "./schema.js";
 
 function requireEnvVar(name: string, value: string | undefined): string {
-  if (!value) {
+  const normalized = value?.trim();
+  if (!normalized) {
     throw new Error(`${name} environment variable is not set`);
   }
 
-  return value;
+  return normalized;
 }
 
 const connectionString = requireEnvVar("DATABASE_URL", process.env.DATABASE_URL);
@@ -57,7 +58,7 @@ function resolveDatabaseSslMode(): DatabaseSslMode {
     if (ALLOWED_SSL_MODES.has(sslMode)) {
       return sslMode as Exclude<DatabaseSslMode, false>;
     }
-  } catch {
+  } catch (_error: unknown) {
     return isProduction ? "require" : false;
   }
 

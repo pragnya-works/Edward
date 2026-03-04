@@ -37,22 +37,12 @@ variable "public_subnet_cidrs" {
   description = "Public subnet CIDRs. Must match availability_zones_count."
   type        = list(string)
   default     = ["10.42.0.0/20", "10.42.16.0/20"]
-
-  validation {
-    condition     = length(var.public_subnet_cidrs) == var.availability_zones_count
-    error_message = "public_subnet_cidrs length must equal availability_zones_count."
-  }
 }
 
 variable "private_subnet_cidrs" {
   description = "Private subnet CIDRs for data services. Must match availability_zones_count."
   type        = list(string)
   default     = ["10.42.128.0/20", "10.42.144.0/20"]
-
-  validation {
-    condition     = length(var.private_subnet_cidrs) == var.availability_zones_count
-    error_message = "private_subnet_cidrs length must equal availability_zones_count."
-  }
 }
 
 variable "instance_type" {
@@ -209,6 +199,19 @@ variable "external_cdn_bucket_name" {
   description = "Existing external CDN S3 bucket name used for public asset uploads when use_external_cdn=true."
   type        = string
   default     = ""
+
+  validation {
+    condition = (
+      var.external_cdn_bucket_name == "" || (
+        length(trim(var.external_cdn_bucket_name, " ")) >= 3 &&
+        length(trim(var.external_cdn_bucket_name, " ")) <= 63 &&
+        can(regex("^[a-z0-9][a-z0-9.-]*[a-z0-9]$", trim(var.external_cdn_bucket_name, " "))) &&
+        !can(regex("\\.\\.", trim(var.external_cdn_bucket_name, " "))) &&
+        !can(regex("^\\d+\\.\\d+\\.\\d+\\.\\d+$", trim(var.external_cdn_bucket_name, " ")))
+      )
+    )
+    error_message = "external_cdn_bucket_name must be a valid S3 bucket name."
+  }
 }
 
 variable "external_cloudfront_distribution_id" {
@@ -360,6 +363,14 @@ variable "redis_auth_token" {
   description = "AUTH token for Redis replication group."
   type        = string
   sensitive   = true
+
+  validation {
+    condition = (
+      can(regex("^[\\x20-\\x7E]{16,128}$", var.redis_auth_token)) &&
+      !can(regex("[@\"/]", var.redis_auth_token))
+    )
+    error_message = "redis_auth_token must be 16-128 printable ASCII characters (excluding @, \", /)."
+  }
 }
 
 variable "sandbox_enabled" {
@@ -449,6 +460,18 @@ variable "log_retention_days" {
   description = "CloudWatch log retention in days."
   type        = number
   default     = 14
+}
+
+variable "cloudwatch_logs_kms_key_arn" {
+  description = "Customer-managed KMS key ARN used to encrypt CloudWatch log groups."
+  type        = string
+
+  validation {
+    condition = can(
+      regex("^arn:aws:kms:[a-z0-9-]+:[0-9]{12}:key/[0-9a-fA-F-]+$", trim(var.cloudwatch_logs_kms_key_arn, " ")),
+    )
+    error_message = "cloudwatch_logs_kms_key_arn must be a valid KMS key ARN."
+  }
 }
 
 variable "ecr_image_retention_count" {

@@ -85,6 +85,42 @@ async function withReadinessTimeout<T>(
   }
 }
 
+function resolveProbePath(prefix: string, routePath: "/health" | "/ready"): string {
+  const normalizedPrefix = prefix === "/"
+    ? ""
+    : prefix.replace(/\/+$/, "");
+  return normalizedPrefix ? `${normalizedPrefix}${routePath}` : routePath;
+}
+
+function registerProbeRoutes(
+  app: express.Express,
+  prefix: string,
+  environment: Environment,
+): void {
+  app.get(resolveProbePath(prefix, "/health"), (_req: Request, res: Response) => {
+    res.status(HttpStatus.OK).json({
+      status: "ok",
+      version: VERSION,
+      environment,
+      timestamp: new Date().toISOString(),
+    });
+  });
+
+  app.get(resolveProbePath(prefix, "/ready"), async (_req: Request, res: Response) => {
+    const checks = await evaluateReadiness();
+    const ready = checks.database.ok && checks.redis.ok && checks.sandbox.ok;
+    const statusCode = ready ? HttpStatus.OK : HttpStatus.SERVICE_UNAVAILABLE;
+
+    res.status(statusCode).json({
+      status: ready ? "ready" : "degraded",
+      version: VERSION,
+      environment,
+      checks,
+      timestamp: new Date().toISOString(),
+    });
+  });
+}
+
 export function createHttpApp(params: CreateHttpAppParams): express.Express {
   const { isDev, isProd, allowedOrigins, environment, trustProxy, apiBasePath } = params;
   const logger = createLogger("API");
@@ -144,52 +180,10 @@ export function createHttpApp(params: CreateHttpAppParams): express.Express {
     app.use(`${apiBasePath}/github`, authMiddleware, githubRouter);
   }
 
-  app.get("/health", (_req: Request, res: Response) => {
-    res.status(HttpStatus.OK).json({
-      status: "ok",
-      version: VERSION,
-      environment,
-      timestamp: new Date().toISOString(),
-    });
-  });
-
-  app.get("/ready", async (_req: Request, res: Response) => {
-    const checks = await evaluateReadiness();
-    const ready = checks.database.ok && checks.redis.ok && checks.sandbox.ok;
-    const statusCode = ready ? HttpStatus.OK : HttpStatus.SERVICE_UNAVAILABLE;
-
-    res.status(statusCode).json({
-      status: ready ? "ready" : "degraded",
-      version: VERSION,
-      environment,
-      checks,
-      timestamp: new Date().toISOString(),
-    });
-  });
+  registerProbeRoutes(app, "", environment);
 
   if (apiBasePath) {
-    app.get(`${apiBasePath}/health`, (_req: Request, res: Response) => {
-      res.status(HttpStatus.OK).json({
-        status: "ok",
-        version: VERSION,
-        environment,
-        timestamp: new Date().toISOString(),
-      });
-    });
-
-    app.get(`${apiBasePath}/ready`, async (_req: Request, res: Response) => {
-      const checks = await evaluateReadiness();
-      const ready = checks.database.ok && checks.redis.ok && checks.sandbox.ok;
-      const statusCode = ready ? HttpStatus.OK : HttpStatus.SERVICE_UNAVAILABLE;
-
-      res.status(statusCode).json({
-        status: ready ? "ready" : "degraded",
-        version: VERSION,
-        environment,
-        checks,
-        timestamp: new Date().toISOString(),
-      });
-    });
+    registerProbeRoutes(app, apiBasePath, environment);
   }
 
   app.use((_req: Request, res: Response) => {

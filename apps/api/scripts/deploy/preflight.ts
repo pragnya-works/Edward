@@ -11,6 +11,7 @@ import {
   isSandboxRuntimeAvailable,
 } from "../../services/sandbox/lifecycle/control.js";
 import { getPreviewRoutingConfig } from "../../services/previewRouting/kvClient.js";
+import { createLogger } from "../../utils/logger.js";
 
 type PreflightCheck = {
   name: string;
@@ -18,6 +19,8 @@ type PreflightCheck = {
 };
 
 const CLOUDFLARE_CHECK_TIMEOUT_MS = 5000;
+const processLogger = createLogger("DEPLOY_PREFLIGHT");
+processLogger.level = "info";
 
 function formatError(error: unknown): string {
   if (error instanceof Error) {
@@ -231,7 +234,7 @@ async function runPreflight(): Promise<number> {
 
   const configError = await runCheck(configCheck);
   if (configError) {
-    console.error(
+    processLogger.error(
       "Skipping runtime connectivity checks because production configuration failed.",
     );
     return 1;
@@ -249,8 +252,8 @@ async function runPreflight(): Promise<number> {
 
 const exitCode = await runPreflight();
 if (exitCode === 0) {
-  console.log("Deploy preflight passed.");
+  processLogger.info("Deploy preflight passed.");
 } else {
-  console.error("Deploy preflight failed.");
+  processLogger.error("Deploy preflight failed.");
 }
 process.exit(exitCode);

@@ -38,7 +38,9 @@ terraform apply
 - When HTTPS is enabled, use an ACM certificate that covers both hostnames.
 - Managed CDN mode (`use_external_cdn=false`) requires `cloudfront_web_acl_arn` so CloudFront is always protected by WAF.
 - Set `redis_auth_token` in tfvars. Redis now runs as a replication group with TLS+AUTH enabled.
+- Set `cloudwatch_logs_kms_key_arn` in tfvars so VPC Flow Logs and ECS log groups use a customer-managed KMS key.
 - `DATABASE_URL` is injected via AWS Secrets Manager (`${project}-${environment}/database-url`) instead of plain ECS environment values.
+- `REDIS_PASSWORD` is injected via AWS Secrets Manager (`${project}-${environment}/redis-auth-token`) through ECS secrets mapping.
 - External CDN mode requires these tfvars values:
   - `use_external_cdn=true`
   - `external_cdn_bucket_name`

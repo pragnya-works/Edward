@@ -12,8 +12,11 @@ on:
       - "pnpm-lock.yaml"
       - ".github/workflows/deploy-aws.yml"
 
+concurrency:
+  group: deploy-prod-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
-  id-token: write
   contents: read
 
 env:
@@ -68,6 +71,11 @@ jobs:
     if: github.ref == 'refs/heads/prod'
     runs-on: ubuntu-latest
     timeout-minutes: 90
+    concurrency:
+      group: deploy-prod-${{ github.ref }}
+      cancel-in-progress: true
+    permissions:
+      contents: read
 
     steps:
       - name: Checkout
@@ -76,7 +84,8 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a
         with:
-          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Setup Terraform

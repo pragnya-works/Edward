@@ -15,8 +15,11 @@ function isAbortLikeError(error: unknown): boolean {
   return error instanceof Error && error.name === "TimeoutError";
 }
 
-function logReadinessProbeFailure(target: string, error: unknown): void {
-  console.error(`[ready] ${target} probe failed`, error);
+function logReadinessProbeFailure(
+  error: unknown,
+  metadata: { context: string },
+): void {
+  console.error(`[ready] ${metadata.context} probe failed`, error);
 }
 
 function resolveApiHealthUrl(): string | null {
@@ -29,7 +32,8 @@ function resolveApiHealthUrl(): string | null {
   try {
     const normalizedBase = baseApiUrl.endsWith("/") ? baseApiUrl : `${baseApiUrl}/`;
     return new URL("./health", normalizedBase).toString();
-  } catch {
+  } catch (err: unknown) {
+    logReadinessProbeFailure(err, { context: "buildHealthUrl" });
     return null;
   }
 }
@@ -38,8 +42,8 @@ async function checkDatabaseReadiness(): Promise<ReadinessCheck> {
   try {
     await db.select({ id: user.id }).from(user).limit(1);
     return { ok: true };
-  } catch (error) {
-    logReadinessProbeFailure("database", error);
+  } catch (error: unknown) {
+    logReadinessProbeFailure(error, { context: "database" });
     return {
       ok: false,
       detail: READINESS_DETAIL_UNAVAILABLE,
@@ -71,8 +75,8 @@ async function checkApiReadiness(): Promise<ReadinessCheck> {
     }
 
     return { ok: true };
-  } catch (error) {
-    logReadinessProbeFailure("api", error);
+  } catch (error: unknown) {
+    logReadinessProbeFailure(error, { context: "api" });
     return {
       ok: false,
       detail: isAbortLikeError(error)

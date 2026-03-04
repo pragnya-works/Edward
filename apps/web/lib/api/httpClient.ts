@@ -32,6 +32,7 @@ export interface RateLimitedApiError extends ApiErrorBase {
 export type ApiError = HttpApiError | RateLimitedApiError;
 
 const DEFAULT_API_URL = "https://api.edwardd.app";
+const DEFAULT_NON_PRODUCTION_API_URL = "http://localhost:8000";
 const rawApiBaseUrl = process.env.NEXT_PUBLIC_API_URL?.trim();
 const isProduction = process.env.NODE_ENV === "production";
 const TYPEOF_UNDEFINED = "undefined";
@@ -59,31 +60,39 @@ function normalizeApiBaseUrl(value: string): string | null {
   }
 }
 
-const normalizedApiBaseUrl = rawApiBaseUrl
-  ? normalizeApiBaseUrl(rawApiBaseUrl)
-  : null;
-const API_BASE_URL = normalizedApiBaseUrl || DEFAULT_API_URL;
+function resolveApiBaseUrl(): string {
+  const normalizedApiBaseUrl = rawApiBaseUrl
+    ? normalizeApiBaseUrl(rawApiBaseUrl)
+    : null;
 
-if (isProduction && !normalizedApiBaseUrl) {
-  throw new Error(
-    "NEXT_PUBLIC_API_URL must be a valid absolute http(s) URL in production.",
-  );
-}
+  if (normalizedApiBaseUrl) {
+    return normalizedApiBaseUrl;
+  }
 
-if (!rawApiBaseUrl && !isProduction) {
+  if (isProduction) {
+    if (rawApiBaseUrl) {
+      throw new Error(
+        "NEXT_PUBLIC_API_URL must be a valid absolute http(s) URL in production.",
+      );
+    }
+
+    captureMessage(
+      `NEXT_PUBLIC_API_URL is not defined in production; using default ${DEFAULT_API_URL}.`,
+      "warning",
+    );
+    return DEFAULT_API_URL;
+  }
+
   captureMessage(
-    `NEXT_PUBLIC_API_URL is not defined, using default: ${DEFAULT_API_URL}. ` +
-      "Please set NEXT_PUBLIC_API_URL in your environment variables for production.",
+    rawApiBaseUrl
+      ? `NEXT_PUBLIC_API_URL is invalid (${rawApiBaseUrl}); using non-production fallback ${DEFAULT_NON_PRODUCTION_API_URL}.`
+      : `NEXT_PUBLIC_API_URL is not defined; using non-production fallback ${DEFAULT_NON_PRODUCTION_API_URL}.`,
     "warning",
   );
+  return DEFAULT_NON_PRODUCTION_API_URL;
 }
 
-if (rawApiBaseUrl && !normalizedApiBaseUrl && !isProduction) {
-  captureMessage(
-    `NEXT_PUBLIC_API_URL is invalid (${rawApiBaseUrl}); using fallback ${DEFAULT_API_URL}.`,
-    "warning",
-  );
-}
+const API_BASE_URL = resolveApiBaseUrl();
 
 export function buildApiUrl(endpoint: string): string {
   return `${API_BASE_URL}${endpoint.startsWith("/") ? "" : "/"}${endpoint}`;

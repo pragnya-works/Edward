@@ -39,6 +39,7 @@ import {
 const logger = createLogger("WORKER");
 const pubClient = createRedisClient();
 const WORKER_DEPENDENCY_PING_TIMEOUT_MS = 5000;
+const WORKER_SANDBOX_PROBE_TIMEOUT_MS = 8000;
 
 async function withTimeout<T>(
   promise: Promise<T>,
@@ -64,7 +65,23 @@ async function withTimeout<T>(
 
 async function verifyWorkerDependencies(): Promise<void> {
   if (isSandboxEnabled()) {
-    const dockerAvailable = await isSandboxRuntimeAvailable();
+    let dockerAvailable = false;
+    try {
+      dockerAvailable = await withTimeout(
+        isSandboxRuntimeAvailable(),
+        WORKER_SANDBOX_PROBE_TIMEOUT_MS,
+        "Sandbox runtime probe",
+      );
+    } catch (error: unknown) {
+      logger.error(
+        {
+          error: ensureError(error),
+          timeoutMs: WORKER_SANDBOX_PROBE_TIMEOUT_MS,
+        },
+        "[Worker] Sandbox runtime availability probe failed; treating runtime as unavailable",
+      );
+    }
+
     if (!dockerAvailable) {
       throw new Error(
         "Sandbox service is enabled but Docker runtime is unavailable.",

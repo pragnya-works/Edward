@@ -61,16 +61,19 @@ resource "aws_ecr_lifecycle_policy" "web" {
 resource "aws_cloudwatch_log_group" "api" {
   name              = "/ecs/${local.name_prefix}/api"
   retention_in_days = var.log_retention_days
+  kms_key_id        = var.cloudwatch_logs_kms_key_arn
 }
 
 resource "aws_cloudwatch_log_group" "worker" {
   name              = "/ecs/${local.name_prefix}/worker"
   retention_in_days = var.log_retention_days
+  kms_key_id        = var.cloudwatch_logs_kms_key_arn
 }
 
 resource "aws_cloudwatch_log_group" "web" {
   name              = "/ecs/${local.name_prefix}/web"
   retention_in_days = var.log_retention_days
+  kms_key_id        = var.cloudwatch_logs_kms_key_arn
 }
 
 resource "aws_ecs_cluster" "main" {
@@ -171,11 +174,12 @@ resource "aws_ecs_cluster_capacity_providers" "main" {
 }
 
 resource "aws_lb" "edge" {
-  name               = substr(regexreplace("${local.name_prefix}-alb", "[^a-zA-Z0-9-]", "-"), 0, 32)
-  internal           = false
-  load_balancer_type = "application"
-  security_groups    = [aws_security_group.alb.id]
-  subnets            = [for subnet in aws_subnet.public : subnet.id]
+  name                       = substr(regexreplace("${local.name_prefix}-alb", "[^a-zA-Z0-9-]", "-"), 0, 32)
+  internal                   = false
+  load_balancer_type         = "application"
+  security_groups            = [aws_security_group.alb.id]
+  subnets                    = [for subnet in aws_subnet.public : subnet.id]
+  drop_invalid_header_fields = true
 }
 
 resource "aws_lb_target_group" "web" {

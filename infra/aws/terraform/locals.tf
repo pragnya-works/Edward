@@ -67,7 +67,6 @@ locals {
     CORS_ORIGIN                 = local.app_url
     REDIS_HOST                  = aws_elasticache_replication_group.redis.primary_endpoint_address
     REDIS_PORT                  = tostring(aws_elasticache_replication_group.redis.port)
-    REDIS_PASSWORD              = var.redis_auth_token
     REDIS_TLS                   = "true"
     TRUST_PROXY                 = "true"
     OPENAI_MODEL                = var.openai_model
@@ -86,14 +85,29 @@ locals {
     PREVIEW_ROOT_DOMAIN         = var.preview_root_domain
   }
 
-  api_environment = merge(local.api_generated_environment, var.api_environment)
+  api_override_environment = {
+    for key, value in var.api_environment : key => value
+    if key != "REDIS_PASSWORD"
+  }
+
+  api_environment = merge(local.api_generated_environment, local.api_override_environment)
+
+  worker_base_environment = {
+    for key, value in local.api_environment : key => value
+    if key != "REDIS_PASSWORD"
+  }
+
+  worker_override_environment = {
+    for key, value in var.worker_environment : key => value
+    if key != "REDIS_PASSWORD"
+  }
 
   worker_environment = merge(
-    local.api_environment,
+    local.worker_base_environment,
     {
       NODE_ENV = "production"
     },
-    var.worker_environment,
+    local.worker_override_environment,
   )
 
   web_generated_environment = {
@@ -108,7 +122,8 @@ locals {
   web_environment = merge(local.web_generated_environment, var.web_environment)
 
   api_generated_secrets = {
-    DATABASE_URL = aws_secretsmanager_secret.database_url.arn
+    DATABASE_URL   = aws_secretsmanager_secret.database_url.arn
+    REDIS_PASSWORD = aws_secretsmanager_secret.redis_auth_token.arn
   }
 
   web_generated_secrets = {

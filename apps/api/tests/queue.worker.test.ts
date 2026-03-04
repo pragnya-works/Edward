@@ -211,18 +211,21 @@ describe("queue.worker bootstrap", () => {
       .mockImplementation(() => {
         throw new Error("process.exit was called");
       });
+    try {
+      await expect(import("../queue.worker.js")).rejects.toThrow(
+        "process.exit was called",
+      );
 
-    await expect(import("../queue.worker.js")).rejects.toThrow(
-      "process.exit was called",
-    );
-
-    expect(refs.workerInstances).toHaveLength(0);
-    expect(refs.registerWorkerEventHandlers).not.toHaveBeenCalled();
-    expect(refs.logger.fatal).toHaveBeenCalledWith(
-      expect.any(Error),
-      "[Worker] Startup dependency check failed",
-    );
-    expect(processExitSpy).toHaveBeenCalledWith(1);
+      expect(refs.workerInstances).toHaveLength(0);
+      expect(refs.registerWorkerEventHandlers).not.toHaveBeenCalled();
+      expect(refs.logger.fatal).toHaveBeenCalledWith(
+        expect.any(Error),
+        "[Worker] Startup dependency check failed",
+      );
+      expect(processExitSpy).toHaveBeenCalledWith(1);
+    } finally {
+      processExitSpy.mockRestore();
+    }
   });
 
   it("fails fast when redis ping is unhealthy", async () => {
@@ -232,17 +235,20 @@ describe("queue.worker bootstrap", () => {
       .mockImplementation(() => {
         throw new Error("process.exit was called");
       });
+    try {
+      await expect(import("../queue.worker.js")).rejects.toThrow(
+        "process.exit was called",
+      );
 
-    await expect(import("../queue.worker.js")).rejects.toThrow(
-      "process.exit was called",
-    );
-
-    expect(refs.workerInstances).toHaveLength(0);
-    expect(refs.registerWorkerEventHandlers).not.toHaveBeenCalled();
-    expect(refs.logger.fatal).toHaveBeenCalledWith(
-      expect.any(Error),
-      "[Worker] Startup dependency check failed",
-    );
-    expect(processExitSpy).toHaveBeenCalledWith(1);
+      expect(refs.workerInstances).toHaveLength(0);
+      expect(refs.registerWorkerEventHandlers).not.toHaveBeenCalled();
+      expect(refs.logger.fatal).toHaveBeenCalledWith(
+        expect.any(Error),
+        "[Worker] Startup dependency check failed",
+      );
+      expect(processExitSpy).toHaveBeenCalledWith(1);
+    } finally {
+      processExitSpy.mockRestore();
+    }
   });
 });

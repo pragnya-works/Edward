@@ -137,8 +137,8 @@ function parseRedisUrl(url: string): RedisConnectionConfig {
       ...(password ? { password } : {}),
       ...(parsed.protocol === "rediss:" ? { tls: {} } : {}),
     };
-  } catch {
-    throw new Error(`Invalid REDIS_URL format: ${url}`);
+  } catch (_error: unknown) {
+    throw new Error("Invalid REDIS_URL format");
   }
 }
 

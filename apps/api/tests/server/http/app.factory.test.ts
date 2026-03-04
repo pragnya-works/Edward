@@ -416,7 +416,21 @@ describe("createHttpApp", () => {
     await readyHandler({}, { status: readyStatus });
 
     expect(readyStatus).toHaveBeenCalledWith(503);
-    const payload = readyJson.mock.calls[0]?.[0] as {
+    expect(readyJson).toHaveBeenCalled();
+    const call = readyJson.mock.calls[0]?.[0];
+    if (
+      typeof call !== "object" ||
+      call === null ||
+      !("status" in call) ||
+      !("checks" in call) ||
+      typeof (call as { checks?: unknown }).checks !== "object" ||
+      (call as { checks?: unknown }).checks === null ||
+      !("redis" in (call as { checks: Record<string, unknown> }).checks)
+    ) {
+      throw new Error("Expected /ready payload with shape { status, checks.redis }");
+    }
+
+    const payload = call as {
       status: string;
       checks: {
         redis: {
