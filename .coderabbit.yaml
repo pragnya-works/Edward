@@ -51,6 +51,7 @@ reviews:
     base_branches:
       - "^main$"
       - "^dev$"
+      - "^prod$"
 
   path_filters:
     - "!**/*.generated.ts"
