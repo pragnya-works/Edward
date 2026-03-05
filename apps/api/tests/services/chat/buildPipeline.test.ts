@@ -67,7 +67,22 @@ function createResponseMock() {
 }
 
 function asResponse(res: ReturnType<typeof createResponseMock>): Response {
-  return res as unknown as Response;
+  if (
+    typeof res !== "object" ||
+    res === null ||
+    typeof res.headersSent !== "boolean" ||
+    typeof res.writable !== "boolean" ||
+    typeof res.writableEnded !== "boolean" ||
+    typeof res.setHeader !== "function" ||
+    typeof res.write !== "function" ||
+    typeof res.end !== "function" ||
+    typeof res.status !== "function" ||
+    typeof res.send !== "function"
+  ) {
+    throw new Error("Response mock is missing required shape for processBuildPipeline");
+  }
+
+  return res as Response;
 }
 
 describe("processBuildPipeline", () => {
@@ -149,7 +164,20 @@ describe("processBuildPipeline", () => {
       runId: "run-1",
     });
 
-    const [channel, payload] = redisPublishMock.mock.calls[0] as [string, string];
+    if (redisPublishMock.mock.calls.length === 0) {
+      throw new Error("Expected redis.publish to be called at least once");
+    }
+
+    const firstPublishCall = redisPublishMock.mock.calls[0];
+    if (!Array.isArray(firstPublishCall)) {
+      throw new Error("Expected redis.publish first call to be an argument tuple");
+    }
+
+    const [channel, payload] = firstPublishCall;
+    if (typeof channel !== "string" || typeof payload !== "string") {
+      throw new Error("Expected redis.publish first two arguments to be strings");
+    }
+
     expect(channel).toBe("edward:build-status:chat-1");
     expect(JSON.parse(payload)).toMatchObject({
       buildId: "build-1",

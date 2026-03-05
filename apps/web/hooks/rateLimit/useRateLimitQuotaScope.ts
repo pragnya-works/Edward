@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import type { KnownRateLimitScope } from "@/lib/rateLimit/scopes";
+import { ensureRateLimitStateHydrated } from "@/lib/rateLimit/state.persistence";
 import {
   getRateLimitQuota,
   subscribeRateLimitCooldowns,
-} from "@/lib/rateLimit/state";
+} from "@/lib/rateLimit/state.selectors";
 
 export interface RateLimitQuotaScopeState {
   scope: KnownRateLimitScope;
@@ -23,13 +24,14 @@ export function useRateLimitQuotaScope(
   const quota = useMemo(() => getRateLimitQuota(scope, now), [scope, now]);
   const quotaResetAtMs = quota?.resetAt.getTime() ?? null;
 
-  useEffect(
-    () =>
-      subscribeRateLimitCooldowns(() => {
-        setNow(Date.now());
-      }),
-    [],
-  );
+  useEffect(() => {
+    ensureRateLimitStateHydrated();
+    setNow(Date.now());
+
+    return subscribeRateLimitCooldowns(() => {
+      setNow(Date.now());
+    });
+  }, []);
 
   useEffect(() => {
     if (!quotaResetAtMs) {

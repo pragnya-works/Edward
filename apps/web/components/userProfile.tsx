@@ -39,7 +39,7 @@ import {
   useRateLimitQuotaScope,
   type RateLimitQuotaScopeState,
 } from "@/hooks/rateLimit/useRateLimitQuotaScope";
-import { syncRateLimitStorageOwner } from "@/lib/rateLimit/state";
+import { syncRateLimitStorageOwner } from "@/lib/rateLimit/state.persistence";
 
 function getProgressClass(
   remainingPercent: number,

@@ -8,7 +8,10 @@ import {
   type KnownRateLimitScope,
   type RateLimitScope,
 } from "@/lib/rateLimit/scopes";
-import { recordRateLimitCooldown, recordRateLimitQuota } from "@/lib/rateLimit/state";
+import {
+  recordRateLimitCooldown,
+  recordRateLimitQuota,
+} from "@/lib/rateLimit/state.operations";
 import { captureMessage } from "@sentry/nextjs";
 
 interface ApiErrorBase extends Error {
