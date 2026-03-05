@@ -69,7 +69,7 @@ describe("rateLimit middleware module", () => {
   it("creates one limiter per declared scope with shared headers", async () => {
     await import("../../middleware/rateLimit.js");
 
-    expect(refs.options).toHaveLength(7);
+    expect(refs.options).toHaveLength(6);
     for (const option of refs.options) {
       expect(option.standardHeaders).toBe(true);
       expect(option.legacyHeaders).toBe(false);
@@ -152,6 +152,79 @@ describe("rateLimit middleware module", () => {
 
     await expect(config?.sendCommand("")).rejects.toThrow(
       "Redis command is missing",
+    );
+  });
+
+  it("allows daily chat requests when successful-response quota is not exhausted", async () => {
+    refs.redisCall.mockImplementation(async (...args: unknown[]) => {
+      const command = String(args[0] ?? "");
+      if (command === "GET") {
+        return "3";
+      }
+      if (command === "PTTL") {
+        return "60000";
+      }
+      return "OK";
+    });
+
+    const { dailyChatRateLimiter } = await import("../../middleware/rateLimit.js");
+
+    const next = vi.fn();
+    const res = { setHeader: vi.fn() };
+    await dailyChatRateLimiter(
+      {
+        originalUrl: "/chat/message",
+        ip: "10.0.0.3",
+        userId: "user-ok",
+      } as unknown as Parameters<typeof dailyChatRateLimiter>[0],
+      res as unknown as Parameters<typeof dailyChatRateLimiter>[1],
+      next,
+    );
+
+    expect(next).toHaveBeenCalledOnce();
+    expect(refs.sendError).not.toHaveBeenCalled();
+    expect(res.setHeader).toHaveBeenCalledWith("RateLimit-Limit", expect.any(String));
+    expect(res.setHeader).toHaveBeenCalledWith("RateLimit-Remaining", expect.any(String));
+    expect(res.setHeader).toHaveBeenCalledWith("RateLimit-Reset", expect.any(String));
+    expect(res.setHeader).toHaveBeenCalledWith("RateLimit-Scope", expect.any(String));
+  });
+
+  it("blocks daily chat requests when successful-response quota is exhausted", async () => {
+    refs.redisCall.mockImplementation(async (...args: unknown[]) => {
+      const command = String(args[0] ?? "");
+      if (command === "GET") {
+        return "10";
+      }
+      if (command === "PTTL") {
+        return "30000";
+      }
+      return "OK";
+    });
+
+    const { dailyChatRateLimiter } = await import("../../middleware/rateLimit.js");
+
+    const next = vi.fn();
+    const res = { setHeader: vi.fn() };
+    await dailyChatRateLimiter(
+      {
+        originalUrl: "/chat/message",
+        ip: "10.0.0.9",
+        userId: "user-blocked",
+      } as unknown as Parameters<typeof dailyChatRateLimiter>[0],
+      res as unknown as Parameters<typeof dailyChatRateLimiter>[1],
+      next,
+    );
+
+    expect(next).not.toHaveBeenCalled();
+    expect(refs.sendError).toHaveBeenCalledWith(res, 429, expect.any(String));
+    expect(refs.logSecurityEvent).toHaveBeenCalledWith(
+      "rate_limit_exceeded",
+      expect.objectContaining({
+        path: "/chat/message",
+        ip: "127.0.0.1",
+        requestId: "req-1",
+        userId: "user-blocked",
+      }),
     );
   });
 });

@@ -5,6 +5,8 @@ import { ParserEventType } from "@edward/shared/streamEvents";
 const streamResponseMock = vi.fn();
 const saveMessageMock = vi.fn();
 const handleParserEventMock = vi.fn();
+const recordDailyChatSuccessfulResponseMock = vi.fn();
+const getDailyChatSuccessSnapshotMock = vi.fn();
 
 vi.mock("../../../lib/llm/provider.client.js", () => ({
   streamResponse: streamResponseMock,
@@ -37,6 +39,11 @@ vi.mock("../../../lib/llm/tokens/openaiCounter.js", () => ({
 vi.mock("../../../services/chat.service.js", () => ({
   saveMessage: saveMessageMock,
   updateChatMeta: vi.fn(),
+}));
+
+vi.mock("../../../services/rateLimit/chatDailySuccess.service.js", () => ({
+  recordDailyChatSuccessfulResponse: recordDailyChatSuccessfulResponseMock,
+  getDailyChatSuccessSnapshot: getDailyChatSuccessSnapshotMock,
 }));
 
 vi.mock("../../../services/websearch/urlScraper.service.js", () => ({
@@ -120,6 +127,14 @@ describe("runStreamSession", () => {
     });
 
     saveMessageMock.mockResolvedValue("assistant-msg-id");
+    recordDailyChatSuccessfulResponseMock.mockResolvedValue(undefined);
+    getDailyChatSuccessSnapshotMock.mockResolvedValue({
+      limit: 50,
+      current: 1,
+      remaining: 49,
+      resetAtMs: Date.now() + 60_000,
+      isLimited: false,
+    });
   });
 
   it("continues after tool turn even when DONE appears in the same turn", async () => {
@@ -220,5 +235,7 @@ describe("runStreamSession", () => {
         inputTokens: 100,
       }),
     );
+    expect(recordDailyChatSuccessfulResponseMock).toHaveBeenCalledWith("user-1");
+    expect(getDailyChatSuccessSnapshotMock).toHaveBeenCalledWith("user-1");
   });
 });

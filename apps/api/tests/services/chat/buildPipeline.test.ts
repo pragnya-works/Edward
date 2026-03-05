@@ -82,7 +82,7 @@ function asResponse(res: ReturnType<typeof createResponseMock>): Response {
     throw new Error("Response mock is missing required shape for processBuildPipeline");
   }
 
-  return res as Response;
+  return res as unknown as Response;
 }
 
 describe("processBuildPipeline", () => {
