@@ -285,7 +285,7 @@ describe("runStreamSession", () => {
 
   it("does not record daily chat success when assistant output is empty", async () => {
     streamResponseMock.mockImplementation(async function* () {
-      return;
+      yield "";
     });
 
     const { runStreamSession } = await import(
