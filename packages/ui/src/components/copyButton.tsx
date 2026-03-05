@@ -8,15 +8,21 @@ import { copyTextToClipboard } from "../lib/clipboard";
 interface CopyButtonProps {
   content: string;
   className?: string;
+  onCopySuccess?: () => void;
 }
 
-export function CopyButton({ content, className = "" }: CopyButtonProps) {
+export function CopyButton({
+  content,
+  className = "",
+  onCopySuccess,
+}: CopyButtonProps) {
   const [isCopied, setIsCopied] = useState(false);
 
   const copyToClipboard = async () => {
     const copied = await copyTextToClipboard(content);
     if (!copied) return;
 
+    onCopySuccess?.();
     setIsCopied(true);
     setTimeout(() => setIsCopied(false), 2000);
   };

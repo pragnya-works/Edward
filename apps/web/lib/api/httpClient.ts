@@ -8,7 +8,7 @@ import {
   type KnownRateLimitScope,
   type RateLimitScope,
 } from "@/lib/rateLimit/scopes";
-import { recordRateLimitCooldown } from "@/lib/rateLimit/state";
+import { recordRateLimitCooldown, recordRateLimitQuota } from "@/lib/rateLimit/state";
 import { captureMessage } from "@sentry/nextjs";
 
 interface ApiErrorBase extends Error {
@@ -38,6 +38,8 @@ const MIN_EPOCH_SECONDS = 1_000_000_000;
 const MIN_EPOCH_MILLISECONDS = 1_000_000_000_000;
 const CHAT_BURST_WINDOW_MS =
   RATE_LIMIT_POLICY_BY_SCOPE[RATE_LIMIT_SCOPE.CHAT_BURST].windowMs;
+const CHAT_DAILY_WINDOW_MS =
+  RATE_LIMIT_POLICY_BY_SCOPE[RATE_LIMIT_SCOPE.CHAT_DAILY].windowMs;
 const GITHUB_BURST_WINDOW_MS =
   RATE_LIMIT_POLICY_BY_SCOPE[RATE_LIMIT_SCOPE.GITHUB_BURST].windowMs;
 const GITHUB_BURST_LIMIT =
@@ -212,6 +214,36 @@ function inferRateLimitScope(params: {
   return RATE_LIMIT_SCOPE.UNKNOWN;
 }
 
+function maybeRecordQuotaFromResponse(
+  endpoint: string,
+  response: Response,
+): void {
+  const normalizedEndpoint = normalizeEndpoint(endpoint);
+  if (normalizedEndpoint !== "/chat/message") {
+    return;
+  }
+
+  const limit = parseNumberHeader(response.headers.get("RateLimit-Limit"));
+  const remaining = parseNumberHeader(response.headers.get("RateLimit-Remaining"));
+  if (limit === null || remaining === null) {
+    return;
+  }
+
+  const resetAt = resolveRateLimitResetAt(response.headers);
+  const resetInMs = Math.max(resetAt.getTime() - Date.now(), 0);
+
+  // Guard against accidentally recording burst-window metadata as daily quota.
+  if (resetInMs < CHAT_DAILY_WINDOW_MS / 2 && resetInMs <= CHAT_BURST_WINDOW_MS * 2) {
+    return;
+  }
+
+  recordRateLimitQuota(RATE_LIMIT_SCOPE.CHAT_DAILY, {
+    limit,
+    remaining,
+    resetAt,
+  });
+}
+
 async function toApiError(
   response: Response,
   endpoint: string,
@@ -280,6 +312,7 @@ export async function fetchApiResponse(
   if (!response.ok) {
     throw await toApiError(response, endpoint);
   }
+  maybeRecordQuotaFromResponse(endpoint, response);
   return response;
 }
 

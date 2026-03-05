@@ -81,7 +81,10 @@ export function SandboxActivityBar() {
               <div className="flex items-center gap-2">
                 <span>Search</span>
                 <KeyboardShortcut className="h-5 gap-1 px-1.5 text-[11px] opacity-100">
-                  <span className="text-[10px]">{isMac ? "⌘" : "Ctrl"}</span>K
+                  <span className="text-[11px] font-semibold leading-none">
+                    {isMac ? "⌘" : "Ctrl"}
+                  </span>
+                  K
                 </KeyboardShortcut>
               </div>
             </TooltipContent>

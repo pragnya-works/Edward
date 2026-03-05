@@ -95,8 +95,8 @@ export function FileSearchModal() {
                                 key={file.path}
                                 value={file.path}
                                 keywords={[file.name, file.directory, file.extension]}
-                                onSelect={(value) => {
-                                    handleSelect(value);
+                                onSelect={() => {
+                                    handleSelect(file.path);
                                 }}
                                 className={cn(
                                     "group relative flex cursor-pointer items-center gap-2.5 rounded-md px-2.5 py-2.5 text-workspace-foreground/85 transition-[background-color,color,box-shadow] duration-150",

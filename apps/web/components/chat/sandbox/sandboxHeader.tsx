@@ -2,8 +2,6 @@
 
 import { X, Code2, Monitor } from "lucide-react";
 import { Button } from "@edward/ui/components/button";
-import { KeyboardShortcut } from "@edward/ui/components/ui/keyboardShortcut";
-import { useIsMac } from "@edward/ui/hooks/useIsMac";
 import { cn } from "@edward/ui/lib/utils";
 import { useSandbox } from "@/stores/sandbox/hooks";
 import { useChatWorkspaceContext } from "@/components/chat/chatWorkspaceContext";
@@ -13,7 +11,6 @@ import { GithubIntegrationBar } from "@/components/chat/sandbox/githubIntegratio
 export function SandboxHeader() {
   const { projectName } = useChatWorkspaceContext();
   const { mode, files, setMode, closeSandbox } = useSandbox();
-  const isMac = useIsMac();
 
   return (
     <div className="flex items-center justify-between gap-2.5 px-3 md:px-4 py-2.5 border-b border-workspace-border bg-workspace-sidebar text-workspace-header-fg shrink-0">
@@ -58,17 +55,6 @@ export function SandboxHeader() {
             <span className="text-[8px] text-workspace-header-fg/60 font-medium uppercase tracking-tighter">
               {files.length} {files.length === 1 ? "File" : "Files"}
             </span>
-            <div
-              className="flex items-center gap-1.5"
-              aria-label="Keyboard shortcut: press Control or Command and K to open file search"
-            >
-              <span className="text-[8px] text-workspace-header-fg/55 font-medium tracking-tight">
-                Search
-              </span>
-              <KeyboardShortcut className="h-4 gap-1 px-1.5 border-workspace-border bg-workspace-bg text-workspace-header-fg/85 text-[9px]">
-                <span className="text-[8px]">{isMac ? "⌘" : "Ctrl"}</span>K
-              </KeyboardShortcut>
-            </div>
           </div>
         </div>
       </div>
