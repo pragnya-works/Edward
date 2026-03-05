@@ -20,7 +20,7 @@ import { Button } from "@edward/ui/components/button";
 import { Badge } from "@edward/ui/components/badge";
 import { cn } from "@edward/ui/lib/utils";
 import { useMobileViewport } from "@edward/ui/hooks/useMobileViewport";
-import { useSandbox } from "@/contexts/sandboxContext";
+import { useSandbox } from "@/stores/sandbox/hooks";
 import type { SandboxTerminalEntry } from "@/stores/sandbox/types";
 
 const DESKTOP_DEFAULT_TERMINAL_HEIGHT = 220;

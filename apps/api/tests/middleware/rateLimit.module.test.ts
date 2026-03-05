@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { Request, Response } from "express";
 
 type RateLimitOptions = {
   keyGenerator?: (req: { ip?: string; userId?: string }) => string;
@@ -8,6 +9,56 @@ type RateLimitOptions = {
   standardHeaders?: boolean;
   legacyHeaders?: boolean;
 };
+
+type DailyChatRequest = Request & { userId?: string };
+
+function isDailyChatRequest(value: unknown): value is DailyChatRequest {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const candidate = value as Record<string, unknown>;
+  return (
+    typeof candidate.originalUrl === "string" &&
+    typeof candidate.ip === "string" &&
+    (typeof candidate.userId === "string" || typeof candidate.userId === "undefined")
+  );
+}
+
+function createDailyChatRequest(input: {
+  originalUrl: string;
+  ip: string;
+  userId: string;
+}): DailyChatRequest {
+  const candidate: Record<string, unknown> = {
+    originalUrl: input.originalUrl,
+    ip: input.ip,
+    userId: input.userId,
+  };
+  if (!isDailyChatRequest(candidate)) {
+    throw new Error("Invalid daily chat request fixture");
+  }
+  return candidate;
+}
+
+function isDailyChatResponse(value: unknown): value is Response {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const candidate = value as Record<string, unknown>;
+  return typeof candidate.setHeader === "function";
+}
+
+function createDailyChatResponse() {
+  const setHeader = vi.fn();
+  const candidate: Record<string, unknown> = { setHeader };
+  if (!isDailyChatResponse(candidate)) {
+    throw new Error("Invalid daily chat response fixture");
+  }
+  const response = candidate;
+  return { response, setHeader };
+}
 
 const refs = vi.hoisted(() => ({
   options: [] as RateLimitOptions[],
@@ -69,7 +120,7 @@ describe("rateLimit middleware module", () => {
   it("creates one limiter per declared scope with shared headers", async () => {
     await import("../../middleware/rateLimit.js");
 
-    expect(refs.options).toHaveLength(7);
+    expect(refs.options).toHaveLength(6);
     for (const option of refs.options) {
       expect(option.standardHeaders).toBe(true);
       expect(option.legacyHeaders).toBe(false);
@@ -152,6 +203,73 @@ describe("rateLimit middleware module", () => {
 
     await expect(config?.sendCommand("")).rejects.toThrow(
       "Redis command is missing",
+    );
+  });
+
+  it("allows daily chat requests when successful-response quota is not exhausted", async () => {
+    refs.redisCall.mockImplementation(async (...args: unknown[]) => {
+      const command = String(args[0] ?? "");
+      if (command === "GET") {
+        return "3";
+      }
+      if (command === "PTTL") {
+        return "60000";
+      }
+      return "OK";
+    });
+
+    const { dailyChatRateLimiter } = await import("../../middleware/rateLimit.js");
+
+    const next = vi.fn();
+    const req = createDailyChatRequest({
+      originalUrl: "/chat/message",
+      ip: "10.0.0.3",
+      userId: "user-ok",
+    });
+    const { response: res, setHeader } = createDailyChatResponse();
+    await dailyChatRateLimiter(req, res, next);
+
+    expect(next).toHaveBeenCalledOnce();
+    expect(refs.sendError).not.toHaveBeenCalled();
+    expect(setHeader).toHaveBeenCalledWith("RateLimit-Limit", expect.any(String));
+    expect(setHeader).toHaveBeenCalledWith("RateLimit-Remaining", expect.any(String));
+    expect(setHeader).toHaveBeenCalledWith("RateLimit-Reset", expect.any(String));
+    expect(setHeader).toHaveBeenCalledWith("RateLimit-Scope", expect.any(String));
+  });
+
+  it("blocks daily chat requests when successful-response quota is exhausted", async () => {
+    refs.redisCall.mockImplementation(async (...args: unknown[]) => {
+      const command = String(args[0] ?? "");
+      if (command === "GET") {
+        return "10";
+      }
+      if (command === "PTTL") {
+        return "30000";
+      }
+      return "OK";
+    });
+
+    const { dailyChatRateLimiter } = await import("../../middleware/rateLimit.js");
+
+    const next = vi.fn();
+    const req = createDailyChatRequest({
+      originalUrl: "/chat/message",
+      ip: "10.0.0.9",
+      userId: "user-blocked",
+    });
+    const { response: res } = createDailyChatResponse();
+    await dailyChatRateLimiter(req, res, next);
+
+    expect(next).not.toHaveBeenCalled();
+    expect(refs.sendError).toHaveBeenCalledWith(res, 429, expect.any(String));
+    expect(refs.logSecurityEvent).toHaveBeenCalledWith(
+      "rate_limit_exceeded",
+      expect.objectContaining({
+        path: "/chat/message",
+        ip: "127.0.0.1",
+        requestId: "req-1",
+        userId: "user-blocked",
+      }),
     );
   });
 });

@@ -1,5 +1,6 @@
 import type { Response } from "express";
 import { MessageRole } from "@edward/auth";
+import { RATE_LIMIT_SCOPE } from "@edward/shared/constants";
 import {
   MetaPhase,
   ParserEventType,
@@ -11,6 +12,10 @@ import type { UrlScrapeResult } from "../../../../services/websearch/urlScraper/
 import {
   saveMessage,
 } from "../../../../services/chat.service.js";
+import {
+  getDailyChatSuccessSnapshot,
+  recordDailyChatSuccessfulResponse,
+} from "../../../../services/rateLimit/chatDailySuccess.service.js";
 import {
   formatUrlScrapeAssistantTags,
 } from "../../../../services/websearch/urlScraper/context.js";
@@ -107,6 +112,7 @@ export async function finalizeStreamSession(params: {
   });
 
   const urlScrapeTags = formatUrlScrapeAssistantTags(urlScrapeResults);
+  const hasRealAssistantResponse = fullRawResponse.trim().length > 0;
   const storedAssistantContent = createStoredAssistantContent(
     fullRawResponse,
     urlScrapeTags,
@@ -122,6 +128,44 @@ export async function finalizeStreamSession(params: {
     assistantMessageId,
     metrics.messageMetadata,
   );
+
+  if (hasRealAssistantResponse) {
+    await recordDailyChatSuccessfulResponse(userId).catch((error: unknown) => {
+      logger.warn(
+        {
+          error,
+          chatId,
+          runId,
+          userId,
+        },
+        "Failed to record successful daily chat usage",
+      );
+    });
+
+    const quota = await getDailyChatSuccessSnapshot(userId).catch(
+      (error: unknown) => {
+        logger.warn(
+          {
+            error,
+            chatId,
+            runId,
+            userId,
+          },
+          "Failed to fetch updated daily chat quota snapshot",
+        );
+        return null;
+      },
+    );
+    if (quota) {
+      sendSSEEvent(res, {
+        type: ParserEventType.RATE_LIMIT_STATUS,
+        scope: RATE_LIMIT_SCOPE.CHAT_DAILY,
+        limit: quota.limit,
+        remaining: quota.remaining,
+        resetAtMs: quota.resetAtMs,
+      });
+    }
+  }
 
   if (workflow.sandboxId) {
     await processBuildPipeline({

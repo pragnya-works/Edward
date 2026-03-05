@@ -3,6 +3,8 @@
 import { cn } from "@edward/ui/lib/utils";
 import { Files, Search } from "lucide-react";
 import { Button } from "@edward/ui/components/button";
+import { KeyboardShortcut } from "@edward/ui/components/ui/keyboardShortcut";
+import { useIsMac } from "@edward/ui/hooks/useIsMac";
 import {
   Tooltip,
   TooltipContent,
@@ -10,10 +12,11 @@ import {
   TooltipTrigger,
 } from "@edward/ui/components/tooltip";
 import { Separator } from "@edward/ui/components/separator";
-import { useSandbox } from "@/contexts/sandboxContext";
+import { useSandbox } from "@/stores/sandbox/hooks";
 
 export function SandboxActivityBar() {
   const { isSearchOpen, closeSearch, toggleSearch } = useSandbox();
+  const isMac = useIsMac();
 
   return (
     <div className="w-12 shrink-0 h-full bg-workspace-sidebar border-r border-workspace-border flex flex-col items-center py-2 z-20">
@@ -60,7 +63,11 @@ export function SandboxActivityBar() {
                     : "hover:bg-workspace-hover text-workspace-foreground/70 hover:text-workspace-foreground",
                 )}
                 onClick={toggleSearch}
-                aria-label="Open file search"
+                aria-label={
+                  isSearchOpen
+                    ? "Close file search"
+                    : "Open file search (Control or Command plus K)"
+                }
               >
                 {isSearchOpen && (
                   <div className="absolute left-0 top-1.5 bottom-1.5 w-0.5 rounded-r-sm bg-workspace-accent" />
@@ -70,7 +77,17 @@ export function SandboxActivityBar() {
             }
           />
           <TooltipPositioner side="right">
-            <TooltipContent>Search (Cmd+P)</TooltipContent>
+            <TooltipContent>
+              <div className="flex items-center gap-2">
+                <span>Search</span>
+                <KeyboardShortcut className="h-5 gap-1 px-1.5 text-[11px] opacity-100">
+                  <span className="text-[11px] font-semibold leading-none">
+                    {isMac ? "⌘" : "Ctrl"}
+                  </span>
+                  K
+                </KeyboardShortcut>
+              </div>
+            </TooltipContent>
           </TooltipPositioner>
         </Tooltip>
       </div>

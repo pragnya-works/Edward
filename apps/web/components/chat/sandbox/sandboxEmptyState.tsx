@@ -6,7 +6,7 @@ import { cn } from "@edward/ui/lib/utils";
 import { Button } from "@edward/ui/components/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@edward/ui/components/card";
 import { copyTextToClipboard } from "@edward/ui/lib/clipboard";
-import { useSandbox } from "@/contexts/sandboxContext";
+import { useSandbox } from "@/stores/sandbox/hooks";
 import { useOptionalChatWorkspaceContext } from "@/components/chat/chatWorkspaceContext";
 import { BuildStatus } from "@/stores/sandbox/types";
 import {

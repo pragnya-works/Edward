@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo } from "react";
 import { Search } from "lucide-react";
-import { useSandbox } from "@/contexts/sandboxContext";
+import { useSandbox } from "@/stores/sandbox/hooks";
 import {
     CommandDialog,
     CommandEmpty,
@@ -72,6 +72,7 @@ export function FileSearchModal() {
             <div className="border-b border-workspace-border/80 bg-workspace-sidebar/80">
                 <CommandInput
                     placeholder="Search files by name..."
+                    aria-label="Search sandbox files"
                     className="text-[15px] text-workspace-foreground placeholder:text-workspace-foreground/50"
                 />
             </div>
@@ -94,8 +95,8 @@ export function FileSearchModal() {
                                 key={file.path}
                                 value={file.path}
                                 keywords={[file.name, file.directory, file.extension]}
-                                onSelect={(value) => {
-                                    handleSelect(value);
+                                onSelect={() => {
+                                    handleSelect(file.path);
                                 }}
                                 className={cn(
                                     "group relative flex cursor-pointer items-center gap-2.5 rounded-md px-2.5 py-2.5 text-workspace-foreground/85 transition-[background-color,color,box-shadow] duration-150",

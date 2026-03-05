@@ -7,6 +7,7 @@ import rehypeHighlight from "rehype-highlight";
 import type { Components } from "react-markdown";
 import type { Options } from "react-markdown";
 import { CopyButton } from "@edward/ui/components/copyButton";
+import { toast } from "@edward/ui/components/sonner";
 
 interface MarkdownRendererProps {
   content: string;
@@ -189,6 +190,9 @@ const components: Components = {
             </div>
             <CopyButton
               content={codeContent}
+              onCopySuccess={() => {
+                toast.success("Code copied");
+              }}
               className="h-7 w-7 rounded-md border border-transparent p-0 text-zinc-500 hover:border-zinc-200 hover:bg-zinc-200/80 hover:text-zinc-800 dark:text-zinc-400 dark:hover:border-zinc-700 dark:hover:bg-zinc-800/80 dark:hover:text-zinc-100"
             />
           </div>

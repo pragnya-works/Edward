@@ -5,7 +5,7 @@ import { ChevronRight, RefreshCw, Search } from "lucide-react";
 import { Button } from "@edward/ui/components/button";
 import { Separator } from "@edward/ui/components/separator";
 import { cn } from "@edward/ui/lib/utils";
-import { useSandbox } from "@/contexts/sandboxContext";
+import { useSandbox } from "@/stores/sandbox/hooks";
 import { useChatWorkspaceContext } from "@/components/chat/chatWorkspaceContext";
 import { buildFileTree } from "@/components/chat/editor/fileTree";
 import { FileTreeView } from "@/components/chat/editor/fileTreeItem";

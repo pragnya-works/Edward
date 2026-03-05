@@ -3,7 +3,7 @@
 import { X, Code2, Monitor } from "lucide-react";
 import { Button } from "@edward/ui/components/button";
 import { cn } from "@edward/ui/lib/utils";
-import { useSandbox } from "@/contexts/sandboxContext";
+import { useSandbox } from "@/stores/sandbox/hooks";
 import { useChatWorkspaceContext } from "@/components/chat/chatWorkspaceContext";
 import { SandboxMode } from "@/stores/sandbox/types";
 import { GithubIntegrationBar } from "@/components/chat/sandbox/githubIntegrationBar";
@@ -51,7 +51,7 @@ export function SandboxHeader() {
           <span className="text-[12px] md:text-[13px] font-bold tracking-tight text-workspace-header-fg/90 truncate">
             {projectName ?? "Workspace"}
           </span>
-          <div className="flex items-center gap-1.5 leading-none">
+          <div className="flex items-center gap-2 leading-none">
             <span className="text-[8px] text-workspace-header-fg/60 font-medium uppercase tracking-tighter">
               {files.length} {files.length === 1 ? "File" : "Files"}
             </span>

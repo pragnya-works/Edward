@@ -15,6 +15,19 @@ export const CONTAINER_WORKDIR = "/home/node/edward";
 export const SANDBOX_LABEL = "com.edward.sandbox";
 const EXEC_TIMEOUT_MS = 10000;
 
+export async function pingDocker(): Promise<boolean> {
+  try {
+    await docker.ping();
+    return true;
+  } catch (error: unknown) {
+    logger.warn(
+      { error: error instanceof Error ? error : new Error(String(error)) },
+      "Docker ping failed",
+    );
+    return false;
+  }
+}
+
 export async function ensureContainerRunning(
   container: Docker.Container,
 ): Promise<void> {

@@ -11,6 +11,8 @@ import {
 } from "@edward/shared/chat/streamActions";
 import { openRunEventsStream } from "@/lib/api/chat";
 import { parseSSELines } from "@/lib/parsing/sseParser";
+import { RATE_LIMIT_SCOPE } from "@/lib/rateLimit/scopes";
+import { recordRateLimitQuota } from "@/lib/rateLimit/state.operations";
 
 export interface RefCell<T> {
   current: T;
@@ -473,6 +475,20 @@ export async function processStreamResponse({
             chatId: activeChatId,
             metrics: accumulated.metrics,
           });
+          break;
+        case ParserEventType.RATE_LIMIT_STATUS:
+          if (
+            event.scope === RATE_LIMIT_SCOPE.CHAT_DAILY &&
+            Number.isFinite(event.limit) &&
+            Number.isFinite(event.remaining) &&
+            Number.isFinite(event.resetAtMs)
+          ) {
+            recordRateLimitQuota(RATE_LIMIT_SCOPE.CHAT_DAILY, {
+              limit: Math.trunc(event.limit),
+              remaining: Math.trunc(event.remaining),
+              resetAt: new Date(Math.trunc(event.resetAtMs)),
+            });
+          }
           break;
         case ParserEventType.PREVIEW_URL:
           accumulated.previewUrl = event.url;

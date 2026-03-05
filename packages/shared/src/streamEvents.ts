@@ -23,6 +23,7 @@ export enum ParserEventType {
   METRICS = "metrics",
   PREVIEW_URL = "preview_url",
   BUILD_STATUS = "build_status",
+  RATE_LIMIT_STATUS = "rate_limit_status",
 }
 
 export type StreamErrorSeverity = "fatal" | "recoverable";
@@ -244,6 +245,14 @@ export interface BuildStatusEvent extends StreamEventBase {
   errorReport?: unknown;
 }
 
+export interface RateLimitStatusEvent extends StreamEventBase {
+  type: ParserEventType.RATE_LIMIT_STATUS;
+  scope: string;
+  limit: number;
+  remaining: number;
+  resetAtMs: number;
+}
+
 export type StreamEvent =
   | TextEvent
   | DoneEvent
@@ -265,4 +274,5 @@ export type StreamEvent =
   | UrlScrapeEvent
   | MetricsEvent
   | PreviewUrlEvent
-  | BuildStatusEvent;
+  | BuildStatusEvent
+  | RateLimitStatusEvent;

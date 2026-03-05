@@ -43,7 +43,10 @@ import {
   releaseChatSubmissionLock,
   startChatSubmissionLockHeartbeat,
 } from "@/lib/chat/submissionLock";
-import { getRateLimitCooldown } from "@/lib/rateLimit/state";
+import {
+  getRateLimitCooldown,
+} from "@/lib/rateLimit/state.selectors";
+import { ensureRateLimitStateHydrated } from "@/lib/rateLimit/state.persistence";
 import { RATE_LIMIT_SCOPE } from "@/lib/rateLimit/scopes";
 import {
   PENDING_CHAT_ID_PREFIX,
@@ -142,6 +145,7 @@ export function useStartStream({
         return;
       }
 
+      ensureRateLimitStateHydrated();
       const now = Date.now();
       if (
         getRateLimitCooldown(RATE_LIMIT_SCOPE.CHAT_DAILY, now) ||

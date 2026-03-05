@@ -1,4 +1,4 @@
-import type { Request, Response } from 'express';
+import type { NextFunction, Request, Response } from 'express';
 import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import {
   RATE_LIMIT_POLICY_BY_SCOPE,
@@ -8,8 +8,13 @@ import {
 } from '@edward/shared/constants';
 import { RedisStore } from 'rate-limit-redis';
 import { redis } from '../lib/redis.js';
+import {
+  getDailyChatSuccessSnapshot,
+} from '../services/rateLimit/chatDailySuccess.service.js';
 import { HttpStatus } from '../utils/constants.js';
 import { sendError } from '../utils/response.js';
+import { ensureError } from '../utils/error.js';
+import { logger } from '../utils/logger.js';
 import type { AuthenticatedRequest } from './auth.js';
 import {
   getClientIp,
@@ -119,10 +124,87 @@ export const chatRateLimiter = createRateLimiterForScope(
   { keyGenerator: getAuthenticatedRateLimitKey },
 );
 
-export const dailyChatRateLimiter = createRateLimiterForScope(
-  RATE_LIMIT_SCOPE.CHAT_DAILY,
-  { keyGenerator: getAuthenticatedRateLimitKey },
-);
+const dailyChatPolicy = (
+  RATE_LIMIT_POLICY_BY_SCOPE as Partial<
+    Record<KnownRateLimitScope, RateLimitPolicy>
+  >
+)[RATE_LIMIT_SCOPE.CHAT_DAILY];
+
+function setDailyChatHeaders(
+  res: Response,
+  snapshot: {
+    limit: number;
+    remaining: number;
+    resetAtMs: number;
+  },
+): void {
+  const now = Date.now();
+  const resetInSeconds = Math.max(
+    Math.ceil((snapshot.resetAtMs - now) / 1000),
+    0,
+  );
+  res.setHeader('RateLimit-Limit', String(snapshot.limit));
+  res.setHeader('RateLimit-Remaining', String(snapshot.remaining));
+  res.setHeader('RateLimit-Reset', String(resetInSeconds));
+  res.setHeader('RateLimit-Scope', RATE_LIMIT_SCOPE.CHAT_DAILY);
+}
+
+export async function dailyChatRateLimiter(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  if (!dailyChatPolicy) {
+    logger.error(
+      {
+        userId: (req as AuthenticatedRequest).userId ?? null,
+        path: req.originalUrl,
+      },
+      "Missing daily chat rate-limit policy; denying request",
+    );
+    sendError(
+      res,
+      HttpStatus.INTERNAL_SERVER_ERROR,
+      "Daily chat rate limiter is temporarily unavailable",
+    );
+    return;
+  }
+
+  const key = getAuthenticatedRateLimitKey(req);
+
+  try {
+    const snapshot = await getDailyChatSuccessSnapshot(key);
+    setDailyChatHeaders(res, snapshot);
+
+    if (!snapshot.isLimited) {
+      next();
+      return;
+    }
+
+    logSecurityEvent('rate_limit_exceeded', {
+      scope: dailyChatPolicy.securityScope,
+      path: req.originalUrl,
+      ip: getClientIp(req),
+      requestId: getRequestId(req),
+      userId: (req as AuthenticatedRequest).userId,
+    });
+    sendError(
+      res,
+      HttpStatus.TOO_MANY_REQUESTS,
+      dailyChatPolicy.limitExceededMessage,
+    );
+  } catch (error) {
+    logger.error(
+      {
+        error: ensureError(error),
+        userId: (req as AuthenticatedRequest).userId ?? null,
+        path: req.originalUrl,
+      },
+      'Daily chat rate-limit gate failed; allowing request',
+    );
+    next();
+  }
+}
 
 export const imageUploadRateLimiter = createRateLimiterForScope(
   RATE_LIMIT_SCOPE.IMAGE_UPLOAD_BURST,

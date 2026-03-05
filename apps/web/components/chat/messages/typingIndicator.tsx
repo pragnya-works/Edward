@@ -15,7 +15,7 @@ export const TypingIndicator = memo(function TypingIndicator({
 }: TypingIndicatorProps) {
   const dotClassName = isCodeMode
     ? "bg-gradient-to-tr from-amber-400 to-orange-400"
-    : "bg-foreground/40";
+    : "bg-foreground/55 dark:bg-foreground/70";
 
   if (!isCodeMode) {
     return (
@@ -24,7 +24,7 @@ export const TypingIndicator = memo(function TypingIndicator({
           initial={{ opacity: 0, scale: 0.8 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.25, ease: "easeOut" }}
-          className="inline-flex items-center justify-center rounded-[20px] border border-white/5 bg-[#1c1c1e] px-3 py-2 sm:px-4 sm:py-2.5 min-w-12 sm:min-w-14"
+          className="inline-flex items-center justify-center rounded-[20px] border border-border/45 bg-foreground/[0.04] px-3 py-2 sm:px-4 sm:py-2.5 min-w-12 sm:min-w-14 dark:border-border/70 dark:bg-foreground/[0.08]"
         >
           <div className="flex items-center justify-center gap-1">
             {FEATURE_TYPING_DOT_DELAYS.map((delay) => (

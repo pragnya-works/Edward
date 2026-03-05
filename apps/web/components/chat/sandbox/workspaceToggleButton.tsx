@@ -18,7 +18,7 @@ import {
     type LucideIcon,
 } from "lucide-react";
 import { cn } from "@edward/ui/lib/utils";
-import { useSandbox } from "@/contexts/sandboxContext";
+import { useSandbox } from "@/stores/sandbox/hooks";
 import { FrameworkIcon, detectFramework } from "@/components/chat/editor/frameworkIcons";
 import type { CommandEvent } from "@edward/shared/streamEvents";
 

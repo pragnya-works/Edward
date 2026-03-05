@@ -48,6 +48,16 @@ export async function processBuildPipeline(
     declaredPackages,
   } = params;
 
+  const hasGeneratedFiles = generatedFiles.size > 0;
+  const hasDeclaredPackages = declaredPackages.length > 0;
+  if (!hasGeneratedFiles && !hasDeclaredPackages) {
+    logger.info(
+      { chatId, runId, sandboxId },
+      "[BuildPipeline] No generated files or dependency declarations detected; skipping build",
+    );
+    return;
+  }
+
   let blockingValidationReport: Record<string, unknown> | null = null;
 
   await applyDeterministicPostgenAutofixes({

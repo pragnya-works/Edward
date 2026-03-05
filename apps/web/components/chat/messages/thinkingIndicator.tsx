@@ -64,7 +64,7 @@ export const ThinkingIndicator = memo(function ThinkingIndicator({
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -5 }}
       transition={{ duration: 0.3, ease: "easeOut" }}
-      className="w-full mb-4"
+      className="w-full"
     >
       <div className={cn(
         "rounded-2xl border transition-all duration-300",

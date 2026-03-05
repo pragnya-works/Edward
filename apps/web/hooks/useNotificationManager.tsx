@@ -237,13 +237,6 @@ export function useNotificationManager() {
         return;
       }
 
-      const isFirstSnapshot = !seenInitial && (!previous || previous.status === status);
-      if (isFirstSnapshot) {
-        closeSource(chatId);
-        scheduleReconnectRef.current(chatId, RECONNECT_AFTER_TERMINAL_MS);
-        return;
-      }
-
       closeSource(chatId);
       scheduleReconnectRef.current(chatId, RECONNECT_AFTER_TERMINAL_MS);
 

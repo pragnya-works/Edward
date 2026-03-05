@@ -63,6 +63,10 @@ export const createSandboxUiSlice: StateCreator<
   closeSearch: () => set({ isSearchOpen: false }),
   toggleSearch: () => set((state) => ({ isSearchOpen: !state.isSearchOpen })),
   setMode: (mode) => set({ mode }),
-  setActiveFile: (path) => set({ activeFilePath: path }),
+  setActiveFile: (path) =>
+    set((state) => ({
+      activeFilePath: path,
+      mode: path ? SandboxMode.CODE : state.mode,
+    })),
   setPreviewUrl: (url) => set({ previewUrl: sanitizePreviewUrl(url) }),
 });
