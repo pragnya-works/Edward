@@ -22,12 +22,13 @@ import {
   TooltipTrigger,
 } from "@edward/ui/components/tooltip";
 import { KeyboardShortcut } from "@edward/ui/components/ui/keyboardShortcut";
-import { useCallback, useSyncExternalStore } from "react";
+import { useCallback } from "react";
 import {
   LOCATION_CHANGE_EVENT,
   quickScrollToRecentProjects,
 } from "@edward/ui/lib/recentProjectsScroll";
 import { EdwardLogo } from "@edward/ui/components/brand/edwardLogo";
+import { useIsMac } from "@edward/ui/hooks/useIsMac";
 import { useMobileViewport } from "@edward/ui/hooks/useMobileViewport";
 
 export interface SidebarRecentChat {
@@ -309,13 +310,7 @@ export function AppSidebar({
 
 const ToggleHandle = () => {
   const { open } = useSidebar();
-  const isMac = useSyncExternalStore(
-    () => () => undefined,
-    () =>
-      typeof navigator !== "undefined" &&
-      navigator.platform.toUpperCase().includes("MAC"),
-    () => false,
-  );
+  const isMac = useIsMac();
 
   return (
     <Tooltip>

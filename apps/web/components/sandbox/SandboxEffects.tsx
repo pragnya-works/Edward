@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useLayoutEffect, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { useSandboxStore } from "@/stores/sandbox/store";
 
@@ -19,9 +19,10 @@ export function SandboxEffects({ children }: { children: ReactNode }) {
   const closeSandbox = useSandboxStore((s) => s.closeSandbox);
   const toggleSearch = useSandboxStore((s) => s.toggleSearch);
   const setRouteChatId = useSandboxStore((s) => s.setRouteChatId);
+  const [shortcutAnnouncement, setShortcutAnnouncement] = useState("");
   const pathname = usePathname();
 
-  useLayoutEffect(() => {
+  useEffect(() => {
     const match = pathname.match(/^\/chat\/([^/?#]+)/);
     let nextChatId: string | null = null;
     if (match?.[1]) {
@@ -40,15 +41,21 @@ export function SandboxEffects({ children }: { children: ReactNode }) {
       if (isEditableEventTarget(event.target)) {
         return;
       }
-      if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== "p") {
+      if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== "k") {
         return;
       }
       if (event.shiftKey) {
         return;
       }
-      if (useSandboxStore.getState().isOpen) {
+      const sandboxState = useSandboxStore.getState();
+      if (sandboxState.isOpen) {
         event.preventDefault();
         toggleSearch();
+        setShortcutAnnouncement(
+          sandboxState.isSearchOpen
+            ? "Search closed via keyboard shortcut"
+            : "Search opened via keyboard shortcut",
+        );
       }
     };
 
@@ -56,5 +63,12 @@ export function SandboxEffects({ children }: { children: ReactNode }) {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [toggleSearch]);
 
-  return children;
+  return (
+    <>
+      {children}
+      <div aria-live="polite" aria-atomic="true" className="sr-only">
+        {shortcutAnnouncement}
+      </div>
+    </>
+  );
 }

@@ -1,11 +1,65 @@
+import { useMemo } from "react";
 import { useShallow } from "zustand/react/shallow";
+import type { SandboxStoreState } from "./types";
 import { useSandboxStore } from "./store";
 
-export function useSandboxIsOpen() {
+export type SandboxStateHookReturn = Pick<
+  SandboxStoreState,
+  | "isOpen"
+  | "mode"
+  | "files"
+  | "activeFilePath"
+  | "previewUrl"
+  | "buildStatus"
+  | "buildError"
+  | "fullErrorReport"
+  | "isStreaming"
+  | "streamingFilePath"
+  | "localEdits"
+  | "isSearchOpen"
+  | "terminalEntries"
+  | "isTerminalOpen"
+>;
+
+export type SandboxActionsHookReturn = Pick<
+  SandboxStoreState,
+  | "setRouteChatId"
+  | "openSandbox"
+  | "closeSandbox"
+  | "toggleSandbox"
+  | "openSearch"
+  | "closeSearch"
+  | "toggleSearch"
+  | "setMode"
+  | "setActiveFile"
+  | "setPreviewUrl"
+  | "updateFile"
+  | "setFiles"
+  | "startStreaming"
+  | "stopStreaming"
+  | "clearFiles"
+  | "setLocalEdit"
+  | "clearLocalEdit"
+  | "clearAllLocalEdits"
+  | "getFileContent"
+  | "setBuildStatus"
+  | "setBuildError"
+  | "setFullErrorReport"
+  | "appendTerminalEntry"
+  | "clearTerminalEntries"
+  | "setTerminalOpen"
+  | "toggleTerminalOpen"
+>;
+
+export interface SandboxHookReturn
+  extends SandboxStateHookReturn,
+    SandboxActionsHookReturn {}
+
+export function useSandboxIsOpen(): boolean {
   return useSandboxStore((s) => s.isOpen);
 }
 
-export function useSandbox() {
+export function useSandboxState(): SandboxStateHookReturn {
   return useSandboxStore(
     useShallow((s) => ({
       isOpen: s.isOpen,
@@ -22,6 +76,13 @@ export function useSandbox() {
       isSearchOpen: s.isSearchOpen,
       terminalEntries: s.terminalEntries,
       isTerminalOpen: s.isTerminalOpen,
+    })),
+  );
+}
+
+export function useSandboxActions(): SandboxActionsHookReturn {
+  return useSandboxStore(
+    useShallow((s) => ({
       setRouteChatId: s.setRouteChatId,
       openSandbox: s.openSandbox,
       closeSandbox: s.closeSandbox,
@@ -49,5 +110,18 @@ export function useSandbox() {
       setTerminalOpen: s.setTerminalOpen,
       toggleTerminalOpen: s.toggleTerminalOpen,
     })),
+  );
+}
+
+export function useSandbox(): SandboxHookReturn {
+  const sandboxState = useSandboxState();
+  const sandboxActions = useSandboxActions();
+
+  return useMemo(
+    () => ({
+      ...sandboxState,
+      ...sandboxActions,
+    }),
+    [sandboxActions, sandboxState],
   );
 }

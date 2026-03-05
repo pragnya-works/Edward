@@ -32,7 +32,7 @@ import {
   type PanelImperativeHandle,
   type PanelSize,
 } from "react-resizable-panels";
-import { useSandbox } from "@/stores/sandbox/hooks";
+import { useSandboxIsOpen } from "@/stores/sandbox/hooks";
 import { useMobileViewport } from "@edward/ui/hooks/useMobileViewport";
 import { useChatStreamActions } from "@/contexts/chatStreamContext";
 import { useChatSubmissionGuards } from "@/hooks/chat/useChatSubmissionGuards";
@@ -52,7 +52,7 @@ export function ChatWorkspace({
   messages,
   stream,
 }: ChatWorkspaceProps) {
-  const { isOpen: sandboxOpen } = useSandbox();
+  const sandboxOpen = useSandboxIsOpen();
   const sandboxPanelRef = useRef<PanelImperativeHandle | null>(null);
   const animationFrameRef = useRef<number | null>(null);
   const animationTokenRef = useRef(0);

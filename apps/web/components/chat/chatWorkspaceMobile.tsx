@@ -3,12 +3,13 @@ import { Sheet, SheetContent } from "@edward/ui/components/sheet";
 import AuthenticatedPromptbar from "@/components/authenticatedPromptbar";
 import { ChatMessageList } from "@/components/chat/messages/chatMessageList";
 import { SandboxPanel } from "@/components/chat/sandbox/sandboxPanel";
-import { useSandbox } from "@/stores/sandbox/hooks";
+import { useSandboxActions, useSandboxIsOpen } from "@/stores/sandbox/hooks";
 import { NotificationOptIn } from "@/components/chat/notificationOptIn";
 import { useChatWorkspaceContext } from "@/components/chat/chatWorkspaceContext";
 
 export function ChatWorkspaceMobile() {
-  const { isOpen: sandboxOpen, closeSandbox } = useSandbox();
+  const sandboxOpen = useSandboxIsOpen();
+  const { closeSandbox } = useSandboxActions();
   const { chatId } = useChatWorkspaceContext();
   const [isTopPromptContextVisible, setIsTopPromptContextVisible] = useState(false);
 

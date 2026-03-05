@@ -72,6 +72,7 @@ export function FileSearchModal() {
             <div className="border-b border-workspace-border/80 bg-workspace-sidebar/80">
                 <CommandInput
                     placeholder="Search files by name..."
+                    aria-label="Search sandbox files"
                     className="text-[15px] text-workspace-foreground placeholder:text-workspace-foreground/50"
                 />
             </div>
