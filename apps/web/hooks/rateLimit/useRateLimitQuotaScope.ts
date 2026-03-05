@@ -36,9 +36,15 @@ export function useRateLimitQuotaScope(
       return;
     }
 
+    const delay = quotaResetAtMs - Date.now();
+    if (delay <= 0) {
+      setNow(Date.now());
+      return;
+    }
+
     const timer = window.setTimeout(() => {
       setNow(Date.now());
-    }, Math.max(quotaResetAtMs - Date.now(), 0));
+    }, delay);
 
     return () => {
       window.clearTimeout(timer);

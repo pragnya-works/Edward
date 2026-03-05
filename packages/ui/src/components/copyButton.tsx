@@ -22,8 +22,12 @@ export function CopyButton({
     const copied = await copyTextToClipboard(content);
     if (!copied) return;
 
-    onCopySuccess?.();
     setIsCopied(true);
+    try {
+      onCopySuccess?.();
+    } catch (error) {
+      console.error("CopyButton onCopySuccess callback failed", error);
+    }
     setTimeout(() => setIsCopied(false), 2000);
   };
 

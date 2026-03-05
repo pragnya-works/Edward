@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useEffect, useState, useRef } from "react";
 import { signOut, useSession } from "@/lib/auth-client";
 import {
   Avatar,
@@ -35,7 +35,70 @@ import { Badge } from "@edward/ui/components/badge";
 import { useRateLimitScope } from "@/hooks/rateLimit/useRateLimitScope";
 import { formatRateLimitResetTime, RATE_LIMIT_SCOPE } from "@/lib/rateLimit/scopes";
 import { RATE_LIMIT_POLICY_BY_SCOPE } from "@edward/shared/constants";
-import { useRateLimitQuotaScope } from "@/hooks/rateLimit/useRateLimitQuotaScope";
+import {
+  useRateLimitQuotaScope,
+  type RateLimitQuotaScopeState,
+} from "@/hooks/rateLimit/useRateLimitQuotaScope";
+import { syncRateLimitStorageOwner } from "@/lib/rateLimit/state";
+
+function getProgressClass(
+  remainingPercent: number,
+  hasQuotaData: boolean,
+  isDailyLimitReached: boolean,
+): string {
+  if (!hasQuotaData && !isDailyLimitReached) {
+    return "from-sky-500 to-cyan-400";
+  }
+  if (remainingPercent <= 10) {
+    return "from-rose-600 to-red-500";
+  }
+  if (remainingPercent <= 30) {
+    return "from-orange-500 to-amber-400";
+  }
+  if (remainingPercent <= 60) {
+    return "from-yellow-500 to-lime-400";
+  }
+  return "from-emerald-500 to-cyan-400";
+}
+
+function getDailyQuotaDisplay(
+  isDailyLimitReached: boolean,
+  chatDailyQuota: RateLimitQuotaScopeState,
+  effectiveDailyLimit: number,
+): {
+  used: number | null;
+  remaining: number | null;
+  remainingPercent: number;
+  progressClass: string;
+} {
+  const used = isDailyLimitReached
+    ? effectiveDailyLimit
+    : chatDailyQuota.hasData
+      ? (chatDailyQuota.used ?? 0)
+      : null;
+
+  const remaining = isDailyLimitReached
+    ? 0
+    : chatDailyQuota.hasData
+      ? chatDailyQuota.remaining
+      : null;
+
+  const remainingPercent = isDailyLimitReached
+    ? 0
+    : chatDailyQuota.hasData
+      ? Math.min(
+          Math.max(((chatDailyQuota.remaining ?? 0) / Math.max(effectiveDailyLimit, 1)) * 100, 0),
+          100,
+        )
+      : 100;
+
+  return {
+    used,
+    remaining,
+    remainingPercent,
+    progressClass: getProgressClass(remainingPercent, chatDailyQuota.hasData, isDailyLimitReached),
+  };
+}
 
 export default function UserProfile() {
   const router = useRouter();
@@ -54,39 +117,23 @@ export default function UserProfile() {
   const { open, setOpen } = useSidebar();
   const isMobile = useMobileViewport();
   const isExpanded = open || isMobile;
+  const userId = session?.user?.id ?? null;
   const chatDailyRateLimit = useRateLimitScope(RATE_LIMIT_SCOPE.CHAT_DAILY);
   const chatDailyQuota = useRateLimitQuotaScope(RATE_LIMIT_SCOPE.CHAT_DAILY);
   const chatDailyLimit = RATE_LIMIT_POLICY_BY_SCOPE[RATE_LIMIT_SCOPE.CHAT_DAILY].max;
   const effectiveDailyLimit = chatDailyQuota.limit ?? chatDailyLimit;
   const isDailyLimitReached = chatDailyRateLimit.isActive;
-  const messagesUsed = isDailyLimitReached
-    ? effectiveDailyLimit
-    : chatDailyQuota.hasData
-      ? (chatDailyQuota.used ?? 0)
-      : null;
-  const messagesRemaining = isDailyLimitReached
-    ? 0
-    : chatDailyQuota.hasData
-      ? chatDailyQuota.remaining
-      : null;
-  const remainingPercent = isDailyLimitReached
-    ? 0
-    : chatDailyQuota.hasData
-      ? Math.min(
-          Math.max(((chatDailyQuota.remaining ?? 0) / Math.max(effectiveDailyLimit, 1)) * 100, 0),
-          100,
-        )
-      : 100;
-  const remainingProgressClassName = !chatDailyQuota.hasData && !isDailyLimitReached
-    ? "from-sky-500 to-cyan-400"
-    : remainingPercent <= 10
-      ? "from-rose-600 to-red-500"
-      : remainingPercent <= 30
-        ? "from-orange-500 to-amber-400"
-        : remainingPercent <= 60
-          ? "from-yellow-500 to-lime-400"
-          : "from-emerald-500 to-cyan-400";
+  const {
+    used: messagesUsed,
+    remaining: messagesRemaining,
+    remainingPercent,
+    progressClass: remainingProgressClassName,
+  } = getDailyQuotaDisplay(isDailyLimitReached, chatDailyQuota, effectiveDailyLimit);
   const resetAt = chatDailyRateLimit.resetAt ?? chatDailyQuota.resetAt;
+
+  useEffect(() => {
+    syncRateLimitStorageOwner(userId);
+  }, [userId]);
 
   function closeMobileSidebar() {
     if (isMobile) setOpen(false);

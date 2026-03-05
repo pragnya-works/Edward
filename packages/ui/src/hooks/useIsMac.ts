@@ -12,14 +12,23 @@ function subscribeNoop() {
   return () => undefined;
 }
 
+function isNavigatorWithUserAgentData(
+  nav: Navigator,
+): nav is NavigatorWithUserAgentData {
+  return "userAgentData" in nav;
+}
+
 function getMacSnapshot(): boolean {
   if (typeof navigator === "undefined") {
     return false;
   }
 
-  const nav = navigator as NavigatorWithUserAgentData;
-  const platformLabel = nav.userAgentData?.platform ?? navigator.userAgent;
-  return /mac/i.test(platformLabel);
+  const nav = navigator;
+  const platformLabel = isNavigatorWithUserAgentData(nav)
+    ? nav.userAgentData?.platform ?? nav.userAgent
+    : nav.userAgent;
+
+  return /\bMacintosh\b|\bMacIntel\b|\bmacOS\b/i.test(platformLabel);
 }
 
 export function useIsMac(): boolean {

@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { Response } from "express";
 import { BuildRecordStatus } from "@edward/shared/api/contracts";
 
 const createBuildMock = vi.fn();
@@ -43,12 +44,39 @@ vi.mock("../../../services/sse-utils/service.js", () => ({
   sendSSERecoverableError: sendSSERecoverableErrorMock,
 }));
 
+function createResponseMock() {
+  const res = {
+    headersSent: false,
+    writable: true,
+    writableEnded: false,
+    setHeader: vi.fn(),
+    write: vi.fn(() => true),
+    end: vi.fn(function (this: { writableEnded: boolean }) {
+      this.writableEnded = true;
+      return this;
+    }),
+    status: vi.fn(function (this: object) {
+      return this;
+    }),
+    send: vi.fn(function (this: object) {
+      return this;
+    }),
+  };
+
+  return res;
+}
+
+function asResponse(res: ReturnType<typeof createResponseMock>): Response {
+  return res as unknown as Response;
+}
+
 describe("processBuildPipeline", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     validateGeneratedOutputMock.mockReturnValue({ valid: true, violations: [] });
     applyDeterministicPostgenAutofixesMock.mockResolvedValue([]);
     createBuildMock.mockResolvedValue({ id: "build-1" });
+    updateBuildMock.mockResolvedValue(undefined);
     enqueueBuildJobMock.mockResolvedValue("job-1");
     flushSandboxMock.mockResolvedValue(undefined);
     redisPublishMock.mockResolvedValue(1);
@@ -65,7 +93,7 @@ describe("processBuildPipeline", () => {
       userId: "user-1",
       assistantMessageId: "assistant-1",
       runId: "run-1",
-      res: {} as never,
+      res: asResponse(createResponseMock()),
       framework: "vite-react",
       mode: "generate",
       generatedFiles: new Map(),
@@ -97,7 +125,7 @@ describe("processBuildPipeline", () => {
       userId: "user-1",
       assistantMessageId: "assistant-1",
       runId: "run-1",
-      res: {} as never,
+      res: asResponse(createResponseMock()),
       framework: "vite-react",
       mode: "generate",
       generatedFiles,
@@ -141,7 +169,7 @@ describe("processBuildPipeline", () => {
       userId: "user-1",
       assistantMessageId: "assistant-1",
       runId: "run-1",
-      res: {} as never,
+      res: asResponse(createResponseMock()),
       framework: "vite-react",
       mode: "generate",
       generatedFiles: new Map(),
@@ -157,5 +185,95 @@ describe("processBuildPipeline", () => {
       status: BuildRecordStatus.QUEUED,
     });
     expect(enqueueBuildJobMock).toHaveBeenCalledOnce();
+  });
+
+  it("creates a failed build and avoids queueing when validation has blocking errors", async () => {
+    const { processBuildPipeline } = await import(
+      "../../../services/chat/session/orchestrator/buildPipeline.js"
+    );
+
+    validateGeneratedOutputMock.mockReturnValueOnce({
+      valid: false,
+      violations: [
+        {
+          type: "logic-quality",
+          severity: "error",
+          message: "Component contains placeholder TODO logic",
+          file: "src/App.tsx",
+        },
+      ],
+    });
+
+    await processBuildPipeline({
+      sandboxId: "sandbox-1",
+      chatId: "chat-1",
+      userId: "user-1",
+      assistantMessageId: "assistant-1",
+      runId: "run-1",
+      res: asResponse(createResponseMock()),
+      framework: "vite-react",
+      mode: "generate",
+      generatedFiles: new Map([
+        ["src/App.tsx", "export default function App(){ return <div>TODO</div>; }"],
+      ]),
+      declaredPackages: [],
+    });
+
+    expect(createBuildMock).toHaveBeenCalledWith({
+      chatId: "chat-1",
+      messageId: "assistant-1",
+      status: BuildRecordStatus.FAILED,
+    });
+    expect(updateBuildMock).toHaveBeenCalledWith(
+      "build-1",
+      expect.objectContaining({ status: BuildRecordStatus.FAILED }),
+    );
+    expect(enqueueBuildJobMock).not.toHaveBeenCalled();
+    expect(sendSSERecoverableErrorMock).toHaveBeenCalledWith(
+      expect.any(Object),
+      expect.stringContaining("[Validation]"),
+      expect.objectContaining({ code: "postgen_validation" }),
+    );
+    expect(sendSSEEventMock).toHaveBeenCalledWith(
+      expect.any(Object),
+      expect.objectContaining({ status: BuildRecordStatus.FAILED }),
+    );
+  });
+
+  it("marks the build as failed and emits SSE build failure when enqueue fails", async () => {
+    const { processBuildPipeline } = await import(
+      "../../../services/chat/session/orchestrator/buildPipeline.js"
+    );
+
+    enqueueBuildJobMock.mockRejectedValueOnce(new Error("Queue unavailable"));
+
+    await processBuildPipeline({
+      sandboxId: "sandbox-1",
+      chatId: "chat-1",
+      userId: "user-1",
+      assistantMessageId: "assistant-1",
+      runId: "run-1",
+      res: asResponse(createResponseMock()),
+      framework: "vite-react",
+      mode: "generate",
+      generatedFiles: new Map([
+        ["src/App.tsx", "export default function App(){ return null; }"],
+      ]),
+      declaredPackages: [],
+    });
+
+    expect(createBuildMock).toHaveBeenCalledWith({
+      chatId: "chat-1",
+      messageId: "assistant-1",
+      status: BuildRecordStatus.QUEUED,
+    });
+    expect(updateBuildMock).toHaveBeenCalledWith(
+      "build-1",
+      expect.objectContaining({ status: BuildRecordStatus.FAILED }),
+    );
+    expect(sendSSEEventMock).toHaveBeenCalledWith(
+      expect.any(Object),
+      expect.objectContaining({ status: BuildRecordStatus.FAILED }),
+    );
   });
 });
