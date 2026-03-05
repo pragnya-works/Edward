@@ -71,23 +71,29 @@ function getDailyQuotaDisplay(
   remainingPercent: number;
   progressClass: string;
 } {
+  const normalizedDailyLimit = Math.max(effectiveDailyLimit, 0);
+  const clampedRemaining = chatDailyQuota.hasData
+    ? Math.min(
+        Math.max(chatDailyQuota.remaining ?? 0, 0),
+        normalizedDailyLimit,
+      )
+    : null;
+
   const used = isDailyLimitReached
-    ? effectiveDailyLimit
+    ? normalizedDailyLimit
     : chatDailyQuota.hasData
       ? (chatDailyQuota.used ?? 0)
       : null;
 
   const remaining = isDailyLimitReached
     ? 0
-    : chatDailyQuota.hasData
-      ? chatDailyQuota.remaining
-      : null;
+    : clampedRemaining;
 
   const remainingPercent = isDailyLimitReached
     ? 0
     : chatDailyQuota.hasData
       ? Math.min(
-          Math.max(((chatDailyQuota.remaining ?? 0) / Math.max(effectiveDailyLimit, 1)) * 100, 0),
+          Math.max(((clampedRemaining ?? 0) / Math.max(normalizedDailyLimit, 1)) * 100, 0),
           100,
         )
       : 100;
@@ -122,16 +128,20 @@ export default function UserProfile() {
   const chatDailyQuota = useRateLimitQuotaScope(RATE_LIMIT_SCOPE.CHAT_DAILY);
   const chatDailyLimit = RATE_LIMIT_POLICY_BY_SCOPE[RATE_LIMIT_SCOPE.CHAT_DAILY].max;
   const effectiveDailyLimit = chatDailyQuota.limit ?? chatDailyLimit;
+  const safeDailyLimit = Math.max(effectiveDailyLimit, 0);
   const isDailyLimitReached = chatDailyRateLimit.isActive;
   const {
     used: messagesUsed,
     remaining: messagesRemaining,
     remainingPercent,
     progressClass: remainingProgressClassName,
-  } = getDailyQuotaDisplay(isDailyLimitReached, chatDailyQuota, effectiveDailyLimit);
+  } = getDailyQuotaDisplay(isDailyLimitReached, chatDailyQuota, safeDailyLimit);
   const resetAt = chatDailyRateLimit.resetAt ?? chatDailyQuota.resetAt;
 
   useEffect(() => {
+    if (!userId) {
+      return;
+    }
     syncRateLimitStorageOwner(userId);
   }, [userId]);
 
@@ -219,21 +229,21 @@ export default function UserProfile() {
                 </div>
                 <p className="mt-1 text-[11px] text-muted-foreground">
                   {messagesUsed !== null && messagesRemaining !== null
-                    ? `${messagesUsed}/${effectiveDailyLimit} used • ${messagesRemaining} remaining`
-                    : `${effectiveDailyLimit} messages per 24h`}
+                    ? `${messagesUsed}/${safeDailyLimit} used • ${messagesRemaining} remaining`
+                    : `${safeDailyLimit} messages per 24h`}
                 </p>
                 <div
                   className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-muted/70"
                   role="progressbar"
                   aria-label="Daily messages remaining"
                   aria-valuemin={0}
-                  aria-valuemax={effectiveDailyLimit}
-                  aria-valuenow={messagesRemaining ?? effectiveDailyLimit}
-                  aria-valuetext={`${messagesRemaining ?? effectiveDailyLimit} of ${effectiveDailyLimit} messages remaining`}
+                  aria-valuemax={safeDailyLimit}
+                  aria-valuenow={messagesRemaining ?? safeDailyLimit}
+                  aria-valuetext={`${messagesRemaining ?? safeDailyLimit} of ${safeDailyLimit} messages remaining`}
                 >
                   <div
                     className={cn(
-                      "h-full rounded-full bg-gradient-to-r transition-[width,background-image] duration-300",
+                      "h-full rounded-full bg-gradient-to-r motion-safe:transition-[width,background-image] motion-safe:duration-300 motion-reduce:transition-none motion-reduce:duration-0",
                       remainingProgressClassName,
                     )}
                     style={{ width: `${remainingPercent}%` }}

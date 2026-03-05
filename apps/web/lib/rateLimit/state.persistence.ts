@@ -104,8 +104,6 @@ export function hydratePersistedRateLimitState(now: number = Date.now()): void {
     return;
   }
 
-  stateRuntime.persistedStateHydrated = true;
-
   let raw: string | null = null;
   try {
     raw = localStorage.getItem(storageKey);
@@ -118,6 +116,7 @@ export function hydratePersistedRateLimitState(now: number = Date.now()): void {
   }
 
   if (!raw) {
+    stateRuntime.persistedStateHydrated = true;
     return;
   }
 
@@ -134,6 +133,7 @@ export function hydratePersistedRateLimitState(now: number = Date.now()): void {
   }
 
   if (!parsed || typeof parsed !== "object") {
+    stateRuntime.persistedStateHydrated = true;
     return;
   }
 
@@ -193,6 +193,7 @@ export function hydratePersistedRateLimitState(now: number = Date.now()): void {
     }
   }
 
+  stateRuntime.persistedStateHydrated = true;
   persistRateLimitState(now);
 }
 

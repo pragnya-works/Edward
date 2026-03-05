@@ -125,6 +125,9 @@ export function recordRateLimitQuota(
   );
 
   const existing = quotaByScope.get(scope);
+  if (existing && existing.resetAtMs > resetAtMs) {
+    return;
+  }
   if (
     existing &&
     existing.limit === normalizedLimit &&
@@ -161,7 +164,7 @@ function clearRateLimitCooldown(scope: KnownRateLimitScope): void {
       resource: "cooldown",
       scope,
     });
+    persistRateLimitState();
+    emitChange();
   }
-  persistRateLimitState();
-  emitChange();
 }

@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { Request, Response } from "express";
 import { MessageRole } from "@edward/auth";
 import { ParserEventType } from "@edward/shared/streamEvents";
 
@@ -7,6 +8,62 @@ const saveMessageMock = vi.fn();
 const handleParserEventMock = vi.fn();
 const recordDailyChatSuccessfulResponseMock = vi.fn();
 const getDailyChatSuccessSnapshotMock = vi.fn();
+const FIXED_RESET_AT_MS = 1_900_000_060_000;
+const FIXED_WORKFLOW_CREATED_AT_MS = 1_900_000_000_000;
+const FIXED_WORKFLOW_UPDATED_AT_MS = 1_900_000_030_000;
+
+function isStreamRequest(value: unknown): value is Request {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const candidate = value as Record<string, unknown>;
+  return typeof candidate.on === "function";
+}
+
+function createStreamRequest(): Request {
+  const candidate: Record<string, unknown> = {
+    on: vi.fn(),
+  };
+  if (!isStreamRequest(candidate)) {
+    throw new Error("Invalid stream request fixture");
+  }
+  return candidate;
+}
+
+function isStreamResponse(value: unknown): value is Response {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const candidate = value as Record<string, unknown>;
+  return (
+    typeof candidate.writable === "boolean" &&
+    typeof candidate.writableEnded === "boolean" &&
+    typeof candidate.write === "function" &&
+    typeof candidate.end === "function"
+  );
+}
+
+function createStreamResponse(writes?: string[]): Response {
+  const candidate: Record<string, unknown> = {
+    writable: true,
+    writableEnded: false,
+    write: vi.fn((chunk?: string) => {
+      if (writes && typeof chunk === "string") {
+        writes.push(chunk);
+      }
+      return true;
+    }),
+    end: vi.fn(function (this: { writableEnded: boolean }) {
+      this.writableEnded = true;
+    }),
+  };
+  if (!isStreamResponse(candidate)) {
+    throw new Error("Invalid stream response fixture");
+  }
+  return candidate;
+}
 
 vi.mock("../../../lib/llm/provider.client.js", () => ({
   streamResponse: streamResponseMock,
@@ -132,7 +189,7 @@ describe("runStreamSession", () => {
       limit: 50,
       current: 1,
       remaining: 49,
-      resetAtMs: Date.now() + 60_000,
+      resetAtMs: FIXED_RESET_AT_MS,
       isLimited: false,
     });
   });
@@ -143,21 +200,8 @@ describe("runStreamSession", () => {
     );
 
     const writes: string[] = [];
-    const req = {
-      on: vi.fn(),
-    } as unknown as Parameters<typeof runStreamSession>[0]["req"];
-
-    const res = {
-      writable: true,
-      writableEnded: false,
-      write: vi.fn((chunk: string) => {
-        writes.push(chunk);
-        return true;
-      }),
-      end: vi.fn(function (this: { writableEnded: boolean }) {
-        this.writableEnded = true;
-      }),
-    } as unknown as Parameters<typeof runStreamSession>[0]["res"];
+    const req = createStreamRequest();
+    const res = createStreamResponse(writes);
 
     await runStreamSession({
       req,
@@ -170,8 +214,8 @@ describe("runStreamSession", () => {
         currentStep: "ANALYZE",
         history: [],
         context: { framework: "vanilla", errors: [] },
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
+        createdAt: FIXED_WORKFLOW_CREATED_AT_MS,
+        updatedAt: FIXED_WORKFLOW_UPDATED_AT_MS,
       },
       userId: "user-1",
       chatId: "chat-1",
@@ -237,5 +281,50 @@ describe("runStreamSession", () => {
     );
     expect(recordDailyChatSuccessfulResponseMock).toHaveBeenCalledWith("user-1");
     expect(getDailyChatSuccessSnapshotMock).toHaveBeenCalledWith("user-1");
+  });
+
+  it("does not record daily chat success when assistant output is empty", async () => {
+    streamResponseMock.mockImplementation(async function* () {
+      return;
+    });
+
+    const { runStreamSession } = await import(
+      "../../../services/chat/session/orchestrator/runStreamSession.orchestrator.js"
+    );
+
+    const req = createStreamRequest();
+    const res = createStreamResponse();
+
+    await runStreamSession({
+      req,
+      res,
+      workflow: {
+        id: "wf-1",
+        userId: "user-1",
+        chatId: "chat-1",
+        status: "pending",
+        currentStep: "ANALYZE",
+        history: [],
+        context: { framework: "vanilla", errors: [] },
+        createdAt: FIXED_WORKFLOW_CREATED_AT_MS,
+        updatedAt: FIXED_WORKFLOW_UPDATED_AT_MS,
+      },
+      userId: "user-1",
+      chatId: "chat-1",
+      decryptedApiKey: "key",
+      userContent: "build a simple page",
+      userTextContent: "build a simple page",
+      userMessageId: "msg-user-1",
+      assistantMessageId: "msg-assistant-1",
+      preVerifiedDeps: [],
+      isFollowUp: false,
+      intent: "generate",
+      historyMessages: [],
+      projectContext: "",
+      model: "gpt-4o-mini",
+    });
+
+    expect(recordDailyChatSuccessfulResponseMock).not.toHaveBeenCalled();
+    expect(getDailyChatSuccessSnapshotMock).not.toHaveBeenCalled();
   });
 });

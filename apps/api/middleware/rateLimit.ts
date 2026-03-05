@@ -124,7 +124,11 @@ export const chatRateLimiter = createRateLimiterForScope(
   { keyGenerator: getAuthenticatedRateLimitKey },
 );
 
-const dailyChatPolicy = RATE_LIMIT_POLICY_BY_SCOPE[RATE_LIMIT_SCOPE.CHAT_DAILY];
+const dailyChatPolicy = (
+  RATE_LIMIT_POLICY_BY_SCOPE as Partial<
+    Record<KnownRateLimitScope, RateLimitPolicy>
+  >
+)[RATE_LIMIT_SCOPE.CHAT_DAILY];
 
 function setDailyChatHeaders(
   res: Response,
@@ -150,6 +154,22 @@ export async function dailyChatRateLimiter(
   res: Response,
   next: NextFunction,
 ): Promise<void> {
+  if (!dailyChatPolicy) {
+    logger.error(
+      {
+        userId: (req as AuthenticatedRequest).userId ?? null,
+        path: req.originalUrl,
+      },
+      "Missing daily chat rate-limit policy; denying request",
+    );
+    sendError(
+      res,
+      HttpStatus.INTERNAL_SERVER_ERROR,
+      "Daily chat rate limiter is temporarily unavailable",
+    );
+    return;
+  }
+
   const key = getAuthenticatedRateLimitKey(req);
 
   try {

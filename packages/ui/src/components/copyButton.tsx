@@ -8,7 +8,7 @@ import { copyTextToClipboard } from "../lib/clipboard";
 interface CopyButtonProps {
   content: string;
   className?: string;
-  onCopySuccess?: () => void;
+  onCopySuccess?: () => void | Promise<void>;
 }
 
 export const CopyButton = forwardRef<HTMLButtonElement, CopyButtonProps>(
@@ -51,7 +51,7 @@ export const CopyButton = forwardRef<HTMLButtonElement, CopyButtonProps>(
 
       setIsCopied(true);
       try {
-        onCopySuccess?.();
+        await onCopySuccess?.();
       } catch (error) {
         console.error("CopyButton onCopySuccess callback failed", error);
       }
