@@ -87,7 +87,8 @@ const OPENAI_MODELS: Record<string, ModelSpec> = {
     maxOutputTokens: 128_000,
     encoding: "o200k_base",
     label: "GPT-5.4 Pro",
-    description: "Balanced speed and performance",
+    description:
+      "Best for complex coding tasks, deep debugging, and high-stakes refactors",
     context: "1M",
     reasoning: "Max",
     type: "pro",
@@ -100,7 +101,7 @@ const OPENAI_MODELS: Record<string, ModelSpec> = {
     maxOutputTokens: 128_000,
     encoding: "o200k_base",
     label: "GPT-5.4",
-    description: "Lightweight and efficient",
+    description: "Best default for everyday coding with strong quality and speed",
     context: "1M",
     reasoning: "Max",
     type: "standard",

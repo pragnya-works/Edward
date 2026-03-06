@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useRef } from "react";
 import { signOut, useSession } from "@/lib/auth-client";
 import {
   Avatar,
@@ -19,9 +19,6 @@ import {
 } from "@edward/ui/components/ui/dropdown-menu";
 import { LogOut, Key } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { BYOK } from "@edward/ui/components/ui/byok";
-import { useApiKey } from "@/hooks/server-state/useApiKey";
-import { getBestGuessProvider } from "@edward/shared/schema";
 import {
   AnimatedThemeToggler,
   type AnimatedThemeTogglerHandle,
@@ -40,6 +37,10 @@ import {
   type RateLimitQuotaScopeState,
 } from "@/hooks/rateLimit/useRateLimitQuotaScope";
 import { syncRateLimitStorageOwner } from "@/lib/rateLimit/state.persistence";
+
+interface UserProfileProps {
+  onManageApiKeys: () => void;
+}
 
 function getProgressClass(
   remainingPercent: number,
@@ -106,19 +107,9 @@ function getDailyQuotaDisplay(
   };
 }
 
-export default function UserProfile() {
+export default function UserProfile({ onManageApiKeys }: UserProfileProps) {
   const router = useRouter();
   const { data: session } = useSession();
-  const {
-    keyPreview,
-    hasApiKey,
-    validateAndSaveApiKey,
-    preferredModel,
-    error,
-    isRateLimited,
-    rateLimitMessage,
-  } = useApiKey();
-  const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState(false);
   const themeTogglerRef = useRef<AnimatedThemeTogglerHandle>(null);
   const { open, setOpen } = useSidebar();
   const isMobile = useMobileViewport();
@@ -149,10 +140,6 @@ export default function UserProfile() {
     if (isMobile) setOpen(false);
   }
 
-  function openApiKeyManager() {
-    setIsApiKeyModalOpen(true);
-  }
-
   if (!session?.user) {
     return null;
   }
@@ -170,8 +157,7 @@ export default function UserProfile() {
   }
 
   return (
-    <>
-      <DropdownMenu>
+    <DropdownMenu>
         <DropdownMenuTrigger
           render={
             <Button
@@ -261,7 +247,7 @@ export default function UserProfile() {
               </div>
             </div>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={openApiKeyManager}>
+            <DropdownMenuItem onClick={onManageApiKeys}>
               <Key className="mr-2 h-4 w-4" />
               <span>Manage API Keys</span>
             </DropdownMenuItem>
@@ -282,29 +268,6 @@ export default function UserProfile() {
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenuPositioner>
-      </DropdownMenu>
-
-      <BYOK
-        controller={{
-          modal: {
-            isOpen: isApiKeyModalOpen,
-            onClose: () => setIsApiKeyModalOpen(false),
-          },
-          actions: {
-            onValidate: () => {},
-            onSaveApiKey: validateAndSaveApiKey,
-          },
-          state: {
-            keyPreview,
-            hasExistingKey: hasApiKey ?? false,
-            preferredModel: preferredModel || undefined,
-            initialProvider: getBestGuessProvider(preferredModel, keyPreview),
-            error,
-            isRateLimited,
-            rateLimitMessage,
-          },
-        }}
-      />
-    </>
+    </DropdownMenu>
   );
 }
