@@ -2,10 +2,29 @@ import { Redis } from "ioredis";
 import { logger } from "../utils/logger.js";
 import { config } from "../app.config.js";
 
+interface RedisClientConnectionOptions {
+  host: string;
+  port: number;
+  username?: string;
+  password?: string;
+  tls?: Record<string, never>;
+}
+
+function getRedisClientOptions() {
+  const { host, port, username, password, tls } =
+    config.redis.connectionOptions as RedisClientConnectionOptions;
+  return {
+    host,
+    port,
+    username,
+    password,
+    tls,
+    maxRetriesPerRequest: null as null,
+  };
+}
+
 export const redis = new Redis({
-  host: config.redis.host,
-  port: config.redis.port,
-  maxRetriesPerRequest: null,
+  ...getRedisClientOptions(),
 });
 
 redis.on("error", (error) => {
@@ -17,9 +36,5 @@ redis.on("connect", () => {
 });
 
 export function createRedisClient(): Redis {
-  return new Redis({
-    host: config.redis.host,
-    port: config.redis.port,
-    maxRetriesPerRequest: null,
-  });
+  return new Redis(getRedisClientOptions());
 }
