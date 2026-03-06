@@ -166,8 +166,13 @@ export default {
         const url = new URL(request.url);
         const [subdomain] = url.hostname.split(".");
 
-        if (!subdomain || RESERVED.has(subdomain)) {
+        if (!subdomain) {
             return new Response("Welcome to Edwardd", { status: 200 });
+        }
+
+        // Reserved product subdomains should bypass preview routing entirely.
+        if (RESERVED.has(subdomain)) {
+            return fetch(request);
         }
 
         if (request.method !== "GET" && request.method !== "HEAD") {

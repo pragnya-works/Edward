@@ -34,6 +34,8 @@ Copy `packages/auth/.env.example` and set:
 - `DATABASE_URL`
 - `BETTER_AUTH_SECRET`
 - `BETTER_AUTH_URL`
+- `BETTER_AUTH_COOKIE_DOMAIN` (for cross-subdomain production cookies, e.g. `edwardd.app`)
+- `BETTER_AUTH_TRUSTED_ORIGINS` (optional comma-separated trusted origins)
 - `GITHUB_CLIENT_ID`
 - `GITHUB_CLIENT_SECRET`
 
