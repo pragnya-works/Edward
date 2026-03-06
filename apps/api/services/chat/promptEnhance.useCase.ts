@@ -12,7 +12,7 @@ import { logger } from "../../utils/logger.js";
 import { sendError, sendSuccess } from "../../utils/response.js";
 
 const ENHANCER_MODEL_BY_PROVIDER: Record<Provider, string> = {
-  [Provider.OPENAI]: Model.GPT_5_NANO,
+  [Provider.OPENAI]: Model.GPT_5_4,
   [Provider.GEMINI]: Model.GEMINI_2_5_FLASH,
 };
 

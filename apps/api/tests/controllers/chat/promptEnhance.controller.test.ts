@@ -96,7 +96,7 @@ describe("promptEnhance use case", () => {
     );
   });
 
-  it("uses cheapest OpenAI model inferred from preferred model", async () => {
+  it("uses lightweight OpenAI model inferred from preferred model", async () => {
     const { enhancePromptUseCase } = await import(
       "../../../services/chat/promptEnhance.useCase.js"
     );
@@ -115,7 +115,7 @@ describe("promptEnhance use case", () => {
       expect.any(String),
       undefined,
       expect.any(String),
-      { model: Model.GPT_5_NANO },
+      { model: Model.GPT_5_4 },
     );
   });
 
