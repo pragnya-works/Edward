@@ -1,4 +1,4 @@
-import { CONTAINER_WORKDIR, isContainerAlive } from "./docker.service.js";
+import { CONTAINER_WORKDIR, isContainerAlive } from "./sandbox-runtime.service.js";
 import { createLogger } from "../../utils/logger.js";
 import { getSandboxState } from "./state.service.js";
 import { executeSandboxCommand } from "./command.service.js";

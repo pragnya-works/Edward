@@ -22,7 +22,7 @@ export interface BYOKLegacyProps {
   rateLimitMessage?: string;
 }
 
-export interface BYOKController {
+interface BYOKController {
   modal: {
     isOpen?: boolean;
     onClose: () => void;
@@ -50,7 +50,7 @@ export interface BYOKController {
   };
 }
 
-export interface BYOKControllerProps {
+interface BYOKControllerProps {
   controller: BYOKController;
 }
 

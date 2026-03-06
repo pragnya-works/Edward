@@ -21,11 +21,16 @@ vi.mock("../../../services/sandbox/lifecycle/cleanup.js", () => ({
   cleanupExpiredSandboxContainers: refs.cleanupExpiredSandboxContainers,
 }));
 
-vi.mock("../../../services/sandbox/docker.service.js", () => ({
+vi.mock("../../../services/sandbox/sandbox-runtime.service.js", () => ({
   pingDocker: refs.pingDocker,
 }));
 
 vi.mock("../../../utils/logger.js", () => ({
+  Environment: {
+    Development: "development",
+    Production: "production",
+    Test: "test",
+  },
   createLogger: refs.createLogger,
 }));
 
@@ -44,7 +49,7 @@ describe("sandbox lifecycle control", () => {
     refs.createLogger.mockReturnValue(refs.logger);
   });
 
-  it("reports runtime availability from Docker health check", async () => {
+  it("reports runtime availability from the configured sandbox health check", async () => {
     const { isSandboxRuntimeAvailable } = await import(
       "../../../services/sandbox/lifecycle/control.js"
     );
@@ -58,7 +63,7 @@ describe("sandbox lifecycle control", () => {
     expect(refs.pingDocker).toHaveBeenCalledTimes(2);
   });
 
-  it("fails fast when docker runtime is unavailable", async () => {
+  it("fails fast when the configured sandbox runtime is unavailable", async () => {
     refs.pingDocker.mockResolvedValueOnce(false);
 
     const { initSandboxService } = await import(
@@ -66,7 +71,7 @@ describe("sandbox lifecycle control", () => {
     );
 
     await expect(initSandboxService()).rejects.toThrow(
-      "Sandbox service is enabled but Docker runtime is unavailable.",
+      "Sandbox service is enabled but the configured runtime is unavailable.",
     );
     expect(refs.cleanupExpiredSandboxContainers).not.toHaveBeenCalled();
   });

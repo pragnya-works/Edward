@@ -1,6 +1,6 @@
 import { logger } from '../../../utils/logger.js';
 import { deleteSandboxState, getSandboxState } from '../state.service.js';
-import { destroyContainer, listContainers } from '../docker.service.js';
+import { destroyContainer, listContainers } from '../sandbox-runtime.service.js';
 import { backupSandboxInstance } from '../backup.service.js';
 import { flushSandbox } from "../write/flush.js";
 import { clearScheduledFlush } from "../write/flush.scheduler.js";
@@ -72,7 +72,9 @@ export async function cleanupSandbox(sandboxId: string): Promise<void> {
 export async function cleanupExpiredSandboxContainers(): Promise<void> {
   try {
     const containers = await listContainers();
-    const sandboxes = containers.filter((info) => (info as { Labels?: Record<string, string> }).Labels?.[SANDBOX_DOCKER_LABEL] === 'true');
+    const sandboxes = containers.filter(
+      (info) => info.Labels?.[SANDBOX_DOCKER_LABEL] === 'true',
+    );
 
     const chatContainerMap = new Map<string, typeof sandboxes>();
     for (const info of sandboxes) {

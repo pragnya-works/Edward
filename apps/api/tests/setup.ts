@@ -19,8 +19,10 @@ process.env.GITHUB_CLIENT_SECRET = "test-client-secret";
 process.env.CORS_ORIGIN = "http://localhost:3000";
 process.env.BETTER_AUTH_BASE_URL = "http://localhost:3001";
 process.env.EDWARD_API_PORT = "3001";
-process.env.PREWARM_SANDBOX_IMAGE = "test-image:latest";
-process.env.DOCKER_REGISTRY_BASE = "registry.example.com";
+process.env.SANDBOX_RUNTIME = "vercel";
+process.env.VERCEL_TOKEN = "test-vercel-token";
+process.env.VERCEL_TEAM_ID = "team_test";
+process.env.VERCEL_PROJECT_ID = "prj_test";
 
 vi.mock("../lib/redis.js", () => {
   const mockRedis = {
@@ -104,31 +106,6 @@ vi.mock("@edward/auth", async () => {
     eq: vi.fn(),
   };
 });
-
-vi.mock("dockerode", () => ({
-  default: vi.fn().mockImplementation(() => ({
-    createContainer: vi.fn().mockResolvedValue({
-      id: "test-container-id",
-      start: vi.fn().mockResolvedValue(undefined),
-      exec: vi.fn().mockResolvedValue({
-        start: vi.fn().mockResolvedValue({
-          on: vi.fn(),
-        }),
-      }),
-      remove: vi.fn().mockResolvedValue(undefined),
-      inspect: vi.fn().mockResolvedValue({
-        State: { Running: true },
-      }),
-    }),
-    getContainer: vi.fn().mockReturnValue({
-      inspect: vi.fn().mockResolvedValue({
-        State: { Running: true },
-      }),
-      remove: vi.fn().mockResolvedValue(undefined),
-    }),
-    listContainers: vi.fn().mockResolvedValue([]),
-  })),
-}));
 
 vi.mock("@aws-sdk/client-s3", () => ({
   S3Client: vi.fn().mockImplementation(() => ({

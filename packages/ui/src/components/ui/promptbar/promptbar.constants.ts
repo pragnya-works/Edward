@@ -95,7 +95,7 @@ export interface PromptbarApiKeyController {
   selectedModelId?: string;
 }
 
-export interface PromptbarController {
+interface PromptbarController {
   auth?: PromptbarAuthController;
   submission?: PromptbarSubmissionController;
   attachments?: PromptbarAttachmentController;
@@ -138,7 +138,7 @@ export interface PromptbarLegacyProps {
   imageUploadDisabledReason?: string;
 }
 
-export interface PromptbarControllerProps {
+interface PromptbarControllerProps {
   controller: PromptbarController;
 }
 

@@ -3,7 +3,7 @@ import type { StepResult, WorkflowState } from "../../schemas.js";
 import { WorkflowStep } from "../../schemas.js";
 import { getSandboxState } from "../../../sandbox/state.service.js";
 import { mergeAndInstallDependencies } from "../../../sandbox/templates/dependency.merger.js";
-import { connectToNetwork } from "../../../sandbox/docker.service.js";
+import { connectToNetwork } from "../../../sandbox/sandbox-runtime.service.js";
 import { disconnectContainerFromNetwork } from "../../../sandbox/utils.service.js";
 import { formatPackageSpec } from "../../../packages/packageSpec.js";
 

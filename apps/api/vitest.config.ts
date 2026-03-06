@@ -27,7 +27,7 @@ export default defineConfig({
         "**/services/sandbox/upload.service.ts",
         "**/services/sandbox/read.service.ts",
         "**/services/sandbox/backup.service.ts",
-        "**/services/sandbox/docker.service.ts",
+        "**/services/sandbox/sandbox-runtime.service.ts",
         "**/services/sandbox/types.service.ts",
         "**/services/sandbox/utils.service.ts",
         "**/services/storage/**",

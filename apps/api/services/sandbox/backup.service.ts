@@ -3,7 +3,7 @@ import {
   CONTAINER_WORKDIR,
   inspectContainer,
   writeArchive,
-} from "./docker.service.js";
+} from "./sandbox-runtime.service.js";
 import { SandboxInstance } from "./types.service.js";
 import { uploadFile, downloadFile } from "../storage.service.js";
 import { logger } from "../../utils/logger.js";
@@ -20,6 +20,20 @@ import { HeadObjectCommand } from "@aws-sdk/client-s3";
 
 const BACKUP_EXISTS_PREFIX = "edward:backup:exists:";
 const BACKUP_EXISTS_TTL = 7 * 24 * 60 * 60;
+
+function isS3NotFoundError(
+  error: unknown,
+): error is { name?: string; $metadata?: { httpStatusCode?: number } } {
+  if (!error || typeof error !== "object") {
+    return false;
+  }
+
+  const candidate = error as { name?: unknown; $metadata?: { httpStatusCode?: unknown } };
+  return (
+    candidate.name === "NotFound" ||
+    candidate.$metadata?.httpStatusCode === 404
+  );
+}
 
 async function markBackupExists(chatId: string): Promise<void> {
   try {
@@ -57,14 +71,7 @@ export async function hasBackupOnS3(
     );
     return true;
   } catch (err: unknown) {
-    const error = err as {
-      name?: string;
-      $metadata?: { httpStatusCode?: number };
-    };
-    if (
-      error?.name === "NotFound" ||
-      error?.$metadata?.httpStatusCode === 404
-    ) {
+    if (isS3NotFoundError(err)) {
       return false;
     }
     logger.warn({ chatId, userId, err }, "S3 HeadObject check failed");

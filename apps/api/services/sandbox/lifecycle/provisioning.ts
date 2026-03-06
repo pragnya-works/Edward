@@ -11,19 +11,21 @@ import {
 import {
   createContainer,
   getContainer,
+  initializeWorkspaceWithFiles,
   listContainers,
   execCommand,
   CONTAINER_WORKDIR,
   inspectContainer,
-} from "../docker.service.js";
+} from "../sandbox-runtime.service.js";
 import { restoreSandboxInstance } from "../backup.service.js";
 import { redis } from "../../../lib/redis.js";
 import { acquireDistributedLock, releaseDistributedLock } from "../../../lib/distributedLock.js";
 import {
   getTemplateConfig,
-  getDefaultImage,
+  getDefaultSnapshotId,
   isValidFramework,
 } from "../templates/template.registry.js";
+import { loadTemplateFiles } from "../templates/template.loader.js";
 import {
   PROVISIONING_TIMEOUT_MS,
   SANDBOX_TTL,
@@ -103,6 +105,30 @@ async function ensureScaffoldGitignore(
   }
 
   logger.info({ sandboxId }, "Scaffolded default .gitignore");
+}
+
+async function scaffoldTemplateWorkspace(params: {
+  containerId: string;
+  sandboxId: string;
+  framework?: string;
+  snapshotId?: string;
+}): Promise<void> {
+  const { containerId, sandboxId, framework, snapshotId } = params;
+  if (snapshotId) {
+    return;
+  }
+
+  const scaffoldFramework = framework || "vanilla";
+  const files = await loadTemplateFiles(scaffoldFramework);
+  await initializeWorkspaceWithFiles(getContainer(containerId), files);
+  logger.info(
+    {
+      sandboxId,
+      framework: scaffoldFramework,
+      fileCount: Object.keys(files).length,
+    },
+    "Scaffolded sandbox workspace from local template files",
+  );
 }
 
 
@@ -197,7 +223,7 @@ export async function getActiveSandbox(
       if (sandboxId && userId) {
         logger.info(
           { sandboxId, chatId, containerId: chatContainer.Id },
-          "Recovered running container via Docker labels, rehydrating Redis state",
+          "Recovered running sandbox via runtime metadata, rehydrating Redis state",
         );
 
         const recovered: SandboxInstance = {
@@ -208,8 +234,6 @@ export async function getActiveSandbox(
           chatId,
           scaffoldedFramework:
             chatContainer.Labels?.["com.edward.framework"] || undefined,
-          runtimeToken:
-            chatContainer.Labels?.["com.edward.runtimeToken"] || undefined,
         };
 
         await saveSandboxState(recovered);
@@ -225,7 +249,7 @@ export async function getActiveSandbox(
   } catch (error) {
     logger.warn(
       { error: ensureError(error), chatId },
-      "Docker label-based container recovery failed",
+      "Runtime metadata-based sandbox recovery failed",
     );
   }
 
@@ -274,15 +298,23 @@ export async function provisionSandbox(
           allowFromMissing: true,
         });
 
-        const image = normalizedFramework
-          ? getTemplateConfig(normalizedFramework)?.image || getDefaultImage()
-          : getDefaultImage();
+        const snapshotId = normalizedFramework
+          ? getTemplateConfig(normalizedFramework)?.snapshotId || getDefaultSnapshotId()
+          : getDefaultSnapshotId();
         const container = await createContainer(
           userId,
           chatId,
           sandboxId,
-          image,
+          snapshotId,
+          normalizedFramework,
         );
+
+        await scaffoldTemplateWorkspace({
+          containerId: container.id,
+          sandboxId,
+          framework: normalizedFramework,
+          snapshotId,
+        });
 
         const sandbox: SandboxInstance = {
           id: sandboxId,
@@ -291,7 +323,6 @@ export async function provisionSandbox(
           userId,
           chatId,
           scaffoldedFramework: normalizedFramework,
-          runtimeToken: container.runtimeToken,
         };
 
         if (shouldRestore) {

@@ -54,7 +54,7 @@ declare global {
 
 const VOICE_SILENCE_TIMEOUT_MS = 5_000;
 
-export interface UseVoiceInputReturn {
+interface UseVoiceInputReturn {
     isVoiceSupported: boolean;
     isVoiceRecording: boolean;
     voiceRecognitionRef: React.RefObject<SpeechRecognitionInstance | null>;

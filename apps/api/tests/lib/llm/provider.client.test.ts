@@ -49,9 +49,31 @@ vi.mock("../../../lib/llm/compose.js", () => ({
   composePrompt: vi.fn(() => "System instructions"),
 }));
 
+function createSseResponse(chunks: string[], status = 200): Response {
+  const encoder = new TextEncoder();
+
+  return new Response(
+    new ReadableStream<Uint8Array>({
+      start(controller) {
+        for (const chunk of chunks) {
+          controller.enqueue(encoder.encode(chunk));
+        }
+        controller.close();
+      },
+    }),
+    {
+      status,
+      headers: {
+        "content-type": "text/event-stream",
+      },
+    },
+  );
+}
+
 describe("provider.client legacy completions fallback", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.unstubAllGlobals();
   });
 
   it("sets max_tokens for streaming legacy completions fallback", async () => {
@@ -125,6 +147,71 @@ describe("provider.client legacy completions fallback", () => {
     await expect(collect()).rejects.toThrow("transport aborted");
   });
 
+  it("fails OpenAI streaming when the provider emits response.failed", async () => {
+    const { streamResponse } = await import("../../../lib/llm/provider.client.js");
+
+    mocks.responsesCreateMock.mockResolvedValueOnce(
+      (async function* () {
+        yield { type: "response.output_text.delta", delta: "Hello" };
+        yield {
+          type: "response.failed",
+          response: {
+            error: {
+              code: "server_error",
+              message: "Upstream stream failed",
+            },
+          },
+        };
+      })(),
+    );
+
+    const collect = async () => {
+      let output = "";
+      for await (const chunk of streamResponse(OPENAI_TEST_ID, [
+        { role: MessageRole.User, content: "Say hello" },
+      ])) {
+        output += chunk;
+      }
+      return output;
+    };
+
+    await expect(collect()).rejects.toThrow(
+      "[OpenAI stream failed] server_error: Upstream stream failed",
+    );
+  });
+
+  it("fails OpenAI streaming when the provider emits response.incomplete", async () => {
+    const { streamResponse } = await import("../../../lib/llm/provider.client.js");
+
+    mocks.responsesCreateMock.mockResolvedValueOnce(
+      (async function* () {
+        yield { type: "response.output_text.delta", delta: "Hello" };
+        yield {
+          type: "response.incomplete",
+          response: {
+            incomplete_details: {
+              reason: "max_output_tokens",
+            },
+          },
+        };
+      })(),
+    );
+
+    const collect = async () => {
+      let output = "";
+      for await (const chunk of streamResponse(OPENAI_TEST_ID, [
+        { role: MessageRole.User, content: "Say hello" },
+      ])) {
+        output += chunk;
+      }
+      return output;
+    };
+
+    await expect(collect()).rejects.toThrow(
+      "[OpenAI stream incomplete] max_output_tokens",
+    );
+  });
+
   it("handles AbortError as cancellation when caller signal is already aborted", async () => {
     const { streamResponse } = await import("../../../lib/llm/provider.client.js");
     const abortController = new AbortController();
@@ -150,17 +237,14 @@ describe("provider.client legacy completions fallback", () => {
 describe("provider.client gemini stream resilience", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.unstubAllGlobals();
   });
 
-  it("fails the stream when Gemini stream throws", async () => {
+  it("fails the stream when Gemini emits malformed JSON before any output", async () => {
     const { streamResponse } = await import("../../../lib/llm/provider.client.js");
-    const streamError = new Error("stream read failed");
-
-    mocks.geminiModelsGenerateContentStreamMock.mockResolvedValueOnce(
-      (async function* () {
-        yield { text: "" };
-        throw streamError;
-      })(),
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValueOnce(createSseResponse(['data: {"candidates":'])),
     );
 
     const collect = async () => {
@@ -173,16 +257,19 @@ describe("provider.client gemini stream resilience", () => {
       return output;
     };
 
-    await expect(collect()).rejects.toThrow("stream read failed");
+    await expect(collect()).rejects.toThrow();
   });
 
   it("yields text chunks from Gemini stream", async () => {
     const { streamResponse } = await import("../../../lib/llm/provider.client.js");
-    mocks.geminiModelsGenerateContentStreamMock.mockResolvedValueOnce(
-      (async function* () {
-        yield { text: "Hello" };
-        yield { text: " world" };
-      })(),
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValueOnce(
+        createSseResponse([
+          'data: {"candidates":[{"content":{"parts":[{"text":"Hello"}]}}]}\n\n',
+          'data: {"candidates":[{"content":{"parts":[{"text":" world"}]}}]}\n\n',
+        ]),
+      ),
     );
 
     let output = "";
@@ -193,6 +280,28 @@ describe("provider.client gemini stream resilience", () => {
     }
 
     expect(output).toBe("Hello world");
+  });
+
+  it("keeps prior Gemini output when the trailing SSE payload is truncated", async () => {
+    const { streamResponse } = await import("../../../lib/llm/provider.client.js");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValueOnce(
+        createSseResponse([
+          'data: {"candidates":[{"content":{"parts":[{"text":"Hello"}]}}]}\n\n',
+          'data: {"candidates":[{"content":{"parts":[{"text":" world"}]}}',
+        ]),
+      ),
+    );
+
+    let output = "";
+    for await (const chunk of streamResponse(GEMINI_TEST_ID, [
+      { role: MessageRole.User, content: "Say hello" },
+    ])) {
+      output += chunk;
+    }
+
+    expect(output).toBe("Hello");
   });
 
   it("uses Gemini non-stream text output", async () => {

@@ -18,6 +18,10 @@ const LEGACY_COMPLETIONS_MAX_TOKENS = 4096;
 const logger = createLogger("LLM");
 const LEGACY_COMPLETIONS_HINT_PATTERN = /not a chat model|v1\/completions endpoint/;
 const OPENAI_OUTPUT_DELTA_EVENT_TYPES = new Set(["response.output_text.delta"]);
+const OPENAI_TERMINAL_FAILURE_EVENT_TYPES = new Set([
+  "response.failed",
+  "response.incomplete",
+]);
 const DEFAULT_MODEL_BY_PROVIDER: Record<Provider, string> = {
   [Provider.OPENAI]: DEFAULT_OPENAI_MODEL,
   [Provider.GEMINI]: DEFAULT_GEMINI_MODEL,
@@ -132,6 +136,32 @@ export function extractOpenAIOutputTextDelta(event: {
   }
 
   return delta;
+}
+
+export function getOpenAIStreamTerminalError(event: {
+  type?: unknown;
+  response?: {
+    error?: { code?: unknown; message?: unknown } | null;
+    incomplete_details?: { reason?: unknown } | null;
+  };
+}): Error | null {
+  const eventType = String(event?.type ?? "");
+  if (!OPENAI_TERMINAL_FAILURE_EVENT_TYPES.has(eventType)) {
+    return null;
+  }
+
+  if (eventType === "response.failed") {
+    const code = String(event.response?.error?.code ?? "unknown_error");
+    const message = String(
+      event.response?.error?.message ?? "OpenAI response failed during streaming",
+    );
+    return new Error(`[OpenAI stream failed] ${code}: ${message}`);
+  }
+
+  const reason = String(
+    event.response?.incomplete_details?.reason ?? "unknown_reason",
+  );
+  return new Error(`[OpenAI stream incomplete] ${reason}`);
 }
 
 export function isAbortSignalError(_error: Error, signal?: AbortSignal): boolean {

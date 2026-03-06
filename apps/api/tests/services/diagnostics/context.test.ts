@@ -10,7 +10,7 @@ const mocks = vi.hoisted(() => ({
 
 const FIXED_TIMESTAMP = 4_102_444_800_000;
 
-vi.mock("../../../services/sandbox/docker.service.js", () => ({
+vi.mock("../../../services/sandbox/sandbox-runtime.service.js", () => ({
   getContainer: mocks.getContainer,
   execCommand: mocks.execCommand,
   CONTAINER_WORKDIR: "/workspace",

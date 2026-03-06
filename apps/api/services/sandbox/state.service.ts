@@ -204,13 +204,6 @@ function parseSandboxState(raw: string): SandboxInstance | null {
     return null;
   }
 
-  if (
-    candidate.runtimeToken !== undefined &&
-    typeof candidate.runtimeToken !== "string"
-  ) {
-    return null;
-  }
-
   return {
     id: candidate.id,
     containerId: candidate.containerId,
@@ -221,7 +214,6 @@ function parseSandboxState(raw: string): SandboxInstance | null {
     requestedPackages: candidate.requestedPackages
       ? [...candidate.requestedPackages]
       : undefined,
-    runtimeToken: candidate.runtimeToken,
   };
 }
 
@@ -236,7 +228,6 @@ function cloneSandboxState(sandbox: SandboxInstance): SandboxInstance {
     requestedPackages: sandbox.requestedPackages
       ? [...sandbox.requestedPackages]
       : undefined,
-    runtimeToken: sandbox.runtimeToken,
   };
 }
 

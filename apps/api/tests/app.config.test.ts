@@ -61,4 +61,12 @@ describe("app.config", () => {
     expect(config.sandbox.runtime).toBe("disabled");
     expect(config.sandbox.required).toBe(false);
   });
+
+  it("fails fast on unsupported sandbox runtime values", async () => {
+    process.env.SANDBOX_RUNTIME = "docker";
+
+    await expect(loadConfigModule()).rejects.toThrow(
+      'Invalid sandbox runtime: docker. Expected "vercel" or "disabled".',
+    );
+  });
 });

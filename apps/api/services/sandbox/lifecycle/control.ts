@@ -1,6 +1,6 @@
 import { cleanupExpiredSandboxContainers } from "./cleanup.js";
 import { CLEANUP_INTERVAL_MS } from "./state.js";
-import { pingDocker } from "../docker.service.js";
+import { pingDocker } from "../sandbox-runtime.service.js";
 import { createLogger } from "../../../utils/logger.js";
 import { ensureError } from "../../../utils/error.js";
 import { config } from "../../../app.config.js";
@@ -73,7 +73,7 @@ export async function initSandboxService(): Promise<void> {
       }
 
       throw new Error(
-        "Sandbox service is enabled but Docker runtime is unavailable.",
+        "Sandbox service is enabled but the configured runtime is unavailable.",
       );
     }
 

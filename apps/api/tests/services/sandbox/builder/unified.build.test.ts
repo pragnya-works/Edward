@@ -52,10 +52,11 @@ const mockRefs = vi.hoisted(() => {
   };
 });
 
-vi.mock("../../../../services/sandbox/docker.service.js", () => ({
+vi.mock("../../../../services/sandbox/sandbox-runtime.service.js", () => ({
   connectToNetwork: mockRefs.connectMock,
   getContainer: mockRefs.getContainerMock,
   execCommand: mockRefs.execCommandMock,
+  readFileContent: vi.fn(),
   CONTAINER_WORKDIR: "/home/node/edward",
 }));
 

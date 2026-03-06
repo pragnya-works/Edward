@@ -8,7 +8,7 @@ import {
   ensureContainerRunning,
   CONTAINER_WORKDIR,
   appendFileContent,
-} from "../docker.service.js";
+} from "../sandbox-runtime.service.js";
 import { acquireDistributedLock } from "../../../lib/distributedLock.js";
 import {
   BUFFER_FILES_SET_PREFIX,

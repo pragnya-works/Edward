@@ -2,7 +2,7 @@ import path from "path";
 import { redis } from "../../../lib/redis.js";
 import { logger } from "../../../utils/logger.js";
 import { getSandboxState } from "../state.service.js";
-import { CONTAINER_WORKDIR, execCommand, getContainer } from "../docker.service.js";
+import { CONTAINER_WORKDIR, execCommand, getContainer } from "../sandbox-runtime.service.js";
 import { acquireDistributedLock, releaseDistributedLock } from "../../../lib/distributedLock.js";
 import { scheduleSandboxFlush } from "./flush.scheduler.js";
 import {
