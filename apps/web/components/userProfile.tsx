@@ -149,6 +149,10 @@ export default function UserProfile() {
     if (isMobile) setOpen(false);
   }
 
+  function openApiKeyManager() {
+    setIsApiKeyModalOpen(true);
+  }
+
   if (!session?.user) {
     return null;
   }
@@ -257,7 +261,7 @@ export default function UserProfile() {
               </div>
             </div>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => { closeMobileSidebar(); setIsApiKeyModalOpen(true); }}>
+            <DropdownMenuItem onClick={openApiKeyManager}>
               <Key className="mr-2 h-4 w-4" />
               <span>Manage API Keys</span>
             </DropdownMenuItem>
