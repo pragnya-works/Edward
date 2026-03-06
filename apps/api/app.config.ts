@@ -38,6 +38,15 @@ function optionalEnvVar(value: string | undefined): string | undefined {
   return trimmed.length > 0 ? trimmed : undefined;
 }
 
+function requiredEnvVar(name: string, value: string | undefined): string {
+  const normalized = optionalEnvVar(value);
+  if (!normalized) {
+    throw new Error(`Missing required environment variable: ${name}`);
+  }
+
+  return normalized;
+}
+
 function firstDefinedEnv(
   candidates: Array<string | undefined>,
 ): string | undefined {
@@ -317,10 +326,26 @@ function resolveVercelSandboxRuntime(
 }
 
 function resolveEnvironment(value: string | undefined): Environment {
-  return value && ENVIRONMENT_VALUES.has(value as Environment)
-    ? (value as Environment)
-    : Environment.Development;
+  if (value === undefined) {
+    return Environment.Development;
+  }
+
+  const normalized = value.trim().toLowerCase();
+  if (ENVIRONMENT_VALUES.has(normalized as Environment)) {
+    return normalized as Environment;
+  }
+
+  throw new Error(
+    `Invalid NODE_ENV: ${value}. Allowed values: ${Array.from(ENVIRONMENT_VALUES).join(", ")}.`,
+  );
 }
+
+const sandboxRuntime = resolveSandboxRuntime(
+  firstDefinedEnv([process.env.SANDBOX_RUNTIME, process.env.SANDBOX_RUNTIME_MODE]),
+);
+const sandboxRequired = parseBoolean(process.env.SANDBOX_RUNTIME_REQUIRED, true);
+const vercelCredentialsRequired =
+  sandboxRuntime === "vercel" && sandboxRequired;
 
 export const config = {
   redis: {
@@ -423,9 +448,15 @@ export const config = {
   },
 
   vercel: {
-    token: optionalEnvVar(process.env.VERCEL_TOKEN),
-    teamId: optionalEnvVar(process.env.VERCEL_TEAM_ID),
-    projectId: optionalEnvVar(process.env.VERCEL_PROJECT_ID),
+    token: vercelCredentialsRequired
+      ? requiredEnvVar("VERCEL_TOKEN", process.env.VERCEL_TOKEN)
+      : optionalEnvVar(process.env.VERCEL_TOKEN),
+    teamId: vercelCredentialsRequired
+      ? requiredEnvVar("VERCEL_TEAM_ID", process.env.VERCEL_TEAM_ID)
+      : optionalEnvVar(process.env.VERCEL_TEAM_ID),
+    projectId: vercelCredentialsRequired
+      ? requiredEnvVar("VERCEL_PROJECT_ID", process.env.VERCEL_PROJECT_ID)
+      : optionalEnvVar(process.env.VERCEL_PROJECT_ID),
     runtime: resolveVercelSandboxRuntime(process.env.VERCEL_SANDBOX_RUNTIME),
     timeoutMs: parsePositiveInteger(
       "VERCEL_SANDBOX_TIMEOUT_MS",
@@ -445,10 +476,8 @@ export const config = {
   },
 
   sandbox: {
-    runtime: resolveSandboxRuntime(
-      firstDefinedEnv([process.env.SANDBOX_RUNTIME, process.env.SANDBOX_RUNTIME_MODE]),
-    ),
-    required: parseBoolean(process.env.SANDBOX_RUNTIME_REQUIRED, true),
+    runtime: sandboxRuntime,
+    required: sandboxRequired,
   },
 
   webSearch: {

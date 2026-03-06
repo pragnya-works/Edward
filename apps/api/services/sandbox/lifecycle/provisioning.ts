@@ -286,10 +286,10 @@ export async function provisionSandbox(
 
       let sandboxId: string | null = null;
       let containerId: string | null = null;
+      let sandboxActivated = false;
       try {
         const doubleCheckId = await getActiveSandbox(chatId);
         if (doubleCheckId) {
-          await releaseDistributedLock(handle);
           return doubleCheckId;
         }
 
@@ -357,10 +357,10 @@ export async function provisionSandbox(
           allowFromMissing: true,
         });
 
-        await releaseDistributedLock(handle);
+        sandboxActivated = true;
         return sandboxId;
       } catch (provisionError) {
-        if (containerId) {
+        if (!sandboxActivated && containerId) {
           await destroyContainer(containerId).catch((cleanupError) =>
             logger.warn(
               {
@@ -372,7 +372,7 @@ export async function provisionSandbox(
             ),
           );
         }
-        if (sandboxId) {
+        if (!sandboxActivated && sandboxId) {
           await transitionSandboxLifecycleState({
             sandboxId,
             nextState: SandboxLifecycleState.FAILED,
@@ -380,8 +380,18 @@ export async function provisionSandbox(
             allowFromMissing: true,
           });
         }
-        await releaseDistributedLock(handle);
         throw provisionError;
+      } finally {
+        await releaseDistributedLock(handle).catch((lockReleaseError) =>
+          logger.warn(
+            {
+              chatId,
+              sandboxId,
+              error: ensureError(lockReleaseError),
+            },
+            "Failed to release sandbox provisioning lock",
+          ),
+        );
       }
     } catch (error) {
       logger.error({ error, userId, chatId }, "Failed to provision sandbox");

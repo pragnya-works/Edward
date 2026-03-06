@@ -7,6 +7,12 @@ const refs = vi.hoisted(() => {
   };
 
   return {
+    config: {
+      sandbox: {
+        runtime: "vercel",
+        required: true,
+      },
+    },
     cleanupExpiredSandboxContainers: vi.fn(async (): Promise<void> => {}),
     pingDocker: vi.fn(async () => true),
     createLogger: vi.fn(() => logger),
@@ -38,12 +44,25 @@ vi.mock("../../../utils/error.js", () => ({
   ensureError: refs.ensureError,
 }));
 
+vi.mock("../../../app.config.js", () => ({
+  config: refs.config,
+}));
+
+function createIntervalToken(): ReturnType<typeof setInterval> {
+  const intervalToken = setInterval(() => undefined, 60_000);
+  clearInterval(intervalToken);
+  vi.spyOn(intervalToken, "unref").mockReturnValue(intervalToken);
+  return intervalToken;
+}
+
 describe("sandbox lifecycle control", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.restoreAllMocks();
     vi.resetModules();
 
+    refs.config.sandbox.runtime = "vercel";
+    refs.config.sandbox.required = true;
     refs.cleanupExpiredSandboxContainers.mockResolvedValue(undefined);
     refs.pingDocker.mockResolvedValue(true);
     refs.createLogger.mockReturnValue(refs.logger);
@@ -63,14 +82,32 @@ describe("sandbox lifecycle control", () => {
     expect(refs.pingDocker).toHaveBeenCalledTimes(2);
   });
 
-  it("continues startup and schedules background retries when the runtime is unavailable", async () => {
+  it("fails fast when the runtime is unavailable and sandboxing is required", async () => {
     refs.pingDocker.mockResolvedValueOnce(false);
-    const intervalToken = {
-      unref: vi.fn(),
-    };
+    const intervalToken = createIntervalToken();
     const setIntervalSpy = vi
       .spyOn(globalThis, "setInterval")
-      .mockReturnValue(intervalToken as unknown as NodeJS.Timeout);
+      .mockReturnValue(intervalToken);
+
+    const { initSandboxService } = await import(
+      "../../../services/sandbox/lifecycle/control.js"
+    );
+
+    await expect(initSandboxService()).rejects.toThrow(
+      'Sandbox runtime "vercel" is required but unavailable during startup.',
+    );
+    expect(refs.cleanupExpiredSandboxContainers).not.toHaveBeenCalled();
+    expect(setIntervalSpy).not.toHaveBeenCalled();
+    expect(refs.logger.error).toHaveBeenCalledTimes(1);
+  });
+
+  it("continues startup and schedules background retries when the runtime is optional", async () => {
+    refs.config.sandbox.required = false;
+    refs.pingDocker.mockResolvedValueOnce(false);
+    const intervalToken = createIntervalToken();
+    const setIntervalSpy = vi
+      .spyOn(globalThis, "setInterval")
+      .mockReturnValue(intervalToken);
     const clearIntervalSpy = vi
       .spyOn(globalThis, "clearInterval")
       .mockImplementation(() => undefined);
@@ -82,7 +119,7 @@ describe("sandbox lifecycle control", () => {
     await expect(initSandboxService()).resolves.toBeUndefined();
     expect(refs.cleanupExpiredSandboxContainers).not.toHaveBeenCalled();
     expect(setIntervalSpy).toHaveBeenCalledTimes(1);
-    expect(refs.logger.error).toHaveBeenCalledTimes(1);
+    expect(refs.logger.warn).toHaveBeenCalledTimes(1);
 
     await shutdownSandboxService();
     expect(intervalToken.unref).toHaveBeenCalledTimes(1);
@@ -98,12 +135,10 @@ describe("sandbox lifecycle control", () => {
         }),
     );
 
-    const intervalToken = {
-      unref: vi.fn(),
-    };
+    const intervalToken = createIntervalToken();
     const setIntervalSpy = vi
       .spyOn(globalThis, "setInterval")
-      .mockReturnValue(intervalToken as unknown as NodeJS.Timeout);
+      .mockReturnValue(intervalToken);
     const clearIntervalSpy = vi
       .spyOn(globalThis, "clearInterval")
       .mockImplementation(() => undefined);

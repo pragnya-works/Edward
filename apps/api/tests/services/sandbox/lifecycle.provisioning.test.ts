@@ -119,6 +119,11 @@ describe("sandbox provisioning", () => {
     refs.createContainer.mockResolvedValue({ id: "container-1" });
     refs.destroyContainer.mockResolvedValue(undefined);
     refs.getContainer.mockReturnValue({ id: "container-1" });
+    refs.execCommand.mockResolvedValue({
+      exitCode: 0,
+      stdout: "",
+      stderr: "",
+    });
     refs.loadTemplateFiles.mockResolvedValue({ "package.json": "{}" });
     refs.initializeWorkspaceWithFiles.mockRejectedValue(
       new Error("scaffold failed"),
@@ -137,5 +142,32 @@ describe("sandbox provisioning", () => {
 
     expect(refs.destroyContainer).toHaveBeenCalledWith("container-1");
     expect(refs.releaseDistributedLock).toHaveBeenCalled();
+  });
+
+  it("does not destroy an activated sandbox when releasing the lock fails", async () => {
+    refs.initializeWorkspaceWithFiles.mockResolvedValue(undefined);
+    refs.releaseDistributedLock.mockRejectedValueOnce(new Error("unlock failed"));
+
+    const { provisionSandbox } = await import(
+      "../../../services/sandbox/lifecycle/provisioning.js"
+    );
+
+    await expect(
+      provisionSandbox("user-1", "chat-1", "vanilla"),
+    ).resolves.toBe("sandbox-1");
+
+    expect(refs.destroyContainer).not.toHaveBeenCalled();
+    expect(refs.transitionSandboxLifecycleState).toHaveBeenCalledWith({
+      sandboxId: "sandbox-1",
+      nextState: "ACTIVE",
+      allowFromMissing: true,
+    });
+    expect(refs.logger.warn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        chatId: "chat-1",
+        sandboxId: "sandbox-1",
+      }),
+      "Failed to release sandbox provisioning lock",
+    );
   });
 });

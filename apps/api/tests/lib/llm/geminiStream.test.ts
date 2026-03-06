@@ -51,6 +51,19 @@ function createAbortError(): Error {
   return error;
 }
 
+function isAbortSignal(value: unknown): value is AbortSignal {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+
+  return (
+    "aborted" in value &&
+    typeof value.aborted === "boolean" &&
+    "addEventListener" in value &&
+    typeof value.addEventListener === "function"
+  );
+}
+
 function createAbortableSseResponse(
   firstChunk: string,
   signal?: AbortSignal,
@@ -88,7 +101,7 @@ function createDelayedSseResponse(
 
   return new Response(
     new ReadableStream<Uint8Array>({
-      async start(controller) {
+      async start(controller): Promise<void> {
         for (const chunk of chunks) {
           await new Promise<void>((resolve, reject) => {
             const timer = setTimeout(resolve, chunk.delayMs);
@@ -141,7 +154,7 @@ describe("geminiStream", () => {
       ),
     );
 
-    const collect = async () => {
+    const collect = async (): Promise<string> => {
       let output = "";
       for await (const chunk of streamGeminiResponse({
         apiKey: "TEST_GEMINI_ID",
@@ -179,7 +192,7 @@ describe("geminiStream", () => {
       ),
     );
 
-    const collect = async () => {
+    const collect = async (): Promise<void> => {
       for await (const _chunk of streamGeminiResponse({
         apiKey: "TEST_GEMINI_ID",
         model: "gemini-2.5-flash",
@@ -203,14 +216,15 @@ describe("geminiStream", () => {
 
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockImplementation((_url, init) =>
-        Promise.resolve(
+      vi.fn().mockImplementation((_url, init) => {
+        const signal = isAbortSignal(init?.signal) ? init.signal : undefined;
+        return Promise.resolve(
           createAbortableSseResponse(
             'data: {"candidates":[{"content":{"parts":[{"text":"Hello"}]}}]}\n\n',
-            init?.signal as AbortSignal | undefined,
+            signal,
           ),
-        ),
-      ),
+        );
+      }),
     );
 
     const iterator = streamGeminiResponse({
@@ -245,17 +259,19 @@ describe("geminiStream", () => {
         vi.fn().mockImplementation(
           (_url, init) =>
             new Promise((_resolve, reject) => {
-              const signal = init?.signal as AbortSignal | undefined;
-              signal?.addEventListener(
-                "abort",
-                () => reject(signal.reason ?? createAbortError()),
-                { once: true },
-              );
+              const signal = isAbortSignal(init?.signal) ? init.signal : undefined;
+              if (signal) {
+                signal.addEventListener(
+                  "abort",
+                  () => reject(signal.reason ?? createAbortError()),
+                  { once: true },
+                );
+              }
             }),
         ),
       );
 
-      const collect = async () => {
+      const collect = async (): Promise<void> => {
         for await (const _chunk of streamGeminiResponse({
           apiKey: "TEST_GEMINI_ID",
           model: "gemini-2.5-flash",
@@ -285,8 +301,9 @@ describe("geminiStream", () => {
     try {
       vi.stubGlobal(
         "fetch",
-        vi.fn().mockImplementation((_url, init) =>
-          Promise.resolve(
+        vi.fn().mockImplementation((_url, init) => {
+          const signal = isAbortSignal(init?.signal) ? init.signal : undefined;
+          return Promise.resolve(
             createDelayedSseResponse(
               [
                 {
@@ -298,13 +315,13 @@ describe("geminiStream", () => {
                   delayMs: 20_000,
                 },
               ],
-              init?.signal as AbortSignal | undefined,
+              signal,
             ),
-          ),
-        ),
+          );
+        }),
       );
 
-      const outputPromise = (async () => {
+      const outputPromise = (async (): Promise<string> => {
         let output = "";
         for await (const chunk of streamGeminiResponse({
           apiKey: "TEST_GEMINI_ID",
@@ -322,6 +339,55 @@ describe("geminiStream", () => {
       await vi.advanceTimersByTimeAsync(40_000);
 
       await expect(outputPromise).resolves.toBe("Hello world");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("retries rate-limited Gemini requests and resumes streaming", async () => {
+    vi.useFakeTimers();
+
+    try {
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(
+          new Response("rate limited", {
+            status: 429,
+            statusText: "Too Many Requests",
+            headers: {
+              "retry-after": "1",
+            },
+          }),
+        )
+        .mockResolvedValueOnce(
+          createSseResponse([
+            'data: {"candidates":[{"content":{"parts":[{"text":"Hello again"}]}}]}\n\n',
+          ]),
+        );
+      vi.stubGlobal("fetch", fetchMock);
+
+      const collect = async (): Promise<string> => {
+        let output = "";
+        for await (const chunk of streamGeminiResponse({
+          apiKey: "TEST_GEMINI_ID",
+          model: "gemini-2.5-flash",
+          contents: [{ role: "user", parts: [{ text: "Say hello" }] }],
+          systemInstruction: "System instructions",
+          maxOutputTokens: 1024,
+          topP: 0.95,
+          temperature: 0.2,
+        })) {
+          output += chunk;
+        }
+
+        return output;
+      };
+
+      const outputPromise = collect();
+      await vi.advanceTimersByTimeAsync(1_000);
+
+      await expect(outputPromise).resolves.toBe("Hello again");
+      expect(fetchMock).toHaveBeenCalledTimes(2);
     } finally {
       vi.useRealTimers();
     }

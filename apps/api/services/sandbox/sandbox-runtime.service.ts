@@ -17,6 +17,8 @@ const EXEC_TIMEOUT_MS = 10_000;
 const SANDBOX_METADATA_PATH = `${CONTAINER_WORKDIR}/.edward/sandbox-metadata.json`;
 const RUNNING_SANDBOX_STATES = new Set(["running", "snapshotting"]);
 const TERMINAL_SANDBOX_STATES = new Set(["stopped", "failed", "aborted"]);
+type SandboxNetworkPolicy = "deny-all";
+const DEFAULT_SANDBOX_NETWORK_POLICY: SandboxNetworkPolicy = "deny-all";
 
 export interface SandboxHandle {
   id: string;
@@ -654,7 +656,7 @@ export async function createContainer(
     ...credentials,
     timeout: Math.min(config.vercel.timeoutMs, SANDBOX_TTL),
     resources: { vcpus: config.vercel.vcpus },
-    networkPolicy: "deny-all" as const,
+    networkPolicy: DEFAULT_SANDBOX_NETWORK_POLICY,
     env: {
       NODE_OPTIONS: "--max-old-space-size=768",
     },

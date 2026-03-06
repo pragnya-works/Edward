@@ -6,6 +6,10 @@ const GEMINI_API_BASE_URL = "https://generativelanguage.googleapis.com";
 const SSE_EVENT_DELIMITER = /\r\n\r\n|\n\n|\r\r/g;
 const DONE_SENTINEL = "[DONE]";
 const GEMINI_STREAM_IDLE_TIMEOUT_MS = 30_000;
+const GEMINI_RATE_LIMIT_STATUS = 429;
+const GEMINI_STREAM_MAX_RETRIES = 3;
+const GEMINI_STREAM_RETRY_BASE_DELAY_MS = 500;
+const GEMINI_STREAM_RETRY_JITTER_FACTOR = 0.25;
 const logger = createLogger("LLM");
 
 interface GeminiStreamContent {
@@ -42,6 +46,13 @@ interface GeminiStreamChunkPayload {
     };
   }>;
   error?: GeminiApiErrorPayload["error"];
+}
+
+interface GeminiRequestSignalController {
+  signal: AbortSignal;
+  cleanup: () => void;
+  isTimedOut: () => boolean;
+  markActivity: () => void;
 }
 
 const geminiApiErrorSchema = z.object({
@@ -161,7 +172,8 @@ async function createGeminiHttpError(response: Response): Promise<Error> {
 
   if (rawBody) {
     try {
-      const parsed = geminiApiErrorSchema.safeParse(JSON.parse(rawBody) as unknown);
+      const rawJson: unknown = JSON.parse(rawBody);
+      const parsed = geminiApiErrorSchema.safeParse(rawJson);
       if (!parsed.success) {
         return new Error(
           `[GoogleGenAI Error]: [${response.status} ${response.statusText}] Invalid Gemini API error payload received from upstream`,
@@ -192,9 +204,8 @@ function parseGeminiEventPayload(
     return null;
   }
 
-  const payload = geminiStreamChunkSchema.safeParse(
-    JSON.parse(payloadText) as unknown,
-  );
+  const rawJson: unknown = JSON.parse(payloadText);
+  const payload = geminiStreamChunkSchema.safeParse(rawJson);
   if (!payload.success) {
     throw new Error("Invalid Gemini stream payload received from upstream");
   }
@@ -229,9 +240,14 @@ function isIncompleteJsonTailError(error: unknown): boolean {
   const message = error.message.toLowerCase();
   return (
     message.includes("unexpected end of json") ||
+    message.includes("unexpected end of input") ||
+    message.includes("expected end of input") ||
+    message.includes("expected end of file") ||
+    message.includes("after array element") ||
+    message.includes("after property value") ||
+    message.includes("incomplete json") ||
     message.includes("unterminated") ||
-    message.includes("end of data") ||
-    message.includes("expected")
+    message.includes("end of data")
   );
 }
 
@@ -258,12 +274,69 @@ function createGeminiTimeoutError(timeoutMs: number): Error {
   return new Error(`Gemini stream request timed out after ${timeoutMs}ms of inactivity`);
 }
 
-function createGeminiRequestSignal(signal?: AbortSignal): {
-  signal: AbortSignal;
-  cleanup: () => void;
-  isTimedOut: () => boolean;
-  markActivity: () => void;
-} {
+function getAbortReason(signal: AbortSignal): unknown {
+  return signal.reason ?? new Error("The operation was aborted.");
+}
+
+function parseRetryAfterDelayMs(headerValue: string | null): number | null {
+  if (!headerValue) {
+    return null;
+  }
+
+  const seconds = Number(headerValue);
+  if (!Number.isFinite(seconds) || seconds < 0) {
+    return null;
+  }
+
+  return Math.round(seconds * 1000);
+}
+
+function computeRetryDelayMs(attempt: number, retryAfterHeader: string | null): number {
+  const retryAfterDelayMs = parseRetryAfterDelayMs(retryAfterHeader);
+  if (retryAfterDelayMs !== null) {
+    return retryAfterDelayMs;
+  }
+
+  const baseDelayMs = GEMINI_STREAM_RETRY_BASE_DELAY_MS * 2 ** attempt;
+  const jitterRangeMs = baseDelayMs * GEMINI_STREAM_RETRY_JITTER_FACTOR;
+  const jitterMs = (Math.random() * 2 - 1) * jitterRangeMs;
+  return Math.max(0, Math.round(baseDelayMs + jitterMs));
+}
+
+async function waitForRetryDelay(
+  delayMs: number,
+  requestSignal: GeminiRequestSignalController,
+): Promise<void> {
+  if (requestSignal.isTimedOut()) {
+    throw createGeminiTimeoutError(GEMINI_STREAM_IDLE_TIMEOUT_MS);
+  }
+
+  if (requestSignal.signal.aborted) {
+    throw getAbortReason(requestSignal.signal);
+  }
+
+  if (delayMs <= 0) {
+    return;
+  }
+
+  await new Promise<void>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      requestSignal.signal.removeEventListener("abort", onAbort);
+      resolve();
+    }, delayMs);
+    timer.unref?.();
+
+    const onAbort = () => {
+      clearTimeout(timer);
+      requestSignal.signal.removeEventListener("abort", onAbort);
+      reject(getAbortReason(requestSignal.signal));
+    };
+
+    requestSignal.signal.addEventListener("abort", onAbort, { once: true });
+  });
+}
+
+function createGeminiRequestSignal(signal?: AbortSignal): GeminiRequestSignalController {
   const controller = new AbortController();
   let timedOut = false;
   let timeout: ReturnType<typeof setTimeout> | null = null;
@@ -313,24 +386,49 @@ export async function* streamGeminiResponse(
 ): AsyncGenerator<string> {
   const requestSignal = createGeminiRequestSignal(params.signal);
   try {
-    let response: Response;
-    try {
-      response = await fetch(buildGeminiStreamUrl(params.apiKey, params.model), {
-        method: "POST",
-        headers: {
-          accept: "text/event-stream",
-          "content-type": "application/json",
-        },
-        body: buildGeminiStreamRequestBody(params),
-        signal: requestSignal.signal,
-      });
-    } catch (error) {
-      if (requestSignal.isTimedOut()) {
-        throw createGeminiTimeoutError(GEMINI_STREAM_IDLE_TIMEOUT_MS);
+    let response: Response | null = null;
+    for (let attempt = 0; attempt <= GEMINI_STREAM_MAX_RETRIES; attempt++) {
+      if (attempt > 0) {
+        requestSignal.markActivity();
       }
-      throw error;
+
+      try {
+        response = await fetch(buildGeminiStreamUrl(params.apiKey, params.model), {
+          method: "POST",
+          headers: {
+            accept: "text/event-stream",
+            "content-type": "application/json",
+          },
+          body: buildGeminiStreamRequestBody(params),
+          signal: requestSignal.signal,
+        });
+      } catch (error) {
+        if (requestSignal.isTimedOut()) {
+          throw createGeminiTimeoutError(GEMINI_STREAM_IDLE_TIMEOUT_MS);
+        }
+        throw error;
+      }
+
+      requestSignal.markActivity();
+      if (response.status !== GEMINI_RATE_LIMIT_STATUS) {
+        break;
+      }
+
+      if (attempt >= GEMINI_STREAM_MAX_RETRIES) {
+        throw await createGeminiHttpError(response);
+      }
+
+      await response.body?.cancel().catch(() => undefined);
+      const retryDelayMs = computeRetryDelayMs(
+        attempt,
+        response.headers.get("retry-after"),
+      );
+      await waitForRetryDelay(retryDelayMs, requestSignal);
     }
-    requestSignal.markActivity();
+
+    if (!response) {
+      throw new Error("Gemini stream request did not return a response");
+    }
 
     if (!response.ok) {
       throw await createGeminiHttpError(response);

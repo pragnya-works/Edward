@@ -65,23 +65,27 @@ export async function initSandboxService(): Promise<void> {
 
     const runtimeAvailable = await isSandboxRuntimeAvailable();
     if (!runtimeAvailable) {
-      if (!config.sandbox.required) {
-        logger.warn(
-          {
-            runtime: config.sandbox.runtime,
-            required: config.sandbox.required,
-          },
-          "Sandbox runtime unavailable during startup; continuing in degraded mode",
-        );
-      } else {
+      if (config.sandbox.required) {
         logger.error(
           {
             runtime: config.sandbox.runtime,
             required: config.sandbox.required,
           },
-          "Sandbox runtime unavailable during startup; API will continue booting and retry in the background",
+          "Sandbox runtime unavailable during startup; refusing to boot without the required runtime",
+        );
+
+        throw new Error(
+          `Sandbox runtime "${config.sandbox.runtime}" is required but unavailable during startup.`,
         );
       }
+
+      logger.warn(
+        {
+          runtime: config.sandbox.runtime,
+          required: config.sandbox.required,
+        },
+        "Sandbox runtime unavailable during startup; continuing in degraded mode",
+      );
 
       if (!cleanupInterval) {
         cleanupInterval = startCleanupInterval();
