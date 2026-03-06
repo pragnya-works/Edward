@@ -64,7 +64,7 @@ export function RecentProjects() {
           </div>
 
           <div
-            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"
+            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
             style={{
               maskImage:
                 "linear-gradient(to bottom, black 40%, transparent 100%)",
@@ -83,7 +83,13 @@ export function RecentProjects() {
                   ease: [0.25, 0.1, 0.25, 1],
                   delay: index * 0.08,
                 }}
-                className="relative flex flex-col rounded-xl border border-dashed border-border/50 bg-foreground/[0.02] aspect-video overflow-hidden"
+                className={[
+                  "relative flex flex-col rounded-xl border border-dashed border-border/50 bg-foreground/[0.02] aspect-video overflow-hidden",
+                  index === 0 ? "hidden md:flex" : "",
+                  index === 2 ? "hidden lg:flex" : "",
+                ]
+                  .filter(Boolean)
+                  .join(" ")}
               >
                 <div className="pointer-events-none absolute -bottom-18 -right-20 w-[65%] aspect-[7/5] sm:-bottom-20 sm:-right-24 sm:w-[70%] lg:-bottom-24 lg:-right-36 lg:w-[80%] xl:-bottom-32 xl:-right-44 xl:w-[90%] text-foreground/[0.05]">
                   <TechnicalBlueprint />

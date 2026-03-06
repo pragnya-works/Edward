@@ -13,7 +13,7 @@ export function Hero() {
 
   return (
     <div className={cn(
-      "relative z-10 flex flex-col items-center justify-center px-4",
+      "relative z-10 flex flex-col items-center justify-center px-4 pt-16 sm:pt-20 md:pt-0",
       isAuth
         ? "min-h-[60vh] pb-10 md:min-h-[80vh] md:pb-20"
         : "min-h-[80vh] pb-20",
