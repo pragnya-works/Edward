@@ -57,7 +57,7 @@ vi.mock("../../../../services/sandbox/sandbox-runtime.service.js", () => ({
   getContainer: mockRefs.getContainerMock,
   execCommand: mockRefs.execCommandMock,
   readFileContent: vi.fn(),
-  CONTAINER_WORKDIR: "/home/node/edward",
+  CONTAINER_WORKDIR: "/vercel/sandbox/edward",
 }));
 
 vi.mock("../../../../services/sandbox/state.service.js", () => ({

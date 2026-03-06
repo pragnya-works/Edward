@@ -3,8 +3,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { getTemplateConfig } from "./template.registry.js";
 
-let templateRootPromise: Promise<string> | null = null;
-const templateFileCache = new Map<string, Promise<Readonly<Record<string, string>>>>();
+let templateRoot: string | null = null;
+const templateFileCache = new Map<string, Readonly<Record<string, string>>>();
 
 function ancestorDirs(startDir: string): string[] {
   const ancestors: string[] = [];
@@ -33,26 +33,23 @@ function candidateTemplateRoots(): string[] {
 }
 
 async function resolveTemplateRoot(): Promise<string> {
-  if (templateRootPromise) {
-    return templateRootPromise;
+  if (templateRoot) {
+    return templateRoot;
   }
 
-  templateRootPromise = (async () => {
-    for (const candidate of candidateTemplateRoots()) {
-      try {
-        const stat = await fs.stat(candidate);
-        if (stat.isDirectory()) {
-          return candidate;
-        }
-      } catch {
-        continue;
+  for (const candidate of candidateTemplateRoots()) {
+    try {
+      const stat = await fs.stat(candidate);
+      if (stat.isDirectory()) {
+        templateRoot = candidate;
+        return candidate;
       }
+    } catch {
+      continue;
     }
+  }
 
-    throw new Error("Unable to locate docker/templates directory for sandbox scaffolding.");
-  })();
-
-  return templateRootPromise;
+  throw new Error("Unable to locate docker/templates directory for sandbox scaffolding.");
 }
 
 async function collectTemplateFiles(
@@ -94,18 +91,21 @@ export async function loadTemplateFiles(
   }
 
   const normalizedFramework = templateConfig.templateDir;
-  let templateFilesPromise = templateFileCache.get(normalizedFramework);
+  const cachedTemplateFiles = templateFileCache.get(normalizedFramework);
 
-  if (!templateFilesPromise) {
-    templateFilesPromise = (async () => {
-      const templateRoot = await resolveTemplateRoot();
-      const frameworkTemplateDir = path.join(templateRoot, normalizedFramework);
-      const files = await collectTemplateFiles(frameworkTemplateDir);
-      return Object.freeze({ ...files });
-    })();
-    templateFileCache.set(normalizedFramework, templateFilesPromise);
+  if (cachedTemplateFiles) {
+    return { ...cachedTemplateFiles };
   }
 
-  const files = await templateFilesPromise;
+  const resolvedTemplateRoot = await resolveTemplateRoot();
+  const frameworkTemplateDir = path.join(
+    resolvedTemplateRoot,
+    normalizedFramework,
+  );
+  const files = Object.freeze({
+    ...(await collectTemplateFiles(frameworkTemplateDir)),
+  });
+  templateFileCache.set(normalizedFramework, files);
+
   return { ...files };
 }

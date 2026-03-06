@@ -97,4 +97,44 @@ describe("runUnifiedBuild", () => {
       expect.any(Array),
     );
   });
+
+  it("injects base path config using the inferred framework when no framework is provided", async () => {
+    refs.execCommand.mockImplementation(async (_container, cmd: string[]) => {
+      if (cmd[0] === "node") {
+        return { exitCode: 0, stdout: "22.22.0\n", stderr: "" };
+      }
+
+      if (cmd[0] === "pnpm" && cmd[1] === "run" && cmd[2] === "build") {
+        return { exitCode: 0, stdout: "", stderr: "" };
+      }
+
+      throw new Error(`Unexpected command: ${cmd.join(" ")}`);
+    });
+
+    const { runUnifiedBuild } = await import("../../services/builder.service.js");
+    const result = await runUnifiedBuild("container-1", "sandbox-1", {
+      userId: "user-1",
+      chatId: "chat-1",
+    });
+
+    expect(result.success).toBe(true);
+    expect(refs.injectBasePathConfigs).toHaveBeenCalledWith(
+      "container-1",
+      {
+        userId: "user-1",
+        chatId: "chat-1",
+        framework: "vite-react",
+      },
+      "sandbox-1",
+    );
+    expect(refs.execCommand).toHaveBeenCalledWith(
+      expect.anything(),
+      ["pnpm", "run", "build"],
+      false,
+      expect.any(Number),
+      undefined,
+      "/vercel/sandbox/edward",
+      expect.any(Array),
+    );
+  });
 });

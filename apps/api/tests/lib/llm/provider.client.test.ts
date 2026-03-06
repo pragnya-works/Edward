@@ -257,7 +257,7 @@ describe("provider.client gemini stream resilience", () => {
       return output;
     };
 
-    await expect(collect()).rejects.toThrow();
+    await expect(collect()).rejects.toThrow(/unexpected end|unterminated|expected/i);
   });
 
   it("yields text chunks from Gemini stream", async () => {

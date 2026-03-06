@@ -63,17 +63,30 @@ describe("sandbox lifecycle control", () => {
     expect(refs.pingDocker).toHaveBeenCalledTimes(2);
   });
 
-  it("fails fast when the configured sandbox runtime is unavailable", async () => {
+  it("continues startup and schedules background retries when the runtime is unavailable", async () => {
     refs.pingDocker.mockResolvedValueOnce(false);
+    const intervalToken = {
+      unref: vi.fn(),
+    };
+    const setIntervalSpy = vi
+      .spyOn(globalThis, "setInterval")
+      .mockReturnValue(intervalToken as unknown as NodeJS.Timeout);
+    const clearIntervalSpy = vi
+      .spyOn(globalThis, "clearInterval")
+      .mockImplementation(() => undefined);
 
-    const { initSandboxService } = await import(
+    const { initSandboxService, shutdownSandboxService } = await import(
       "../../../services/sandbox/lifecycle/control.js"
     );
 
-    await expect(initSandboxService()).rejects.toThrow(
-      "Sandbox service is enabled but the configured runtime is unavailable.",
-    );
+    await expect(initSandboxService()).resolves.toBeUndefined();
     expect(refs.cleanupExpiredSandboxContainers).not.toHaveBeenCalled();
+    expect(setIntervalSpy).toHaveBeenCalledTimes(1);
+    expect(refs.logger.error).toHaveBeenCalledTimes(1);
+
+    await shutdownSandboxService();
+    expect(intervalToken.unref).toHaveBeenCalledTimes(1);
+    expect(clearIntervalSpy).toHaveBeenCalledWith(intervalToken);
   });
 
   it("runs one initialization for concurrent calls and registers one cleanup interval", async () => {

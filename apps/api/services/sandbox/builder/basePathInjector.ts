@@ -45,10 +45,13 @@ function parsePackageJsonContent(
   content: string,
   sandboxId: string,
 ): PackageJson | null {
-  const parsed = JSON.parse(content) as {
-    dependencies?: unknown;
-    devDependencies?: unknown;
-  };
+  const raw = JSON.parse(content) as unknown;
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
+    logger.warn({ sandboxId }, "Ignoring malformed package.json content");
+    return null;
+  }
+
+  const parsed = raw as Record<string, unknown>;
 
   if (
     parsed.dependencies !== undefined &&

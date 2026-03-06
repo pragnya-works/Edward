@@ -170,7 +170,16 @@ async function readMetadataLabelsFromSandbox(
       return {};
     }
 
-    const parsed = JSON.parse(content.toString("utf8")) as RuntimeMetadataFile;
+    const parsedRaw = JSON.parse(content.toString("utf8")) as unknown;
+    if (
+      typeof parsedRaw !== "object" ||
+      parsedRaw === null ||
+      !("labels" in parsedRaw)
+    ) {
+      return {};
+    }
+
+    const parsed = parsedRaw as RuntimeMetadataFile;
     if (!parsed.labels || typeof parsed.labels !== "object") {
       return {};
     }
@@ -220,7 +229,7 @@ function createWritableCollector(params: {
   cmd: string[];
   onOverflow: (error: Error) => void;
   bytesRef: { current: number };
-  chunks: string[];
+  chunks: Buffer[];
 }): Writable {
   const { streamName, cmd, onOverflow, bytesRef, chunks } = params;
 
@@ -241,7 +250,7 @@ function createWritableCollector(params: {
         return;
       }
 
-      chunks.push(chunkBuffer.toString());
+      chunks.push(chunkBuffer);
       bytesRef.current += chunkBuffer.length;
       callback();
     },
@@ -299,8 +308,8 @@ async function execVercelCommand(
     throw new Error("Command cannot be empty");
   }
 
-  const stdoutChunks: string[] = [];
-  const stderrChunks: string[] = [];
+  const stdoutChunks: Buffer[] = [];
+  const stderrChunks: Buffer[] = [];
   const stdoutBytes = { current: 0 };
   const stderrBytes = { current: 0 };
   const controller = new AbortController();
@@ -369,8 +378,8 @@ async function execVercelCommand(
 
   const result = {
     exitCode: commandResult?.exitCode ?? 1,
-    stdout: stdoutChunks.join(""),
-    stderr: stderrChunks.join(""),
+    stdout: Buffer.concat(stdoutChunks).toString("utf8"),
+    stderr: Buffer.concat(stderrChunks).toString("utf8"),
   };
 
   if (throwOnError && result.exitCode !== 0) {
@@ -664,10 +673,16 @@ export async function createContainer(
       });
 
   const handle = createHandle(sandbox.sandboxId);
-  await waitForSandboxRunning(handle.id);
-  await setupWorkspace(handle);
-  await setupWorkspaceMetadata(handle, labels);
-  return handle;
+
+  try {
+    await waitForSandboxRunning(handle.id);
+    await setupWorkspace(handle);
+    await setupWorkspaceMetadata(handle, labels);
+    return handle;
+  } catch (error) {
+    await sandbox.stop({ blocking: false }).catch(() => undefined);
+    throw error;
+  }
 }
 
 export async function listContainers(): Promise<SandboxContainerInfo[]> {

@@ -97,5 +97,5 @@ export function getTemplateConfig(
 }
 
 export function getDefaultSnapshotId(): string | undefined {
-  return TEMPLATE_REGISTRY.vanilla!.snapshotId;
+  return TEMPLATE_REGISTRY.vanilla?.snapshotId;
 }

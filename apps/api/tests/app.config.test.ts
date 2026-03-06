@@ -69,4 +69,20 @@ describe("app.config", () => {
       'Invalid sandbox runtime: docker. Expected "vercel" or "disabled".',
     );
   });
+
+  it("fails fast on unsupported Vercel sandbox runtime values", async () => {
+    process.env.VERCEL_SANDBOX_RUNTIME = "node25";
+
+    await expect(loadConfigModule()).rejects.toThrow(
+      "Invalid VERCEL_SANDBOX_RUNTIME: node25. Allowed values: node22, node24.",
+    );
+  });
+
+  it("rejects malformed positive integer values for Vercel sandbox settings", async () => {
+    process.env.VERCEL_SANDBOX_TIMEOUT_MS = "15ms";
+
+    await expect(loadConfigModule()).rejects.toThrow(
+      "Invalid positive integer for VERCEL_SANDBOX_TIMEOUT_MS: 15ms",
+    );
+  });
 });

@@ -82,7 +82,7 @@ vi.mock('../../../../services/sandbox/sandbox-runtime.service.js', () => ({
     connectToNetwork: vi.fn().mockResolvedValue(undefined),
     getContainer: vi.fn(),
     execCommand: vi.fn(),
-    CONTAINER_WORKDIR: '/home/node/edward'
+    CONTAINER_WORKDIR: '/vercel/sandbox/edward'
 }));
 
 vi.mock('../../../../services/sandbox/utils.service.js', () => ({

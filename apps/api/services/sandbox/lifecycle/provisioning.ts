@@ -10,6 +10,7 @@ import {
 } from "../state.service.js";
 import {
   createContainer,
+  destroyContainer,
   getContainer,
   initializeWorkspaceWithFiles,
   listContainers,
@@ -284,6 +285,7 @@ export async function provisionSandbox(
       }
 
       let sandboxId: string | null = null;
+      let containerId: string | null = null;
       try {
         const doubleCheckId = await getActiveSandbox(chatId);
         if (doubleCheckId) {
@@ -299,7 +301,7 @@ export async function provisionSandbox(
         });
 
         const snapshotId = normalizedFramework
-          ? getTemplateConfig(normalizedFramework)?.snapshotId || getDefaultSnapshotId()
+          ? getTemplateConfig(normalizedFramework)?.snapshotId
           : getDefaultSnapshotId();
         const container = await createContainer(
           userId,
@@ -308,6 +310,7 @@ export async function provisionSandbox(
           snapshotId,
           normalizedFramework,
         );
+        containerId = container.id;
 
         await scaffoldTemplateWorkspace({
           containerId: container.id,
@@ -357,6 +360,18 @@ export async function provisionSandbox(
         await releaseDistributedLock(handle);
         return sandboxId;
       } catch (provisionError) {
+        if (containerId) {
+          await destroyContainer(containerId).catch((cleanupError) =>
+            logger.warn(
+              {
+                sandboxId,
+                containerId,
+                error: ensureError(cleanupError),
+              },
+              "Failed to destroy sandbox after provisioning error",
+            ),
+          );
+        }
         if (sandboxId) {
           await transitionSandboxLifecycleState({
             sandboxId,

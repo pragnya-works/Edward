@@ -5,7 +5,7 @@ import { getContainer, execCommand } from '../../../services/sandbox/sandbox-run
 vi.mock('../../../services/sandbox/sandbox-runtime.service.js', () => ({
     getContainer: vi.fn(),
     execCommand: vi.fn(),
-    CONTAINER_WORKDIR: '/home/node/edward'
+    CONTAINER_WORKDIR: '/vercel/sandbox/edward'
 }));
 
 vi.mock('../../../utils/logger.js', () => ({

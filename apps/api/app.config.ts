@@ -85,8 +85,13 @@ function parsePositiveInteger(
     return fallback;
   }
 
-  const parsed = Number.parseInt(value, 10);
-  if (!Number.isFinite(parsed) || parsed <= 0) {
+  const trimmed = value.trim();
+  if (!/^\d+$/.test(trimmed)) {
+    throw new Error(`Invalid positive integer for ${name}: ${value}`);
+  }
+
+  const parsed = Number(trimmed);
+  if (!Number.isInteger(parsed) || parsed <= 0) {
     throw new Error(`Invalid positive integer for ${name}: ${value}`);
   }
 
@@ -298,9 +303,17 @@ function resolveVercelSandboxRuntime(
   value: string | undefined,
 ): VercelSandboxRuntime {
   const normalized = value?.trim().toLowerCase();
-  return normalized && hasOwnKey(VERCEL_RUNTIME_VALUES, normalized)
-    ? normalized
-    : "node22";
+  if (!normalized) {
+    return "node22";
+  }
+
+  if (hasOwnKey(VERCEL_RUNTIME_VALUES, normalized)) {
+    return normalized;
+  }
+
+  throw new Error(
+    `Invalid VERCEL_SANDBOX_RUNTIME: ${value}. Allowed values: ${Object.keys(VERCEL_RUNTIME_VALUES).join(", ")}.`,
+  );
 }
 
 function resolveEnvironment(value: string | undefined): Environment {

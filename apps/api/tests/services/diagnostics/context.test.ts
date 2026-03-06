@@ -13,7 +13,7 @@ const FIXED_TIMESTAMP = 4_102_444_800_000;
 vi.mock("../../../services/sandbox/sandbox-runtime.service.js", () => ({
   getContainer: mocks.getContainer,
   execCommand: mocks.execCommand,
-  CONTAINER_WORKDIR: "/workspace",
+  CONTAINER_WORKDIR: "/vercel/sandbox/edward",
 }));
 
 vi.mock("../../../utils/logger.js", () => ({

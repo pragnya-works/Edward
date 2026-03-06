@@ -46,34 +46,41 @@ function isStringRecord(value: unknown): value is Record<string, string> {
 }
 
 function parsePackageJsonContent(content: string): ParsedPackageJson | null {
-  const parsed = JSON.parse(content) as {
-    scripts?: unknown;
-    dependencies?: unknown;
-    devDependencies?: unknown;
-  };
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(content) as unknown;
+  } catch {
+    return null;
+  }
 
-  if (parsed.scripts !== undefined && !isStringRecord(parsed.scripts)) {
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+    return null;
+  }
+
+  const safeParsed = parsed as Record<string, unknown>;
+
+  if (safeParsed.scripts !== undefined && !isStringRecord(safeParsed.scripts)) {
     return null;
   }
 
   if (
-    parsed.dependencies !== undefined &&
-    !isStringRecord(parsed.dependencies)
+    safeParsed.dependencies !== undefined &&
+    !isStringRecord(safeParsed.dependencies)
   ) {
     return null;
   }
 
   if (
-    parsed.devDependencies !== undefined &&
-    !isStringRecord(parsed.devDependencies)
+    safeParsed.devDependencies !== undefined &&
+    !isStringRecord(safeParsed.devDependencies)
   ) {
     return null;
   }
 
   return {
-    scripts: parsed.scripts,
-    dependencies: parsed.dependencies,
-    devDependencies: parsed.devDependencies,
+    scripts: safeParsed.scripts,
+    dependencies: safeParsed.dependencies,
+    devDependencies: safeParsed.devDependencies,
   };
 }
 
@@ -191,19 +198,6 @@ export async function runUnifiedBuild(
   const requestedFramework = normalizeRequestedFramework(options?.framework);
 
   try {
-    if (options?.userId && options?.chatId) {
-      const framework = requestedFramework ?? "vanilla";
-      await injectBasePathConfigs(
-        containerId,
-        {
-          userId: options.userId,
-          chatId: options.chatId,
-          framework,
-        },
-        sandboxId,
-      );
-    }
-
     const basePath =
       options?.userId && options?.chatId
         ? calculateBasePath(options.userId, options.chatId)
@@ -246,6 +240,19 @@ export async function runUnifiedBuild(
 
     const framework: Framework =
       requestedFramework ?? inferFrameworkFromPackageJson(pkg);
+
+    if (options?.userId && options?.chatId) {
+      await injectBasePathConfigs(
+        containerId,
+        {
+          userId: options.userId,
+          chatId: options.chatId,
+          framework,
+        },
+        sandboxId,
+      );
+    }
+
     const compatibility = evaluateFrameworkToolchainCompatibility({
       framework,
       nodeVersion,
