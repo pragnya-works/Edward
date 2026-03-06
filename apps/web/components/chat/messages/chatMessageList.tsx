@@ -94,9 +94,11 @@ export const ChatMessageList = memo(function ChatMessageList() {
           message.id === stream.meta?.assistantMessageId,
       ),
   );
+  const hasActiveRecoverableStreamError =
+    stream.isStreaming && stream.error?.severity === "recoverable";
   const shouldSuppressStreamError =
-    hasPersistedAssistantMessageForStream &&
-    stream.error?.severity === "recoverable";
+    stream.error?.severity === "recoverable" &&
+    (hasPersistedAssistantMessageForStream || hasActiveRecoverableStreamError);
   const showStreamError =
     Boolean(stream.error) && !shouldSuppressStreamError;
 

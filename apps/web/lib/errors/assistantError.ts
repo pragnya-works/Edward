@@ -289,6 +289,23 @@ export function mapStreamErrorToViewModel(
     };
   }
 
+  if (error.severity === "recoverable") {
+    const normalizedMessage = normalizeWhitespace(error.message);
+    return {
+      code: error.code || "stream_warning",
+      title:
+        error.code === "stream_retry"
+          ? "Retrying generation"
+          : "Generation warning",
+      message:
+        normalizedMessage ||
+        "A recoverable issue occurred while generation continued.",
+      severity: "caution",
+      cta: { type: "retry_generation", label: "Try again" },
+      rawMessage: normalizedMessage,
+    };
+  }
+
   return buildFallbackError(error.message, error.code);
 }
 

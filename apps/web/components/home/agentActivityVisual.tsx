@@ -96,18 +96,18 @@ const ToolCallUI = memo(({ call }: { call: ToolCall }) => {
                 damping: 30,
                 mass: 0.8
             }}
-            className="flex items-center gap-3 px-3 py-1.5 rounded-xl bg-white/[0.04] border border-white/5 my-1 backdrop-blur-sm"
+            className="flex min-w-0 items-center gap-2.5 rounded-xl border border-white/5 bg-white/[0.04] px-2.5 py-1.5 my-1 backdrop-blur-sm sm:gap-3 sm:px-3"
         >
-            <div className="p-1 rounded-md bg-primary/10">
-                <Icon className="w-3 h-3 text-primary/70" />
+            <div className="shrink-0 rounded-md bg-primary/10 p-1">
+                <Icon className="h-3 w-3 text-primary/70" />
             </div>
 
             <HighlightedText text={call.context} />
 
             {call.status === ToolCallStatus.RUNNING ? (
-                <LoaderIcon className="w-2.5 h-2.5 text-primary/30 animate-spin" />
+                <LoaderIcon className="h-2.5 w-2.5 shrink-0 text-primary/30 animate-spin" />
             ) : (
-                <CheckCircle2 className="w-2.5 h-2.5 text-emerald-500/60" />
+                <CheckCircle2 className="h-2.5 w-2.5 shrink-0 text-emerald-500/60" />
             )}
         </m.div>
     );
@@ -164,8 +164,8 @@ export const AgentActivityVisual = memo(() => {
     if (!data) return null;
 
     return (
-        <div className="absolute inset-0 bg-[#0a0a0a] select-none p-4 pt-8 overflow-hidden flex flex-col">
-            <div className="flex-1 flex flex-col space-y-4 max-w-sm mx-auto w-full relative transition-all duration-700 group-hover:scale-[1.02]">
+        <div className="absolute inset-0 flex select-none flex-col overflow-hidden bg-[#0a0a0a] p-3 pt-5 sm:p-4 sm:pt-8">
+            <div className="relative mx-auto flex w-full max-w-[min(100%,18rem)] flex-1 flex-col space-y-3 transition-all duration-700 group-hover:scale-[1.02] sm:max-w-sm sm:space-y-4">
                 <AnimatePresence mode="popLayout" initial={false}>
                     {step >= 1 && (
                         <m.div
@@ -180,12 +180,12 @@ export const AgentActivityVisual = memo(() => {
                                 damping: 25,
                                 mass: 0.8
                             }}
-                            className="flex flex-row-reverse items-start gap-2.5 self-end"
+                            className="flex max-w-full flex-row-reverse items-start gap-2 self-end sm:gap-2.5"
                         >
-                            <div className="w-7 h-7 rounded-full bg-white/5 border border-white/10 flex items-center justify-center shrink-0">
-                                <User className="w-4 h-4 text-foreground/40" />
+                            <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/5 sm:h-7 sm:w-7">
+                                <User className="h-3.5 w-3.5 text-foreground/40 sm:h-4 sm:w-4" />
                             </div>
-                            <div className="relative bg-[#1c1c1e] border border-white/5 rounded-[20px] p-3.5 mt-1.5 text-[13px] text-foreground/90 leading-snug shadow-lg max-w-[85%]">
+                            <div className="relative mt-1 max-w-[calc(100%-2rem)] rounded-[18px] border border-white/5 bg-[#1c1c1e] p-3 text-[12px] leading-snug text-foreground/90 shadow-lg break-words sm:mt-1.5 sm:max-w-[85%] sm:rounded-[20px] sm:p-3.5 sm:text-[13px]">
                                 {data.user}
                             </div>
                         </m.div>
@@ -205,15 +205,19 @@ export const AgentActivityVisual = memo(() => {
                                 mass: 1,
                                 delay: 0.1
                             }}
-                            className="flex items-start gap-2.5 w-full"
+                            className="flex w-full min-w-0 items-start gap-2 sm:gap-2.5"
                         >
-                            <EdwardLogo size={30} className="rounded-full border border-white/20 ring-1 ring-white/5" />
-                            <div className="flex-1 space-y-2.5">
+                            <EdwardLogo
+                                size={28}
+                                className="h-7 w-7 shrink-0 rounded-full border border-white/20 ring-1 ring-white/5 sm:h-[30px] sm:w-[30px]"
+                                sizes="(max-width: 640px) 28px, 30px"
+                            />
+                            <div className="min-w-0 flex-1 space-y-2">
                                 {step === 1.5 && (
                                     <m.div
                                         initial={{ opacity: 0, scale: 0.8 }}
                                         animate={{ opacity: 1, scale: 1 }}
-                                        className="bg-[#1c1c1e] border border-white/5 rounded-[20px] px-4 py-2.5 w-16"
+                                        className="w-14 rounded-[18px] border border-white/5 bg-[#1c1c1e] px-3 py-2 sm:w-16 sm:rounded-[20px] sm:px-4 sm:py-2.5"
                                     >
                                         <div className="flex gap-1 justify-center">
                                             {TYPING_DOT_DELAYS.map((delay) => (
@@ -228,7 +232,7 @@ export const AgentActivityVisual = memo(() => {
                                     </m.div>
                                 )}
 
-                                <div className="space-y-1.5">
+                                <div className="space-y-1">
                                     {data.tools.map((tool, idx) => (
                                         step >= 2 + idx && (
                                             <ToolCallUI key={tool.id} call={tool} />
@@ -246,7 +250,7 @@ export const AgentActivityVisual = memo(() => {
                                             stiffness: 400,
                                             damping: 30
                                         }}
-                                        className="relative bg-primary/10 border border-primary/20 rounded-[20px] p-4 text-[13px] text-foreground/90 leading-relaxed shadow-lg backdrop-blur-md"
+                                        className="relative rounded-[18px] border border-primary/20 bg-primary/10 p-3 text-[12px] leading-relaxed text-foreground/90 shadow-lg backdrop-blur-md break-words sm:rounded-[20px] sm:p-4 sm:text-[13px]"
                                     >
                                         {data.assistant}
                                     </m.div>

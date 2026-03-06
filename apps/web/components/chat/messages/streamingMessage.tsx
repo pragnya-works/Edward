@@ -87,9 +87,11 @@ export const StreamingMessage = memo(function StreamingMessage() {
         message.role === ChatRole.ASSISTANT && message.id === assistantMessageId,
     );
   }, [messages, stream.meta?.assistantMessageId]);
+  const hasActiveRecoverableStreamError =
+    stream.isStreaming && stream.error?.severity === "recoverable";
   const shouldSuppressStreamError =
-    hasPersistedAssistantMessageForStream &&
-    stream.error?.severity === "recoverable";
+    stream.error?.severity === "recoverable" &&
+    (hasPersistedAssistantMessageForStream || hasActiveRecoverableStreamError);
 
   const hasAnyContent = useMemo(
     () =>

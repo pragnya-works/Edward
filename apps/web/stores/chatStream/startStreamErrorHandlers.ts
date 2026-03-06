@@ -4,6 +4,7 @@ import type {
 import type {
   ChatMessage,
 } from "@edward/shared/chat/types";
+import { dedupeMessagesById } from "@/lib/chatHistory/dedupeMessages";
 import {
   StreamActionType,
 } from "@edward/shared/chat/streamActions";
@@ -33,7 +34,9 @@ function rollbackOptimisticUserMessage(
   queryClient.setQueryData<ChatMessage[]>(
     queryKeys.chatHistory.byChatId(chatId),
     (oldMessages = []) =>
-      oldMessages.filter((msg) => msg.id !== optimisticUserMessageId),
+      dedupeMessagesById(
+        oldMessages.filter((msg) => msg.id !== optimisticUserMessageId),
+      ),
   );
 }
 
@@ -45,13 +48,21 @@ function restoreRemovedAssistantSnapshot(
   queryClient.setQueryData<ChatMessage[]>(
     queryKeys.chatHistory.byChatId(chatId),
     (oldMessages = []) => {
+      if (
+        oldMessages.some(
+          (message) => message.id === removedAssistantSnapshot.message.id,
+        )
+      ) {
+        return dedupeMessagesById(oldMessages);
+      }
+
       const next = [...oldMessages];
       next.splice(
         removedAssistantSnapshot.index,
         0,
         removedAssistantSnapshot.message,
       );
-      return next;
+      return dedupeMessagesById(next);
     },
   );
 }

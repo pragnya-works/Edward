@@ -18,7 +18,7 @@ interface IssueCardProps {
   onToggle?: (id: string) => void;
 }
 
-const DATE_COLUMN_WIDTH_PX = 72;
+const DATE_COLUMN_WIDTH_PX = 56;
 
 export const IssueCard = memo(IssueCardComponent);
 IssueCard.displayName = "IssueCard";
@@ -96,8 +96,11 @@ function IssueCardComponent({ issue, index = 0, isExpanded: controlledExpanded, 
         )}
         data-has-desc={hasDescription}
       >
-        <div className="flex items-start sm:items-center gap-3 sm:gap-5">
-          <div className="text-right min-w-[52px] shrink-0 mt-0.5 sm:mt-0">
+        <div className="flex items-start sm:items-center gap-3 sm:gap-3.5">
+          <div
+            className="text-right shrink-0 mt-0.5 sm:mt-0"
+            style={{ width: `${DATE_COLUMN_WIDTH_PX}px` }}
+          >
             <time
               dateTime={dateToUse.toISOString()}
               className="text-[12px] font-medium text-slate-400 dark:text-slate-500 tabular-nums tracking-wide"
@@ -173,7 +176,7 @@ function IssueCardComponent({ issue, index = 0, isExpanded: controlledExpanded, 
           >
             <div
               style={descriptionOffsetStyle}
-              className="pb-5 pt-1 px-4 sm:px-5 ml-0 sm:ml-[var(--issue-date-col-width)] mt-1 text-slate-600 dark:text-slate-300 prose prose-sm dark:prose-invert max-w-none overflow-x-hidden break-words"
+              className="pb-5 pt-1 px-4 sm:px-5 ml-0 sm:ml-[calc(var(--issue-date-col-width)+0.875rem)] mt-1 text-slate-600 dark:text-slate-300 prose prose-sm dark:prose-invert max-w-none overflow-x-hidden break-words"
             >
               <MarkdownRenderer
                 content={issue.description ?? ""}
@@ -195,8 +198,11 @@ export function IssueCardSkeleton({ index = 0 }: { index?: number }) {
       transition={{ duration: 0.2, delay: index * 0.03 }}
       className="py-4 px-3 border-b border-border/40 last:border-b-0"
     >
-      <div className="flex items-center gap-4">
-        <div className="min-w-[48px] text-right shrink-0">
+      <div className="flex items-center gap-3.5">
+        <div
+          className="text-right shrink-0"
+          style={{ width: `${DATE_COLUMN_WIDTH_PX}px` }}
+        >
           <Skeleton className="h-3 w-10 ml-auto" />
         </div>
         <div className="flex-1 min-w-0">

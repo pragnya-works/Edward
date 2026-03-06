@@ -49,4 +49,37 @@ describe("sandbox runtime execCommand", () => {
     expect(result.stdout).toBe('{"name":"demo"}');
     expect(result.stderr).toBe("");
   });
+
+  it("appends file content without re-reading the existing file", async () => {
+    refs.runCommand.mockResolvedValue({ exitCode: 0 });
+
+    const { appendFileContent, getContainer } = await import(
+      "../../../services/sandbox/sandbox-runtime.service.js"
+    );
+
+    await appendFileContent(
+      getContainer("sandbox-1"),
+      "src/app/page.tsx",
+      "export default function Page() {}",
+    );
+
+    expect(refs.runCommand).toHaveBeenCalledTimes(2);
+    expect(refs.runCommand).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        cmd: "mkdir",
+        args: ["-p", "/vercel/sandbox/edward/src/app"],
+      }),
+    );
+    expect(refs.runCommand).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        cmd: "sh",
+        args: [
+          "-lc",
+          expect.stringContaining("base64 -d >> '/vercel/sandbox/edward/src/app/page.tsx'"),
+        ],
+      }),
+    );
+  });
 });

@@ -15,6 +15,7 @@ import type {
 import {
   queryKeys,
 } from "@/lib/queryKeys";
+import { dedupeMessagesById } from "@/lib/chatHistory/dedupeMessages";
 import {
   buildOptimisticUserMessage,
 } from "@/stores/chatStream/streamMessageUtils";
@@ -77,7 +78,9 @@ function removeAssistantForRetry(
   queryClient.setQueryData<ChatMessage[]>(
     queryKeys.chatHistory.byChatId(chatId),
     (old = []) =>
-      old.filter((message) => message.id !== targetAssistantMessageId),
+      dedupeMessagesById(
+        old.filter((message) => message.id !== targetAssistantMessageId),
+      ),
   );
 
   return {
@@ -97,13 +100,13 @@ function setOptimisticUserMessage(
     queryKeys.chatHistory.byChatId(chatId),
     (oldMessages = []) => {
       if (oldMessages.some((message) => message.id === optimisticId)) {
-        return oldMessages;
+        return dedupeMessagesById(oldMessages);
       }
 
-      return [
+      return dedupeMessagesById([
         ...oldMessages,
         buildOptimisticUserMessage(chatId, content, optimisticId),
-      ];
+      ]);
     },
   );
 

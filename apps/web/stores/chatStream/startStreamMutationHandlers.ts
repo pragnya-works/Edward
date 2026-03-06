@@ -13,6 +13,7 @@ import {
   postChatMessageStream,
   type SendMessageRequest,
 } from "@/lib/api/chat";
+import { dedupeMessagesById } from "@/lib/chatHistory/dedupeMessages";
 import {
   queryKeys,
 } from "@/lib/queryKeys";
@@ -66,13 +67,13 @@ function setResolvedUserMessage({
       );
 
       if (hasRealUserMessage) {
-        return withoutOptimistic;
+        return dedupeMessagesById(withoutOptimistic);
       }
 
-      return [
+      return dedupeMessagesById([
         ...withoutOptimistic,
         buildOptimisticUserMessage(chatId, content, userMessageId),
-      ];
+      ]);
     },
   );
 }
@@ -97,16 +98,16 @@ function insertAssistantMessage({
     (oldMessages = []) => {
       const exists = oldMessages.some((msg) => msg.id === optimisticMessage.id);
       if (exists) {
-        return oldMessages;
+        return dedupeMessagesById(oldMessages);
       }
 
       if (retryInsertIndex !== undefined) {
         const next = [...oldMessages];
         next.splice(retryInsertIndex, 0, optimisticMessage);
-        return next;
+        return dedupeMessagesById(next);
       }
 
-      return [...oldMessages, optimisticMessage];
+      return dedupeMessagesById([...oldMessages, optimisticMessage]);
     },
   );
 }

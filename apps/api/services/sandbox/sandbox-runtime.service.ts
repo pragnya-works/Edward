@@ -130,6 +130,10 @@ function resolveSandboxFilePath(
     : path.posix.join(workingDir, normalizeRelativePath(filePath));
 }
 
+function escapeShellSingleQuoted(value: string): string {
+  return value.replaceAll("'", "'\"'\"'");
+}
+
 async function getSandbox(handleId: string): Promise<Sandbox> {
   const credentials = getVercelCredentials();
   return Sandbox.get({
@@ -473,10 +477,11 @@ async function appendBufferToSandboxFile(
   }
 
   const encoded = buffer.toString("base64");
+  const escapedFilePath = escapeShellSingleQuoted(filePath);
   await execVercelCommand(handle, [
     "sh",
     "-lc",
-    `printf '%s' '${encoded}' | base64 -d >> '${filePath}'`,
+    `printf '%s' '${encoded}' | base64 -d >> '${escapedFilePath}'`,
   ]);
 }
 
@@ -533,24 +538,12 @@ async function appendVercelFile(
   content: string,
 ): Promise<void> {
   const resolvedPath = resolveRuntimePath(filePath);
-  const sandbox = await getSandbox(handle.id);
   await execVercelCommand(
     handle,
     ["mkdir", "-p", path.posix.dirname(resolvedPath)],
     false,
   );
-
-  const existing = await sandbox.readFileToBuffer({ path: resolvedPath });
-  const updated = existing
-    ? Buffer.concat([existing, Buffer.from(content, "utf8")])
-    : Buffer.from(content, "utf8");
-
-  await sandbox.writeFiles([
-    {
-      path: resolvedPath,
-      content: updated,
-    },
-  ]);
+  await appendBufferToSandboxFile(handle, resolvedPath, Buffer.from(content, "utf8"));
 }
 
 async function pingVercelRuntime(): Promise<boolean> {

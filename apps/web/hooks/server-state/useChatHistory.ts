@@ -3,6 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { fetchApi } from "@/lib/api/httpClient";
 import type { ChatHistoryResponse, ChatMessage } from "@edward/shared/chat/types";
+import { dedupeMessagesById } from "@/lib/chatHistory/dedupeMessages";
 import { queryKeys } from "@/lib/queryKeys";
 
 export function useChatHistory(chatId: string | undefined) {
@@ -15,7 +16,7 @@ export function useChatHistory(chatId: string | undefined) {
                 `/chat/${chatId}/history`,
             );
 
-            return response.data.messages;
+            return dedupeMessagesById(response.data.messages);
         },
         enabled: !!chatId,
         staleTime: 30_000,
@@ -23,7 +24,7 @@ export function useChatHistory(chatId: string | undefined) {
     });
 
     return {
-        messages: data ?? [],
+        messages: dedupeMessagesById(data ?? []),
         isLoading,
         error: error as Error | null,
         refetch,
