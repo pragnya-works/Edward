@@ -10,6 +10,8 @@ async function loadConfigModule() {
 describe("app.config", () => {
   beforeEach(() => {
     process.env = { ...ORIGINAL_ENV };
+    process.env.SANDBOX_RUNTIME = "disabled";
+    process.env.SANDBOX_RUNTIME_REQUIRED = "false";
   });
 
   afterEach(() => {
@@ -60,5 +62,100 @@ describe("app.config", () => {
     expect(config.cors.origins).toEqual(["https://edward-app.vercel.app"]);
     expect(config.sandbox.runtime).toBe("disabled");
     expect(config.sandbox.required).toBe(false);
+  });
+
+  it("fails fast on unsupported sandbox runtime values", async () => {
+    process.env.SANDBOX_RUNTIME = "docker";
+
+    await expect(loadConfigModule()).rejects.toThrow(
+      'Invalid sandbox runtime: docker. Expected "vercel" or "disabled".',
+    );
+  });
+
+  it("fails fast on unsupported Vercel sandbox runtime values", async () => {
+    process.env.VERCEL_SANDBOX_RUNTIME = "node25";
+
+    await expect(loadConfigModule()).rejects.toThrow(
+      "Invalid VERCEL_SANDBOX_RUNTIME: node25. Allowed values: node22, node24.",
+    );
+  });
+
+  it("rejects malformed positive integer values for Vercel sandbox settings", async () => {
+    process.env.VERCEL_SANDBOX_TIMEOUT_MS = "15ms";
+
+    await expect(loadConfigModule()).rejects.toThrow(
+      "Invalid positive integer for VERCEL_SANDBOX_TIMEOUT_MS: 15ms",
+    );
+  });
+
+  it("rejects malformed Vercel sandbox vcpu values", async () => {
+    process.env.VERCEL_SANDBOX_VCPUS = "abc";
+
+    await expect(loadConfigModule()).rejects.toThrow(
+      "Invalid positive integer for VERCEL_SANDBOX_VCPUS: abc",
+    );
+  });
+
+  it("rejects zero Vercel sandbox vcpu values", async () => {
+    process.env.VERCEL_SANDBOX_VCPUS = "0";
+
+    await expect(loadConfigModule()).rejects.toThrow(
+      "Invalid positive integer for VERCEL_SANDBOX_VCPUS: 0",
+    );
+  });
+
+  it("rejects unsupported NODE_ENV values instead of defaulting silently", async () => {
+    process.env.NODE_ENV = "productionish";
+
+    await expect(loadConfigModule()).rejects.toThrow(
+      "Invalid NODE_ENV: productionish. Allowed values: development, production, test.",
+    );
+  });
+
+  it("rejects blank NODE_ENV values instead of defaulting silently", async () => {
+    process.env.NODE_ENV = "   ";
+
+    await expect(loadConfigModule()).rejects.toThrow(
+      /Invalid NODE_ENV: .*Allowed values: development, production, test\./,
+    );
+  });
+
+  it("requires Vercel sandbox credentials when the runtime is required", async () => {
+    delete process.env.SANDBOX_RUNTIME;
+    delete process.env.SANDBOX_RUNTIME_MODE;
+    delete process.env.SANDBOX_RUNTIME_REQUIRED;
+    delete process.env.VERCEL_TOKEN;
+    delete process.env.VERCEL_TEAM_ID;
+    delete process.env.VERCEL_PROJECT_ID;
+
+    await expect(loadConfigModule()).rejects.toThrow(
+      "Missing required environment variable: VERCEL_TOKEN",
+    );
+  });
+
+  it("identifies a missing Vercel team id when sandbox runtime is required", async () => {
+    delete process.env.SANDBOX_RUNTIME;
+    delete process.env.SANDBOX_RUNTIME_MODE;
+    delete process.env.SANDBOX_RUNTIME_REQUIRED;
+    process.env.VERCEL_TOKEN = "token";
+    delete process.env.VERCEL_TEAM_ID;
+    process.env.VERCEL_PROJECT_ID = "project";
+
+    await expect(loadConfigModule()).rejects.toThrow(
+      "Missing required environment variable: VERCEL_TEAM_ID",
+    );
+  });
+
+  it("identifies a missing Vercel project id when sandbox runtime is required", async () => {
+    delete process.env.SANDBOX_RUNTIME;
+    delete process.env.SANDBOX_RUNTIME_MODE;
+    delete process.env.SANDBOX_RUNTIME_REQUIRED;
+    process.env.VERCEL_TOKEN = "token";
+    process.env.VERCEL_TEAM_ID = "team";
+    delete process.env.VERCEL_PROJECT_ID;
+
+    await expect(loadConfigModule()).rejects.toThrow(
+      "Missing required environment variable: VERCEL_PROJECT_ID",
+    );
   });
 });

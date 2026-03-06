@@ -1,4 +1,4 @@
-import { CONTAINER_WORKDIR, getContainer, readArchive } from "./docker.service.js";
+import { CONTAINER_WORKDIR, getContainer, readArchive } from "./sandbox-runtime.service.js";
 import { SandboxInstance } from "./types.service.js";
 import { uploadFile } from "../storage.service.js";
 import { logger } from "../../utils/logger.js";

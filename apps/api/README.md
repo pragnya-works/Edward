@@ -62,4 +62,4 @@ pnpm --filter api quality:gates
 - Architecture boundary, duplication, and function-length checks are required quality gates.
 - `EDWARD_API_PORT` now falls back to `PORT`, and `REDIS_URL` supports authenticated `rediss://` providers such as Upstash.
 - Storage config accepts `AWS_BUCKET_NAME`, `SANDBOX_S3_BUCKET`, or `S3_BUCKET`, with optional `S3_ENDPOINT` / `S3_PUBLIC_BASE_URL` for S3-compatible deploys.
-- `SANDBOX_RUNTIME` supports `docker`, `fly`, and `disabled`. Use `fly` with `FLY_API_TOKEN` / `FLY_APP_NAME` for production sandbox execution, or `disabled` with `SANDBOX_RUNTIME_REQUIRED=false` when you only need the API to boot without a sandbox runtime.
+- `SANDBOX_RUNTIME` supports `vercel` and `disabled`. Use `VERCEL_TOKEN`, `VERCEL_TEAM_ID`, and `VERCEL_PROJECT_ID` for Vercel Sandbox-backed execution, or `disabled` with `SANDBOX_RUNTIME_REQUIRED=false` when you only need the API to boot without a sandbox runtime.

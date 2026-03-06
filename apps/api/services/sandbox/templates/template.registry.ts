@@ -1,17 +1,17 @@
 import { config } from "../../../app.config.js";
 
 export interface TemplateConfig {
-  image: string;
+  snapshotId?: string;
   templateDir: string;
   outputDir: string;
   protectedFiles: string[];
 }
 
-const REGISTRY_BASE = config.docker.registryBase;
+const SNAPSHOTS = config.vercel.snapshots;
 
 export const TEMPLATE_REGISTRY: Record<string, TemplateConfig> = {
   nextjs: {
-    image: `${REGISTRY_BASE}/nextjs-sandbox:latest`,
+    snapshotId: SNAPSHOTS.nextjs,
     templateDir: "nextjs",
     outputDir: "out",
     protectedFiles: [
@@ -32,7 +32,7 @@ export const TEMPLATE_REGISTRY: Record<string, TemplateConfig> = {
     ],
   },
   "vite-react": {
-    image: `${REGISTRY_BASE}/vite-react-sandbox:latest`,
+    snapshotId: SNAPSHOTS.viteReact,
     templateDir: "vite-react",
     outputDir: "dist",
     protectedFiles: [
@@ -48,7 +48,7 @@ export const TEMPLATE_REGISTRY: Record<string, TemplateConfig> = {
     ],
   },
   vanilla: {
-    image: `${REGISTRY_BASE}/vanilla-sandbox:latest`,
+    snapshotId: SNAPSHOTS.vanilla,
     templateDir: "vanilla",
     outputDir: ".",
     protectedFiles: [],
@@ -96,6 +96,6 @@ export function getTemplateConfig(
   return normalized ? TEMPLATE_REGISTRY[normalized] : undefined;
 }
 
-export function getDefaultImage(): string {
-  return TEMPLATE_REGISTRY.vanilla!.image;
+export function getDefaultSnapshotId(): string | undefined {
+  return TEMPLATE_REGISTRY.vanilla?.snapshotId;
 }

@@ -1,12 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { executeSandboxCommand } from "../../../services/sandbox/command.service.js";
 import * as stateSandbox from "../../../services/sandbox/state.service.js";
-import * as dockerSandbox from "../../../services/sandbox/docker.service.js";
+import * as dockerSandbox from "../../../services/sandbox/sandbox-runtime.service.js";
+import { CONTAINER_WORKDIR } from "../../../services/sandbox/sandbox-runtime.service.js";
 
 import type { SandboxInstance } from "../../../services/sandbox/types.service.js";
 
 vi.mock("../../../services/sandbox/state.service.js");
-vi.mock("../../../services/sandbox/docker.service.js");
+vi.mock("../../../services/sandbox/sandbox-runtime.service.js");
 vi.mock("../../../utils/logger.js", () => {
   const mockedLogger = {
     info: vi.fn(),
@@ -15,6 +16,11 @@ vi.mock("../../../utils/logger.js", () => {
   };
 
   return {
+    Environment: {
+      Development: "development",
+      Production: "production",
+      Test: "test",
+    },
     logger: mockedLogger,
     createLogger: vi.fn(() => mockedLogger),
   };
@@ -106,7 +112,7 @@ describe("executeSandboxCommand", () => {
     ).rejects.toThrow(/Path outside allowed directory/);
   });
 
-  it("should allow paths within home/node", async () => {
+  it("should allow paths within the sandbox workdir", async () => {
     vi.mocked(dockerSandbox.execCommand).mockResolvedValue({
       exitCode: 0,
       stdout: "",
@@ -116,7 +122,7 @@ describe("executeSandboxCommand", () => {
     await expect(
       executeSandboxCommand(sandboxId, {
         command: "ls",
-        args: ["/home/node/edward"],
+        args: [CONTAINER_WORKDIR],
       }),
     ).resolves.toBeDefined();
   });

@@ -1,7 +1,7 @@
 import tar from 'tar-stream';
 import zlib from 'zlib';
 import { Readable } from 'stream';
-import { CONTAINER_WORKDIR, readArchive, type SandboxHandle } from '../docker.service.js';
+import { CONTAINER_WORKDIR, readArchive, type SandboxHandle } from '../sandbox-runtime.service.js';
 
 interface BackupArchive {
   uploadStream: Readable;

@@ -2,7 +2,8 @@ import {
   getContainer,
   execCommand,
   CONTAINER_WORKDIR,
-} from "../docker.service.js";
+  readFileContent,
+} from "../sandbox-runtime.service.js";
 import { logger } from "../../../utils/logger.js";
 import { sanitizePathComponent } from "../../storage/key.utils.js";
 import { Framework } from "../../planning/schemas.js";
@@ -30,6 +31,49 @@ interface PackageJson {
 type TailwindVersion = "v4" | "v3" | "none";
 
 const DEFAULT_DEPLOYMENT_TYPE: DeploymentType = DEPLOYMENT_TYPES.PATH;
+
+function isStringRecord(value: unknown): value is Record<string, string> {
+  return Boolean(
+    value &&
+      typeof value === "object" &&
+      !Array.isArray(value) &&
+      Object.values(value).every((entry) => typeof entry === "string"),
+  );
+}
+
+function parsePackageJsonContent(
+  content: string,
+  sandboxId: string,
+): PackageJson | null {
+  const raw = JSON.parse(content) as unknown;
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
+    logger.warn({ sandboxId }, "Ignoring malformed package.json content");
+    return null;
+  }
+
+  const parsed = raw as Record<string, unknown>;
+
+  if (
+    parsed.dependencies !== undefined &&
+    !isStringRecord(parsed.dependencies)
+  ) {
+    logger.warn({ sandboxId }, "Ignoring malformed package.json dependencies");
+    return null;
+  }
+
+  if (
+    parsed.devDependencies !== undefined &&
+    !isStringRecord(parsed.devDependencies)
+  ) {
+    logger.warn({ sandboxId }, "Ignoring malformed package.json devDependencies");
+    return null;
+  }
+
+  return {
+    dependencies: parsed.dependencies,
+    devDependencies: parsed.devDependencies,
+  };
+}
 
 export function detectDeploymentType(config: BasePathConfig): DeploymentType {
   if (config.deploymentType) {
@@ -184,21 +228,18 @@ async function readPackageJson(
   const container = getContainer(containerId);
 
   try {
-    const result = await execCommand(
+    const content = await readFileContent(
       container,
-      ["cat", "package.json"],
-      false,
-      5000,
-      undefined,
+      "package.json",
       CONTAINER_WORKDIR,
     );
 
-    if (result.exitCode !== 0) {
+    if (!content) {
       logger.debug({ sandboxId }, "No package.json found");
       return null;
     }
 
-    return JSON.parse(result.stdout) as PackageJson;
+    return parsePackageJsonContent(content, sandboxId);
   } catch (error) {
     logger.warn({ sandboxId, error }, "Failed to read or parse package.json");
     return null;

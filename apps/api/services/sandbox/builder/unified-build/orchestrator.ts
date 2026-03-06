@@ -1,4 +1,4 @@
-import { connectToNetwork, getContainer, execCommand, CONTAINER_WORKDIR } from "../../docker.service.js";
+import { connectToNetwork, getContainer, execCommand, CONTAINER_WORKDIR } from "../../sandbox-runtime.service.js";
 import { getSandboxState, saveSandboxState } from "../../state.service.js";
 import { logger } from "../../../../utils/logger.js";
 import { ensureError } from "../../../../utils/error.js";

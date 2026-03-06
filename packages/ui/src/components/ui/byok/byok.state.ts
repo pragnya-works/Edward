@@ -1,6 +1,6 @@
 import type { Provider } from "@edward/shared/constants";
 
-export interface BYOKState {
+interface BYOKState {
   apiKey: string;
   selectedProvider: Provider;
   selectedModel?: string;
@@ -10,7 +10,7 @@ export interface BYOKState {
   showSuccess: boolean;
 }
 
-export type BYOKAction =
+type BYOKAction =
   | { type: "set-api-key"; payload: string }
   | { type: "set-provider"; payload: Provider }
   | { type: "set-model"; payload?: string }

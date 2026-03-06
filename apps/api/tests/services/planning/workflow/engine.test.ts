@@ -78,11 +78,11 @@ vi.mock('../../../../services/sandbox/templates/dependency.merger.js', () => ({
     mergeAndInstallDependencies: vi.fn().mockResolvedValue({ success: true, warnings: [] })
 }));
 
-vi.mock('../../../../services/sandbox/docker.service.js', () => ({
+vi.mock('../../../../services/sandbox/sandbox-runtime.service.js', () => ({
     connectToNetwork: vi.fn().mockResolvedValue(undefined),
     getContainer: vi.fn(),
     execCommand: vi.fn(),
-    CONTAINER_WORKDIR: '/home/node/edward'
+    CONTAINER_WORKDIR: '/vercel/sandbox/edward'
 }));
 
 vi.mock('../../../../services/sandbox/utils.service.js', () => ({

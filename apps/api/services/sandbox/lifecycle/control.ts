@@ -1,6 +1,6 @@
 import { cleanupExpiredSandboxContainers } from "./cleanup.js";
 import { CLEANUP_INTERVAL_MS } from "./state.js";
-import { pingDocker } from "../docker.service.js";
+import { pingDocker } from "../sandbox-runtime.service.js";
 import { createLogger } from "../../../utils/logger.js";
 import { ensureError } from "../../../utils/error.js";
 import { config } from "../../../app.config.js";
@@ -59,25 +59,48 @@ export async function initSandboxService(): Promise<void> {
       return;
     }
 
+    if (config.sandbox.runtime === "disabled") {
+      return;
+    }
+
     const runtimeAvailable = await isSandboxRuntimeAvailable();
     if (!runtimeAvailable) {
-      if (config.sandbox.runtime === "disabled" || !config.sandbox.required) {
-        logger.warn(
+      if (config.sandbox.required) {
+        logger.error(
           {
             runtime: config.sandbox.runtime,
             required: config.sandbox.required,
           },
-          "Sandbox runtime unavailable; continuing with sandbox runtime disabled",
+          "Sandbox runtime unavailable during startup; refusing to boot without the required runtime",
         );
-        return;
+
+        throw new Error(
+          `Sandbox runtime "${config.sandbox.runtime}" is required but unavailable during startup.`,
+        );
       }
 
-      throw new Error(
-        "Sandbox service is enabled but Docker runtime is unavailable.",
+      logger.warn(
+        {
+          runtime: config.sandbox.runtime,
+          required: config.sandbox.required,
+        },
+        "Sandbox runtime unavailable during startup; continuing in degraded mode",
       );
+
+      if (!cleanupInterval) {
+        cleanupInterval = startCleanupInterval();
+      }
+      return;
     }
 
-    await cleanupExpiredSandboxContainers();
+    try {
+      await cleanupExpiredSandboxContainers();
+    } catch (error) {
+      logger.error(
+        { error: ensureError(error) },
+        "Initial sandbox cleanup failed; continuing startup",
+      );
+    }
 
     if (!cleanupInterval) {
       cleanupInterval = startCleanupInterval();

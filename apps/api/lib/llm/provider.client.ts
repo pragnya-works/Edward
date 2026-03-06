@@ -17,6 +17,7 @@ import {
   buildLegacyCompletionPrompt,
   buildOpenAIResponseInput,
   extractOpenAIOutputTextDelta,
+  getOpenAIStreamTerminalError,
   getLegacyCompletionsMaxTokens,
   hasTrimmedText,
   isAbortSignalError,
@@ -24,6 +25,7 @@ import {
   normalizeMessages,
   resolveModelForProvider,
 } from "./provider.helpers.js";
+import { streamGeminiResponse } from "./geminiStream.js";
 
 const GENERATION_CONFIG = {
   temperature: 0.2,
@@ -112,6 +114,10 @@ export async function* streamResponse(
 
         for await (const event of stream) {
           if (signal?.aborted) break;
+          const terminalError = getOpenAIStreamTerminalError(event);
+          if (terminalError) {
+            throw terminalError;
+          }
           const delta = extractOpenAIOutputTextDelta(event);
           if (delta) {
             yield delta;
@@ -145,8 +151,6 @@ export async function* streamResponse(
         }
       }
     } else {
-      const genAI = client as GoogleGenAI;
-
       const contents = normalized.map((msg) => {
         const geminiRole = toGeminiRole(msg.role!);
         const formattedContent = isMultimodalContent(msg.content)
@@ -159,21 +163,19 @@ export async function* streamResponse(
         };
       });
 
-      const stream = await genAI.models.generateContentStream({
+      const stream = streamGeminiResponse({
+        apiKey,
         model,
         contents,
-        config: {
-          systemInstruction: fullSystemPrompt,
-          maxOutputTokens: GENERATION_CONFIG.geminiMaxOutputTokens,
-          topP: GENERATION_CONFIG.topP,
-          temperature: GENERATION_CONFIG.temperature,
-          abortSignal: signal,
-        },
+        systemInstruction: fullSystemPrompt,
+        maxOutputTokens: GENERATION_CONFIG.geminiMaxOutputTokens,
+        topP: GENERATION_CONFIG.topP,
+        temperature: GENERATION_CONFIG.temperature,
+        signal,
       });
 
-      for await (const chunk of stream) {
+      for await (const text of stream) {
         if (signal?.aborted) break;
-        const text = chunk.text;
         if (text) yield text;
       }
     }

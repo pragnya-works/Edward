@@ -2,7 +2,7 @@ import {
   execCommand,
   getContainer,
   CONTAINER_WORKDIR,
-} from "../sandbox/docker.service.js";
+} from "../sandbox/sandbox-runtime.service.js";
 import { logger } from "../../utils/logger.js";
 import type { FileCache } from "./types.js";
 import path from "node:path";

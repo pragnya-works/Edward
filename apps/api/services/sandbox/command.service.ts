@@ -5,7 +5,7 @@ import {
   ensureContainerRunning,
   CONTAINER_WORKDIR,
   execCommand,
-} from "./docker.service.js";
+} from "./sandbox-runtime.service.js";
 import { logger } from "../../utils/logger.js";
 import { SANDBOX_COMMAND_TIMEOUT_MS } from "../../utils/constants.js";
 import { ExecResult } from "./types.service.js";

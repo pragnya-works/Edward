@@ -64,6 +64,11 @@ vi.mock("../../../utils/encryption.js", () => ({
 }));
 
 vi.mock("../../../utils/logger.js", () => ({
+  Environment: {
+    Development: "development",
+    Production: "production",
+    Test: "test",
+  },
   createLogger: vi.fn(() => ({
     info: vi.fn(),
     warn: vi.fn(),

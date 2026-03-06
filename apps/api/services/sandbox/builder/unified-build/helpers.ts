@@ -1,8 +1,8 @@
 import {
   CONTAINER_WORKDIR,
-  execCommand,
   getContainer,
-} from "../../docker.service.js";
+  readFileContent,
+} from "../../sandbox-runtime.service.js";
 import { logger } from "../../../../utils/logger.js";
 import { normalizeFramework } from "../../templates/template.registry.js";
 
@@ -20,18 +20,15 @@ export async function detectFrameworkFromPackageJson(
   sandboxId: string,
 ): Promise<string | undefined> {
   try {
-    const pkgResult = await execCommand(
+    const packageJsonContent = await readFileContent(
       container,
-      ["cat", "package.json"],
-      false,
-      5000,
-      undefined,
+      "package.json",
       CONTAINER_WORKDIR,
     );
 
-    if (pkgResult.exitCode !== 0) return undefined;
+    if (!packageJsonContent) return undefined;
 
-    const pkg = JSON.parse(pkgResult.stdout);
+    const pkg = JSON.parse(packageJsonContent);
     const buildScript: string = pkg.scripts?.build || "";
     const deps = { ...pkg.dependencies, ...pkg.devDependencies };
 

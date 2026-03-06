@@ -2,8 +2,9 @@ import {
   getContainer,
   execCommand,
   CONTAINER_WORKDIR,
+  readFileContent,
   type SandboxHandle,
-} from "../docker.service.js";
+} from "../sandbox-runtime.service.js";
 import { logger } from "../../../utils/logger.js";
 import type { Framework } from "../../planning/schemas.js";
 
@@ -63,24 +64,18 @@ export async function detectBuildOutput(
   const container = getContainer(containerId);
 
   try {
-    const pkgResult = await execCommand(
+    const packageJsonContent = await readFileContent(
       container,
-      ["cat", "package.json"],
-      false,
-      undefined,
-      undefined,
+      "package.json",
       CONTAINER_WORKDIR,
     );
 
-    if (pkgResult.exitCode !== 0) {
-      logger.warn(
-        { sandboxId, stderr: pkgResult.stderr },
-        "Failed to read package.json",
-      );
+    if (!packageJsonContent) {
+      logger.warn({ sandboxId }, "Failed to read package.json");
       return { directory: ".", type: "vanilla" };
     }
 
-    const pkg = JSON.parse(pkgResult.stdout);
+    const pkg = JSON.parse(packageJsonContent);
     const framework = detectFramework(pkg);
     if (framework === "nextjs") {
       const foundDir = await findFirstExistingDirectory(

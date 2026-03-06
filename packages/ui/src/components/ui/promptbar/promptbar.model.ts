@@ -16,7 +16,7 @@ import {
 const URL_PATTERN = /https?:\/\/[^\s<>"'`]+/gi;
 const URL_SOURCE_PREVIEW_LIMIT = 6;
 
-export interface ResolvedPromptbarProps {
+interface ResolvedPromptbarProps {
   isAuthenticated: boolean;
   onSignIn?: () => void | Promise<void>;
   onProtectedAction?: (

@@ -1,4 +1,9 @@
-import { getContainer, execCommand, CONTAINER_WORKDIR } from '../docker.service.js';
+import {
+    getContainer,
+    execCommand,
+    CONTAINER_WORKDIR,
+    readFileContent,
+} from '../sandbox-runtime.service.js';
 import { logger } from '../../../utils/logger.js';
 import { TIMEOUT_DEPENDENCY_INSTALL_MS } from '../utils.service.js';
 import { getSandboxState } from '../state.service.js';
@@ -8,6 +13,65 @@ import {
     normalizePackageSpecs,
     toPackageName,
 } from '../../packages/packageSpec.js';
+
+function isStringRecord(value: unknown): value is Record<string, string> {
+    return Boolean(
+        value &&
+            typeof value === 'object' &&
+            !Array.isArray(value) &&
+            Object.values(value).every((entry) => typeof entry === 'string'),
+    );
+}
+
+function isOptionalString(value: unknown): value is string | undefined {
+    return value === undefined || typeof value === 'string';
+}
+
+function parsePackageJsonContent(
+    content: string,
+    sandboxId: string,
+): PackageJson | null {
+    const raw = JSON.parse(content) as unknown;
+    if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
+        logger.warn({ sandboxId }, 'Ignoring malformed package.json content');
+        return null;
+    }
+
+    const parsed = raw as Record<string, unknown>;
+
+    if (typeof parsed.name !== 'string' || typeof parsed.version !== 'string') {
+        logger.warn({ sandboxId }, 'Ignoring malformed package.json metadata');
+        return null;
+    }
+
+    if (parsed.scripts !== undefined && !isStringRecord(parsed.scripts)) {
+        logger.warn({ sandboxId }, 'Ignoring malformed package.json scripts');
+        return null;
+    }
+
+    if (parsed.dependencies !== undefined && !isStringRecord(parsed.dependencies)) {
+        logger.warn({ sandboxId }, 'Ignoring malformed package.json dependencies');
+        return null;
+    }
+
+    if (
+        parsed.devDependencies !== undefined &&
+        !isStringRecord(parsed.devDependencies)
+    ) {
+        logger.warn({ sandboxId }, 'Ignoring malformed package.json devDependencies');
+        return null;
+    }
+
+    return {
+        name: parsed.name,
+        version: parsed.version,
+        private: typeof parsed.private === 'boolean' ? parsed.private : undefined,
+        type: isOptionalString(parsed.type) ? parsed.type : undefined,
+        scripts: parsed.scripts,
+        dependencies: parsed.dependencies,
+        devDependencies: parsed.devDependencies,
+    };
+}
 
 function uniquePackages(packages: string[]): string[] {
     return normalizePackageSpecs(packages);
@@ -46,21 +110,19 @@ function filterMissingDependencies(
 
 async function readPackageJson(
     container: ReturnType<typeof getContainer>,
+    sandboxId: string,
 ): Promise<PackageJson | null> {
-    const packageJsonResult = await execCommand(
+    const packageJsonContent = await readFileContent(
         container,
-        ['cat', 'package.json'],
-        false,
-        5000,
-        undefined,
+        'package.json',
         CONTAINER_WORKDIR,
     );
 
-    if (packageJsonResult.exitCode !== 0) {
+    if (!packageJsonContent) {
         return null;
     }
 
-    return JSON.parse(packageJsonResult.stdout) as PackageJson;
+    return parsePackageJsonContent(packageJsonContent, sandboxId);
 }
 
 export async function mergeAndInstallDependencies(
@@ -89,7 +151,7 @@ export async function mergeAndInstallDependencies(
 
         let packageJsonBeforeInstall: PackageJson | null = null;
         try {
-            packageJsonBeforeInstall = await readPackageJson(container);
+            packageJsonBeforeInstall = await readPackageJson(container, sandboxId);
         } catch (error) {
             logger.warn(
                 { error, sandboxId },
@@ -193,7 +255,7 @@ export async function mergeAndInstallDependencies(
         try {
             const packageJsonForValidation =
                 runtimeDepsToInstall.length > 0 || devDepsToInstall.length > 0
-                    ? await readPackageJson(container)
+                    ? await readPackageJson(container, sandboxId)
                     : packageJsonBeforeInstall;
             
             if (packageJsonForValidation) {

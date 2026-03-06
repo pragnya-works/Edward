@@ -1,4 +1,4 @@
-import { disconnectFromNetwork } from './docker.service.js';
+import { disconnectFromNetwork } from './sandbox-runtime.service.js';
 import { logger } from '../../utils/logger.js';
 import { ensureError } from '../../utils/error.js';
 

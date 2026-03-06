@@ -78,7 +78,7 @@ vi.mock("../../services/sandbox/state.service.js", () => ({
   getSandboxState: vi.fn().mockResolvedValue({ containerId: "mock-container" }),
 }));
 
-vi.mock("../../services/sandbox/docker.service.js", () => ({
+vi.mock("../../services/sandbox/sandbox-runtime.service.js", () => ({
   getContainer: vi.fn().mockReturnValue({}),
 }));
 

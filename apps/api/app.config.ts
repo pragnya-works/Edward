@@ -2,7 +2,25 @@ import { ConnectionOptions } from "bullmq";
 import { Environment } from "./utils/logger.js";
 
 export type DeploymentType = "path" | "subdomain";
-export type SandboxRuntime = "docker" | "fly" | "disabled";
+export type SandboxRuntime = "vercel" | "disabled";
+export type VercelSandboxRuntime = "node22" | "node24";
+
+const TRUTHY_ENV_VALUES = new Set(["1", "true", "yes"]);
+const FALSY_ENV_VALUES = new Set(["0", "false", "no"]);
+const REDIS_PROTOCOLS = new Set(["redis:", "rediss:"]);
+const DEPLOYMENT_TYPE_VALUES = {
+  path: true,
+  subdomain: true,
+} satisfies Record<DeploymentType, true>;
+const SANDBOX_RUNTIME_VALUES = {
+  vercel: true,
+  disabled: true,
+} satisfies Record<SandboxRuntime, true>;
+const VERCEL_RUNTIME_VALUES = {
+  node22: true,
+  node24: true,
+} satisfies Record<VercelSandboxRuntime, true>;
+const ENVIRONMENT_VALUES = new Set(Object.values(Environment));
 
 function validateEnvVar(name: string, value: string | undefined): string {
   if (!value || value.trim() === "") {
@@ -18,6 +36,15 @@ function optionalEnvVar(value: string | undefined): string | undefined {
 
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : undefined;
+}
+
+function requiredEnvVar(name: string, value: string | undefined): string {
+  const normalized = optionalEnvVar(value);
+  if (!normalized) {
+    throw new Error(`Missing required environment variable: ${name}`);
+  }
+
+  return normalized;
 }
 
 function firstDefinedEnv(
@@ -38,10 +65,10 @@ function parseBoolean(value: string | undefined, fallback: boolean): boolean {
   }
 
   const normalized = value.trim().toLowerCase();
-  if (normalized === "1" || normalized === "true" || normalized === "yes") {
+  if (TRUTHY_ENV_VALUES.has(normalized)) {
     return true;
   }
-  if (normalized === "0" || normalized === "false" || normalized === "no") {
+  if (FALSY_ENV_VALUES.has(normalized)) {
     return false;
   }
 
@@ -56,6 +83,28 @@ function validatePort(name: string, value: string | undefined): number {
     );
   }
   return port;
+}
+
+function parsePositiveInteger(
+  name: string,
+  value: string | undefined,
+  fallback: number,
+): number {
+  if (!value || value.trim() === "") {
+    return fallback;
+  }
+
+  const trimmed = value.trim();
+  if (!/^\d+$/.test(trimmed)) {
+    throw new Error(`Invalid positive integer for ${name}: ${value}`);
+  }
+
+  const parsed = Number(trimmed);
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    throw new Error(`Invalid positive integer for ${name}: ${value}`);
+  }
+
+  return parsed;
 }
 
 export type TrustProxySetting = boolean | number | string | string[];
@@ -124,7 +173,7 @@ function parseRedisUrl(raw: string): RedisConnectionSettings {
   try {
     const { url, forceTls } = extractRedisUrl(raw);
     const parsed = new URL(url);
-    if (parsed.protocol !== "redis:" && parsed.protocol !== "rediss:") {
+    if (!REDIS_PROTOCOLS.has(parsed.protocol)) {
       throw new Error(
         `Unsupported REDIS_URL protocol: ${parsed.protocol}. Use redis:// or rediss://`,
       );
@@ -228,7 +277,7 @@ export const DEPLOYMENT_TYPES = {
 } as const satisfies Record<string, DeploymentType>;
 
 function isDeploymentType(value: string | undefined): value is DeploymentType {
-  return value === DEPLOYMENT_TYPES.PATH || value === DEPLOYMENT_TYPES.SUBDOMAIN;
+  return value !== undefined && hasOwnKey(DEPLOYMENT_TYPE_VALUES, value);
 }
 
 export function resolveDeploymentType(
@@ -247,11 +296,56 @@ export function resolveDeploymentType(
 
 function resolveSandboxRuntime(value: string | undefined): SandboxRuntime {
   const normalized = value?.trim().toLowerCase();
-  if (normalized === "fly") {
-    return "fly";
+  if (!normalized) {
+    return "vercel";
   }
-  return normalized === "disabled" ? "disabled" : "docker";
+  if (hasOwnKey(SANDBOX_RUNTIME_VALUES, normalized)) {
+    return normalized;
+  }
+
+  throw new Error(
+    `Invalid sandbox runtime: ${value}. Expected "vercel" or "disabled".`,
+  );
 }
+
+function resolveVercelSandboxRuntime(
+  value: string | undefined,
+): VercelSandboxRuntime {
+  const normalized = value?.trim().toLowerCase();
+  if (!normalized) {
+    return "node22";
+  }
+
+  if (hasOwnKey(VERCEL_RUNTIME_VALUES, normalized)) {
+    return normalized;
+  }
+
+  throw new Error(
+    `Invalid VERCEL_SANDBOX_RUNTIME: ${value}. Allowed values: ${Object.keys(VERCEL_RUNTIME_VALUES).join(", ")}.`,
+  );
+}
+
+function resolveEnvironment(value: string | undefined): Environment {
+  if (value === undefined) {
+    return Environment.Development;
+  }
+
+  const normalized = value.trim().toLowerCase();
+  if (ENVIRONMENT_VALUES.has(normalized as Environment)) {
+    return normalized as Environment;
+  }
+
+  throw new Error(
+    `Invalid NODE_ENV: ${value}. Allowed values: ${Array.from(ENVIRONMENT_VALUES).join(", ")}.`,
+  );
+}
+
+const sandboxRuntime = resolveSandboxRuntime(
+  firstDefinedEnv([process.env.SANDBOX_RUNTIME, process.env.SANDBOX_RUNTIME_MODE]),
+);
+const sandboxRequired = parseBoolean(process.env.SANDBOX_RUNTIME_REQUIRED, true);
+const vercelCredentialsRequired =
+  sandboxRuntime === "vercel" && sandboxRequired;
 
 export const config = {
   redis: {
@@ -271,8 +365,7 @@ export const config = {
       "EDWARD_API_PORT/PORT",
       firstDefinedEnv([process.env.EDWARD_API_PORT, process.env.PORT]) ?? "4000",
     ),
-    environment:
-      (process.env.NODE_ENV as Environment) || Environment.Development,
+    environment: resolveEnvironment(process.env.NODE_ENV),
     isDevelopment(): boolean {
       return this.environment === Environment.Development;
     },
@@ -354,37 +447,37 @@ export const config = {
     rootDomain: process.env.PREVIEW_ROOT_DOMAIN,
   },
 
-  docker: {
-    get prewarmImage(): string {
-      return validateEnvVar(
-        "PREWARM_SANDBOX_IMAGE",
-        process.env.PREWARM_SANDBOX_IMAGE,
-      );
+  vercel: {
+    token: vercelCredentialsRequired
+      ? requiredEnvVar("VERCEL_TOKEN", process.env.VERCEL_TOKEN)
+      : optionalEnvVar(process.env.VERCEL_TOKEN),
+    teamId: vercelCredentialsRequired
+      ? requiredEnvVar("VERCEL_TEAM_ID", process.env.VERCEL_TEAM_ID)
+      : optionalEnvVar(process.env.VERCEL_TEAM_ID),
+    projectId: vercelCredentialsRequired
+      ? requiredEnvVar("VERCEL_PROJECT_ID", process.env.VERCEL_PROJECT_ID)
+      : optionalEnvVar(process.env.VERCEL_PROJECT_ID),
+    runtime: resolveVercelSandboxRuntime(process.env.VERCEL_SANDBOX_RUNTIME),
+    timeoutMs: parsePositiveInteger(
+      "VERCEL_SANDBOX_TIMEOUT_MS",
+      process.env.VERCEL_SANDBOX_TIMEOUT_MS,
+      15 * 60 * 1000,
+    ),
+    vcpus: parsePositiveInteger(
+      "VERCEL_SANDBOX_VCPUS",
+      process.env.VERCEL_SANDBOX_VCPUS,
+      1,
+    ),
+    snapshots: {
+      nextjs: optionalEnvVar(process.env.VERCEL_SANDBOX_SNAPSHOT_NEXTJS),
+      viteReact: optionalEnvVar(process.env.VERCEL_SANDBOX_SNAPSHOT_VITE_REACT),
+      vanilla: optionalEnvVar(process.env.VERCEL_SANDBOX_SNAPSHOT_VANILLA),
     },
-    get registryBase(): string {
-      return validateEnvVar(
-        "DOCKER_REGISTRY_BASE",
-        process.env.DOCKER_REGISTRY_BASE,
-      );
-    },
-  },
-
-  fly: {
-    apiToken: optionalEnvVar(process.env.FLY_API_TOKEN),
-    appName: optionalEnvVar(process.env.FLY_APP_NAME),
-    org: optionalEnvVar(process.env.FLY_ORG),
-    publicHost:
-      optionalEnvVar(process.env.FLY_PUBLIC_HOSTNAME) ??
-      (optionalEnvVar(process.env.FLY_APP_NAME)
-        ? `${process.env.FLY_APP_NAME!.trim()}.fly.dev`
-        : undefined),
   },
 
   sandbox: {
-    runtime: resolveSandboxRuntime(
-      firstDefinedEnv([process.env.SANDBOX_RUNTIME, process.env.SANDBOX_RUNTIME_MODE]),
-    ),
-    required: parseBoolean(process.env.SANDBOX_RUNTIME_REQUIRED, true),
+    runtime: sandboxRuntime,
+    required: sandboxRequired,
   },
 
   webSearch: {
@@ -393,3 +486,9 @@ export const config = {
 } as const;
 
 export type Config = typeof config;
+function hasOwnKey<T extends object>(
+  object: T,
+  key: PropertyKey,
+): key is keyof T {
+  return Object.hasOwn(object, key);
+}

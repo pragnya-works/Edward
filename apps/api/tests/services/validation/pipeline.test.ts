@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { runValidationPipeline } from '../../../services/validation/pipeline.js';
-import { getContainer, execCommand } from '../../../services/sandbox/docker.service.js';
+import { getContainer, execCommand } from '../../../services/sandbox/sandbox-runtime.service.js';
 
-vi.mock('../../../services/sandbox/docker.service.js', () => ({
+vi.mock('../../../services/sandbox/sandbox-runtime.service.js', () => ({
     getContainer: vi.fn(),
     execCommand: vi.fn(),
-    CONTAINER_WORKDIR: '/home/node/edward'
+    CONTAINER_WORKDIR: '/vercel/sandbox/edward'
 }));
 
 vi.mock('../../../utils/logger.js', () => ({

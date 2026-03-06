@@ -3,7 +3,7 @@ import {
   CONTAINER_WORKDIR,
   readArchive,
   type SandboxHandle,
-} from "../docker.service.js";
+} from "../sandbox-runtime.service.js";
 import {
   MAX_FILE_BYTES,
   MAX_FILES,
