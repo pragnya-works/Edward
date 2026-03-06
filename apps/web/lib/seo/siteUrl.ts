@@ -22,8 +22,8 @@ function parseSiteUrl(input: string | undefined): URL | null {
 }
 
 export function getSiteUrl(): URL | null {
-  return (
-    parseSiteUrl(process.env.NEXT_PUBLIC_SITE_URL)
+  return parseSiteUrl(
+    process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_APP_URL,
   );
 }
 

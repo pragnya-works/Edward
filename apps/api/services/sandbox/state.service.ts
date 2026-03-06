@@ -5,6 +5,7 @@ import { SANDBOX_TTL } from "./lifecycle/state.js";
 
 const SANDBOX_KEY_PREFIX = "edward:sandbox:";
 const CHAT_SANDBOX_INDEX_PREFIX = "edward:chat:sandbox:";
+const CONTAINER_SANDBOX_INDEX_PREFIX = "edward:container:sandbox:";
 const CHAT_FRAMEWORK_PREFIX = "edward:chat:framework:";
 const FRAMEWORK_TTL = 7 * 24 * 60 * 60;
 
@@ -17,6 +18,12 @@ export async function saveSandboxState(sandbox: SandboxInstance): Promise<void> 
     pipeline.set(key, JSON.stringify(snapshot), "PX", SANDBOX_TTL);
     pipeline.set(
       `${CHAT_SANDBOX_INDEX_PREFIX}${snapshot.chatId}`,
+      snapshot.id,
+      "PX",
+      SANDBOX_TTL,
+    );
+    pipeline.set(
+      `${CONTAINER_SANDBOX_INDEX_PREFIX}${snapshot.containerId}`,
       snapshot.id,
       "PX",
       SANDBOX_TTL,
@@ -72,12 +79,16 @@ export async function deleteSandboxState(
   chatId?: string,
 ): Promise<void> {
   try {
+    const existingState = await getSandboxState(sandboxId);
     const resolvedChatId =
-      chatId ??
-      (await getSandboxState(sandboxId).then((state) => state?.chatId ?? null));
+      chatId ?? existingState?.chatId ?? null;
+    const containerId = existingState?.containerId;
     await redis.del(`${SANDBOX_KEY_PREFIX}${sandboxId}`);
     if (resolvedChatId) {
       await redis.del(`${CHAT_SANDBOX_INDEX_PREFIX}${resolvedChatId}`);
+    }
+    if (containerId) {
+      await redis.del(`${CONTAINER_SANDBOX_INDEX_PREFIX}${containerId}`);
     }
   } catch (error) {
     logger.error({ error, sandboxId }, "Failed to delete sandbox state from Redis");
@@ -108,15 +119,37 @@ export async function getActiveSandboxState(
   }
 }
 
+export async function getSandboxStateByContainerId(
+  containerId: string,
+): Promise<SandboxInstance | null> {
+  try {
+    const sandboxId = await redis.get(`${CONTAINER_SANDBOX_INDEX_PREFIX}${containerId}`);
+    if (!sandboxId) {
+      return null;
+    }
+    return await getSandboxState(sandboxId);
+  } catch (error) {
+    logger.error({ error, containerId }, "Failed to get sandbox state by container");
+    return null;
+  }
+}
+
 export async function refreshSandboxTTL(
   sandboxId: string,
   chatId?: string,
 ): Promise<void> {
   try {
+    const state = await getSandboxState(sandboxId);
     const pipeline = redis.pipeline();
     pipeline.pexpire(`${SANDBOX_KEY_PREFIX}${sandboxId}`, SANDBOX_TTL);
     if (chatId) {
       pipeline.pexpire(`${CHAT_SANDBOX_INDEX_PREFIX}${chatId}`, SANDBOX_TTL);
+    }
+    if (state?.containerId) {
+      pipeline.pexpire(
+        `${CONTAINER_SANDBOX_INDEX_PREFIX}${state.containerId}`,
+        SANDBOX_TTL,
+      );
     }
     await pipeline.exec();
   } catch (error) {
@@ -171,6 +204,13 @@ function parseSandboxState(raw: string): SandboxInstance | null {
     return null;
   }
 
+  if (
+    candidate.runtimeToken !== undefined &&
+    typeof candidate.runtimeToken !== "string"
+  ) {
+    return null;
+  }
+
   return {
     id: candidate.id,
     containerId: candidate.containerId,
@@ -181,6 +221,7 @@ function parseSandboxState(raw: string): SandboxInstance | null {
     requestedPackages: candidate.requestedPackages
       ? [...candidate.requestedPackages]
       : undefined,
+    runtimeToken: candidate.runtimeToken,
   };
 }
 
@@ -195,6 +236,7 @@ function cloneSandboxState(sandbox: SandboxInstance): SandboxInstance {
     requestedPackages: sandbox.requestedPackages
       ? [...sandbox.requestedPackages]
       : undefined,
+    runtimeToken: sandbox.runtimeToken,
   };
 }
 

@@ -14,6 +14,7 @@ import {
   listContainers,
   execCommand,
   CONTAINER_WORKDIR,
+  inspectContainer,
 } from "../docker.service.js";
 import { restoreSandboxInstance } from "../backup.service.js";
 import { redis } from "../../../lib/redis.js";
@@ -150,10 +151,9 @@ export async function getActiveSandbox(
         await refreshSandboxTTL(sandbox.id, sandbox.chatId);
         return sandbox.id;
       }
-    } else {
-      try {
-        const container = getContainer(sandbox.containerId);
-        await container.inspect();
+      } else {
+        try {
+        await inspectContainer(sandbox.containerId);
 
         await setContainerStatus(sandbox.containerId, true);
         await transitionSandboxLifecycleState({
@@ -208,6 +208,8 @@ export async function getActiveSandbox(
           chatId,
           scaffoldedFramework:
             chatContainer.Labels?.["com.edward.framework"] || undefined,
+          runtimeToken:
+            chatContainer.Labels?.["com.edward.runtimeToken"] || undefined,
         };
 
         await saveSandboxState(recovered);
@@ -289,6 +291,7 @@ export async function provisionSandbox(
           userId,
           chatId,
           scaffoldedFramework: normalizedFramework,
+          runtimeToken: container.runtimeToken,
         };
 
         if (shouldRestore) {

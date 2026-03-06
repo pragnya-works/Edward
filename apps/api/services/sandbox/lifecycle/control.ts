@@ -3,6 +3,7 @@ import { CLEANUP_INTERVAL_MS } from "./state.js";
 import { pingDocker } from "../docker.service.js";
 import { createLogger } from "../../../utils/logger.js";
 import { ensureError } from "../../../utils/error.js";
+import { config } from "../../../app.config.js";
 
 let cleanupInterval: NodeJS.Timeout | null = null;
 let initializationPromise: Promise<void> | null = null;
@@ -37,6 +38,9 @@ function startCleanupInterval(): NodeJS.Timeout {
 }
 
 export async function isSandboxRuntimeAvailable(): Promise<boolean> {
+  if (config.sandbox.runtime === "disabled") {
+    return false;
+  }
   return pingDocker();
 }
 
@@ -55,7 +59,19 @@ export async function initSandboxService(): Promise<void> {
       return;
     }
 
-    if (!(await isSandboxRuntimeAvailable())) {
+    const runtimeAvailable = await isSandboxRuntimeAvailable();
+    if (!runtimeAvailable) {
+      if (config.sandbox.runtime === "disabled" || !config.sandbox.required) {
+        logger.warn(
+          {
+            runtime: config.sandbox.runtime,
+            required: config.sandbox.required,
+          },
+          "Sandbox runtime unavailable; continuing with sandbox runtime disabled",
+        );
+        return;
+      }
+
       throw new Error(
         "Sandbox service is enabled but Docker runtime is unavailable.",
       );

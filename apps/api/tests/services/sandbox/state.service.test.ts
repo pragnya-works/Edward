@@ -61,7 +61,13 @@ describe("sandbox state service", () => {
     await saveSandboxState(sandbox);
 
     expect(mocks.pipeline).toHaveBeenCalledTimes(1);
-    expect(mocks.pipelineRef.set).toHaveBeenCalledTimes(3);
+    expect(mocks.pipelineRef.set).toHaveBeenCalledTimes(4);
+    expect(mocks.pipelineRef.set).toHaveBeenCalledWith(
+      "edward:container:sandbox:ctr-1",
+      "sb-1",
+      "PX",
+      expect.any(Number),
+    );
     const statePayload = JSON.parse(mocks.pipelineRef.set.mock.calls[0]?.[1] as string);
     expect(statePayload).toMatchObject({
       id: "sb-1",
@@ -82,7 +88,7 @@ describe("sandbox state service", () => {
       chatId: "chat-plain",
     });
 
-    expect(mocks.pipelineRef.set).toHaveBeenCalledTimes(2);
+    expect(mocks.pipelineRef.set).toHaveBeenCalledTimes(3);
   });
 
   it("throws a stable persistence error when redis write fails", async () => {

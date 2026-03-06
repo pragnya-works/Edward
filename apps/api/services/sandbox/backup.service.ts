@@ -1,4 +1,9 @@
-import { getContainer, CONTAINER_WORKDIR } from "./docker.service.js";
+import {
+  getContainer,
+  CONTAINER_WORKDIR,
+  inspectContainer,
+  writeArchive,
+} from "./docker.service.js";
 import { SandboxInstance } from "./types.service.js";
 import { uploadFile, downloadFile } from "../storage.service.js";
 import { logger } from "../../utils/logger.js";
@@ -76,7 +81,7 @@ export async function backupSandboxInstance(
   try {
     const container = getContainer(sandbox.containerId);
     try {
-      await container.inspect();
+      await inspectContainer(sandbox.containerId);
     } catch (error) {
       logger.debug(
         { error: ensureError(error), sandboxId },
@@ -184,9 +189,11 @@ export async function restoreSandboxInstance(
 
     const container = getContainer(sandbox.containerId);
     const gunzip = zlib.createGunzip();
-    await container.putArchive((stream as Readable).pipe(gunzip), {
-      path: path.posix.dirname(CONTAINER_WORKDIR),
-    });
+    await writeArchive(
+      container,
+      (stream as Readable).pipe(gunzip),
+      path.posix.dirname(CONTAINER_WORKDIR),
+    );
     await markBackupExists(sandbox.chatId);
   } catch (error) {
     logger.error(

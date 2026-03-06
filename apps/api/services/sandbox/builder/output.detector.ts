@@ -2,9 +2,9 @@ import {
   getContainer,
   execCommand,
   CONTAINER_WORKDIR,
+  type SandboxHandle,
 } from "../docker.service.js";
 import { logger } from "../../../utils/logger.js";
-import type Docker from "dockerode";
 import type { Framework } from "../../planning/schemas.js";
 
 export interface BuildOutputInfo {
@@ -21,7 +21,7 @@ const FRAMEWORK_OUTPUT_DIRS: Record<Framework, string[]> = {
 const COMMON_OUTPUT_DIRS = ["dist", "build", "out", ".next", ".output"];
 
 async function directoryExists(
-  container: Docker.Container,
+  container: SandboxHandle,
   path: string,
 ): Promise<boolean> {
   const result = await execCommand(
@@ -45,7 +45,7 @@ function detectFramework(pkg: Record<string, unknown>): Framework {
 }
 
 async function findFirstExistingDirectory(
-  container: Docker.Container,
+  container: SandboxHandle,
   directories: string[],
 ): Promise<string | null> {
   for (const dir of directories) {

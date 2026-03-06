@@ -1,19 +1,15 @@
 import tar from 'tar-stream';
 import zlib from 'zlib';
 import { Readable } from 'stream';
-import { CONTAINER_WORKDIR } from '../docker.service.js';
-
-interface DockerContainer {
-  getArchive(options: { path: string }): Promise<NodeJS.ReadableStream>;
-}
+import { CONTAINER_WORKDIR, readArchive, type SandboxHandle } from '../docker.service.js';
 
 interface BackupArchive {
   uploadStream: Readable;
   completion: Promise<unknown>;
 }
 
-export async function createBackupArchive(container: DockerContainer): Promise<BackupArchive> {
-  const tarStream = await container.getArchive({ path: CONTAINER_WORKDIR });
+export async function createBackupArchive(container: SandboxHandle): Promise<BackupArchive> {
+  const tarStream = await readArchive(container, CONTAINER_WORKDIR);
   const extract = tar.extract();
   const pack = tar.pack();
   const gzip = zlib.createGzip();

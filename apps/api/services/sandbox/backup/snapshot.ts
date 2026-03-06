@@ -1,5 +1,9 @@
 import tar from "tar-stream";
-import { CONTAINER_WORKDIR } from "../docker.service.js";
+import {
+  CONTAINER_WORKDIR,
+  readArchive,
+  type SandboxHandle,
+} from "../docker.service.js";
 import {
   MAX_FILE_BYTES,
   MAX_FILES,
@@ -18,19 +22,15 @@ import {
   isExcludedRelPath,
 } from "../fileSelection.utils.js";
 
-interface DockerContainer {
-  getArchive(options: { path: string }): Promise<NodeJS.ReadableStream>;
-}
-
 const EXCLUDED_DIR_SET = new Set([
   ...SANDBOX_EXCLUDED_DIRS,
   ...SNAPSHOT_EXTRA_EXCLUDED_DIRS,
 ]);
 
 export async function createSourceSnapshot(
-  container: DockerContainer,
+  container: SandboxHandle,
 ): Promise<Record<string, string>> {
-  const tarStream = await container.getArchive({ path: CONTAINER_WORKDIR });
+  const tarStream = await readArchive(container, CONTAINER_WORKDIR);
   const extract = tar.extract();
   const priorityCandidates = new Map<string, string>();
   const regularCandidates = new Map<string, string>();

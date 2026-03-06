@@ -29,14 +29,16 @@ Copy `apps/web/.env.example` to `.env.local` and set values.
 
 Common keys:
 - `NEXT_PUBLIC_SITE_URL` (recommended for canonical metadata/sitemap host)
+- `NEXT_PUBLIC_APP_URL` (optional alias for the public web URL)
 - `NEXT_PUBLIC_API_URL`
-- `NEXT_PUBLIC_BETTER_AUTH_URL`
+- `NEXT_PUBLIC_BETTER_AUTH_URL` (falls back to `NEXT_PUBLIC_APP_URL`/`NEXT_PUBLIC_SITE_URL`)
 - `DATABASE_URL`
 - `BETTER_AUTH_SECRET`
-- `BETTER_AUTH_URL`
+- `BETTER_AUTH_URL` (use the web app URL for this Next.js-hosted auth handler)
 - `GITHUB_CLIENT_ID`
 - `GITHUB_CLIENT_SECRET`
 - `NEXT_PUBLIC_ASSETS_URL`
+- `NEXT_PUBLIC_CDN_URL`
 
 ## Integration Notes
 

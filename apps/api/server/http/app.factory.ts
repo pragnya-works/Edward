@@ -137,6 +137,11 @@ function createForceHttpsMiddleware() {
     res: Response,
     next: NextFunction,
   ) {
+    if (req.originalUrl === "/health") {
+      next();
+      return;
+    }
+
     const forwardedProto = req
       .header("x-forwarded-proto")
       ?.split(",")

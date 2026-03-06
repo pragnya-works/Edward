@@ -2,7 +2,8 @@ import { withSentryConfig } from "@sentry/nextjs";
 /** @type {import('next').NextConfig} */
 const cdnHostname = (() => {
   try {
-    const cdnUrl = process.env.NEXT_PUBLIC_CDN_URL;
+    const cdnUrl =
+      process.env.NEXT_PUBLIC_CDN_URL || process.env.NEXT_PUBLIC_ASSETS_URL;
     if (!cdnUrl) return null;
     return new URL(cdnUrl).hostname;
   } catch {

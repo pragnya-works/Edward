@@ -7,6 +7,7 @@ import {
   getContainer,
   ensureContainerRunning,
   CONTAINER_WORKDIR,
+  appendFileContent,
 } from "../docker.service.js";
 import { acquireDistributedLock } from "../../../lib/distributedLock.js";
 import {
@@ -72,29 +73,7 @@ export async function flushSandbox(
 
         try {
           const fullPath = path.posix.join(CONTAINER_WORKDIR, filePath);
-          const exec = await container.exec({
-            Cmd: ["sh", "-c", `cat >> '${fullPath.replace(/'/g, "'\"'\"'")}'`],
-            AttachStdin: true,
-            AttachStdout: true,
-            AttachStderr: true,
-          });
-
-          const stream = await exec.start({ hijack: true });
-
-          await new Promise<void>((resolve, reject) => {
-            stream.on("end", resolve);
-            stream.on("error", reject);
-            stream.write(content);
-            stream.end();
-          });
-
-          const { ExitCode } = await exec.inspect();
-          if (ExitCode !== 0 && ExitCode !== null) {
-            logger.error(
-              { sandboxId, filePath, ExitCode },
-              "Cat command failed during flush",
-            );
-          }
+          await appendFileContent(container, fullPath, content);
         } finally {
           await redis.del(processingKey);
         }

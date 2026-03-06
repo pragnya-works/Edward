@@ -252,6 +252,22 @@ describe("createHttpApp", () => {
     expect(forceHttpsMiddleware).toBeTypeOf("function");
 
     const redirect = vi.fn();
+    const next = vi.fn();
+    forceHttpsMiddleware(
+      {
+        secure: false,
+        header: vi.fn(() => "http"),
+        hostname: "api.example.com",
+        originalUrl: "/health",
+      },
+      {
+        status: vi.fn(() => ({ json: vi.fn() })),
+        redirect: vi.fn(),
+      },
+      next,
+    );
+    expect(next).toHaveBeenCalledTimes(1);
+
     forceHttpsMiddleware(
       {
         secure: false,

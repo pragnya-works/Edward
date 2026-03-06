@@ -1,7 +1,12 @@
 import { sanitizePathComponent } from "./storage/key.utils.js";
 import { config } from "../app.config.js";
 
-function getCloudfrontUrl(): string | null {
+function getPreviewAssetsBaseUrl(): string | null {
+  const publicBaseUrl = config.aws.assetsUrl?.replace(/\/$/, "");
+  if (publicBaseUrl) {
+    return publicBaseUrl;
+  }
+
   const cloudfrontUrl = config.aws.cloudfrontDistributionUrl?.replace(/\/$/, "");
   return cloudfrontUrl || null;
 }
@@ -13,15 +18,15 @@ function getRootDomain(): string | null {
 }
 
 export function buildPathPreviewUrl(userId: string, chatId: string): string | null {
-  const cloudfrontUrl = getCloudfrontUrl();
-  if (!cloudfrontUrl) return null;
+  const previewBaseUrl = getPreviewAssetsBaseUrl();
+  if (!previewBaseUrl) return null;
 
   const pathParts = [
     sanitizePathComponent(userId),
     sanitizePathComponent(chatId),
   ];
 
-  return `${cloudfrontUrl}/${pathParts.join("/")}/`;
+  return `${previewBaseUrl}/${pathParts.join("/")}/preview/`;
 }
 
 export function buildSubdomainPreviewUrl(subdomain: string): string | null {

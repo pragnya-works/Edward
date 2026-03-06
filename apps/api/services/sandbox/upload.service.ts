@@ -1,4 +1,4 @@
-import { CONTAINER_WORKDIR, getContainer } from "./docker.service.js";
+import { CONTAINER_WORKDIR, getContainer, readArchive } from "./docker.service.js";
 import { SandboxInstance } from "./types.service.js";
 import { uploadFile } from "../storage.service.js";
 import { logger } from "../../utils/logger.js";
@@ -72,7 +72,7 @@ export async function uploadBuildFilesToS3(
   };
 
   try {
-    const tarArchiveStream = await container.getArchive({ path: buildPath });
+    const tarArchiveStream = await readArchive(container, buildPath);
     const tarExtractor = tar.extract();
 
     const allUploadPromises: Promise<void>[] = [];

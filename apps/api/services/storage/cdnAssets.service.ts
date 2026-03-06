@@ -2,10 +2,11 @@ import { nanoid } from "nanoid";
 import { config } from "../../app.config.js";
 import { uploadWithRetry } from "./upload.js";
 import { sanitizePathComponent } from "./key.utils.js";
+import { getPublicAssetBaseUrl } from "./storage.config.js";
 import type { AllowedImageMimeType } from "../../utils/imageValidation/types.js";
 
 const CDN_BUCKET = config.aws.s3CdnBucket;
-const ASSETS_BASE_URL = config.aws.assetsUrl?.replace(/\/$/, "");
+const ASSETS_BASE_URL = getPublicAssetBaseUrl();
 
 const EXT_BY_MIME: Record<AllowedImageMimeType, string> = {
   "image/jpeg": "jpg",
@@ -15,7 +16,9 @@ const EXT_BY_MIME: Record<AllowedImageMimeType, string> = {
 
 export function buildCdnAssetUrl(key: string): string {
   if (!ASSETS_BASE_URL) {
-    throw new Error("ASSETS_URL is not configured");
+    throw new Error(
+      "A public asset base URL is not configured. Set ASSETS_URL or S3_PUBLIC_BASE_URL.",
+    );
   }
   return `${ASSETS_BASE_URL}/${key}`;
 }
