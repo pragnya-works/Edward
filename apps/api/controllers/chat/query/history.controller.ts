@@ -2,6 +2,7 @@ import type { Response } from "express";
 import type { AuthenticatedRequest } from "../../../middleware/auth.js";
 import { getAuthenticatedUserId } from "../../../middleware/auth.js";
 import {
+  ERROR_MESSAGES,
   HttpStatus,
 } from "../../../utils/constants.js";
 import { ensureError } from "../../../utils/error.js";
@@ -128,7 +129,22 @@ export async function getDailyChatQuota(
   res: Response,
 ): Promise<void> {
   try {
-    const userId = getAuthenticatedUserId(req);
+    let userId: string | null = null;
+    try {
+      userId = getAuthenticatedUserId(req);
+    } catch {
+      userId = null;
+    }
+
+    if (!userId) {
+      sendStandardError(
+        res,
+        HttpStatus.UNAUTHORIZED,
+        ERROR_MESSAGES.UNAUTHORIZED,
+      );
+      return;
+    }
+
     const snapshot = await getDailyChatSuccessSnapshot(userId);
 
     sendSuccess(

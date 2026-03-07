@@ -124,6 +124,11 @@ export const chatRateLimiter = createRateLimiterForScope(
   { keyGenerator: getAuthenticatedRateLimitKey },
 );
 
+export const dailyChatQuotaReadRateLimiter = createRateLimiterForScope(
+  RATE_LIMIT_SCOPE.CHAT_DAILY_QUOTA_READ,
+  { keyGenerator: getAuthenticatedRateLimitKey },
+);
+
 const dailyChatPolicy = (
   RATE_LIMIT_POLICY_BY_SCOPE as Partial<
     Record<KnownRateLimitScope, RateLimitPolicy>

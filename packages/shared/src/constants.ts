@@ -74,6 +74,7 @@ export const RATE_LIMIT_SCOPE = {
   API_KEY: "apiKeyRateLimiter",
   CHAT_BURST: "chatRateLimiter",
   CHAT_DAILY: "dailyChatRateLimiter",
+  CHAT_DAILY_QUOTA_READ: "dailyChatQuotaReadRateLimiter",
   IMAGE_UPLOAD_BURST: "imageUploadRateLimiter",
   GITHUB_BURST: "githubRateLimiter",
   GITHUB_DAILY: "dailyGithubRateLimiter",
@@ -84,6 +85,7 @@ export const KNOWN_RATE_LIMIT_SCOPES = [
   RATE_LIMIT_SCOPE.API_KEY,
   RATE_LIMIT_SCOPE.CHAT_BURST,
   RATE_LIMIT_SCOPE.CHAT_DAILY,
+  RATE_LIMIT_SCOPE.CHAT_DAILY_QUOTA_READ,
   RATE_LIMIT_SCOPE.IMAGE_UPLOAD_BURST,
   RATE_LIMIT_SCOPE.GITHUB_BURST,
   RATE_LIMIT_SCOPE.GITHUB_DAILY,
@@ -100,6 +102,7 @@ export interface RateLimitPolicy {
     | "api_key"
     | "chat_burst"
     | "chat_daily"
+    | "chat_daily_quota_read"
     | "image_upload_burst"
     | "github_burst"
     | "github_daily"
@@ -132,6 +135,13 @@ export const RATE_LIMIT_POLICY_BY_SCOPE: Record<
     redisPrefix: "chat-daily",
     securityScope: "chat_daily",
     limitExceededMessage: "Daily message quota exceeded (10 messages/24h)",
+  },
+  [RATE_LIMIT_SCOPE.CHAT_DAILY_QUOTA_READ]: {
+    windowMs: 60 * 1000,
+    max: 30,
+    redisPrefix: "chat-daily-quota-read",
+    securityScope: "chat_daily_quota_read",
+    limitExceededMessage: "Too many quota checks. Please wait a minute.",
   },
   [RATE_LIMIT_SCOPE.IMAGE_UPLOAD_BURST]: {
     windowMs: 60 * 1000,

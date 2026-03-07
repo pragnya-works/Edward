@@ -38,6 +38,7 @@ import {
 import {
   chatRateLimiter,
   dailyChatRateLimiter,
+  dailyChatQuotaReadRateLimiter,
   imageUploadRateLimiter,
   promptEnhanceRateLimiter,
 } from "../middleware/rateLimit.js";
@@ -73,6 +74,7 @@ chatRouter.get(
 );
 chatRouter.get(
   "/quota/daily",
+  dailyChatQuotaReadRateLimiter,
   getDailyChatQuota,
 );
 chatRouter.get(

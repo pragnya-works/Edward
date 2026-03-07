@@ -6,6 +6,7 @@ import { getDailyChatQuota } from "@/lib/api/chat";
 import { queryKeys } from "@/lib/queryKeys";
 import { RATE_LIMIT_SCOPE } from "@/lib/rateLimit/scopes";
 import { syncRateLimitStateOwner } from "@/lib/rateLimit/state.lifecycle";
+import { isValidResetAtMs } from "@/lib/rateLimit/state.shared";
 import {
   clearRateLimitCooldown,
   clearRateLimitQuota,
@@ -51,10 +52,14 @@ export function useChatDailyQuotaSync(userId: string | undefined): void {
       return;
     }
 
+    const resetAt = isValidResetAtMs(quotaPayload.resetAtMs)
+      ? new Date(quotaPayload.resetAtMs)
+      : null;
+
     syncRateLimitQuotaSnapshot(RATE_LIMIT_SCOPE.CHAT_DAILY, {
       limit: quotaPayload.limit,
       remaining: quotaPayload.remaining,
-      resetAt: new Date(quotaPayload.resetAtMs),
+      resetAt,
       isLimited: quotaPayload.isLimited,
     });
   }, [isFetchedAfterMount, quotaPayload]);

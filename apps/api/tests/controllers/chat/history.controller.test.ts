@@ -40,6 +40,7 @@ const mockRefs = vi.hoisted(() => {
       resetAtMs: 1_700_000_000_000,
       isLimited: false,
     })),
+    sendError: vi.fn(),
     sendSuccess: vi.fn(),
     sendStreamError: vi.fn(),
     logger: {
@@ -96,6 +97,7 @@ vi.mock("../../../services/rateLimit/chatDailySuccess.service.js", () => ({
 }));
 
 vi.mock("../../../utils/response.js", () => ({
+  sendError: mockRefs.sendError,
   sendSuccess: mockRefs.sendSuccess,
 }));
 
@@ -118,10 +120,35 @@ vi.mock("../../../utils/error.js", () => ({
 
 describe("history controller deleteChat", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.resetAllMocks();
+    mockRefs.selectChain.from.mockReturnThis();
+    mockRefs.selectChain.where.mockReturnThis();
     mockRefs.chatRow = { customSubdomain: "custom-preview" };
     mockRefs.selectChain.limit.mockResolvedValue([mockRefs.chatRow]);
+    mockRefs.deleteChain.where.mockResolvedValue([]);
+    mockRefs.db.select.mockImplementation(() => mockRefs.selectChain);
+    mockRefs.db.delete.mockImplementation(() => mockRefs.deleteChain);
     mockRefs.getActiveSandbox.mockResolvedValue("sandbox-1");
+    mockRefs.getAuthenticatedUserId.mockReturnValue("user-1");
+    mockRefs.getChatIdOrRespond.mockReturnValue("chat-1");
+    mockRefs.assertChatAccessOrRespond.mockResolvedValue(true);
+    mockRefs.cleanupSandbox.mockResolvedValue(undefined);
+    mockRefs.buildS3Key.mockImplementation(
+      (userId: string, chatId: string) => `${userId}/${chatId}/`,
+    );
+    mockRefs.deleteFolder.mockResolvedValue(undefined);
+    mockRefs.deletePreviewSubdomain.mockResolvedValue(undefined);
+    mockRefs.generatePreviewSubdomain.mockReturnValue("generated-preview");
+    mockRefs.getDailyChatSuccessSnapshot.mockResolvedValue({
+      limit: 10,
+      current: 4,
+      remaining: 6,
+      resetAtMs: 1_700_000_000_000,
+      isLimited: false,
+    });
+    mockRefs.ensureError.mockImplementation((error: unknown) =>
+      error instanceof Error ? error : new Error(String(error)),
+    );
   });
 
   it("removes preview routing before deleting chat storage", async () => {
@@ -185,6 +212,31 @@ describe("history controller deleteChat", () => {
       "Chat deleted successfully",
     );
   });
+});
+
+describe("history controller getDailyChatQuota", () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+    mockRefs.selectChain.from.mockReturnThis();
+    mockRefs.selectChain.where.mockReturnThis();
+    mockRefs.deleteChain.where.mockResolvedValue([]);
+    mockRefs.db.select.mockImplementation(() => mockRefs.selectChain);
+    mockRefs.db.delete.mockImplementation(() => mockRefs.deleteChain);
+    mockRefs.getAuthenticatedUserId.mockReturnValue("user-1");
+    mockRefs.buildS3Key.mockImplementation(
+      (userId: string, chatId: string) => `${userId}/${chatId}/`,
+    );
+    mockRefs.getDailyChatSuccessSnapshot.mockResolvedValue({
+      limit: 10,
+      current: 4,
+      remaining: 6,
+      resetAtMs: 1_700_000_000_000,
+      isLimited: false,
+    });
+    mockRefs.ensureError.mockImplementation((error: unknown) =>
+      error instanceof Error ? error : new Error(String(error)),
+    );
+  });
 
   it("returns the authenticated user's daily chat quota snapshot", async () => {
     const { getDailyChatQuota } = await import(
@@ -208,7 +260,85 @@ describe("history controller deleteChat", () => {
         limit: 10,
         current: 4,
         remaining: 6,
+        resetAtMs: 1_700_000_000_000,
         isLimited: false,
+      }),
+    );
+  });
+
+  it("returns unauthorized when no authenticated user is available", async () => {
+    mockRefs.getAuthenticatedUserId.mockImplementation(() => null as never);
+
+    const { getDailyChatQuota } = await import(
+      "../../../controllers/chat/query/history.controller.js"
+    );
+
+    const req = {} as never;
+    const res = {} as never;
+
+    await getDailyChatQuota(req, res);
+
+    expect(mockRefs.getDailyChatSuccessSnapshot).not.toHaveBeenCalled();
+    expect(mockRefs.sendError).toHaveBeenCalledWith(
+      res,
+      HttpStatus.UNAUTHORIZED,
+      "Unauthorized",
+    );
+  });
+
+  it("returns an internal server error when the quota service fails", async () => {
+    mockRefs.getDailyChatSuccessSnapshot.mockRejectedValueOnce(
+      new Error("quota service failed"),
+    );
+
+    const { getDailyChatQuota } = await import(
+      "../../../controllers/chat/query/history.controller.js"
+    );
+
+    const req = {
+      userId: "user-1",
+    } as never;
+    const res = {} as never;
+
+    await getDailyChatQuota(req, res);
+
+    expect(mockRefs.sendError).toHaveBeenCalledWith(
+      res,
+      HttpStatus.INTERNAL_SERVER_ERROR,
+      "Internal Server Error",
+    );
+  });
+
+  it("returns a rate-limited daily chat quota snapshot", async () => {
+    mockRefs.getDailyChatSuccessSnapshot.mockResolvedValueOnce({
+      limit: 10,
+      current: 10,
+      remaining: 0,
+      resetAtMs: 1_700_000_000_000,
+      isLimited: true,
+    });
+
+    const { getDailyChatQuota } = await import(
+      "../../../controllers/chat/query/history.controller.js"
+    );
+
+    const req = {
+      userId: "user-1",
+    } as never;
+    const res = {} as never;
+
+    await getDailyChatQuota(req, res);
+
+    expect(mockRefs.sendSuccess).toHaveBeenCalledWith(
+      res,
+      HttpStatus.OK,
+      "Daily chat quota retrieved successfully",
+      expect.objectContaining({
+        limit: 10,
+        current: 10,
+        remaining: 0,
+        resetAtMs: 1_700_000_000_000,
+        isLimited: true,
       }),
     );
   });

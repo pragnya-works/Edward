@@ -177,8 +177,17 @@ function inferRateLimitScope(params: {
   message: string;
   limitHeader: number | null;
   retryAfterMs: number;
+  source?: "error" | "quota_response";
 }): RateLimitScope {
   const normalizedEndpoint = normalizeEndpoint(params.endpoint);
+  if (params.source === "quota_response") {
+    if (normalizedEndpoint === "/chat/message") {
+      return RATE_LIMIT_SCOPE.CHAT_DAILY;
+    }
+
+    return RATE_LIMIT_SCOPE.UNKNOWN;
+  }
+
   const normalizedMessage = params.message.toLowerCase();
 
   if (normalizedEndpoint.startsWith("/api-key")) {
@@ -265,6 +274,7 @@ async function toApiError(
         message,
         limitHeader,
         retryAfterMs,
+        source: "error",
       });
 
     const error = new Error(message) as RateLimitedApiError;
@@ -316,12 +326,16 @@ export async function fetchApiResponse(
   if (!response.ok) {
     throw await toApiError(response, endpoint);
   }
-  maybeRecordQuotaFromResponse(
-    normalizeEndpoint(endpoint) === "/chat/message"
-      ? RATE_LIMIT_SCOPE.CHAT_DAILY
-      : RATE_LIMIT_SCOPE.UNKNOWN,
-    response,
-  );
+  const scope = inferRateLimitScope({
+    endpoint,
+    message: "",
+    limitHeader: null,
+    retryAfterMs: 0,
+    source: "quota_response",
+  });
+  if (scope !== RATE_LIMIT_SCOPE.UNKNOWN) {
+    maybeRecordQuotaFromResponse(scope, response);
+  }
   return response;
 }
 
