@@ -60,3 +60,13 @@ pnpm --filter api quality:gates
 - `securityTelemetryMiddleware` issues/propagates `x-request-id` for traceability.
 - Worker handlers enforce timeout budgets and publish-retry policy for build status events.
 - Architecture boundary, duplication, and function-length checks are required quality gates.
+
+## Environment Notes
+
+- Copy `apps/api/.env.example` to `apps/api/.env`.
+- `REDIS_URL` or `REDIS_HOST` + `REDIS_PORT` are required.
+- `AWS_BUCKET_NAME` and `AWS_CDN_BUCKET_NAME` must be populated even for local stubs because storage modules read them during import.
+- `DOCKER_REGISTRY_BASE` is required for worker template resolution.
+- `PREWARM_SANDBOX_IMAGE` is required when sandbox containers are created.
+- `CLOUDFLARE_*` and `PREVIEW_ROOT_DOMAIN` are only needed for subdomain preview routing.
+- `SENTRY_DSN` and `TAVILY_API_KEY` are optional.

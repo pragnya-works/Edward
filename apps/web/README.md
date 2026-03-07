@@ -37,6 +37,10 @@ Common keys:
 - `GITHUB_CLIENT_ID`
 - `GITHUB_CLIENT_SECRET`
 - `NEXT_PUBLIC_ASSETS_URL`
+- `NEXT_PUBLIC_CDN_URL` (optional `next/image` remote host allow-list)
+- `LINEAR_API_KEY` (optional changelog integration)
+- `NEXT_PUBLIC_SENTRY_DSN` (optional runtime Sentry DSN)
+- `SENTRY_AUTH_TOKEN` (optional production source-map upload token)
 
 ## Integration Notes
 
