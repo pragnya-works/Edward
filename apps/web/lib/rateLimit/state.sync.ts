@@ -11,10 +11,6 @@ import {
   quotaByScope,
   stateRuntime,
 } from "./state.shared";
-import {
-  hydratePersistedRateLimitState,
-  persistRateLimitState,
-} from "./state.persistence";
 
 const KNOWN_SCOPE_SET = new Set<string>(KNOWN_RATE_LIMIT_SCOPES);
 
@@ -37,6 +33,16 @@ function getKnownScope(payload: Record<string, unknown>): KnownRateLimitScope | 
   return scope as KnownRateLimitScope;
 }
 
+function getMessageOwner(payload: Record<string, unknown>): string | null {
+  const owner = payload.owner;
+  if (typeof owner !== "string") {
+    return null;
+  }
+
+  const normalized = owner.trim();
+  return normalized.length > 0 ? normalized : null;
+}
+
 function ensureSyncChannel(): BroadcastChannel | null {
   if (typeof window === "undefined" || typeof BroadcastChannel === "undefined") {
     return null;
@@ -57,26 +63,37 @@ function ensureSyncChannel(): BroadcastChannel | null {
 }
 
 export function broadcast(message: RateLimitSyncMessage): void {
+  const owner = stateRuntime.owner;
+  if (!owner) {
+    return;
+  }
+
   const channel = ensureSyncChannel();
   if (!channel) {
     return;
   }
 
   try {
-    channel.postMessage(message);
+    channel.postMessage({
+      ...message,
+      owner,
+    });
   } catch (error: unknown) {
     handleSyncError(error, "post_message");
   }
 }
 
 function applySyncMessage(message: unknown): void {
-  hydratePersistedRateLimitState();
-
   if (!message || typeof message !== "object") {
     return;
   }
 
   const payload = message as Record<string, unknown>;
+  const messageOwner = getMessageOwner(payload);
+  if (!messageOwner || !stateRuntime.owner || messageOwner !== stateRuntime.owner) {
+    return;
+  }
+
   if (payload.type === "RATE_LIMIT_UPSERT" && payload.resource === "cooldown") {
     const scope = getKnownScope(payload);
     if (!scope) {
@@ -93,7 +110,6 @@ function applySyncMessage(message: unknown): void {
     }
 
     cooldownByScope.set(scope, resetAtMs);
-    persistRateLimitState();
     emitChange();
     return;
   }
@@ -106,7 +122,6 @@ function applySyncMessage(message: unknown): void {
 
     const changed = cooldownByScope.delete(scope);
     if (changed) {
-      persistRateLimitState();
       emitChange();
     }
   }
@@ -158,7 +173,6 @@ function applySyncMessage(message: unknown): void {
       remaining: normalizedRemaining,
       resetAtMs,
     });
-    persistRateLimitState();
     emitChange();
     return;
   }
@@ -171,7 +185,6 @@ function applySyncMessage(message: unknown): void {
 
     const changed = quotaByScope.delete(scope);
     if (changed) {
-      persistRateLimitState();
       emitChange();
     }
   }

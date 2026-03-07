@@ -33,6 +33,13 @@ const mockRefs = vi.hoisted(() => {
     deleteFolder: vi.fn(async () => undefined),
     deletePreviewSubdomain: vi.fn(async () => undefined),
     generatePreviewSubdomain: vi.fn(() => "generated-preview"),
+    getDailyChatSuccessSnapshot: vi.fn(async () => ({
+      limit: 10,
+      current: 4,
+      remaining: 6,
+      resetAtMs: 1_700_000_000_000,
+      isLimited: false,
+    })),
     sendSuccess: vi.fn(),
     sendStreamError: vi.fn(),
     logger: {
@@ -82,6 +89,10 @@ vi.mock("../../../services/previewRouting/registration.js", () => ({
 
 vi.mock("../../../services/previewRouting/subdomain.js", () => ({
   generatePreviewSubdomain: mockRefs.generatePreviewSubdomain,
+}));
+
+vi.mock("../../../services/rateLimit/chatDailySuccess.service.js", () => ({
+  getDailyChatSuccessSnapshot: mockRefs.getDailyChatSuccessSnapshot,
 }));
 
 vi.mock("../../../utils/response.js", () => ({
@@ -172,6 +183,33 @@ describe("history controller deleteChat", () => {
       res,
       HttpStatus.OK,
       "Chat deleted successfully",
+    );
+  });
+
+  it("returns the authenticated user's daily chat quota snapshot", async () => {
+    const { getDailyChatQuota } = await import(
+      "../../../controllers/chat/query/history.controller.js"
+    );
+
+    const req = {
+      userId: "user-1",
+    } as never;
+    const res = {} as never;
+
+    await getDailyChatQuota(req, res);
+
+    expect(mockRefs.getAuthenticatedUserId).toHaveBeenCalledWith(req);
+    expect(mockRefs.getDailyChatSuccessSnapshot).toHaveBeenCalledWith("user-1");
+    expect(mockRefs.sendSuccess).toHaveBeenCalledWith(
+      res,
+      HttpStatus.OK,
+      "Daily chat quota retrieved successfully",
+      expect.objectContaining({
+        limit: 10,
+        current: 4,
+        remaining: 6,
+        isLimited: false,
+      }),
     );
   });
 });

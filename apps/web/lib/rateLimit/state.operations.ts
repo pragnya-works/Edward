@@ -5,14 +5,8 @@ import {
 } from "@/lib/rateLimit/scopes";
 import { broadcast } from "./state.sync";
 import { emitChange, cooldownByScope, quotaByScope } from "./state.shared";
-import {
-  hydratePersistedRateLimitState,
-  persistRateLimitState,
-} from "./state.persistence";
 
 export function sweepExpiredRateLimitCooldowns(now: number = Date.now()): void {
-  hydratePersistedRateLimitState(now);
-
   const expiredQuotaScopes: KnownRateLimitScope[] = [];
   for (const [scope, snapshot] of quotaByScope) {
     if (snapshot.resetAtMs <= now) {
@@ -49,7 +43,6 @@ export function sweepExpiredRateLimitCooldowns(now: number = Date.now()): void {
     });
   }
 
-  persistRateLimitState(now);
   emitChange();
 }
 
@@ -57,8 +50,6 @@ export function recordRateLimitCooldown(
   scope: RateLimitScope,
   resetAt: Date,
 ): void {
-  hydratePersistedRateLimitState();
-
   if (!isKnownRateLimitScope(scope)) {
     return;
   }
@@ -81,7 +72,6 @@ export function recordRateLimitCooldown(
     scope,
     resetAtMs,
   });
-  persistRateLimitState();
   emitChange();
 }
 
@@ -89,8 +79,6 @@ export function recordRateLimitQuota(
   scope: RateLimitScope,
   quota: { limit: number; remaining: number; resetAt: Date },
 ): void {
-  hydratePersistedRateLimitState();
-
   if (!isKnownRateLimitScope(scope)) {
     return;
   }
@@ -113,7 +101,6 @@ export function recordRateLimitQuota(
         resource: "quota",
         scope,
       });
-      persistRateLimitState();
       emitChange();
     }
     return;
@@ -150,13 +137,13 @@ export function recordRateLimitQuota(
     remaining: normalizedRemaining,
     resetAtMs,
   });
-  persistRateLimitState();
   emitChange();
 }
 
-function clearRateLimitCooldown(scope: KnownRateLimitScope): void {
-  hydratePersistedRateLimitState();
-
+export function clearRateLimitCooldown(scope: RateLimitScope): void {
+  if (!isKnownRateLimitScope(scope)) {
+    return;
+  }
   const changed = cooldownByScope.delete(scope);
   if (changed) {
     broadcast({
@@ -164,7 +151,41 @@ function clearRateLimitCooldown(scope: KnownRateLimitScope): void {
       resource: "cooldown",
       scope,
     });
-    persistRateLimitState();
     emitChange();
   }
+}
+
+export function clearRateLimitQuota(scope: RateLimitScope): void {
+  if (!isKnownRateLimitScope(scope)) {
+    return;
+  }
+
+  const changed = quotaByScope.delete(scope);
+  if (changed) {
+    broadcast({
+      type: "RATE_LIMIT_CLEAR",
+      resource: "quota",
+      scope,
+    });
+    emitChange();
+  }
+}
+
+export function syncRateLimitQuotaSnapshot(
+  scope: RateLimitScope,
+  snapshot: {
+    limit: number;
+    remaining: number;
+    resetAt: Date;
+    isLimited?: boolean;
+  },
+): void {
+  recordRateLimitQuota(scope, snapshot);
+
+  if (snapshot.isLimited || snapshot.remaining <= 0) {
+    recordRateLimitCooldown(scope, snapshot.resetAt);
+    return;
+  }
+
+  clearRateLimitCooldown(scope);
 }

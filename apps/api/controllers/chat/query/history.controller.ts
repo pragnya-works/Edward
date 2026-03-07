@@ -17,6 +17,7 @@ import {
   getChatMetaUseCase,
   getRecentChatsUseCase,
 } from "../../../services/chat/query/history.useCase.js";
+import { getDailyChatSuccessSnapshot } from "../../../services/rateLimit/chatDailySuccess.service.js";
 import { toChatRequestContext } from "../../../services/chat/query/requestContext.js";
 import { sendStreamError } from "../../../utils/streamError.js";
 import { requireAuthorizedChatRequest } from "./chatRequestAccess.js";
@@ -114,6 +115,30 @@ export async function getRecentChats(
     );
   } catch (error) {
     logger.error(ensureError(error), "getRecentChats error");
+    sendQueryErrorResponse({
+      res,
+      error,
+      sendError: sendStandardError,
+    });
+  }
+}
+
+export async function getDailyChatQuota(
+  req: AuthenticatedRequest,
+  res: Response,
+): Promise<void> {
+  try {
+    const userId = getAuthenticatedUserId(req);
+    const snapshot = await getDailyChatSuccessSnapshot(userId);
+
+    sendSuccess(
+      res,
+      HttpStatus.OK,
+      "Daily chat quota retrieved successfully",
+      snapshot,
+    );
+  } catch (error) {
+    logger.error(ensureError(error), "getDailyChatQuota error");
     sendQueryErrorResponse({
       res,
       error,

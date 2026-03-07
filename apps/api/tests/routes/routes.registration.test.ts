@@ -33,6 +33,7 @@ const refs = vi.hoisted(() => {
     getChatMeta: noop,
     deleteChat: noop,
     getRecentChats: noop,
+    getDailyChatQuota: noop,
     getBuildStatus: noop,
     streamBuildEvents: noop,
     getActiveRun: noop,
@@ -106,6 +107,7 @@ vi.mock("../../controllers/chat/query/history.controller.js", () => ({
   getChatMeta: refs.getChatMeta,
   deleteChat: refs.deleteChat,
   getRecentChats: refs.getRecentChats,
+  getDailyChatQuota: refs.getDailyChatQuota,
 }));
 
 vi.mock("../../controllers/chat/query/build.controller.js", () => ({
@@ -181,6 +183,7 @@ describe("route registration", () => {
     expect(routes).toContain("POST /message");
     expect(routes).toContain("POST /prompt-enhance");
     expect(routes).toContain("GET /recent");
+    expect(routes).toContain("GET /quota/daily");
     expect(routes).toContain("GET /:chatId/history");
     expect(routes).toContain("GET /:chatId/meta");
     expect(routes).toContain("GET /:chatId/build-status");

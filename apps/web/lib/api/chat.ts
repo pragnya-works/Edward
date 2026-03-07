@@ -1,5 +1,6 @@
 import {
   type ActiveRunResponse,
+  type DailyChatQuotaResponse,
   type PromptEnhanceResponse,
 } from "@edward/shared/api/contracts";
 import { type Provider } from "@edward/shared/constants";
@@ -75,6 +76,15 @@ export async function getActiveRun(
   options?: { signal?: AbortSignal },
 ): Promise<ActiveRunResponse> {
   return fetchApi<ActiveRunResponse>(`/chat/${chatId}/active-run`, {
+    method: "GET",
+    signal: options?.signal,
+  });
+}
+
+export async function getDailyChatQuota(
+  options?: { signal?: AbortSignal },
+): Promise<DailyChatQuotaResponse> {
+  return fetchApi<DailyChatQuotaResponse>("/chat/quota/daily", {
     method: "GET",
     signal: options?.signal,
   });

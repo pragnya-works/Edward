@@ -19,6 +19,11 @@ export const queryKeys = {
     all: ["apiKey"] as const,
     byUserId: (userId: string | undefined) => ["apiKey", userId] as const,
   },
+  rateLimit: {
+    all: ["rateLimit"] as const,
+    chatDailyByUserId: (userId: string | undefined) =>
+      ["rateLimit", "chatDaily", userId] as const,
+  },
   github: {
     all: ["github"] as const,
     statusByChatId: (chatId: string | undefined) => ["github", "status", chatId] as const,

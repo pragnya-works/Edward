@@ -8,6 +8,7 @@ import { ChatStreamProvider } from "@/contexts/chatStreamContext";
 import { SandboxEffects } from "@/components/sandbox/SandboxEffects";
 import { Toaster } from "@edward/ui/components/sonner";
 import { useNotificationManager } from "@/hooks/useNotificationManager";
+import { useChatDailyQuotaSync } from "@/hooks/server-state/useChatDailyQuotaSync";
 import { useSession } from "@/lib/auth-client";
 
 function makeQueryClient() {
@@ -45,6 +46,7 @@ export function Providers({ children }: { children: ReactNode }) {
           transition={prefersReducedMotion ? { duration: 0 } : undefined}
         >
           <QueryClientProvider client={queryClient}>
+            <RateLimitStateBootstrap userId={session?.user?.id} />
             <ChatStreamProvider>
               <SandboxEffects>
                 {children}
@@ -56,4 +58,9 @@ export function Providers({ children }: { children: ReactNode }) {
       </LazyMotion>
     </NextThemesProvider>
   );
+}
+
+function RateLimitStateBootstrap({ userId }: { userId: string | undefined }) {
+  useChatDailyQuotaSync(userId);
+  return null;
 }

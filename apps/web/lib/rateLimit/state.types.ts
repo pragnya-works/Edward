@@ -2,17 +2,20 @@ import type { KnownRateLimitScope } from "@/lib/rateLimit/scopes";
 
 export type RateLimitSyncMessage =
   | {
+      owner?: string;
       type: "RATE_LIMIT_UPSERT";
       resource: "cooldown";
       scope: KnownRateLimitScope;
       resetAtMs: number;
     }
   | {
+      owner?: string;
       type: "RATE_LIMIT_CLEAR";
       resource: "cooldown";
       scope: KnownRateLimitScope;
     }
   | {
+      owner?: string;
       type: "RATE_LIMIT_UPSERT";
       resource: "quota";
       scope: KnownRateLimitScope;
@@ -21,6 +24,7 @@ export type RateLimitSyncMessage =
       resetAtMs: number;
     }
   | {
+      owner?: string;
       type: "RATE_LIMIT_CLEAR";
       resource: "quota";
       scope: KnownRateLimitScope;
@@ -40,14 +44,4 @@ export interface RateLimitQuotaSnapshot {
   used: number;
   usagePercent: number;
   resetAt: Date;
-}
-
-export interface PersistedRateLimitState {
-  cooldowns: Array<{ scope: KnownRateLimitScope; resetAtMs: number }>;
-  quotas: Array<{
-    scope: KnownRateLimitScope;
-    limit: number;
-    remaining: number;
-    resetAtMs: number;
-  }>;
 }

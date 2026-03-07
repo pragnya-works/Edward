@@ -129,6 +129,17 @@ export interface ActiveRunResponse {
   };
 }
 
+export interface DailyChatQuotaResponse {
+  message: string;
+  data: {
+    limit: number;
+    current: number;
+    remaining: number;
+    resetAtMs: number;
+    isLimited: boolean;
+  };
+}
+
 export interface SandboxFileContract {
   path: string;
   content: string;

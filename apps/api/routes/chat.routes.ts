@@ -9,6 +9,7 @@ import {
   getChatMeta,
   deleteChat,
   getRecentChats,
+  getDailyChatQuota,
 } from "../controllers/chat/query/history.controller.js";
 import {
   getBuildStatus,
@@ -69,6 +70,10 @@ chatRouter.post(
 chatRouter.get(
   "/recent",
   getRecentChats,
+);
+chatRouter.get(
+  "/quota/daily",
+  getDailyChatQuota,
 );
 chatRouter.get(
   "/:chatId/history",

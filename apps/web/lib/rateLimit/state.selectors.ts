@@ -7,7 +7,6 @@ import type {
   RateLimitQuotaSnapshot,
 } from "./state.types";
 import { cooldownByScope, listeners, quotaByScope } from "./state.shared";
-import { hydratePersistedRateLimitState } from "./state.persistence";
 import { ensureSyncListener } from "./state.sync";
 
 export function getRateLimitQuota(
@@ -59,7 +58,6 @@ export function getRateLimitCooldown(
 }
 
 export function subscribeRateLimitCooldowns(listener: () => void): () => void {
-  hydratePersistedRateLimitState();
   ensureSyncListener();
   listeners.add(listener);
 

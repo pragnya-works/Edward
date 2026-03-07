@@ -10,7 +10,7 @@ import {
 } from "@/lib/rateLimit/scopes";
 import {
   recordRateLimitCooldown,
-  recordRateLimitQuota,
+  syncRateLimitQuotaSnapshot,
 } from "@/lib/rateLimit/state.operations";
 import { captureMessage } from "@sentry/nextjs";
 
@@ -218,11 +218,10 @@ function inferRateLimitScope(params: {
 }
 
 function maybeRecordQuotaFromResponse(
-  endpoint: string,
+  scope: RateLimitScope,
   response: Response,
 ): void {
-  const normalizedEndpoint = normalizeEndpoint(endpoint);
-  if (normalizedEndpoint !== "/chat/message") {
+  if (scope !== RATE_LIMIT_SCOPE.CHAT_DAILY) {
     return;
   }
 
@@ -240,10 +239,11 @@ function maybeRecordQuotaFromResponse(
     return;
   }
 
-  recordRateLimitQuota(RATE_LIMIT_SCOPE.CHAT_DAILY, {
+  syncRateLimitQuotaSnapshot(RATE_LIMIT_SCOPE.CHAT_DAILY, {
     limit,
     remaining,
     resetAt,
+    isLimited: remaining <= 0,
   });
 }
 
@@ -277,6 +277,7 @@ async function toApiError(
     error.retryAfterMs = retryAfterMs;
 
     recordRateLimitCooldown(scope, resetAt);
+    maybeRecordQuotaFromResponse(scope, response);
     return error;
   }
 
@@ -315,7 +316,12 @@ export async function fetchApiResponse(
   if (!response.ok) {
     throw await toApiError(response, endpoint);
   }
-  maybeRecordQuotaFromResponse(endpoint, response);
+  maybeRecordQuotaFromResponse(
+    normalizeEndpoint(endpoint) === "/chat/message"
+      ? RATE_LIMIT_SCOPE.CHAT_DAILY
+      : RATE_LIMIT_SCOPE.UNKNOWN,
+    response,
+  );
   return response;
 }
 

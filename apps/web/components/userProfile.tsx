@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useState, useRef } from "react";
 import { signOut, useSession } from "@/lib/auth-client";
 import {
   Avatar,
@@ -39,7 +39,6 @@ import {
   useRateLimitQuotaScope,
   type RateLimitQuotaScopeState,
 } from "@/hooks/rateLimit/useRateLimitQuotaScope";
-import { syncRateLimitStorageOwner } from "@/lib/rateLimit/state.persistence";
 
 function getProgressClass(
   remainingPercent: number,
@@ -123,7 +122,6 @@ export default function UserProfile() {
   const { open, setOpen } = useSidebar();
   const isMobile = useMobileViewport();
   const isExpanded = open || isMobile;
-  const userId = session?.user?.id ?? null;
   const chatDailyRateLimit = useRateLimitScope(RATE_LIMIT_SCOPE.CHAT_DAILY);
   const chatDailyQuota = useRateLimitQuotaScope(RATE_LIMIT_SCOPE.CHAT_DAILY);
   const chatDailyLimit = RATE_LIMIT_POLICY_BY_SCOPE[RATE_LIMIT_SCOPE.CHAT_DAILY].max;
@@ -137,13 +135,6 @@ export default function UserProfile() {
     progressClass: remainingProgressClassName,
   } = getDailyQuotaDisplay(isDailyLimitReached, chatDailyQuota, safeDailyLimit);
   const resetAt = chatDailyRateLimit.resetAt ?? chatDailyQuota.resetAt;
-
-  useEffect(() => {
-    if (!userId) {
-      return;
-    }
-    syncRateLimitStorageOwner(userId);
-  }, [userId]);
 
   function closeMobileSidebar() {
     if (isMobile) setOpen(false);
