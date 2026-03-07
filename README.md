@@ -203,6 +203,89 @@ Optional:
 - `TAVILY_API_KEY` for web search
 - `SENTRY_DSN` and `NEXT_PUBLIC_SENTRY_DSN` for error reporting
 
+## CloudFront Setup (For Preview Routing)
+
+If you want preview URLs to work with CloudFront (e.g., `https://yourdomain.com/userid/chatid`), you need to deploy a CloudFront Function that rewrites requests to the `/preview/` folder.
+
+### 1. Create the CloudFront Function
+
+1. Go to AWS CloudFront Console → Functions → Create function
+2. Name it (e.g., `edward-preview-rewrite`)
+3. Set Runtime to **CloudFront Functions** (not Lambda@Edge)
+4. Paste the following code:
+
+```javascript
+function handler(event) {
+    var request = event.request;
+    var uri = request.uri;
+
+    // If URI contains /preview/, it's already a proper preview asset path - pass through
+    if (uri.includes('/preview/')) {
+        return request;
+    }
+
+    // Extract userId and chatId from the URI
+    // Pattern: /userid/chatid or /userid/chatid/anything
+    var pathMatch = uri.match(/^\/([^\/]+)\/([^\/]+)(?:\/|$)/);
+    if (!pathMatch) {
+        return request;
+    }
+
+    var userId = pathMatch[1];
+    var chatId = pathMatch[2];
+    var remainingPath = uri.slice(pathMatch[0].length);
+
+    // If it's a file request (has extension) or a subdirectory path, map it to preview folder
+    // This handles:
+    //   /userid/chatid/styles.css -> /userid/chatid/preview/styles.css
+    //   /userid/chatid/assets/logo.png -> /userid/chatid/preview/assets/logo.png
+    //   /userid/chatid/_next/static/... -> /userid/chatid/preview/_next/static/...
+    if (remainingPath && (remainingPath.includes('.') || remainingPath.includes('/'))) {
+        request.uri = '/' + userId + '/' + chatId + '/preview/' + remainingPath;
+        return request;
+    }
+
+    // /userid/chatid or /userid/chatid/ -> rewrite to /userid/chatid/preview/index.html
+    // This rewrites the request internally without redirecting the browser
+    request.uri = '/' + userId + '/' + chatId + '/preview/index.html';
+    return request;
+}
+```
+
+5. Click **Publish** and note the function ARN
+
+### 2. Associate with Your Distribution
+
+1. Go to your CloudFront Distribution → Functions tab
+2. Click **Associate function**
+3. Choose:
+   - **Event type:** Viewer request
+   - **Function:** `edward-preview-rewrite` (or your function name)
+4. Save changes
+
+### 3. Update Environment Variables
+
+In `apps/api/.env`, set:
+
+```bash
+CLOUDFRONT_DISTRIBUTION_ID="<your-distribution-id>"
+CLOUDFRONT_DISTRIBUTION_URL="https://<your-distribution-id>.cloudfront.net"
+```
+
+### How It Works
+
+The function rewrites incoming requests so that:
+
+| Incoming URL | Rewritten To |
+|--------------|--------------|
+| `/u123/c456` | `/u123/c456/preview/index.html` |
+| `/u123/c456/` | `/u123/c456/preview/index.html` |
+| `/u123/c456/styles.css` | `/u123/c456/preview/styles.css` |
+| `/u123/c456/assets/logo.png` | `/u123/c456/preview/assets/logo.png` |
+| `/u123/c456/_next/static/...` | `/u123/c456/preview/_next/static/...` |
+
+This allows clean preview URLs like `https://yourdomain.com/userid/chatid` while serving files from the `/preview/` subdirectory in S3.
+
 ## Common Commands
 
 From the repo root:
