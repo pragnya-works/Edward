@@ -12,6 +12,7 @@
   },
   "pnpm": {
     "overrides": {
+      "express-rate-limit": "^8.2.2",
       "csstype": "^3.2.3",
       "js-yaml": "^4.1.1",
       "tmp": "^0.2.4",
