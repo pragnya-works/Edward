@@ -33,6 +33,7 @@ const GENERATION_CONFIG = {
 const logger = createLogger("LLM");
 const ANTHROPIC_STREAM_TIMEOUT_MS = 20 * 60 * 1_000;
 const ANTHROPIC_GENERATE_TIMEOUT_MS = 2 * 60 * 1_000;
+const ANTHROPIC_NON_STREAMING_MAX_TOKENS = 16_384;
 
 export interface StreamUsageUpdate {
   outputTokens?: number;
@@ -363,7 +364,10 @@ export async function generateResponse(
         {
           model,
           system: fullSystemPrompt,
-          max_tokens: getAnthropicMaxOutputTokens(model),
+          max_tokens: Math.min(
+            getAnthropicMaxOutputTokens(model),
+            ANTHROPIC_NON_STREAMING_MAX_TOKENS,
+          ),
           messages: [
             {
               role: MessageRole.User,
