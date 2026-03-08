@@ -246,18 +246,10 @@ function buildPromptWithCaps(
     MAX_AGENT_CONTINUATION_PROMPT_CHARS -
     basePromptLength -
     TOOL_BUDGET_PADDING_CHARS;
-  // Cap the budget at availableForTools so we never exceed MAX_AGENT_CONTINUATION_PROMPT_CHARS.
-  // If availableForTools is very small, prefer using all of it over enforcing the minimum.
   const toolBudget =
     availableForTools <= 0
       ? 0
-      : Math.min(
-          availableForTools,
-          Math.max(
-            Math.min(caps.toolTotalCharsMin, availableForTools),
-            Math.min(caps.toolTotalCharsTarget, availableForTools),
-          ),
-        );
+      : Math.max(caps.toolTotalCharsMin, Math.min(caps.toolTotalCharsTarget, availableForTools));
   const formattedResults = compactToolResultsForContinuation(
     toolResults,
     toolBudget,

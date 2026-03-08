@@ -124,7 +124,7 @@ export const CODE_QUALITY_COMPACT_SKILL = `
 <skill:code-quality-compact>
 Production completeness rules (non-negotiable):
 - Treat every generation task as production-ready by default; never output POC/MVP quality unless explicitly requested.
-- E-commerce: cart add/remove/quantity/total wired; checkout form submits with validation.
+- E-commerce: cart add/remove/quantity controls, live subtotal/total updates, working cart/checkout routes, and checkout form submission with validation.
 - Dashboard: charts/tables use real typed mock data — never empty arrays or undefined placeholders.
 - Auth/SaaS: login, signup, reset forms all have field validation, error states, and working submit handlers.
 - Portfolio/landing: all sections present with real content — no "My Project 1" or lorem ipsum.

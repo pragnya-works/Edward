@@ -19,7 +19,7 @@ import type { EmitMeta } from "../shared/meta.js";
 import { buildPostgenRetryPrompt } from "./postgenRetryPrompt.js";
 import type { LoopState } from "./runStreamSession.helpers.js";
 
-const STRICT_RETRY_MIN_VIOLATIONS = 5;
+const STRICT_RETRY_MIN_VIOLATIONS = 4;
 
 interface StrictRetryParams {
   chatId: string;

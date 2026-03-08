@@ -7,8 +7,9 @@ const ANSI_ESCAPE_SEQUENCE_PATTERN = new RegExp(
   "g",
 );
 
+export const NEVER_TRUNCATE_COMMANDS = new Set(["cat"]);
+
 export const RAW_OUTPUT_COMMANDS = new Set([
-  "cat",
   "head",
   "tail",
   "grep",
@@ -62,6 +63,13 @@ function collapseRepeatedLines(input: string, maxConsecutive = 3): string {
   }
 
   return compacted.join("\n");
+}
+
+export function stripAnsiOnly(content: string): string {
+  if (!content) {
+    return "";
+  }
+  return content.replace(ANSI_ESCAPE_SEQUENCE_PATTERN, "").replace(/\r\n?/g, "\n");
 }
 
 export function sanitizeCommandOutput(content: string): string {
