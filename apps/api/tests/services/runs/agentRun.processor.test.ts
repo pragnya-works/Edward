@@ -13,35 +13,40 @@ const mocks = vi.hoisted(() => ({
   decrypt: vi.fn(),
 }));
 
-vi.mock("@edward/auth", () => ({
-  and: vi.fn(),
-  db: {
-    update: vi.fn(() => ({
-      set: vi.fn(() => ({
-        where: vi.fn(() => ({
-          returning: mocks.dbUpdateReturning,
+vi.mock("@edward/auth", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@edward/auth")>();
+
+  return {
+    ...actual,
+    and: vi.fn(),
+    db: {
+      update: vi.fn(() => ({
+        set: vi.fn(() => ({
+          where: vi.fn(() => ({
+            returning: mocks.dbUpdateReturning,
+          })),
         })),
       })),
-    })),
-  },
-  eq: vi.fn(),
-  getLatestSessionCompleteEvent: mocks.getLatestSessionCompleteEvent,
-  getRunById: mocks.getRunById,
-  inArray: vi.fn(),
-  isTerminalRunStatus: mocks.isTerminalRunStatus,
-  RUN_STATUS: {
-    QUEUED: "queued",
-    RUNNING: "running",
-    COMPLETED: "completed",
-    FAILED: "failed",
-    CANCELLED: "cancelled",
-  },
-  run: {
-    id: "id",
-    status: "status",
-  },
-  updateRun: mocks.updateRun,
-}));
+    },
+    eq: vi.fn(),
+    getLatestSessionCompleteEvent: mocks.getLatestSessionCompleteEvent,
+    getRunById: mocks.getRunById,
+    inArray: vi.fn(),
+    isTerminalRunStatus: mocks.isTerminalRunStatus,
+    RUN_STATUS: {
+      QUEUED: "queued",
+      RUNNING: "running",
+      COMPLETED: "completed",
+      FAILED: "failed",
+      CANCELLED: "cancelled",
+    },
+    run: {
+      id: "id",
+      status: "status",
+    },
+    updateRun: mocks.updateRun,
+  };
+});
 
 vi.mock("../../../lib/redis.js", () => ({
   createRedisClient: mocks.createRedisClient,
@@ -104,7 +109,7 @@ describe("processAgentRunJob", () => {
       historyMessages: [],
       projectContext: "",
     });
-    mocks.decrypt.mockReturnValue("decrypted-key");
+    mocks.decrypt.mockReturnValue("sk-test-key");
     mocks.createRedisClient.mockReturnValue({
       subscribe: vi.fn(async () => undefined),
       on: vi.fn(),

@@ -3,6 +3,23 @@ import type {
 } from "@edward/shared/llm/types";
 
 type VisionImage = Extract<MessageContentPart, { type: "image" }>;
+type AnthropicImageMediaType =
+  | "image/gif"
+  | "image/jpeg"
+  | "image/png"
+  | "image/webp";
+
+function toAnthropicImageMediaType(mimeType: string): AnthropicImageMediaType {
+  switch (mimeType) {
+    case "image/gif":
+    case "image/jpeg":
+    case "image/png":
+    case "image/webp":
+      return mimeType;
+    default:
+      throw new Error(`Unsupported Anthropic image mime type: ${mimeType}`);
+  }
+}
 
 export function isMultimodalContent(
   content: string | MessageContentPart[],
@@ -122,5 +139,46 @@ export function formatContentForGemini(
     }
 
     return { text: part.text };
+  });
+}
+
+export type AnthropicContentPart =
+  | {
+      type: "text";
+      text: string;
+    }
+  | {
+      type: "image";
+      source: {
+        type: "base64";
+        media_type: AnthropicImageMediaType;
+        data: string;
+      };
+    };
+
+export function formatContentForAnthropic(
+  content: string | MessageContentPart[],
+): AnthropicContentPart[] {
+  if (typeof content === "string") {
+    return [{ type: "text", text: content }];
+  }
+
+  return content.map((part): AnthropicContentPart => {
+    if (part.type === "image") {
+      const image = part as VisionImage;
+      return {
+        type: "image",
+        source: {
+          type: "base64",
+          media_type: toAnthropicImageMediaType(image.mimeType),
+          data: image.base64,
+        },
+      };
+    }
+
+    return {
+      type: "text",
+      text: part.text,
+    };
   });
 }

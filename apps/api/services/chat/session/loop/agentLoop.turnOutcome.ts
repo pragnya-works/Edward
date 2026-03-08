@@ -38,6 +38,7 @@ async function checkpointContinuationMessages(params: {
   prompt: string;
   sandboxTagDetected: boolean;
   totalToolCallsInRun: number;
+  outputTokens?: number;
 }): Promise<LlmChatMessage[]> {
   const agentMessages: LlmChatMessage[] = [{
     role: MessageRole.User,
@@ -49,6 +50,7 @@ async function checkpointContinuationMessages(params: {
     agentMessages,
     sandboxTagDetected: params.sandboxTagDetected,
     totalToolCallsInRun: params.totalToolCallsInRun,
+    outputTokens: params.outputTokens,
     updatedAt: Date.now(),
   });
   return agentMessages;
@@ -104,6 +106,7 @@ export interface ResolveTurnOutcomeParams {
   agentMessages: LlmChatMessage[];
   abortSignal: AbortSignal;
   noProgressContinuations: number;
+  outputTokens?: number;
 }
 
 export interface ResolveTurnOutcomeResult {
@@ -242,6 +245,7 @@ export async function resolveTurnOutcome(
       prompt: continuationResult.prompt,
       sandboxTagDetected: params.sandboxTagDetected,
       totalToolCallsInRun: params.totalToolCallsInRun,
+      outputTokens: params.outputTokens,
     });
     logger.info(
       {
@@ -314,6 +318,7 @@ export async function resolveTurnOutcome(
       prompt: continuationResult.prompt,
       sandboxTagDetected: params.sandboxTagDetected,
       totalToolCallsInRun: params.totalToolCallsInRun,
+      outputTokens: params.outputTokens,
     });
     logger.warn(
       {

@@ -11,6 +11,7 @@ import {
 import { Eye } from "lucide-react";
 import { Provider } from "@edward/shared/constants";
 import { getModelsByProvider } from "@edward/shared/schema";
+import { ClaudeAI } from "@edward/ui/components/ui/claudeAi";
 import { cn } from "@edward/ui/lib/utils";
 
 interface ModelSelectorProps {
@@ -25,6 +26,14 @@ const ASSETS_URL = process.env.NEXT_PUBLIC_ASSETS_URL;
 
 function getModelIconUrl(provider: Provider, modelId: string): string {
   return `${ASSETS_URL}/models/${provider}/${modelId}`;
+}
+
+function getProviderIcon(provider: Provider) {
+  if (provider === Provider.ANTHROPIC) {
+    return ClaudeAI;
+  }
+
+  return null;
 }
 
 export function ModelSelector({
@@ -49,7 +58,7 @@ export function ModelSelector({
           {models.map((model, index) => {
             const isSelected = selectedModelId === model.id;
             const iconUrl = getModelIconUrl(provider, model.id);
-            const isOpenAIProvider = provider === Provider.OPENAI;
+            const ProviderIcon = getProviderIcon(provider);
             const iconSize = provider === Provider.GEMINI ? 20 : 24;
 
             return (
@@ -69,7 +78,7 @@ export function ModelSelector({
                 }
                 onClick={() => onSelect(model.id)}
                 className={cn(
-                  "group relative w-full flex items-center justify-between p-3 rounded-xl text-left transition-all duration-200 border",
+                  "group relative grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 p-3 rounded-xl text-left transition-all duration-200 border",
                   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
                   isSelected
                     ? "bg-muted/30 dark:bg-primary/[0.03] border-primary/30 dark:border-primary/30 shadow-sm"
@@ -77,7 +86,7 @@ export function ModelSelector({
                 )}
                 aria-pressed={isSelected}
               >
-                <div className="flex items-center gap-3.5 relative z-10 min-w-0">
+                <div className="flex items-center gap-3.5 relative z-10 min-w-0 flex-1">
                   <div
                     className={cn(
                       "relative flex-shrink-0 h-9 w-9 rounded-lg flex items-center justify-center border transition-all duration-300 overflow-hidden",
@@ -86,7 +95,15 @@ export function ModelSelector({
                         : "bg-muted/20 dark:bg-muted/10 border-border group-hover:border-primary/20 text-muted-foreground group-hover:text-primary",
                     )}
                   >
-                    {isOpenAIProvider ? (
+                    {ProviderIcon ? (
+                      <ProviderIcon
+                        className={cn(
+                          "h-5 w-5",
+                          isSelected ? "text-foreground" : "text-muted-foreground",
+                        )}
+                        aria-hidden="true"
+                      />
+                    ) : provider === Provider.OPENAI ? (
                       <Image
                         src={iconUrl}
                         alt={`${model.label} icon`}
@@ -107,8 +124,8 @@ export function ModelSelector({
                     )}
                   </div>
 
-                  <div className="flex flex-col min-w-0">
-                    <div className="flex items-center gap-1.5">
+                  <div className="flex flex-col min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5 min-w-0">
                       <span
                         className={cn(
                           "text-[13px] font-semibold tracking-tight transition-colors truncate",
@@ -118,21 +135,21 @@ export function ModelSelector({
                         {model.label}
                       </span>
                       {isSelected && (
-                        <div className="h-1 w-1 rounded-full bg-primary" />
+                        <div className="h-1 w-1 rounded-full bg-primary shrink-0" />
                       )}
                     </div>
-                    <span className="text-[11px] text-muted-foreground/70 dark:text-muted-foreground/60 truncate">
+                    <span className="text-[11px] leading-4 text-muted-foreground/70 dark:text-muted-foreground/60 truncate">
                       {model.description}
                     </span>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-4 relative z-10 shrink-0 ml-4">
-                  <div className="flex items-center gap-2">
+                <div className="relative z-10 flex min-w-0 max-w-full items-center justify-end">
+                  <div className="flex max-w-full flex-wrap items-center justify-end gap-2">
                     {model.supportsVision && (
                       <div
                         className={cn(
-                          "flex items-center gap-1 px-1.5 py-0.5 rounded-md border text-[9px] font-bold uppercase tracking-wider",
+                          "flex shrink-0 items-center gap-1 rounded-md border px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider",
                           isSelected
                             ? "bg-violet-500/10 border-violet-500/30 text-violet-600 dark:text-violet-400"
                             : "bg-muted/30 border-border/50 text-muted-foreground/50",
@@ -142,7 +159,7 @@ export function ModelSelector({
                         <span>Vision</span>
                       </div>
                     )}
-                    <div className="flex flex-col items-end">
+                    <div className="flex shrink-0 flex-col items-end">
                       <span className="text-[9px] font-bold text-muted-foreground/50 dark:text-muted-foreground/30 uppercase tracking-widest">
                         Logic
                       </span>

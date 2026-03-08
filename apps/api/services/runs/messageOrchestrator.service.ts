@@ -1,7 +1,5 @@
 import type { Response } from "express";
-import {
-  MessageRole,
-} from "@edward/auth";
+import { MessageRole } from "@edward/auth";
 import type { AuthenticatedRequest } from "../../middleware/auth.js";
 import { getAuthenticatedUserId } from "../../middleware/auth.js";
 import { getRequestId } from "../../middleware/securityTelemetry.js";
@@ -21,7 +19,7 @@ import {
   advanceWorkflow,
 } from "../planning/workflow/engine.js";
 import { ChatAction } from "../planning/schemas.js";
-import { modelSupportsVision } from "@edward/shared/schema";
+import { getProviderFromKey, modelSupportsVision } from "@edward/shared/schema";
 import { ParserEventType } from "@edward/shared/streamEvents";
 import { nanoid } from "nanoid";
 import {
@@ -37,6 +35,10 @@ import {
   enqueueAdmittedRun,
   getRunAdmissionWindow,
 } from "./runAdmission.service.js";
+import {
+  assertModelMatchesProvider,
+  PROVIDER_MODEL_MISMATCH_ERROR,
+} from "../../lib/llm/provider.helpers.js";
 import {
   cleanupUnqueuedUserMessage,
   resolveRetryTargets,
@@ -83,8 +85,39 @@ export async function unifiedSendMessage(
         return;
       }
 
-      decrypt(userData.apiKey);
+      const decryptedApiKey = decrypt(userData.apiKey);
+      const keyProvider = getProviderFromKey(decryptedApiKey);
+      if (!keyProvider) {
+        sendStreamError(
+          res,
+          HttpStatus.BAD_REQUEST,
+          "Unable to determine provider from the saved API key. Please re-save it in settings.",
+        );
+        return;
+      }
       preferredModel = userData.preferredModel || undefined;
+      const selectedModel = body.model || preferredModel;
+      try {
+        assertModelMatchesProvider(keyProvider, selectedModel);
+      } catch (error) {
+        logger.warn(
+          {
+            err: ensureError(error),
+            requestId: traceId,
+            userId,
+            keyProvider,
+            selectedModel,
+            handler: "unifiedSendMessage",
+          },
+          "Rejected request due to provider/model mismatch",
+        );
+        sendStreamError(
+          res,
+          HttpStatus.BAD_REQUEST,
+          PROVIDER_MODEL_MISMATCH_ERROR,
+        );
+        return;
+      }
     } catch (err) {
       const error = ensureError(err);
       logger.error(error, "Failed to retrieve or decrypt API key");
@@ -128,7 +161,11 @@ export async function unifiedSendMessage(
 
     const selectedModel = body.model || preferredModel;
 
-    if (parsedContent.hasImages && selectedModel && !modelSupportsVision(selectedModel)) {
+    if (
+      parsedContent.hasImages &&
+      selectedModel &&
+      !modelSupportsVision(selectedModel)
+    ) {
       sendStreamError(
         res,
         HttpStatus.BAD_REQUEST,
@@ -196,9 +233,9 @@ export async function unifiedSendMessage(
     const preVerifiedDeps = workflow.context.intent?.recommendedPackages || [];
     const userMultimodalContent = parsedContent.hasImages
       ? buildMultimodalContentForLLM(
-        parsedContent.textContent,
-        parsedContent.images,
-      )
+          parsedContent.textContent,
+          parsedContent.images,
+        )
       : parsedContent.textContent;
 
     const runMetadata = createAgentRunMetadata({
@@ -235,11 +272,7 @@ export async function unifiedSendMessage(
           : admissionResult.rejectedBy === "chat_limit"
             ? "This chat already has an active run. Please wait for it to finish before sending another message."
             : `Too many active runs for your account. Limit=${userRunLimit}. Please wait for an ongoing run to finish.`;
-      sendStreamError(
-        res,
-        HttpStatus.TOO_MANY_REQUESTS,
-        rejectionMessage,
-      );
+      sendStreamError(res, HttpStatus.TOO_MANY_REQUESTS, rejectionMessage);
       return;
     }
     runId = run.id;

@@ -4,7 +4,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@edward/ui/components/dialog";
-import { Provider } from "@edward/shared/constants";
+import { Provider, PROVIDER_DISPLAY_NAME } from "@edward/shared/constants";
 
 interface BYOKHeaderProps {
   hasExistingKey: boolean;
@@ -45,7 +45,7 @@ export function BYOKHeader({
                 </p>
                 {existingKeyProvider ? (
                   <span className="rounded-full border border-border/60 dark:border-white/[0.15] bg-background/70 dark:bg-white/[0.08] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground dark:text-foreground/60">
-                    {existingKeyProvider === Provider.OPENAI ? "OpenAI" : "Gemini"}
+                    {PROVIDER_DISPLAY_NAME[existingKeyProvider]}
                   </span>
                 ) : null}
               </div>

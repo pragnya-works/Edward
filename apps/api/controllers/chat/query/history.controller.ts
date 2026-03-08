@@ -1,10 +1,7 @@
 import type { Response } from "express";
 import type { AuthenticatedRequest } from "../../../middleware/auth.js";
 import { getAuthenticatedUserId } from "../../../middleware/auth.js";
-import {
-  ERROR_MESSAGES,
-  HttpStatus,
-} from "../../../utils/constants.js";
+import { ERROR_MESSAGES, HttpStatus } from "../../../utils/constants.js";
 import { ensureError } from "../../../utils/error.js";
 import { logger } from "../../../utils/logger.js";
 import {
@@ -132,8 +129,20 @@ export async function getDailyChatQuota(
     let userId: string | null = null;
     try {
       userId = getAuthenticatedUserId(req);
-    } catch {
-      userId = null;
+    } catch (error) {
+      const authError = ensureError(error);
+      if (
+        authError.message.includes("req.userId is missing") ||
+        authError.message.includes("authMiddleware")
+      ) {
+        userId = null;
+      } else {
+        logger.error(
+          authError,
+          "Unexpected getDailyChatQuota auth resolution error",
+        );
+        throw authError;
+      }
     }
 
     if (!userId) {

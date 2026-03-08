@@ -64,6 +64,7 @@ export interface ExecuteAgentTurnStreamResult {
   toolResultsThisTurn: AgentToolResult[];
   budgetState: ReturnType<typeof createTurnBudgetState>;
   turnState: ReturnType<typeof createTurnEventState>;
+  outputTokensThisTurn?: number;
 }
 
 export async function executeAgentTurnStream(
@@ -79,6 +80,7 @@ export async function executeAgentTurnStream(
   let fullRawResponse = params.fullRawResponse;
   let turnRawResponse = "";
   let responseSizeExceededThisTurn = false;
+  let outputTokensThisTurn: number | undefined;
   const parserContext = {
     workflow: params.workflow,
     res: params.res,
@@ -99,6 +101,7 @@ export async function executeAgentTurnStream(
     streamAttempt += 1
   ) {
     try {
+      let attemptOutputTokens: number | undefined;
       const stream = streamResponse(
         params.decryptedApiKey,
         params.agentMessages,
@@ -110,6 +113,11 @@ export async function executeAgentTurnStream(
         params.mode,
         params.promptProfile,
         params.model,
+        (usage) => {
+          if (typeof usage.outputTokens === "number") {
+            attemptOutputTokens = usage.outputTokens;
+          }
+        },
       );
 
       for await (const chunk of stream) {
@@ -138,6 +146,7 @@ export async function executeAgentTurnStream(
         }
       }
 
+      outputTokensThisTurn = attemptOutputTokens;
       break;
     } catch (streamError) {
       const error = ensureError(streamError);
@@ -194,5 +203,6 @@ export async function executeAgentTurnStream(
     toolResultsThisTurn,
     budgetState,
     turnState,
+    outputTokensThisTurn,
   };
 }

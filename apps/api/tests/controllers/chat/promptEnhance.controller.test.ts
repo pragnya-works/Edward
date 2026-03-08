@@ -119,6 +119,41 @@ describe("promptEnhance use case", () => {
     );
   });
 
+  it("uses Anthropic Sonnet 4.6 for prompt enhancement", async () => {
+    mockRefs.decrypt.mockReturnValue("sk-ant-api03-validanthropickey1234567890");
+
+    const { enhancePromptUseCase } = await import(
+      "../../../services/chat/promptEnhance.useCase.js"
+    );
+
+    const req = {
+      body: {
+        text: "Rewrite this request into a clear build specification with explicit constraints, deliverables, implementation details, and success criteria for the coding agent",
+        provider: Provider.ANTHROPIC,
+      },
+    } as never;
+    const res = {} as never;
+
+    await enhancePromptUseCase(req, res);
+
+    expect(mockRefs.generateResponse).toHaveBeenCalledWith(
+      "sk-ant-api03-validanthropickey1234567890",
+      expect.any(String),
+      undefined,
+      expect.any(String),
+      { model: Model.CLAUDE_SONNET_4_6 },
+    );
+    expect(mockRefs.sendSuccess).toHaveBeenCalledWith(
+      res,
+      HttpStatus.OK,
+      "Prompt enhanced successfully",
+      expect.objectContaining({
+        provider: Provider.ANTHROPIC,
+        model: Model.CLAUDE_SONNET_4_6,
+      }),
+    );
+  });
+
   it("rejects provider and API key mismatch", async () => {
     mockRefs.decrypt.mockReturnValue("sk-proj-abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz");
 
@@ -152,7 +187,7 @@ describe("promptEnhance use case", () => {
     const req = {
       body: {
         text: "Improve this prompt with concrete acceptance criteria and clear technical constraints",
-        provider: "anthropic",
+        provider: "mistral",
       },
     } as never;
     const res = {} as never;

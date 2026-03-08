@@ -63,9 +63,9 @@ export enum StreamTerminationReason {
 }
 
 export interface TokenUsageBreakdown {
-  provider: "openai" | "gemini";
+  provider: "openai" | "gemini" | "anthropic";
   model: string;
-  method: "openai-tiktoken" | "gemini-countTokens" | "approx";
+  method: "openai-tiktoken" | "gemini-countTokens" | "anthropic-countTokens" | "approx";
   contextWindowTokens: number;
   reservedOutputTokens: number;
   /** Tokens for the current user prompt only (latest turn input), not full context. */

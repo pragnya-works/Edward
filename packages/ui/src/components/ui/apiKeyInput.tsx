@@ -6,6 +6,7 @@ import {
   Provider,
   API_KEY_LABEL,
   API_KEY_PLACEHOLDER,
+  PROVIDER_DISPLAY_NAME,
 } from "@edward/shared/constants";
 
 interface ApiKeyInputProps {
@@ -69,7 +70,9 @@ export function ApiKeyInput({
         <p className="text-xs text-muted-foreground">
           {provider === Provider.OPENAI
             ? "Enter your OpenAI API key (starts with sk-proj-)"
-            : "Enter your Gemini API key (starts with AI)"}
+            : provider === Provider.GEMINI
+              ? "Enter your Gemini API key (starts with AI)"
+              : `Enter your ${PROVIDER_DISPLAY_NAME[provider]} API key (starts with sk-ant-)`}
         </p>
       </div>
 

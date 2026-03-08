@@ -33,6 +33,7 @@ interface WorkerCheckpoint {
   agentMessages: LlmChatMessage[];
   sandboxTagDetected: boolean;
   totalToolCallsInRun: number;
+  outputTokens?: number;
   updatedAt: number;
 }
 
@@ -88,6 +89,7 @@ export function buildWorkerRunSessionInput(
         agentMessages: metadata.resumeCheckpoint.agentMessages,
         sandboxTagDetected: metadata.resumeCheckpoint.sandboxTagDetected,
         totalToolCallsInRun: metadata.resumeCheckpoint.totalToolCallsInRun,
+        outputTokens: metadata.resumeCheckpoint.outputTokens,
       }
       : undefined,
     onCheckpoint: async (checkpoint: WorkerCheckpoint) => {
@@ -100,6 +102,7 @@ export function buildWorkerRunSessionInput(
           agentMessages: checkpoint.agentMessages,
           sandboxTagDetected: checkpoint.sandboxTagDetected,
           totalToolCallsInRun: checkpoint.totalToolCallsInRun,
+          outputTokens: checkpoint.outputTokens,
           updatedAt: checkpoint.updatedAt,
         } satisfies RunResumeCheckpoint,
       };
