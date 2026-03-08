@@ -216,9 +216,6 @@ export async function* streamResponse(
         }
       }
     } else if (type === Provider.GEMINI) {
-      const genAI = client as GoogleGenAI;
-
-
       const contents = normalized.map((msg) => {
         const geminiRole = toGeminiRole(msg.role!);
         const formattedContent = formatContentForGemini(msg.content);

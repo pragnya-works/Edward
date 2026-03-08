@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useRef } from "react";
 import { signOut, useSession } from "@/lib/auth-client";
 import {
   Avatar,

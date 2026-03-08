@@ -259,12 +259,25 @@ describe("provider.client gemini stream resilience", () => {
     const { streamResponse } =
       await import("../../../lib/llm/provider.client.js");
     const streamError = new Error("stream read failed");
+    const encoder = new TextEncoder();
 
-    mocks.geminiModelsGenerateContentStreamMock.mockResolvedValueOnce(
-      (async function* () {
-        yield { text: "" };
-        throw streamError;
-      })(),
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValueOnce(
+        new Response(
+          new ReadableStream<Uint8Array>({
+            start(controller) {
+              controller.enqueue(
+                encoder.encode(
+                  'data: {"candidates":[{"content":{"parts":[{"text":""}]}}]}\n\n',
+                ),
+              );
+              controller.error(streamError);
+            },
+          }),
+          { status: 200, headers: { "content-type": "text/event-stream" } },
+        ),
+      ),
     );
 
     const collect = async () => {
@@ -283,11 +296,14 @@ describe("provider.client gemini stream resilience", () => {
   it("yields text chunks from Gemini stream", async () => {
     const { streamResponse } =
       await import("../../../lib/llm/provider.client.js");
-    mocks.geminiModelsGenerateContentStreamMock.mockResolvedValueOnce(
-      (async function* () {
-        yield { text: "Hello" };
-        yield { text: " world" };
-      })(),
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValueOnce(
+        createSseResponse([
+          'data: {"candidates":[{"content":{"parts":[{"text":"Hello"}]}}]}\n\n',
+          'data: {"candidates":[{"content":{"parts":[{"text":" world"}]}}]}\n\n',
+        ]),
+      ),
     );
 
     let output = "";
