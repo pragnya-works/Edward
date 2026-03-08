@@ -48,14 +48,6 @@ function buildAnthropicMessages(messages: LlmChatMessage[]) {
   }));
 }
 
-function extractAnthropicText(
-  content: Array<{ type: string; text?: string }>,
-): string {
-  return content
-    .filter((block) => block.type === "text" && typeof block.text === "string")
-    .map((block) => block.text ?? "")
-    .join("");
-}
 
 function extractAnthropicStreamText(event: unknown): string | null {
   const candidate = event as {
@@ -311,7 +303,7 @@ export async function generateResponse(
           input: [
             {
               type: "message",
-              role: "user",
+              role: MessageRole.User,
               content: [{ type: "input_text", text: inputText }],
             },
           ],
@@ -358,20 +350,29 @@ export async function generateResponse(
     } else {
       const anthropic = client as Anthropic;
       const inputText = jsonMode ? buildJsonModeInput(content) : content;
-      const response = await anthropic.messages.create({
-        model,
-        system: fullSystemPrompt,
-        max_tokens: getAnthropicMaxOutputTokens(model),
-        messages: [
-          {
-            role: "user",
-            content: formatContentForAnthropic(inputText),
-          },
-        ],
-        temperature: GENERATION_CONFIG.temperature,
-      });
+      const stream = await anthropic.messages.create(
+        {
+          model,
+          system: fullSystemPrompt,
+          max_tokens: getAnthropicMaxOutputTokens(model),
+          messages: [
+            {
+              role: MessageRole.User,
+              content: formatContentForAnthropic(inputText),
+            },
+          ],
+          temperature: GENERATION_CONFIG.temperature,
+          stream: true,
+        },
+        { timeout: ANTHROPIC_STREAM_TIMEOUT_MS },
+      );
 
-      return extractAnthropicText(response.content);
+      let result = "";
+      for await (const event of stream) {
+        const text = extractAnthropicStreamText(event);
+        if (text) result += text;
+      }
+      return result;
     }
   } catch (error) {
     logger.error(ensureError(error), "LLM response generation failed");
