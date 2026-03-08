@@ -36,3 +36,7 @@ export function isAssistantConversationRole(role: LlmConversationRole): boolean 
 export function toGeminiRole(role: LlmConversationRole): "user" | "model" {
   return role === MessageRole.Assistant ? "model" : "user";
 }
+
+export function toAnthropicRole(role: LlmConversationRole): "assistant" | "user" {
+  return role === MessageRole.Assistant ? "assistant" : "user";
+}

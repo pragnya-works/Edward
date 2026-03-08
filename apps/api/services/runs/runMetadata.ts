@@ -11,6 +11,7 @@ export interface RunResumeCheckpoint {
   agentMessages: LlmChatMessage[];
   sandboxTagDetected: boolean;
   totalToolCallsInRun: number;
+  outputTokens?: number;
   updatedAt: number;
 }
 
@@ -108,6 +109,11 @@ export function parseAgentRunMetadata(input: unknown): AgentRunMetadata {
             typeof input.resumeCheckpoint.totalToolCallsInRun === "number"
               ? input.resumeCheckpoint.totalToolCallsInRun
               : 0,
+          outputTokens:
+            Number.isFinite(input.resumeCheckpoint.outputTokens) &&
+            (input.resumeCheckpoint.outputTokens as number) >= 0
+              ? (input.resumeCheckpoint.outputTokens as number)
+              : undefined,
           updatedAt: input.resumeCheckpoint.updatedAt,
         }
       : undefined,

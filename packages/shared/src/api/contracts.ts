@@ -4,6 +4,7 @@ import type {
   GithubRepoStatusData,
   SyncGithubData,
 } from "@edward/shared/github/types";
+import type { Provider } from "../constants.js";
 
 
 export interface ApiSuccessResponse<TData = unknown> {
@@ -107,7 +108,7 @@ export interface PromptEnhanceResponse {
   message: string;
   data: {
     enhancedPrompt: string;
-    provider: "openai" | "gemini";
+    provider: Provider;
     model: string;
   };
 }
@@ -126,6 +127,17 @@ export interface ActiveRunResponse {
       userMessageId: string;
       assistantMessageId: string;
     } | null;
+  };
+}
+
+export interface DailyChatQuotaResponse {
+  message: string;
+  data: {
+    limit: number;
+    current: number;
+    remaining: number;
+    resetAtMs: number;
+    isLimited: boolean;
   };
 }
 

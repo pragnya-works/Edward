@@ -89,6 +89,8 @@ export async function finalizeStreamSession(params: {
     messageStartTime,
     tokenUsage.inputTokens,
     fullRawResponse,
+    tokenUsage.model,
+    loopState.outputTokens,
   );
 
   logger.info(

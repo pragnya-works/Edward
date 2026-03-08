@@ -5,6 +5,7 @@ settings:
   excludeLinksFromLockfile: false
 
 overrides:
+  express-rate-limit: ^8.2.2
   csstype: ^3.2.3
   js-yaml: ^4.1.1
   tmp: ^0.2.4
@@ -41,6 +42,9 @@ importers:
 
   apps/api:
     dependencies:
+      '@anthropic-ai/sdk':
+        specifier: ^0.66.0
+        version: 0.66.0(zod@3.25.76)
       '@aws-sdk/client-cloudfront':
         specifier: ^3.985.0
         version: 3.985.0
@@ -93,8 +97,8 @@ importers:
         specifier: ^5.2.1
         version: 5.2.1
       express-rate-limit:
-        specifier: ^8.2.1
-        version: 8.2.1(express@5.2.1)
+        specifier: ^8.2.2
+        version: 8.3.0(express@5.2.1)
       helmet:
         specifier: ^8.1.0
         version: 8.1.0
@@ -124,7 +128,7 @@ importers:
         version: 13.1.3
       rate-limit-redis:
         specifier: ^4.3.1
-        version: 4.3.1(express-rate-limit@8.2.1(express@5.2.1))
+        version: 4.3.1(express-rate-limit@8.3.0(express@5.2.1))
       sharp:
         specifier: ^0.33.5
         version: 0.33.5
@@ -292,6 +296,9 @@ importers:
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
+      vitest:
+        specifier: ^2.1.8
+        version: 2.1.9(@types/node@20.19.30)(jsdom@28.1.0(@noble/hashes@2.0.1))(lightningcss@1.30.2)(terser@5.46.0)
 
   packages/auth:
     dependencies:
@@ -520,6 +527,15 @@ packages:
   '@ampproject/remapping@2.3.0':
     resolution: {integrity: sha512-30iZtAPgz+LTIYoeivqYo853f02jBYSd5uGnGpkFV0M3xOt9aN73erkgYAmZU43x4VfqcnLxW9Kpg3R5LC4YYw==}
     engines: {node: '>=6.0.0'}
+
+  '@anthropic-ai/sdk@0.66.0':
+    resolution: {integrity: sha512-GBSSby0P4BW/sOdvsTXaHJDPnGEL5tuB4TtsU4SXG7+dVULQ9MkKgNznCALDCgSV5yhrtQlctvEdMqePVIXTiw==}
+    hasBin: true
+    peerDependencies:
+      zod: ^3.25.0 || ^4.0.0
+    peerDependenciesMeta:
+      zod:
+        optional: true
 
   '@apm-js-collab/code-transformer@0.8.2':
     resolution: {integrity: sha512-YRjJjNq5KFSjDUoqu5pFUWrrsvGOxl6c3bu+uMFc9HNNptZ2rNU/TI2nLw4jnhQNtka972Ee2m3uqbvDQtPeCA==}
@@ -4700,8 +4716,8 @@ packages:
     resolution: {integrity: sha512-knvyeauYhqjOYvQ66MznSMs83wmHrCycNEN6Ao+2AeYEfxUIkuiVxdEa1qlGEPK+We3n0THiDciYSsCcgW/DoA==}
     engines: {node: '>=12.0.0'}
 
-  express-rate-limit@8.2.1:
-    resolution: {integrity: sha512-PCZEIEIxqwhzw4KF0n7QF4QqruVTcF73O5kFKUnGOyjbCCgizBBiFaYpd/fnBLUMPw/BWw9OsiN7GgrNYr7j6g==}
+  express-rate-limit@8.3.0:
+    resolution: {integrity: sha512-KJzBawY6fB9FiZGdE/0aftepZ91YlaGIrV8vgblRM3J8X+dHx/aiowJWwkx6LIGyuqGiANsjSwwrbb8mifOJ4Q==}
     engines: {node: '>= 16'}
     peerDependencies:
       express: '>= 4.11'
@@ -5130,10 +5146,6 @@ packages:
     resolution: {integrity: sha512-tAAg/72/VxOUW7RQSX1pIxJVucYKcjFjfvj60L57jrZpYCHC3XN0WCQ3sNYL4Gmvv+7GPvTAjc+KSdeNuE8oWQ==}
     engines: {node: '>=12.22.0'}
 
-  ip-address@10.0.1:
-    resolution: {integrity: sha512-NWv9YLW4PoW2B7xtzaS3NCot75m6nK7Icdv0o3lfMceJVRfSoQwqD4wEH5rLwoKJwUiZ/rfpiVBhnaF0FK4HoA==}
-    engines: {node: '>= 12'}
-
   ip-address@10.1.0:
     resolution: {integrity: sha512-XXADHxXmvT9+CRxhXg56LJovE+bmWnEWB78LB83VZTprKTmaC5QfruXocxzTZ2Kl0DNwKuBdlIhjL8LeY8Sf8Q==}
     engines: {node: '>= 12'}
@@ -5389,6 +5401,10 @@ packages:
 
   json-parse-even-better-errors@2.3.1:
     resolution: {integrity: sha512-xyFwyhro/JEof6Ghe2iz2NcXoj2sloNsWr/XsERDK/oiPCfaNhl5ONfp+jQdAZRQQ0IJWNzH9zIZF7li91kh2w==}
+
+  json-schema-to-ts@3.1.1:
+    resolution: {integrity: sha512-+DWg8jCJG2TEnpy7kOm/7/AxaYoaRbjVB4LFZLySZlWn8exGs3A4OLJR966cVvU26N7X9TWxl+Jsw7dzAqKT6g==}
+    engines: {node: '>=16'}
 
   json-schema-traverse@0.4.1:
     resolution: {integrity: sha512-xbbCH5dCYU5T8LcEhhuh7HJ88HXuW3qsI3Y0zOZFKfZEHcpWiHU/Jxzk629Brsab/mMiHQti9wMP+845RPe3Vg==}
@@ -6289,7 +6305,7 @@ packages:
     resolution: {integrity: sha512-+a1zU8+D7L8siDK9jb14refQXz60vq427VuiplgnaLk9B2LnvGe/APLTfhwb4uNIL7eWVknh8GnRp/unCj+lMA==}
     engines: {node: '>= 16'}
     peerDependencies:
-      express-rate-limit: '>= 6'
+      express-rate-limit: ^8.2.2
 
   raw-body@3.0.2:
     resolution: {integrity: sha512-K5zQjDllxWkf7Z5xJdV0/B0WTNqx6vxG70zJE4N0kBs4LovmEYWJzQGxC9bS9RAKu3bgM40lrd5zoLJ12MQ5BA==}
@@ -6967,6 +6983,9 @@ packages:
   trough@2.2.0:
     resolution: {integrity: sha512-tmMpK00BjZiUyVyvrBK7knerNgmgvcV/KLVyuma/SC+TQN167GrMRciANTz09+k3zW8L8t60jWO1GpfkZdjTaw==}
 
+  ts-algebra@2.0.0:
+    resolution: {integrity: sha512-FPAhNPFMrkwz76P7cdjdmiShwMynZYN6SgOujD1urY4oNm80Ou9oMdmbR45LotcKOXoy7wSmHkRFE6Mxbrhefw==}
+
   ts-api-utils@2.4.0:
     resolution: {integrity: sha512-3TaVTaAv2gTiMB35i3FiGJaRfwb3Pyn/j3m/bfAvGe8FB7CF6u+LMYqYlDh7reQf7UNvoTvdfAqHGmPGOSsPmA==}
     engines: {node: '>=18.12'}
@@ -7490,6 +7509,12 @@ snapshots:
     dependencies:
       '@jridgewell/gen-mapping': 0.3.13
       '@jridgewell/trace-mapping': 0.3.31
+
+  '@anthropic-ai/sdk@0.66.0(zod@3.25.76)':
+    dependencies:
+      json-schema-to-ts: 3.1.1
+    optionalDependencies:
+      zod: 3.25.76
 
   '@apm-js-collab/code-transformer@0.8.2': {}
 
@@ -11452,7 +11477,6 @@ snapshots:
       magic-string: 0.30.21
     optionalDependencies:
       vite: 5.4.21(@types/node@20.19.30)(lightningcss@1.30.2)(terser@5.46.0)
-    optional: true
 
   '@vitest/mocker@2.1.9(vite@5.4.21(@types/node@25.0.10)(lightningcss@1.30.2)(terser@5.46.0))':
     dependencies:
@@ -12620,10 +12644,10 @@ snapshots:
 
   expect-type@1.3.0: {}
 
-  express-rate-limit@8.2.1(express@5.2.1):
+  express-rate-limit@8.3.0(express@5.2.1):
     dependencies:
       express: 5.2.1
-      ip-address: 10.0.1
+      ip-address: 10.1.0
 
   express@5.2.1:
     dependencies:
@@ -13183,8 +13207,6 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  ip-address@10.0.1: {}
-
   ip-address@10.1.0: {}
 
   ipaddr.js@1.9.1: {}
@@ -13451,6 +13473,11 @@ snapshots:
   json-buffer@3.0.1: {}
 
   json-parse-even-better-errors@2.3.1: {}
+
+  json-schema-to-ts@3.1.1:
+    dependencies:
+      '@babel/runtime': 7.28.6
+      ts-algebra: 2.0.0
 
   json-schema-traverse@0.4.1: {}
 
@@ -14608,9 +14635,9 @@ snapshots:
 
   range-parser@1.2.1: {}
 
-  rate-limit-redis@4.3.1(express-rate-limit@8.2.1(express@5.2.1)):
+  rate-limit-redis@4.3.1(express-rate-limit@8.3.0(express@5.2.1)):
     dependencies:
-      express-rate-limit: 8.2.1(express@5.2.1)
+      express-rate-limit: 8.3.0(express@5.2.1)
 
   raw-body@3.0.2:
     dependencies:
@@ -15434,6 +15461,8 @@ snapshots:
 
   trough@2.2.0: {}
 
+  ts-algebra@2.0.0: {}
+
   ts-api-utils@2.4.0(typescript@5.9.3):
     dependencies:
       typescript: 5.9.3
@@ -15742,7 +15771,6 @@ snapshots:
       - sugarss
       - supports-color
       - terser
-    optional: true
 
   vite-node@2.1.9(@types/node@25.0.10)(lightningcss@1.30.2)(terser@5.46.0):
     dependencies:
@@ -15772,7 +15800,6 @@ snapshots:
       fsevents: 2.3.3
       lightningcss: 1.30.2
       terser: 5.46.0
-    optional: true
 
   vite@5.4.21(@types/node@25.0.10)(lightningcss@1.30.2)(terser@5.46.0):
     dependencies:
@@ -15820,7 +15847,6 @@ snapshots:
       - sugarss
       - supports-color
       - terser
-    optional: true
 
   vitest@2.1.9(@types/node@25.0.10)(jsdom@28.1.0(@noble/hashes@2.0.1))(lightningcss@1.30.2)(terser@5.46.0):
     dependencies:

@@ -1,9 +1,7 @@
 import type { Response } from "express";
 import type { AuthenticatedRequest } from "../../../middleware/auth.js";
 import { getAuthenticatedUserId } from "../../../middleware/auth.js";
-import {
-  HttpStatus,
-} from "../../../utils/constants.js";
+import { ERROR_MESSAGES, HttpStatus } from "../../../utils/constants.js";
 import { ensureError } from "../../../utils/error.js";
 import { logger } from "../../../utils/logger.js";
 import {
@@ -17,6 +15,7 @@ import {
   getChatMetaUseCase,
   getRecentChatsUseCase,
 } from "../../../services/chat/query/history.useCase.js";
+import { getDailyChatSuccessSnapshot } from "../../../services/rateLimit/chatDailySuccess.service.js";
 import { toChatRequestContext } from "../../../services/chat/query/requestContext.js";
 import { sendStreamError } from "../../../utils/streamError.js";
 import { requireAuthorizedChatRequest } from "./chatRequestAccess.js";
@@ -114,6 +113,57 @@ export async function getRecentChats(
     );
   } catch (error) {
     logger.error(ensureError(error), "getRecentChats error");
+    sendQueryErrorResponse({
+      res,
+      error,
+      sendError: sendStandardError,
+    });
+  }
+}
+
+export async function getDailyChatQuota(
+  req: AuthenticatedRequest,
+  res: Response,
+): Promise<void> {
+  try {
+    let userId: string | null = null;
+    try {
+      userId = getAuthenticatedUserId(req);
+    } catch (error) {
+      const authError = ensureError(error);
+      if (
+        authError.message.includes("req.userId is missing") ||
+        authError.message.includes("authMiddleware")
+      ) {
+        userId = null;
+      } else {
+        logger.error(
+          authError,
+          "Unexpected getDailyChatQuota auth resolution error",
+        );
+        throw authError;
+      }
+    }
+
+    if (!userId) {
+      sendStandardError(
+        res,
+        HttpStatus.UNAUTHORIZED,
+        ERROR_MESSAGES.UNAUTHORIZED,
+      );
+      return;
+    }
+
+    const snapshot = await getDailyChatSuccessSnapshot(userId);
+
+    sendSuccess(
+      res,
+      HttpStatus.OK,
+      "Daily chat quota retrieved successfully",
+      snapshot,
+    );
+  } catch (error) {
+    logger.error(ensureError(error), "getDailyChatQuota error");
     sendQueryErrorResponse({
       res,
       error,

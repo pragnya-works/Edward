@@ -12,7 +12,7 @@ import {
 import { openRunEventsStream } from "@/lib/api/chat";
 import { parseSSELines } from "@/lib/parsing/sseParser";
 import { RATE_LIMIT_SCOPE } from "@/lib/rateLimit/scopes";
-import { recordRateLimitQuota } from "@/lib/rateLimit/state.operations";
+import { syncRateLimitQuotaSnapshot } from "@/lib/rateLimit/state.operations";
 
 export interface RefCell<T> {
   current: T;
@@ -48,7 +48,8 @@ interface ProcessedStreamResult {
   fatalError: NonNullable<StreamState["error"]> | null;
 }
 
-const MAX_REPLAY_ATTEMPTS = 1;
+const MAX_REPLAY_ATTEMPTS = 3;
+const REPLAY_BACKOFF_BASE_MS = 500;
 
 function isSameWebSearchEvent(
   a: NonNullable<StreamState["webSearches"][number]>,
@@ -483,10 +484,11 @@ export async function processStreamResponse({
             Number.isFinite(event.remaining) &&
             Number.isFinite(event.resetAtMs)
           ) {
-            recordRateLimitQuota(RATE_LIMIT_SCOPE.CHAT_DAILY, {
+            syncRateLimitQuotaSnapshot(RATE_LIMIT_SCOPE.CHAT_DAILY, {
               limit: Math.trunc(event.limit),
               remaining: Math.trunc(event.remaining),
               resetAt: new Date(Math.trunc(event.resetAtMs)),
+              isLimited: Math.trunc(event.remaining) <= 0,
             });
           }
           break;
@@ -534,6 +536,12 @@ export async function processStreamResponse({
     metaEvent?.runId
   ) {
     try {
+      await new Promise((resolve) =>
+        setTimeout(
+          resolve,
+          Math.min(REPLAY_BACKOFF_BASE_MS * 2 ** replayAttempt, 5_000),
+        ),
+      );
       const replayResponse = await openRunEventsStream(
         activeChatId,
         metaEvent.runId,

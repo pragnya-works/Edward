@@ -63,3 +63,13 @@ pnpm --filter api quality:gates
 - `EDWARD_API_PORT` now falls back to `PORT`, and `REDIS_URL` supports authenticated `rediss://` providers such as Upstash.
 - Storage config accepts `AWS_BUCKET_NAME`, `SANDBOX_S3_BUCKET`, or `S3_BUCKET`, with optional `S3_ENDPOINT` / `S3_PUBLIC_BASE_URL` for S3-compatible deploys.
 - `SANDBOX_RUNTIME` supports `vercel` and `disabled`. Use `VERCEL_TOKEN`, `VERCEL_TEAM_ID`, and `VERCEL_PROJECT_ID` for Vercel Sandbox-backed execution, or `disabled` with `SANDBOX_RUNTIME_REQUIRED=false` when you only need the API to boot without a sandbox runtime.
+
+## Environment Notes
+
+- Copy `apps/api/.env.example` to `apps/api/.env`.
+- `REDIS_URL` or `REDIS_HOST` + `REDIS_PORT` are required.
+- `AWS_BUCKET_NAME` and `AWS_CDN_BUCKET_NAME` must be populated even for local stubs because storage modules read them during import.
+- `DOCKER_REGISTRY_BASE` is required for worker template resolution.
+- `PREWARM_SANDBOX_IMAGE` is required when sandbox containers are created.
+- `CLOUDFLARE_*` and `PREVIEW_ROOT_DOMAIN` are only needed for subdomain preview routing.
+- `SENTRY_DSN` and `TAVILY_API_KEY` are optional.

@@ -9,6 +9,7 @@ import {
   getChatMeta,
   deleteChat,
   getRecentChats,
+  getDailyChatQuota,
 } from "../controllers/chat/query/history.controller.js";
 import {
   getBuildStatus,
@@ -37,6 +38,7 @@ import {
 import {
   chatRateLimiter,
   dailyChatRateLimiter,
+  dailyChatQuotaReadRateLimiter,
   imageUploadRateLimiter,
   promptEnhanceRateLimiter,
 } from "../middleware/rateLimit.js";
@@ -69,6 +71,11 @@ chatRouter.post(
 chatRouter.get(
   "/recent",
   getRecentChats,
+);
+chatRouter.get(
+  "/quota/daily",
+  dailyChatQuotaReadRateLimiter,
+  getDailyChatQuota,
 );
 chatRouter.get(
   "/:chatId/history",

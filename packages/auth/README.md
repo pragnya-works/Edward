@@ -39,6 +39,8 @@ Copy `packages/auth/.env.example` and set:
 - `GITHUB_CLIENT_ID`
 - `GITHUB_CLIENT_SECRET`
 
+For `pnpm --filter @edward/auth db:migrate`, export `DATABASE_URL` in the same shell session first because `drizzle-kit` reads it from process env at runtime.
+
 ## Export Surface
 
 Main exports include:

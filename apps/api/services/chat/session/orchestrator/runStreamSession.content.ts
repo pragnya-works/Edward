@@ -4,7 +4,7 @@ import {
   classifyAssistantError,
   toAssistantErrorTag,
 } from "../../../../lib/llm/errorPresentation.js";
-import { countOutputTokens } from "../../../../lib/llm/tokens/openaiCounter.js";
+import { countOutputTokens } from "../../../../lib/llm/tokens/outputCounter.js";
 import { LOOP_STOP_REASON_TO_ERROR_HINT } from "./loopStopReasons.js";
 import {
   injectWebSearchPayloadIntoResponse,
@@ -26,9 +26,11 @@ export function createSessionMetrics(
   messageStartTime: number,
   inputTokens: number,
   fullRawResponse: string,
+  model?: string,
+  exactOutputTokens?: number,
 ): SessionMetrics {
   const completionTime = Date.now() - messageStartTime;
-  const outputTokens = countOutputTokens(fullRawResponse);
+  const outputTokens = exactOutputTokens ?? countOutputTokens(fullRawResponse, model);
 
   return {
     completionTime,

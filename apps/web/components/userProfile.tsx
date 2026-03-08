@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useState, useRef } from "react";
 import { signOut, useSession } from "@/lib/auth-client";
 import {
   Avatar,
@@ -36,7 +36,6 @@ import {
   useRateLimitQuotaScope,
   type RateLimitQuotaScopeState,
 } from "@/hooks/rateLimit/useRateLimitQuotaScope";
-import { syncRateLimitStorageOwner } from "@/lib/rateLimit/state.persistence";
 
 interface UserProfileProps {
   onManageApiKeys: () => void;
@@ -114,7 +113,6 @@ export default function UserProfile({ onManageApiKeys }: UserProfileProps) {
   const { open, setOpen } = useSidebar();
   const isMobile = useMobileViewport();
   const isExpanded = open || isMobile;
-  const userId = session?.user?.id ?? null;
   const chatDailyRateLimit = useRateLimitScope(RATE_LIMIT_SCOPE.CHAT_DAILY);
   const chatDailyQuota = useRateLimitQuotaScope(RATE_LIMIT_SCOPE.CHAT_DAILY);
   const chatDailyLimit = RATE_LIMIT_POLICY_BY_SCOPE[RATE_LIMIT_SCOPE.CHAT_DAILY].max;
@@ -128,13 +126,6 @@ export default function UserProfile({ onManageApiKeys }: UserProfileProps) {
     progressClass: remainingProgressClassName,
   } = getDailyQuotaDisplay(isDailyLimitReached, chatDailyQuota, safeDailyLimit);
   const resetAt = chatDailyRateLimit.resetAt ?? chatDailyQuota.resetAt;
-
-  useEffect(() => {
-    if (!userId) {
-      return;
-    }
-    syncRateLimitStorageOwner(userId);
-  }, [userId]);
 
   function closeMobileSidebar() {
     if (isMobile) setOpen(false);

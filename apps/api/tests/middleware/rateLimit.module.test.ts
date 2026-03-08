@@ -1,5 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Request, Response } from "express";
+import {
+  KNOWN_RATE_LIMIT_SCOPES,
+  RATE_LIMIT_POLICY_BY_SCOPE,
+  RATE_LIMIT_SCOPE,
+} from "@edward/shared/constants";
 
 type RateLimitOptions = {
   keyGenerator?: (req: { ip?: string; userId?: string }) => string;
@@ -59,6 +64,10 @@ function createDailyChatResponse() {
   const response = candidate;
   return { response, setHeader };
 }
+
+const EXPRESS_RATE_LIMIT_SCOPES = KNOWN_RATE_LIMIT_SCOPES.filter(
+  (scope) => scope !== RATE_LIMIT_SCOPE.CHAT_DAILY,
+);
 
 const refs = vi.hoisted(() => ({
   options: [] as RateLimitOptions[],
@@ -120,7 +129,19 @@ describe("rateLimit middleware module", () => {
   it("creates one limiter per declared scope with shared headers", async () => {
     await import("../../middleware/rateLimit.js");
 
-    expect(refs.options).toHaveLength(6);
+    expect(refs.options).toHaveLength(EXPRESS_RATE_LIMIT_SCOPES.length);
+    expect(refs.redisStoreConfigs).toHaveLength(EXPRESS_RATE_LIMIT_SCOPES.length);
+
+    const expectedPrefixes = new Set(
+      EXPRESS_RATE_LIMIT_SCOPES.map(
+        (scope) => `rl:${RATE_LIMIT_POLICY_BY_SCOPE[scope].redisPrefix}:`,
+      ),
+    );
+    const actualPrefixes = new Set(
+      refs.redisStoreConfigs.map((config) => config.prefix),
+    );
+
+    expect(actualPrefixes).toEqual(expectedPrefixes);
     for (const option of refs.options) {
       expect(option.standardHeaders).toBe(true);
       expect(option.legacyHeaders).toBe(false);

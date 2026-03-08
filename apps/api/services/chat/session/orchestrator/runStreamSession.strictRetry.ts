@@ -180,6 +180,10 @@ export async function maybeRunStrictPostgenRetry({
         agentTurn: loopState.agentTurn + strictLoopResult.agentTurn,
         loopStopReason: strictLoopResult.loopStopReason,
         webSearchResults: strictLoopResult.webSearchResults,
+        outputTokens:
+          strictLoopResult.outputTokens != null || loopState.outputTokens != null
+            ? (loopState.outputTokens ?? 0) + (strictLoopResult.outputTokens ?? 0)
+            : undefined,
       },
       tokenUsage: mergedTokenUsage,
     };

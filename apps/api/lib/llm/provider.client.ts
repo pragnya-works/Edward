@@ -1,17 +1,17 @@
 import OpenAI from "openai";
+import Anthropic from "@anthropic-ai/sdk";
+import type { TextBlock } from "@anthropic-ai/sdk/resources/messages/messages.js";
 import { GoogleGenAI } from "@google/genai";
 import { Provider, API_KEY_REGEX } from "@edward/shared/constants";
+import { getModelSpecByProvider } from "@edward/shared/schema";
 import { composePrompt, type ComposeOptions } from "./compose.js";
 import { ensureError } from "../../utils/error.js";
 import { createLogger } from "../../utils/logger.js";
 import type { ChatAction } from "../../services/planning/schemas.js";
 import type { LlmChatMessage } from "./context.js";
 import { MessageRole } from "@edward/auth";
-import { toGeminiRole } from "./messageRole.js";
-import {
-  isMultimodalContent,
-  formatContentForGemini,
-} from "./types.js";
+import { toAnthropicRole, toGeminiRole } from "./messageRole.js";
+import { formatContentForAnthropic, formatContentForGemini } from "./types.js";
 import {
   buildJsonModeInput,
   buildLegacyCompletionPrompt,
@@ -33,13 +33,75 @@ const GENERATION_CONFIG = {
   geminiMaxOutputTokens: 65536,
 } as const;
 const logger = createLogger("LLM");
-const IS_OPENAI_PROVIDER: Record<Provider, boolean> = {
-  [Provider.OPENAI]: true,
-  [Provider.GEMINI]: false,
-};
+const ANTHROPIC_STREAM_TIMEOUT_MS = 20 * 60 * 1_000;
+const ANTHROPIC_GENERATE_TIMEOUT_MS = 2 * 60 * 1_000;
+const ANTHROPIC_NON_STREAMING_MAX_TOKENS = 16_384;
+
+export interface StreamUsageUpdate {
+  outputTokens?: number;
+}
+
+function getAnthropicMaxOutputTokens(model: string): number {
+  const spec = getModelSpecByProvider(Provider.ANTHROPIC, model);
+  return spec?.maxOutputTokens ?? 64_000;
+}
+
+function buildAnthropicMessages(messages: LlmChatMessage[]) {
+  return messages.map((message) => ({
+    role: toAnthropicRole(message.role),
+    content: formatContentForAnthropic(message.content),
+  }));
+}
+
+function extractAnthropicStreamText(event: unknown): string | null {
+  if (typeof event !== "object" || event === null) {
+    return null;
+  }
+
+  const candidate = event as {
+    type?: string;
+    delta?: { type?: string; text?: string };
+  };
+
+  if (
+    candidate.type !== "content_block_delta" ||
+    candidate.delta?.type !== "text_delta"
+  ) {
+    return null;
+  }
+
+  return candidate.delta.text ?? null;
+}
+
+function extractAnthropicStreamOutputTokens(event: unknown): number | null {
+  if (typeof event !== "object" || event === null) {
+    return null;
+  }
+
+  const candidate = event as {
+    type?: string;
+    usage?: { output_tokens?: number };
+  };
+
+  if (
+    candidate.type !== "message_delta" ||
+    typeof candidate.usage?.output_tokens !== "number"
+  ) {
+    return null;
+  }
+
+  return candidate.usage.output_tokens;
+}
 
 function getClient(apiKey: string, modelOverride?: string) {
-  if (API_KEY_REGEX[Provider.OPENAI].test(apiKey)) {
+  if (API_KEY_REGEX[Provider.ANTHROPIC].test(apiKey)) {
+    const model = resolveModelForProvider(Provider.ANTHROPIC, modelOverride);
+    return {
+      type: Provider.ANTHROPIC,
+      client: new Anthropic({ apiKey }),
+      model,
+    };
+  } else if (API_KEY_REGEX[Provider.OPENAI].test(apiKey)) {
     const model = resolveModelForProvider(Provider.OPENAI, modelOverride);
     return {
       type: Provider.OPENAI,
@@ -55,11 +117,10 @@ function getClient(apiKey: string, modelOverride?: string) {
     };
   } else {
     throw new Error(
-      "Unrecognized API key format. Please provide a valid OpenAI or Gemini API key.",
+      "Unrecognized API key format. Please provide a valid OpenAI, Gemini, or Anthropic API key.",
     );
   }
 }
-
 
 export async function* streamResponse(
   apiKey: string,
@@ -72,6 +133,7 @@ export async function* streamResponse(
   mode?: ChatAction,
   promptProfile?: ComposeOptions["profile"],
   modelOverride?: string,
+  onUsage?: (usage: StreamUsageUpdate) => void,
 ): AsyncGenerator<string> {
   if (!hasTrimmedText(apiKey)) {
     throw new Error("Invalid API key: API key must be a non-empty string");
@@ -97,7 +159,7 @@ export async function* streamResponse(
     });
 
   try {
-    if (IS_OPENAI_PROVIDER[type]) {
+    if (type === Provider.OPENAI) {
       const openai = client as OpenAI;
       const input = buildOpenAIResponseInput(normalized);
 
@@ -133,7 +195,10 @@ export async function* streamResponse(
           "Falling back to OpenAI legacy completions endpoint for this model",
         );
 
-        const prompt = buildLegacyCompletionPrompt(fullSystemPrompt, normalized);
+        const prompt = buildLegacyCompletionPrompt(
+          fullSystemPrompt,
+          normalized,
+        );
         const stream = await openai.completions.create(
           {
             model,
@@ -150,12 +215,13 @@ export async function* streamResponse(
           if (text) yield text;
         }
       }
-    } else {
+    } else if (type === Provider.GEMINI) {
+      const genAI = client as GoogleGenAI;
+
+
       const contents = normalized.map((msg) => {
         const geminiRole = toGeminiRole(msg.role!);
-        const formattedContent = isMultimodalContent(msg.content)
-          ? formatContentForGemini(msg.content)
-          : [{ text: msg.content }];
+        const formattedContent = formatContentForGemini(msg.content);
 
         return {
           role: geminiRole,
@@ -177,6 +243,31 @@ export async function* streamResponse(
       for await (const text of stream) {
         if (signal?.aborted) break;
         if (text) yield text;
+      }
+    } else {
+      const anthropic = client as Anthropic;
+      const stream = await anthropic.messages.create(
+        {
+          model,
+          system: fullSystemPrompt,
+          max_tokens: getAnthropicMaxOutputTokens(model),
+          messages: buildAnthropicMessages(normalized),
+          temperature: GENERATION_CONFIG.temperature,
+          stream: true,
+        },
+        { signal, timeout: ANTHROPIC_STREAM_TIMEOUT_MS },
+      );
+
+      for await (const event of stream) {
+        if (signal?.aborted) break;
+        const outputTokens = extractAnthropicStreamOutputTokens(event);
+        if (outputTokens !== null) {
+          onUsage?.({ outputTokens });
+        }
+        const text = extractAnthropicStreamText(event);
+        if (text) {
+          yield text;
+        }
       }
     }
   } catch (error: unknown) {
@@ -216,7 +307,7 @@ export async function generateResponse(
   const jsonMode = options?.jsonMode ?? false;
 
   try {
-    if (IS_OPENAI_PROVIDER[type]) {
+    if (type === Provider.OPENAI) {
       const openai = client as OpenAI;
       const inputText = jsonMode ? buildJsonModeInput(content) : content;
 
@@ -227,7 +318,7 @@ export async function generateResponse(
           input: [
             {
               type: "message",
-              role: "user",
+              role: MessageRole.User,
               content: [{ type: "input_text", text: inputText }],
             },
           ],
@@ -259,7 +350,7 @@ export async function generateResponse(
 
         return completion.choices[0]?.text || "";
       }
-    } else {
+    } else if (type === Provider.GEMINI) {
       const genAI = client as GoogleGenAI;
 
       const result = await genAI.models.generateContent({
@@ -271,6 +362,32 @@ export async function generateResponse(
         },
       });
       return result.text ?? "";
+    } else {
+      const anthropic = client as Anthropic;
+      const inputText = jsonMode ? buildJsonModeInput(content) : content;
+      const message = await anthropic.messages.create(
+        {
+          model,
+          system: fullSystemPrompt,
+          max_tokens: Math.min(
+            getAnthropicMaxOutputTokens(model),
+            ANTHROPIC_NON_STREAMING_MAX_TOKENS,
+          ),
+          messages: [
+            {
+              role: MessageRole.User,
+              content: formatContentForAnthropic(inputText),
+            },
+          ],
+          temperature: GENERATION_CONFIG.temperature,
+        },
+        { timeout: ANTHROPIC_GENERATE_TIMEOUT_MS },
+      );
+
+      return message.content
+        .filter((block): block is TextBlock => block.type === "text")
+        .map((block) => block.text)
+        .join("");
     }
   } catch (error) {
     logger.error(ensureError(error), "LLM response generation failed");

@@ -17,6 +17,7 @@ const refs = vi.hoisted(() => {
     apiKeyRateLimiter: noop,
     chatRateLimiter: noop,
     dailyChatRateLimiter: noop,
+    dailyChatQuotaReadRateLimiter: noop,
     imageUploadRateLimiter: noop,
     promptEnhanceRateLimiter: noop,
     githubRateLimiter: noop,
@@ -33,6 +34,7 @@ const refs = vi.hoisted(() => {
     getChatMeta: noop,
     deleteChat: noop,
     getRecentChats: noop,
+    getDailyChatQuota: noop,
     getBuildStatus: noop,
     streamBuildEvents: noop,
     getActiveRun: noop,
@@ -57,6 +59,7 @@ vi.mock("../../middleware/rateLimit.js", () => ({
   apiKeyRateLimiter: refs.apiKeyRateLimiter,
   chatRateLimiter: refs.chatRateLimiter,
   dailyChatRateLimiter: refs.dailyChatRateLimiter,
+  dailyChatQuotaReadRateLimiter: refs.dailyChatQuotaReadRateLimiter,
   imageUploadRateLimiter: refs.imageUploadRateLimiter,
   promptEnhanceRateLimiter: refs.promptEnhanceRateLimiter,
   githubRateLimiter: refs.githubRateLimiter,
@@ -106,6 +109,7 @@ vi.mock("../../controllers/chat/query/history.controller.js", () => ({
   getChatMeta: refs.getChatMeta,
   deleteChat: refs.deleteChat,
   getRecentChats: refs.getRecentChats,
+  getDailyChatQuota: refs.getDailyChatQuota,
 }));
 
 vi.mock("../../controllers/chat/query/build.controller.js", () => ({
@@ -158,6 +162,36 @@ function assertRouterLike(router: unknown): asserts router is RouterLike {
   }
 }
 
+function getRouteLayer(
+  router: RouterLike,
+  method: string,
+  path: string,
+): {
+  route: {
+    path: string;
+    methods: Record<string, boolean>;
+    stack?: Array<{ handle: unknown }>;
+  };
+} {
+  const layer = router.stack.find(
+    (candidate) =>
+      candidate.route?.path === path &&
+      candidate.route.methods[method.toLowerCase()] === true,
+  );
+
+  if (!layer?.route) {
+    throw new Error(`Expected route ${method.toUpperCase()} ${path} to exist`);
+  }
+
+  return layer as {
+    route: {
+      path: string;
+      methods: Record<string, boolean>;
+      stack?: Array<{ handle: unknown }>;
+    };
+  };
+}
+
 describe("route registration", () => {
   beforeEach(() => {
     vi.resetModules();
@@ -176,11 +210,13 @@ describe("route registration", () => {
     const { chatRouter } = await import("../../routes/chat.routes.js");
     assertRouterLike(chatRouter);
     const routes = collectRouteSignatures(chatRouter);
+    const dailyQuotaRoute = getRouteLayer(chatRouter, "get", "/quota/daily");
 
     expect(routes).toContain("POST /image-upload");
     expect(routes).toContain("POST /message");
     expect(routes).toContain("POST /prompt-enhance");
     expect(routes).toContain("GET /recent");
+    expect(routes).toContain("GET /quota/daily");
     expect(routes).toContain("GET /:chatId/history");
     expect(routes).toContain("GET /:chatId/meta");
     expect(routes).toContain("GET /:chatId/build-status");
@@ -192,6 +228,10 @@ describe("route registration", () => {
     expect(routes).toContain("DELETE /:chatId");
     expect(routes).toContain("GET /subdomain/check");
     expect(routes).toContain("PATCH /:chatId/subdomain");
+    expect(dailyQuotaRoute.route.stack?.map((layer) => layer.handle)).toEqual([
+      refs.dailyChatQuotaReadRateLimiter,
+      refs.getDailyChatQuota,
+    ]);
   });
 
   it("registers github routes", async () => {

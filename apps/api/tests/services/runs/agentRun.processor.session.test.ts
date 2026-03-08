@@ -82,6 +82,7 @@ describe("agent run processor session helpers", () => {
       agentMessages: [{ role: "assistant", content: "ok" }] as never,
       sandboxTagDetected: true,
       totalToolCallsInRun: 2,
+      outputTokens: 42,
       updatedAt: 123,
     });
 
@@ -93,6 +94,7 @@ describe("agent run processor session helpers", () => {
         resumeCheckpoint: expect.objectContaining({
           turn: 3,
           sandboxTagDetected: true,
+          outputTokens: 42,
         }),
       }),
     });
@@ -117,6 +119,7 @@ describe("agent run processor session helpers", () => {
         agentMessages: [{ role: "assistant", content: "done" }],
         sandboxTagDetected: false,
         totalToolCallsInRun: 1,
+        outputTokens: 99,
         updatedAt: 100,
       },
       traceId: "trace-2",
@@ -149,6 +152,7 @@ describe("agent run processor session helpers", () => {
       fullRawResponse: "raw-4",
       sandboxTagDetected: false,
       totalToolCallsInRun: 1,
+      outputTokens: 99,
     });
   });
 });

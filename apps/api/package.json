@@ -35,6 +35,7 @@
   },
   "packageManager": "pnpm@10.4.1",
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.66.0",
     "@aws-sdk/client-cloudfront": "^3.985.0",
     "@aws-sdk/client-s3": "^3.975.0",
     "@aws-sdk/lib-storage": "^3.975.0",
@@ -52,7 +53,7 @@
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
-    "express-rate-limit": "^8.2.1",
+    "express-rate-limit": "^8.2.2",
     "helmet": "^8.1.0",
     "ioredis": "^5.9.2",
     "js-tiktoken": "^1.0.21",

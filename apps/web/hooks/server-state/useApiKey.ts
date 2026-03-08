@@ -5,6 +5,7 @@ import {
   Provider,
   API_KEY_REGEX,
   API_KEY_VALIDATION_ERROR,
+  PROVIDER_DISPLAY_NAME,
 } from "@edward/shared/constants";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
@@ -197,9 +198,7 @@ export function useApiKey() {
     const hasKey = !!data?.data?.hasApiKey;
 
     if (!trimmedKey && !hasKey) {
-      setError(
-        `Please enter your ${provider === Provider.OPENAI ? "OpenAI" : "Gemini"} API key`,
-      );
+      setError(`Please enter your ${PROVIDER_DISPLAY_NAME[provider]} API key`);
       return false;
     }
 

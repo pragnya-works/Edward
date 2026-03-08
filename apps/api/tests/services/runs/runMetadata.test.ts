@@ -48,6 +48,7 @@ describe("runMetadata", () => {
         fullRawResponse: "raw",
         agentMessages: [{ role: "assistant", content: "ok" }],
         sandboxTagDetected: true,
+        outputTokens: 88,
         updatedAt: 123,
       },
     });
@@ -56,6 +57,7 @@ describe("runMetadata", () => {
     expect(parsed.model).toBe("gpt-5");
     expect(parsed.traceId).toBe("trace-1");
     expect(parsed.resumeCheckpoint?.totalToolCallsInRun).toBe(0);
+    expect(parsed.resumeCheckpoint?.outputTokens).toBe(88);
   });
 
   it("rejects unsupported metadata version", () => {

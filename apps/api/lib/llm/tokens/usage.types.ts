@@ -4,6 +4,7 @@ import type { TokenBreakdownRole } from "../messageRole.js";
 export type TokenCountMethod =
   | "openai-tiktoken"
   | "gemini-countTokens"
+  | "anthropic-countTokens"
   | "approx";
 
 export interface TokenUsageMessageBreakdown {

@@ -5,14 +5,17 @@ import {
 } from "@/lib/rateLimit/scopes";
 import { broadcast } from "./state.sync";
 import { emitChange, cooldownByScope, quotaByScope } from "./state.shared";
-import {
-  hydratePersistedRateLimitState,
-  persistRateLimitState,
-} from "./state.persistence";
+
+function toValidResetAtMs(resetAt: Date | null): number | null {
+  if (!(resetAt instanceof Date)) {
+    return null;
+  }
+
+  const resetAtMs = resetAt.getTime();
+  return Number.isFinite(resetAtMs) ? resetAtMs : null;
+}
 
 export function sweepExpiredRateLimitCooldowns(now: number = Date.now()): void {
-  hydratePersistedRateLimitState(now);
-
   const expiredQuotaScopes: KnownRateLimitScope[] = [];
   for (const [scope, snapshot] of quotaByScope) {
     if (snapshot.resetAtMs <= now) {
@@ -49,7 +52,6 @@ export function sweepExpiredRateLimitCooldowns(now: number = Date.now()): void {
     });
   }
 
-  persistRateLimitState(now);
   emitChange();
 }
 
@@ -57,8 +59,6 @@ export function recordRateLimitCooldown(
   scope: RateLimitScope,
   resetAt: Date,
 ): void {
-  hydratePersistedRateLimitState();
-
   if (!isKnownRateLimitScope(scope)) {
     return;
   }
@@ -81,31 +81,28 @@ export function recordRateLimitCooldown(
     scope,
     resetAtMs,
   });
-  persistRateLimitState();
   emitChange();
 }
 
 export function recordRateLimitQuota(
   scope: RateLimitScope,
-  quota: { limit: number; remaining: number; resetAt: Date },
-): void {
-  hydratePersistedRateLimitState();
-
+  quota: { limit: number; remaining: number; resetAt: Date | null },
+): boolean {
   if (!isKnownRateLimitScope(scope)) {
-    return;
+    return false;
   }
 
   const normalizedLimit = Number.isFinite(quota.limit) ? Math.trunc(quota.limit) : NaN;
   if (!Number.isFinite(normalizedLimit) || normalizedLimit <= 0) {
-    return;
+    return false;
   }
 
   if (!Number.isFinite(quota.remaining)) {
-    return;
+    return false;
   }
 
-  const resetAtMs = quota.resetAt.getTime();
-  if (!Number.isFinite(resetAtMs) || resetAtMs <= Date.now()) {
+  const resetAtMs = toValidResetAtMs(quota.resetAt);
+  if (resetAtMs === null || resetAtMs <= Date.now()) {
     const changed = quotaByScope.delete(scope);
     if (changed) {
       broadcast({
@@ -113,10 +110,9 @@ export function recordRateLimitQuota(
         resource: "quota",
         scope,
       });
-      persistRateLimitState();
       emitChange();
     }
-    return;
+    return false;
   }
 
   const normalizedRemaining = Math.min(
@@ -126,7 +122,7 @@ export function recordRateLimitQuota(
 
   const existing = quotaByScope.get(scope);
   if (existing && existing.resetAtMs > resetAtMs) {
-    return;
+    return true;
   }
   if (
     existing &&
@@ -134,7 +130,7 @@ export function recordRateLimitQuota(
     existing.remaining === normalizedRemaining &&
     existing.resetAtMs === resetAtMs
   ) {
-    return;
+    return true;
   }
 
   quotaByScope.set(scope, {
@@ -150,13 +146,14 @@ export function recordRateLimitQuota(
     remaining: normalizedRemaining,
     resetAtMs,
   });
-  persistRateLimitState();
   emitChange();
+  return true;
 }
 
-function clearRateLimitCooldown(scope: KnownRateLimitScope): void {
-  hydratePersistedRateLimitState();
-
+export function clearRateLimitCooldown(scope: RateLimitScope): void {
+  if (!isKnownRateLimitScope(scope)) {
+    return;
+  }
   const changed = cooldownByScope.delete(scope);
   if (changed) {
     broadcast({
@@ -164,7 +161,47 @@ function clearRateLimitCooldown(scope: KnownRateLimitScope): void {
       resource: "cooldown",
       scope,
     });
-    persistRateLimitState();
     emitChange();
   }
+}
+
+export function clearRateLimitQuota(scope: RateLimitScope): void {
+  if (!isKnownRateLimitScope(scope)) {
+    return;
+  }
+
+  const changed = quotaByScope.delete(scope);
+  if (changed) {
+    broadcast({
+      type: "RATE_LIMIT_CLEAR",
+      resource: "quota",
+      scope,
+    });
+    emitChange();
+  }
+}
+
+export function syncRateLimitQuotaSnapshot(
+  scope: RateLimitScope,
+  snapshot: {
+    limit: number;
+    remaining: number;
+    resetAt: Date | null;
+    isLimited?: boolean;
+  },
+): void {
+  const didRecordQuota = recordRateLimitQuota(scope, snapshot);
+  if (!didRecordQuota) {
+    return;
+  }
+
+  if (snapshot.isLimited || snapshot.remaining <= 0) {
+    if (!(snapshot.resetAt instanceof Date)) {
+      return;
+    }
+    recordRateLimitCooldown(scope, snapshot.resetAt);
+    return;
+  }
+
+  clearRateLimitCooldown(scope);
 }

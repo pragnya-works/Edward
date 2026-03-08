@@ -1,6 +1,7 @@
 export enum Provider {
   OPENAI = "openai",
   GEMINI = "gemini",
+  ANTHROPIC = "anthropic",
 }
 
 export enum GithubDisconnectReason {
@@ -10,14 +11,22 @@ export enum GithubDisconnectReason {
   AUTH_MISSING = "auth_missing",
 }
 
+export const PROVIDER_DISPLAY_NAME = {
+  [Provider.OPENAI]: "OpenAI",
+  [Provider.GEMINI]: "Gemini",
+  [Provider.ANTHROPIC]: "Anthropic",
+} as const;
+
 export const API_KEY_REGEX = {
   [Provider.OPENAI]: /^sk-(?:proj-[a-zA-Z0-9_-]{48,}|[a-zA-Z0-9]{48,})$/,
   [Provider.GEMINI]: /^AIza[a-zA-Z0-9_-]{35,}$/,
+  [Provider.ANTHROPIC]: /^sk-ant-[a-zA-Z0-9_-]{10,}$/,
 };
 
 export const API_KEY_PLACEHOLDER = {
   [Provider.OPENAI]: "sk-proj-...",
   [Provider.GEMINI]: "AI...",
+  [Provider.ANTHROPIC]: "sk-ant-...",
 };
 
 export const API_KEY_VALIDATION_ERROR = {
@@ -25,11 +34,14 @@ export const API_KEY_VALIDATION_ERROR = {
     "Invalid OpenAI API key format. Keys should start with 'sk-proj-' followed by alphanumeric characters, hyphens, and underscores.",
   [Provider.GEMINI]:
     "Invalid Gemini API key format. Keys should start with 'AIza' followed by alphanumeric characters, hyphens, and underscores.",
+  [Provider.ANTHROPIC]:
+    "Invalid Anthropic API key format. Keys should start with 'sk-ant-' followed by alphanumeric characters, hyphens, and underscores.",
 };
 
 export const API_KEY_LABEL = {
-  [Provider.OPENAI]: "OpenAI API Key",
-  [Provider.GEMINI]: "Gemini API Key",
+  [Provider.OPENAI]: `${PROVIDER_DISPLAY_NAME[Provider.OPENAI]} API Key`,
+  [Provider.GEMINI]: `${PROVIDER_DISPLAY_NAME[Provider.GEMINI]} API Key`,
+  [Provider.ANTHROPIC]: `${PROVIDER_DISPLAY_NAME[Provider.ANTHROPIC]} API Key`,
 };
 
 export const IMAGE_UPLOAD_CONFIG = {
@@ -74,6 +86,7 @@ export const RATE_LIMIT_SCOPE = {
   API_KEY: "apiKeyRateLimiter",
   CHAT_BURST: "chatRateLimiter",
   CHAT_DAILY: "dailyChatRateLimiter",
+  CHAT_DAILY_QUOTA_READ: "dailyChatQuotaReadRateLimiter",
   IMAGE_UPLOAD_BURST: "imageUploadRateLimiter",
   GITHUB_BURST: "githubRateLimiter",
   GITHUB_DAILY: "dailyGithubRateLimiter",
@@ -84,6 +97,7 @@ export const KNOWN_RATE_LIMIT_SCOPES = [
   RATE_LIMIT_SCOPE.API_KEY,
   RATE_LIMIT_SCOPE.CHAT_BURST,
   RATE_LIMIT_SCOPE.CHAT_DAILY,
+  RATE_LIMIT_SCOPE.CHAT_DAILY_QUOTA_READ,
   RATE_LIMIT_SCOPE.IMAGE_UPLOAD_BURST,
   RATE_LIMIT_SCOPE.GITHUB_BURST,
   RATE_LIMIT_SCOPE.GITHUB_DAILY,
@@ -100,6 +114,7 @@ export interface RateLimitPolicy {
     | "api_key"
     | "chat_burst"
     | "chat_daily"
+    | "chat_daily_quota_read"
     | "image_upload_burst"
     | "github_burst"
     | "github_daily"
@@ -132,6 +147,13 @@ export const RATE_LIMIT_POLICY_BY_SCOPE: Record<
     redisPrefix: "chat-daily",
     securityScope: "chat_daily",
     limitExceededMessage: "Daily message quota exceeded (10 messages/24h)",
+  },
+  [RATE_LIMIT_SCOPE.CHAT_DAILY_QUOTA_READ]: {
+    windowMs: 60 * 1000,
+    max: 30,
+    redisPrefix: "chat-daily-quota-read",
+    securityScope: "chat_daily_quota_read",
+    limitExceededMessage: "Too many quota checks. Please wait a minute.",
   },
   [RATE_LIMIT_SCOPE.IMAGE_UPLOAD_BURST]: {
     windowMs: 60 * 1000,
