@@ -16,7 +16,7 @@ import {
   TOOL_GATEWAY_TIMEOUT_MS,
 } from "../../utils/constants.js";
 import {
-  NEVER_TRUNCATE_COMMANDS,
+  LARGE_OUTPUT_COMMANDS,
   RAW_OUTPUT_COMMANDS,
   dedupeStdStreams,
   sanitizeCommandOutput,
@@ -209,7 +209,7 @@ export async function executeCommandTool(params: {
         command: params.command,
         args: params.args,
       });
-      if (NEVER_TRUNCATE_COMMANDS.has(params.command)) {
+      if (LARGE_OUTPUT_COMMANDS.has(params.command)) {
         return {
           exitCode: raw.exitCode ?? 0,
           stdout: truncateWithMarker(stripAnsiOnly(raw.stdout ?? ""), MAX_NEVER_TRUNCATE_CHARS),

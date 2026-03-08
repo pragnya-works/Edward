@@ -80,6 +80,10 @@ export const MAX_NEVER_TRUNCATE_CHARS = parsePositiveInt(
   100_000,
 );
 export const MAX_WEB_SEARCH_SNIPPET_CHARS = 700;
+export const STRICT_RETRY_MIN_VIOLATIONS = parsePositiveInt(
+  "STRICT_RETRY_MIN_VIOLATIONS",
+  4,
+);
 export const TOOL_GATEWAY_TIMEOUT_MS = parsePositiveInt(
   "TOOL_GATEWAY_TIMEOUT_MS",
   45_000,
