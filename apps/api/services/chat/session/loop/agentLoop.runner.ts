@@ -131,7 +131,7 @@ export async function runAgentLoop(
   let agentTurn = resumeCheckpoint?.turn ?? 0;
   let totalToolCallsInRun = resumeCheckpoint?.totalToolCallsInRun ?? 0;
   let sandboxTagDetected = resumeCheckpoint?.sandboxTagDetected ?? false;
-  const canTrackExactOutputTokens =
+  let canTrackExactOutputTokens =
     typeof resumeCheckpoint?.outputTokens === "number" ||
     fullRawResponse.trim().length === 0;
   const webSearchResults: WebSearchToolResult[] = [];
@@ -207,11 +207,13 @@ export async function runAgentLoop(
       totalToolCallsInRun,
     });
     fullRawResponse = streamedRawResponse;
-    if (
-      canTrackExactOutputTokens &&
-      typeof outputTokensThisTurn === "number"
-    ) {
-      outputTokens = (outputTokens ?? 0) + outputTokensThisTurn;
+    if (canTrackExactOutputTokens) {
+      if (typeof outputTokensThisTurn === "number") {
+        outputTokens = (outputTokens ?? 0) + outputTokensThisTurn;
+      } else if (turnRawResponse.length > 0) {
+        canTrackExactOutputTokens = false;
+        outputTokens = undefined;
+      }
     }
 
     if (abortController.signal.aborted) {

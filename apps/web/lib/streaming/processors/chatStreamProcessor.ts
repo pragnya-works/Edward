@@ -48,7 +48,8 @@ interface ProcessedStreamResult {
   fatalError: NonNullable<StreamState["error"]> | null;
 }
 
-const MAX_REPLAY_ATTEMPTS = 1;
+const MAX_REPLAY_ATTEMPTS = 3;
+const REPLAY_BACKOFF_BASE_MS = 500;
 
 function isSameWebSearchEvent(
   a: NonNullable<StreamState["webSearches"][number]>,
@@ -535,6 +536,12 @@ export async function processStreamResponse({
     metaEvent?.runId
   ) {
     try {
+      await new Promise((resolve) =>
+        setTimeout(
+          resolve,
+          Math.min(REPLAY_BACKOFF_BASE_MS * 2 ** replayAttempt, 5_000),
+        ),
+      );
       const replayResponse = await openRunEventsStream(
         activeChatId,
         metaEvent.runId,

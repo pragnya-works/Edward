@@ -306,7 +306,7 @@ describe("provider.client anthropic support", () => {
     expect(request.max_tokens).toBeGreaterThan(0);
     expect(request.system).toBe("System instructions");
     expect(mocks.anthropicMessagesCreateMock.mock.calls[0]?.[1]).toMatchObject({
-      timeout: 30_000,
+      timeout: 20 * 60 * 1_000,
     });
   });
 

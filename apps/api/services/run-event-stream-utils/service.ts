@@ -21,6 +21,7 @@ import {
 } from "../sse-utils/service.js";
 
 const HEARTBEAT_INTERVAL_MS = 15_000;
+const REPLAY_HEARTBEAT_INTERVAL_MS = 10_000;
 const MAX_REPLAY_BATCH = 500;
 const MAX_LAST_EVENT_SEQ = 50_000_000;
 const MAX_BUFFERED_LIVE_EVENTS = 2_000;
@@ -272,7 +273,15 @@ export async function streamRunEventsFromPersistence({
     );
   }
 
+  let lastReplayHeartbeatMs = Date.now();
+
   while (!closed) {
+    const now = Date.now();
+    if (now - lastReplayHeartbeatMs >= REPLAY_HEARTBEAT_INTERVAL_MS) {
+      sendSSEComment(res, "run-events-heartbeat");
+      lastReplayHeartbeatMs = now;
+    }
+
     const replayRows = await getRunEventsAfter(runId, lastSeq, MAX_REPLAY_BATCH);
     if (replayRows.length === 0) {
       break;

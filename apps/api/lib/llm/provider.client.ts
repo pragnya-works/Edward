@@ -1,5 +1,6 @@
 import OpenAI from "openai";
 import Anthropic from "@anthropic-ai/sdk";
+import type { TextBlock } from "@anthropic-ai/sdk/resources/messages/messages.js";
 import { GoogleGenAI } from "@google/genai";
 import { Provider, API_KEY_REGEX } from "@edward/shared/constants";
 import { getModelSpecByProvider } from "@edward/shared/schema";
@@ -30,7 +31,8 @@ const GENERATION_CONFIG = {
   geminiMaxOutputTokens: 65536,
 } as const;
 const logger = createLogger("LLM");
-const ANTHROPIC_STREAM_TIMEOUT_MS = 30_000;
+const ANTHROPIC_STREAM_TIMEOUT_MS = 20 * 60 * 1_000;
+const ANTHROPIC_GENERATE_TIMEOUT_MS = 2 * 60 * 1_000;
 
 export interface StreamUsageUpdate {
   outputTokens?: number;
@@ -47,7 +49,6 @@ function buildAnthropicMessages(messages: LlmChatMessage[]) {
     content: formatContentForAnthropic(message.content),
   }));
 }
-
 
 function extractAnthropicStreamText(event: unknown): string | null {
   const candidate = event as {
@@ -350,7 +351,7 @@ export async function generateResponse(
     } else {
       const anthropic = client as Anthropic;
       const inputText = jsonMode ? buildJsonModeInput(content) : content;
-      const stream = await anthropic.messages.create(
+      const message = await anthropic.messages.create(
         {
           model,
           system: fullSystemPrompt,
@@ -362,17 +363,14 @@ export async function generateResponse(
             },
           ],
           temperature: GENERATION_CONFIG.temperature,
-          stream: true,
         },
-        { timeout: ANTHROPIC_STREAM_TIMEOUT_MS },
+        { timeout: ANTHROPIC_GENERATE_TIMEOUT_MS },
       );
 
-      let result = "";
-      for await (const event of stream) {
-        const text = extractAnthropicStreamText(event);
-        if (text) result += text;
-      }
-      return result;
+      return message.content
+        .filter((block): block is TextBlock => block.type === "text")
+        .map((block) => block.text)
+        .join("");
     }
   } catch (error) {
     logger.error(ensureError(error), "LLM response generation failed");
