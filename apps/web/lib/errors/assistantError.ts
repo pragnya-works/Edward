@@ -27,6 +27,8 @@ const GEMINI_RATE_LIMIT_DOCS_URL =
   "https://ai.google.dev/gemini-api/docs/rate-limits";
 const OPENAI_RATE_LIMIT_DOCS_URL =
   "https://platform.openai.com/docs/guides/rate-limits";
+const ANTHROPIC_RATE_LIMIT_DOCS_URL =
+  "https://docs.anthropic.com/en/api/rate-limits";
 
 function decodeHtml(value: string): string {
   return value
@@ -40,8 +42,17 @@ function normalizeWhitespace(value: string): string {
   return value.replace(/\s+/g, " ").trim();
 }
 
-function inferProvider(rawText: string): "gemini" | "openai" | "unknown" {
+function inferProvider(
+  rawText: string,
+): "anthropic" | "gemini" | "openai" | "unknown" {
   const normalized = rawText.toLowerCase();
+  if (
+    normalized.includes("anthropic") ||
+    normalized.includes("claude") ||
+    normalized.includes("api.anthropic.com")
+  ) {
+    return "anthropic";
+  }
   if (
     normalized.includes("gemini") ||
     normalized.includes("google") ||
@@ -55,9 +66,13 @@ function inferProvider(rawText: string): "gemini" | "openai" | "unknown" {
   return "unknown";
 }
 
-function getRateLimitUrl(provider: "gemini" | "openai" | "unknown"): string {
+function getRateLimitUrl(
+  provider: "anthropic" | "gemini" | "openai" | "unknown",
+): string {
+  if (provider === "anthropic") return ANTHROPIC_RATE_LIMIT_DOCS_URL;
   if (provider === "openai") return OPENAI_RATE_LIMIT_DOCS_URL;
-  return GEMINI_RATE_LIMIT_DOCS_URL;
+  if (provider === "gemini") return GEMINI_RATE_LIMIT_DOCS_URL;
+  return OPENAI_RATE_LIMIT_DOCS_URL;
 }
 
 function buildFallbackError(
@@ -218,7 +233,7 @@ function shouldTreatAsLegacyError(content: string): boolean {
   if (trimmed.length === 0) return false;
 
   const providerErrorSignature =
-    /\[(googlegenerativeai|openai)[^\]]*error\]/i.test(trimmed);
+    /\[(googlegenerativeai|openai|anthropic)[^\]]*error\]/i.test(trimmed);
   const hasActionableSignal =
     /\b(429|503|rate limit|quota|high demand|service unavailable|temporarily unavailable|api key|unauthorized|forbidden|context window|max tokens|timeout|timed out)\b/i.test(
       trimmed,

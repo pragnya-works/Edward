@@ -194,9 +194,14 @@ export const ParserEventSchema = z.discriminatedUnion("type", [
     intent: ChatActionSchema.optional(),
     tokenUsage: z
       .object({
-        provider: z.enum(["openai", "gemini"]),
+        provider: z.enum(["openai", "gemini", "anthropic"]),
         model: z.string(),
-        method: z.enum(["openai-tiktoken", "gemini-countTokens", "approx"]),
+        method: z.enum([
+          "openai-tiktoken",
+          "gemini-countTokens",
+          "anthropic-countTokens",
+          "approx",
+        ]),
         contextWindowTokens: z.number().int().nonnegative(),
         reservedOutputTokens: z.number().int().nonnegative(),
         inputTokens: z.number().int().nonnegative(),

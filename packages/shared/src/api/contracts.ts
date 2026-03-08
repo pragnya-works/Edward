@@ -107,7 +107,7 @@ export interface PromptEnhanceResponse {
   message: string;
   data: {
     enhancedPrompt: string;
-    provider: "openai" | "gemini";
+    provider: "openai" | "gemini" | "anthropic";
     model: string;
   };
 }

@@ -55,7 +55,12 @@ export function BYOKProviderTabs({
           className="h-full min-h-0"
         >
           <div className="pt-2 sm:pt-3">
-            <TabsList className="grid w-full grid-cols-2 rounded-xl h-11 p-1 bg-muted/60 dark:bg-white/[0.06] transition-all border border-border/40 dark:border-white/[0.1]">
+            <TabsList
+              className="grid w-full rounded-xl h-11 p-1 bg-muted/60 dark:bg-white/[0.06] transition-all border border-border/40 dark:border-white/[0.1]"
+              style={{
+                gridTemplateColumns: `repeat(${PROVIDERS_CONFIG.length}, minmax(0, 1fr))`,
+              }}
+            >
               {PROVIDERS_CONFIG.map(({ id, label, icon: Icon }) => (
                 <TabsTrigger
                   key={id}

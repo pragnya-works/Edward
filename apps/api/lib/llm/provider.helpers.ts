@@ -2,8 +2,10 @@ import OpenAI from "openai";
 import { Provider } from "@edward/shared/constants";
 import { MessageRole } from "@edward/auth";
 import {
+  DEFAULT_ANTHROPIC_MODEL,
   DEFAULT_GEMINI_MODEL,
   DEFAULT_OPENAI_MODEL,
+  getProviderFromModel,
   getModelSpecByProvider,
 } from "@edward/shared/schema";
 import { ensureError } from "../../utils/error.js";
@@ -21,7 +23,10 @@ const OPENAI_OUTPUT_DELTA_EVENT_TYPES = new Set(["response.output_text.delta"]);
 const DEFAULT_MODEL_BY_PROVIDER: Record<Provider, string> = {
   [Provider.OPENAI]: DEFAULT_OPENAI_MODEL,
   [Provider.GEMINI]: DEFAULT_GEMINI_MODEL,
+  [Provider.ANTHROPIC]: DEFAULT_ANTHROPIC_MODEL,
 };
+export const PROVIDER_MODEL_MISMATCH_ERROR =
+  "Selected model is incompatible with the configured provider.";
 const PROMPT_ROLE_LABEL_BY_ROLE: Record<LlmConversationRole, "Assistant" | "User"> = {
   [MessageRole.Assistant]: "Assistant",
   [MessageRole.User]: "User",
@@ -36,6 +41,20 @@ export interface NormalizedMessage {
   content: MessageContent;
 }
 
+export function assertModelMatchesProvider(
+  provider: Provider,
+  modelOverride?: string | null,
+): void {
+  if (!modelOverride) {
+    return;
+  }
+
+  const requestedProvider = getProviderFromModel(modelOverride);
+  if (requestedProvider && requestedProvider !== provider) {
+    throw new Error(PROVIDER_MODEL_MISMATCH_ERROR);
+  }
+}
+
 export function resolveModelForProvider(
   provider: Provider,
   modelOverride?: string,
@@ -43,6 +62,8 @@ export function resolveModelForProvider(
   if (!modelOverride) {
     return DEFAULT_MODEL_BY_PROVIDER[provider];
   }
+
+  assertModelMatchesProvider(provider, modelOverride);
 
   const spec = getModelSpecByProvider(provider, modelOverride);
   if (spec) {

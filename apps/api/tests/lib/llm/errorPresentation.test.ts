@@ -45,4 +45,13 @@ describe("errorPresentation", () => {
     expect(tag).toContain('action="retry_generation"');
     expect(tag).toContain('action_label="Try again"');
   });
+
+  it("routes Anthropic rate-limit errors to Anthropic docs", () => {
+    const result = classifyAssistantError(
+      "[Anthropic Error]: 429 rate_limit_error from api.anthropic.com",
+    );
+
+    expect(result.code).toBe("provider_rate_limited");
+    expect(result.actionUrl).toBe("https://docs.anthropic.com/en/api/rate-limits");
+  });
 });

@@ -22,7 +22,7 @@ import {
   toAssistantErrorTag,
 } from "../../../../lib/llm/errorPresentation.js";
 import type { TokenUsage } from "../../../../lib/llm/tokens/usage.types.js";
-import { countOutputTokens } from "../../../../lib/llm/tokens/openaiCounter.js";
+import { countOutputTokens } from "../../../../lib/llm/tokens/outputCounter.js";
 import {
   saveMessage,
   type MessageMetadata,
@@ -46,6 +46,7 @@ export interface LoopState {
   agentTurn: number;
   loopStopReason: LoopStopReason;
   webSearchResults: WebSearchToolResult[];
+  outputTokens?: number;
 }
 
 interface HandleStreamSessionErrorParams {
@@ -61,6 +62,7 @@ interface HandleStreamSessionErrorParams {
   fullRawResponse: string;
   userId: string;
   assistantMessageId: string;
+  outputTokens?: number;
 }
 
 interface BlockingViolationsParams {
@@ -199,6 +201,7 @@ export async function persistErrorMessageIfUncommitted({
   chatId,
   userId,
   assistantMessageId,
+  outputTokens,
 }: {
   committedMessageContent: string | null;
   messageStartTime: number;
@@ -208,6 +211,7 @@ export async function persistErrorMessageIfUncommitted({
   chatId: string;
   userId: string;
   assistantMessageId: string;
+  outputTokens?: number;
 }): Promise<void> {
   if (committedMessageContent !== null) {
     return;
@@ -215,9 +219,9 @@ export async function persistErrorMessageIfUncommitted({
 
   const errorCompletionTime = Date.now() - messageStartTime;
   const errorInputTokens = tokenUsage?.inputTokens ?? 0;
-  const errorOutputTokens = fullRawResponse
-    ? countOutputTokens(fullRawResponse)
-    : 0;
+  const errorOutputTokens =
+    outputTokens ??
+    (fullRawResponse ? countOutputTokens(fullRawResponse, tokenUsage?.model) : 0);
 
   const errorMetadata: MessageMetadata = {
     completionTime: errorCompletionTime,
@@ -248,6 +252,7 @@ export async function handleStreamSessionError({
   fullRawResponse,
   userId,
   assistantMessageId,
+  outputTokens,
 }: HandleStreamSessionErrorParams): Promise<void> {
   const error = ensureError(streamError);
   const assistantError = classifyAssistantError(error.message);
@@ -293,6 +298,7 @@ export async function handleStreamSessionError({
       chatId,
       userId,
       assistantMessageId,
+      outputTokens,
     });
   } catch (cleanupErr) {
     logger.error({ cleanupErr }, "Failed during error cleanup");

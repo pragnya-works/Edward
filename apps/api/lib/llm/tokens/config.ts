@@ -1,5 +1,9 @@
 import { Provider } from "@edward/shared/constants";
-import { DEFAULT_GEMINI_MODEL, DEFAULT_OPENAI_MODEL } from "@edward/shared/schema";
+import {
+  DEFAULT_ANTHROPIC_MODEL,
+  DEFAULT_GEMINI_MODEL,
+  DEFAULT_OPENAI_MODEL,
+} from "@edward/shared/schema";
 
 function parseOptionalInt(value: string | undefined): number | undefined {
   if (!value) return undefined;
@@ -11,8 +15,11 @@ export function getModelForProvider(provider: Provider): string {
   if (provider === Provider.OPENAI) {
     return DEFAULT_OPENAI_MODEL;
   }
+  if (provider === Provider.GEMINI) {
+    return DEFAULT_GEMINI_MODEL;
+  }
 
-  return DEFAULT_GEMINI_MODEL;
+  return DEFAULT_ANTHROPIC_MODEL;
 }
 
 export function getContextWindowOverride(): number | undefined {

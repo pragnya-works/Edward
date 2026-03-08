@@ -63,6 +63,7 @@ export async function runStreamSession(
 
   let fullRawResponse = "";
   let committedMessageContent: string | null = null;
+  let outputTokens: number | undefined;
   const generatedFiles = new Map<string, string>();
   const declaredPackages: string[] = [];
   const messageStartTime = Date.now();
@@ -187,7 +188,9 @@ export async function runStreamSession(
       agentTurn: loopResult.agentTurn,
       loopStopReason: loopResult.loopStopReason,
       webSearchResults: loopResult.webSearchResults,
+      outputTokens: loopResult.outputTokens,
     };
+    outputTokens = loopState.outputTokens;
     framework = updateFrameworkFromWorkflow(workflow, framework);
 
     await applyDeterministicPostgenAutofixes({
@@ -232,6 +235,7 @@ export async function runStreamSession(
     loopState = strictRetryResult.loopState;
     tokenUsage = strictRetryResult.tokenUsage;
     fullRawResponse = loopState.fullRawResponse;
+    outputTokens = loopState.outputTokens;
     framework = updateFrameworkFromWorkflow(workflow, framework);
 
     await applyDeterministicPostgenAutofixes({
@@ -276,6 +280,7 @@ export async function runStreamSession(
       fullRawResponse,
       userId,
       assistantMessageId,
+      outputTokens,
     });
   } finally {
     streamGuards.clear();

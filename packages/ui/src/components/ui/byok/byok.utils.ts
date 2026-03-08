@@ -1,3 +1,4 @@
+import { Anthropic } from "@edward/ui/components/ui/anthropic";
 import { OpenAI } from "@edward/ui/components/ui/openAi";
 import { Gemini } from "@edward/ui/components/ui/gemini";
 import {
@@ -22,6 +23,12 @@ export const PROVIDERS_CONFIG = [
     icon: Gemini,
     description: "Use Google's Gemini Pro and Flash models",
   },
+  {
+    id: Provider.ANTHROPIC,
+    label: "Anthropic",
+    icon: Anthropic,
+    description: "Use Claude 4.6 and 4.5 models, including Sonnet, Opus, and Haiku",
+  },
 ] as const;
 
 export function validateApiKey(key: string, provider: Provider): boolean {
@@ -35,6 +42,7 @@ export function getProviderFromKeyPreview(
   if (!keyPreview) return null;
   const normalized = keyPreview.trim();
   if (normalized === "Existing Key") return null;
+  if (normalized.startsWith("sk-ant-")) return Provider.ANTHROPIC;
   if (normalized.startsWith("sk-")) return Provider.OPENAI;
   if (normalized.startsWith("AI")) return Provider.GEMINI;
   return null;

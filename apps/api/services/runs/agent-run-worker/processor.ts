@@ -8,6 +8,7 @@ import {
 } from "@edward/auth";
 import type { Response } from "express";
 import { createRedisClient } from "../../../lib/redis.js";
+import { getProviderFromKey } from "@edward/shared/schema";
 import { getUserWithApiKey } from "../../apiKey.service.js";
 import { decrypt } from "../../../utils/encryption.js";
 import {
@@ -40,6 +41,7 @@ import {
   buildWorkerRunSessionInput,
   createWorkerRequest,
 } from "./processor.session.js";
+import { assertModelMatchesProvider } from "../../../lib/llm/provider.helpers.js";
 
 interface Publisher {
   publish(channel: string, payload: string): Promise<unknown>;
@@ -168,6 +170,33 @@ export async function processAgentRunJob(
         errorMessage: err.message,
         completedAt: new Date(),
       }, "api-key-decrypt-failed");
+      throw err;
+    }
+
+    const keyProvider = getProviderFromKey(decryptedApiKey);
+    if (!keyProvider) {
+      const err = new Error(
+        "Unable to determine provider from the saved API key. Please re-save it in settings.",
+      );
+      await updateRunWithLog(runId, {
+        status: RUN_STATUS.FAILED,
+        state: "FAILED",
+        errorMessage: err.message,
+        completedAt: new Date(),
+      }, "api-key-provider-invalid");
+      throw err;
+    }
+
+    try {
+      assertModelMatchesProvider(keyProvider, metadata.model);
+    } catch (error) {
+      const err = ensureError(error);
+      await updateRunWithLog(runId, {
+        status: RUN_STATUS.FAILED,
+        state: "FAILED",
+        errorMessage: err.message,
+        completedAt: new Date(),
+      }, "provider-model-mismatch");
       throw err;
     }
 

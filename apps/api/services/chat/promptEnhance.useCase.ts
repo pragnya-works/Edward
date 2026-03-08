@@ -14,6 +14,7 @@ import { sendError, sendSuccess } from "../../utils/response.js";
 const ENHANCER_MODEL_BY_PROVIDER: Record<Provider, string> = {
   [Provider.OPENAI]: Model.GPT_5_NANO,
   [Provider.GEMINI]: Model.GEMINI_2_5_FLASH,
+  [Provider.ANTHROPIC]: Model.CLAUDE_SONNET_4_6,
 };
 
 function isEnhancerProvider(provider: unknown): provider is Provider {

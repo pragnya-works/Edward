@@ -19,6 +19,8 @@ const GEMINI_RATE_LIMIT_DOCS_URL =
   "https://ai.google.dev/gemini-api/docs/rate-limits";
 const OPENAI_RATE_LIMIT_DOCS_URL =
   "https://platform.openai.com/docs/guides/rate-limits";
+const ANTHROPIC_RATE_LIMIT_DOCS_URL =
+  "https://docs.anthropic.com/en/api/rate-limits";
 
 function normalizeWhitespace(value: string): string {
   return value.replace(/\s+/g, " ").trim();
@@ -26,8 +28,16 @@ function normalizeWhitespace(value: string): string {
 
 function inferProviderFromError(
   rawMessage: string,
-): "gemini" | "openai" | "unknown" {
+): "anthropic" | "gemini" | "openai" | "unknown" {
   const normalized = rawMessage.toLowerCase();
+
+  if (
+    normalized.includes("anthropic") ||
+    normalized.includes("claude") ||
+    normalized.includes("api.anthropic.com")
+  ) {
+    return "anthropic";
+  }
 
   if (
     normalized.includes("gemini") ||
@@ -47,10 +57,13 @@ function inferProviderFromError(
   return "unknown";
 }
 
-function getRateLimitDocsUrl(provider: "gemini" | "openai" | "unknown"): string {
+function getRateLimitDocsUrl(
+  provider: "anthropic" | "gemini" | "openai" | "unknown",
+): string {
+  if (provider === "anthropic") return ANTHROPIC_RATE_LIMIT_DOCS_URL;
   if (provider === "gemini") return GEMINI_RATE_LIMIT_DOCS_URL;
   if (provider === "openai") return OPENAI_RATE_LIMIT_DOCS_URL;
-  return GEMINI_RATE_LIMIT_DOCS_URL;
+  return OPENAI_RATE_LIMIT_DOCS_URL;
 }
 
 export function classifyAssistantError(rawMessage: string): AssistantErrorPresentation {

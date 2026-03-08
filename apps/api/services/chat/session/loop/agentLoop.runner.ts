@@ -81,6 +81,7 @@ export interface RunAgentLoopResult {
   loopStopReason: AgentLoopStopReason;
   webSearchResults: WebSearchToolResult[];
   aborted: boolean;
+  outputTokens?: number;
 }
 
 export async function runAgentLoop(
@@ -130,9 +131,13 @@ export async function runAgentLoop(
   let agentTurn = resumeCheckpoint?.turn ?? 0;
   let totalToolCallsInRun = resumeCheckpoint?.totalToolCallsInRun ?? 0;
   let sandboxTagDetected = resumeCheckpoint?.sandboxTagDetected ?? false;
+  const canTrackExactOutputTokens =
+    typeof resumeCheckpoint?.outputTokens === "number" ||
+    fullRawResponse.trim().length === 0;
   const webSearchResults: WebSearchToolResult[] = [];
   let loopStopReason: AgentLoopStopReason = AgentLoopStopReason.NO_TOOL_RESULTS;
   let noProgressContinuations = 0;
+  let outputTokens = resumeCheckpoint?.outputTokens;
 
   agentLoop: while (agentTurn < MAX_AGENT_TURNS) {
     agentTurn += 1;
@@ -176,6 +181,7 @@ export async function runAgentLoop(
       toolResultsThisTurn,
       budgetState,
       turnState,
+      outputTokensThisTurn,
     } = await executeAgentTurnStream({
       decryptedApiKey,
       agentMessages,
@@ -201,6 +207,12 @@ export async function runAgentLoop(
       totalToolCallsInRun,
     });
     fullRawResponse = streamedRawResponse;
+    if (
+      canTrackExactOutputTokens &&
+      typeof outputTokensThisTurn === "number"
+    ) {
+      outputTokens = (outputTokens ?? 0) + outputTokensThisTurn;
+    }
 
     if (abortController.signal.aborted) {
       return {
@@ -209,6 +221,7 @@ export async function runAgentLoop(
         loopStopReason,
         webSearchResults,
         aborted: true,
+        outputTokens,
       };
     }
 
@@ -239,6 +252,7 @@ export async function runAgentLoop(
       agentMessages,
       abortSignal: abortController.signal,
       noProgressContinuations,
+      outputTokens,
     });
     agentMessages = turnOutcome.agentMessages;
     noProgressContinuations = turnOutcome.noProgressContinuations;
@@ -264,5 +278,6 @@ export async function runAgentLoop(
     loopStopReason,
     webSearchResults,
     aborted: false,
+    outputTokens,
   };
 }

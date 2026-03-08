@@ -6,6 +6,7 @@ export interface AgentLoopCheckpoint {
   agentMessages: LlmChatMessage[];
   sandboxTagDetected: boolean;
   totalToolCallsInRun: number;
+  outputTokens?: number;
 }
 
 export type AgentLoopCheckpointWriter = (
