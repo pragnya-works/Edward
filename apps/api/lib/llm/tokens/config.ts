@@ -18,8 +18,11 @@ export function getModelForProvider(provider: Provider): string {
   if (provider === Provider.GEMINI) {
     return DEFAULT_GEMINI_MODEL;
   }
+  if (provider === Provider.ANTHROPIC) {
+    return DEFAULT_ANTHROPIC_MODEL;
+  }
 
-  return DEFAULT_ANTHROPIC_MODEL;
+  throw new Error(`Unknown provider: ${String(provider)}`);
 }
 
 export function getContextWindowOverride(): number | undefined {

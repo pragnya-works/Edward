@@ -110,8 +110,9 @@ export function parseAgentRunMetadata(input: unknown): AgentRunMetadata {
               ? input.resumeCheckpoint.totalToolCallsInRun
               : 0,
           outputTokens:
-            typeof input.resumeCheckpoint.outputTokens === "number"
-              ? input.resumeCheckpoint.outputTokens
+            Number.isFinite(input.resumeCheckpoint.outputTokens) &&
+            (input.resumeCheckpoint.outputTokens as number) >= 0
+              ? (input.resumeCheckpoint.outputTokens as number)
               : undefined,
           updatedAt: input.resumeCheckpoint.updatedAt,
         }

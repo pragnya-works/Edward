@@ -59,11 +59,11 @@ function inferProviderFromError(
 
 function getRateLimitDocsUrl(
   provider: "anthropic" | "gemini" | "openai" | "unknown",
-): string {
+): string | undefined {
   if (provider === "anthropic") return ANTHROPIC_RATE_LIMIT_DOCS_URL;
   if (provider === "gemini") return GEMINI_RATE_LIMIT_DOCS_URL;
   if (provider === "openai") return OPENAI_RATE_LIMIT_DOCS_URL;
-  return OPENAI_RATE_LIMIT_DOCS_URL;
+  return undefined;
 }
 
 export function classifyAssistantError(rawMessage: string): AssistantErrorPresentation {

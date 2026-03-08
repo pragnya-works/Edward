@@ -7,7 +7,11 @@ function countApproxTokens(content: string): number {
 }
 
 export function countOutputTokens(content: string, model?: string): number {
-  const provider = model ? getProviderFromModel(model) : Provider.OPENAI;
+  if (!model) {
+    return countApproxTokens(content);
+  }
+
+  const provider = getProviderFromModel(model);
 
   if (provider === Provider.OPENAI) {
     return countOpenAIOutputTokens(content, model);

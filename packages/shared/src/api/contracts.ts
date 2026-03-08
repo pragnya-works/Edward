@@ -4,6 +4,7 @@ import type {
   GithubRepoStatusData,
   SyncGithubData,
 } from "@edward/shared/github/types";
+import type { Provider } from "../constants.js";
 
 
 export interface ApiSuccessResponse<TData = unknown> {
@@ -107,7 +108,7 @@ export interface PromptEnhanceResponse {
   message: string;
   data: {
     enhancedPrompt: string;
-    provider: "openai" | "gemini" | "anthropic";
+    provider: Provider;
     model: string;
   };
 }
