@@ -136,8 +136,8 @@ describe("toolGateway command output sanitation", () => {
     const result = await executeCommandTool({
       turn: 1,
       sandboxId: "sb-1",
-      command: "cat",
-      args: ["README.md"],
+      command: "grep",
+      args: ["pattern", "file.txt"],
     });
 
     expect(result.exitCode).toBe(0);
