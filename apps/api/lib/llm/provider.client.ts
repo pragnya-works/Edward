@@ -51,6 +51,10 @@ function buildAnthropicMessages(messages: LlmChatMessage[]) {
 }
 
 function extractAnthropicStreamText(event: unknown): string | null {
+  if (typeof event !== "object" || event === null) {
+    return null;
+  }
+
   const candidate = event as {
     type?: string;
     delta?: { type?: string; text?: string };
@@ -67,6 +71,10 @@ function extractAnthropicStreamText(event: unknown): string | null {
 }
 
 function extractAnthropicStreamOutputTokens(event: unknown): number | null {
+  if (typeof event !== "object" || event === null) {
+    return null;
+  }
+
   const candidate = event as {
     type?: string;
     usage?: { output_tokens?: number };

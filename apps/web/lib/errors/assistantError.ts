@@ -91,17 +91,16 @@ function buildFallbackError(
       normalizedMessage,
     )
   ) {
+    const rateLimitUrl = getRateLimitUrl(provider);
     return {
       code: code || "provider_rate_limited",
       title: "Rate limit reached",
       message:
         "The provider rejected this request due to quota/rate limits. Wait a bit or adjust your plan, then retry.",
       severity: "caution",
-      cta: {
-        type: "open_url",
-        label: "View rate limits",
-        url: getRateLimitUrl(provider),
-      },
+      cta: rateLimitUrl
+        ? { type: "open_url" as const, label: "View rate limits", url: rateLimitUrl }
+        : { type: "retry_generation" as const, label: "Try again" },
       rawMessage: normalizedMessage,
     };
   }

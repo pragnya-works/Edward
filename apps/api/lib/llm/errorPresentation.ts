@@ -75,15 +75,16 @@ export function classifyAssistantError(rawMessage: string): AssistantErrorPresen
       normalizedMessage,
     )
   ) {
+    const rateLimitUrl = getRateLimitDocsUrl(provider);
     return {
       code: "provider_rate_limited",
       title: "Rate limit reached",
       message:
         "The model provider rejected this request due to quota/rate limits. Wait a bit or adjust your provider plan, then retry.",
       severity: "caution",
-      action: "open_url",
-      actionLabel: "View rate limits",
-      actionUrl: getRateLimitDocsUrl(provider),
+      action: rateLimitUrl ? "open_url" : "retry_generation",
+      actionLabel: rateLimitUrl ? "View rate limits" : "Try again",
+      actionUrl: rateLimitUrl,
     };
   }
 

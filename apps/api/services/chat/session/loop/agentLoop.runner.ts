@@ -133,7 +133,7 @@ export async function runAgentLoop(
   let sandboxTagDetected = resumeCheckpoint?.sandboxTagDetected ?? false;
   let canTrackExactOutputTokens =
     typeof resumeCheckpoint?.outputTokens === "number" ||
-    fullRawResponse.trim().length === 0;
+    fullRawResponse.length === 0;
   const webSearchResults: WebSearchToolResult[] = [];
   let loopStopReason: AgentLoopStopReason = AgentLoopStopReason.NO_TOOL_RESULTS;
   let noProgressContinuations = 0;

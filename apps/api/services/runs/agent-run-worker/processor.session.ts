@@ -102,7 +102,7 @@ export function buildWorkerRunSessionInput(
           agentMessages: checkpoint.agentMessages,
           sandboxTagDetected: checkpoint.sandboxTagDetected,
           totalToolCallsInRun: checkpoint.totalToolCallsInRun,
-          outputTokens: checkpoint.outputTokens ?? currentMetadata.resumeCheckpoint?.outputTokens,
+          outputTokens: checkpoint.outputTokens,
           updatedAt: checkpoint.updatedAt,
         } satisfies RunResumeCheckpoint,
       };
