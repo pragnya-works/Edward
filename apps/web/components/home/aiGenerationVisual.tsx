@@ -1,7 +1,7 @@
 "use client";
 
 import React, { memo, useState, useCallback, useMemo, useEffect } from "react";
-import { m, AnimatePresence } from "motion/react";
+import { m, AnimatePresence, useReducedMotion } from "motion/react";
 import { TextAnimate } from "@edward/ui/components/textAnimate";
 import { cn } from "@edward/ui/lib/utils";
 import { useVisibilityAwareInterval } from "@edward/ui/hooks/useVisibilityAwareInterval";
@@ -102,27 +102,35 @@ const MODEL_CONFIG: Record<
     },
 };
 
-const AiSelectFlow = memo(({ onSelect, selectedAi }: { onSelect: (ai: AiModel) => void; selectedAi: AiModel | null }) => {
+const MODEL_ORDER = Object.keys(MODEL_CONFIG) as Array<keyof typeof MODEL_CONFIG>;
+const STATIC_TEXT_VARIANTS = {
+    hidden: { opacity: 1, y: 0 },
+    show: { opacity: 1, y: 0 },
+    exit: { opacity: 1, y: 0 },
+} as const;
+
+const AiSelectFlow = memo(({ onSelect, selectedAi, shouldReduceMotion }: { onSelect: (ai: AiModel) => void; selectedAi: AiModel | null; shouldReduceMotion: boolean }) => {
     const [hovered, setHovered] = useState<AiModel | null>(null);
 
     return (
         <m.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0, scale: 0.95, filter: "blur(4px)" }}
+            initial={shouldReduceMotion ? undefined : { opacity: 0 }}
+            animate={shouldReduceMotion ? undefined : { opacity: 1 }}
+            exit={shouldReduceMotion ? undefined : { opacity: 0, scale: 0.95, filter: "blur(4px)" }}
+            transition={shouldReduceMotion ? { duration: 0 } : undefined}
             className="absolute inset-0 z-10 flex flex-col items-center justify-start gap-4 px-4 pt-10 pointer-events-auto sm:gap-5 sm:pt-12 md:pt-14"
         >
             <m.h3
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.5 }}
+                initial={shouldReduceMotion ? undefined : { opacity: 0, y: -10 }}
+                animate={shouldReduceMotion ? undefined : { opacity: 1, y: 0 }}
+                transition={shouldReduceMotion ? { duration: 0 } : { delay: 0.5 }}
                 className="px-4 text-center text-[10px] font-bold uppercase tracking-[0.2em] text-foreground/50 sm:text-sm"
             >
                 Choose Intelligence
             </m.h3>
 
             <div className="grid w-full max-w-[17rem] grid-cols-3 gap-2 sm:max-w-[20rem] sm:gap-3 md:max-w-[23rem]">
-                {(["openai", "gemini", "anthropic"] as const).map((model, index) => {
+                {MODEL_ORDER.map((model, index) => {
                     const config = MODEL_CONFIG[model];
                     const Icon = config.icon;
                     const isHovered = hovered === model;
@@ -136,9 +144,9 @@ const AiSelectFlow = memo(({ onSelect, selectedAi }: { onSelect: (ai: AiModel) =
                             onClick={() => onSelect(model)}
                             onMouseEnter={() => setHovered(model)}
                             onMouseLeave={() => setHovered(null)}
-                            initial={{ opacity: 0, y: 12 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: 0.2 + (index * 0.12), duration: 0.45 }}
+                            initial={shouldReduceMotion ? undefined : { opacity: 0, y: 12 }}
+                            animate={shouldReduceMotion ? undefined : { opacity: 1, y: 0 }}
+                            transition={shouldReduceMotion ? { duration: 0 } : { delay: 0.2 + (index * 0.12), duration: 0.45 }}
                             className={cn(
                                 "relative flex aspect-square w-full flex-col items-center justify-center rounded-[1.15rem] border px-2 py-2.5 transition-all duration-500 sm:px-3 sm:py-3",
                                 "shadow-[inset_0_1px_1px_rgba(255,255,255,0.15)]",
@@ -149,9 +157,9 @@ const AiSelectFlow = memo(({ onSelect, selectedAi }: { onSelect: (ai: AiModel) =
                         >
                             <div className="relative flex h-8 w-8 items-center justify-center sm:h-10 sm:w-10 md:h-11 md:w-11">
                                 <m.div
-                                    initial={{ opacity: 0, scale: 0.9 }}
-                                    animate={{ opacity: 1, scale: 1 }}
-                                    transition={{ delay: 0.4 + (index * 0.12), duration: 0.45 }}
+                                    initial={shouldReduceMotion ? undefined : { opacity: 0, scale: 0.9 }}
+                                    animate={shouldReduceMotion ? undefined : { opacity: 1, scale: 1 }}
+                                    transition={shouldReduceMotion ? { duration: 0 } : { delay: 0.4 + (index * 0.12), duration: 0.45 }}
                                     className="absolute inset-0 transition-all duration-300"
                                 >
                                     <Icon className={cn("h-full w-full", config.iconClassName)} />
@@ -175,62 +183,63 @@ const AiSelectFlow = memo(({ onSelect, selectedAi }: { onSelect: (ai: AiModel) =
 });
 AiSelectFlow.displayName = "AiSelectFlow";
 
-const AiFusionFlow = memo(({ selectedAi, onComplete }: { selectedAi: AiModel, onComplete: () => void }) => {
+const AiFusionFlow = memo(({ selectedAi, onComplete, shouldReduceMotion }: { selectedAi: AiModel, onComplete: () => void; shouldReduceMotion: boolean }) => {
     useEffect(() => {
         const timer = setTimeout(() => {
             onComplete();
-        }, 2500); // Sequence duration
+        }, shouldReduceMotion ? 0 : 2500);
         return () => clearTimeout(timer);
-    }, [onComplete]);
+    }, [onComplete, shouldReduceMotion]);
 
     const config = MODEL_CONFIG[selectedAi];
     const Icon = config.icon;
 
     return (
         <m.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0, scale: 1.1, filter: "blur(10px)" }}
+            initial={shouldReduceMotion ? undefined : { opacity: 0 }}
+            animate={shouldReduceMotion ? undefined : { opacity: 1 }}
+            exit={shouldReduceMotion ? undefined : { opacity: 0, scale: 1.1, filter: "blur(10px)" }}
+            transition={shouldReduceMotion ? { duration: 0 } : undefined}
             className="absolute inset-0 z-40 flex items-start justify-center overflow-hidden pointer-events-none pt-14 sm:pt-16 md:items-center md:pt-0"
         >
             <m.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: [0, 1, 0] }}
-                transition={{ duration: 3, times: [0, 0.4, 1] }}
+                initial={shouldReduceMotion ? undefined : { opacity: 0 }}
+                animate={shouldReduceMotion ? { opacity: 0.9 } : { opacity: [0, 1, 0] }}
+                transition={shouldReduceMotion ? { duration: 0 } : { duration: 3, times: [0, 0.4, 1] }}
                 className="absolute inset-0 bg-background/90 z-0"
             />
 
             <m.div
-                initial={{ scale: 0.5, opacity: 0 }}
-                animate={{ scale: [0.5, 3, 8], opacity: [0, 1, 0] }}
-                transition={{ duration: 1.5, ease: "easeIn" }}
+                initial={shouldReduceMotion ? undefined : { scale: 0.5, opacity: 0 }}
+                animate={shouldReduceMotion ? { scale: 1, opacity: 0.85 } : { scale: [0.5, 3, 8], opacity: [0, 1, 0] }}
+                transition={shouldReduceMotion ? { duration: 0 } : { duration: 1.5, ease: "easeIn" }}
                 className="absolute w-24 h-24 md:w-32 md:h-32 rounded-full z-10 blur-3xl mix-blend-screen"
                 style={{ backgroundColor: config.blurColor }}
             />
 
             <m.div
-                initial={{ scale: 0.5, opacity: 0 }}
-                animate={{
+                initial={shouldReduceMotion ? undefined : { scale: 0.5, opacity: 0 }}
+                animate={shouldReduceMotion ? { scale: 1, opacity: 1, filter: "blur(0px)", rotate: 0 } : {
                     scale: [0.5, 1.2, 0.1],
                     opacity: [0, 1, 0],
                     filter: ["blur(4px)", "blur(0px)", "blur(10px)"],
                     rotate: [0, 0, 180]
                 }}
-                transition={{ duration: 1.5, ease: "easeInOut" }}
+                transition={shouldReduceMotion ? { duration: 0 } : { duration: 1.5, ease: "easeInOut" }}
                 className="absolute z-20 w-16 h-16 md:w-20 md:h-20"
             >
                 <Icon className={cn("h-full w-full", config.iconClassName)} />
             </m.div>
             <m.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: [0, 0, 1, 0] }}
-                transition={{ duration: 0.8, times: [0, 0.3, 0.5, 1], delay: 1 }}
+                initial={shouldReduceMotion ? undefined : { opacity: 0 }}
+                animate={shouldReduceMotion ? { opacity: 0 } : { opacity: [0, 0, 1, 0] }}
+                transition={shouldReduceMotion ? { duration: 0 } : { duration: 0.8, times: [0, 0.3, 0.5, 1], delay: 1 }}
                 className="absolute inset-0 bg-white z-50 mix-blend-overlay"
             />
             <m.div
-                initial={{ scale: 0.5, opacity: 0, filter: "blur(8px)" }}
-                animate={{ scale: [0.5, 1.08, 1], opacity: [0, 1, 1], filter: ["blur(8px)", "blur(0px)", "blur(0px)"] }}
-                transition={{ duration: 1.2, delay: 1.2, ease: "easeOut" }}
+                initial={shouldReduceMotion ? undefined : { scale: 0.5, opacity: 0, filter: "blur(8px)" }}
+                animate={shouldReduceMotion ? { scale: 1, opacity: 1, filter: "blur(0px)" } : { scale: [0.5, 1.08, 1], opacity: [0, 1, 1], filter: ["blur(8px)", "blur(0px)", "blur(0px)"] }}
+                transition={shouldReduceMotion ? { duration: 0 } : { duration: 1.2, delay: 1.2, ease: "easeOut" }}
                 className="absolute z-30 w-20 h-20 md:w-24 md:h-24 rounded-2xl shadow-[0_0_80px_rgba(255,255,255,0.25)] overflow-hidden"
             >
                 <Image
@@ -247,7 +256,7 @@ const AiFusionFlow = memo(({ selectedAi, onComplete }: { selectedAi: AiModel, on
 AiFusionFlow.displayName = "AiFusionFlow";
 
 
-const GenerationFlow = memo(function GenerationFlow({ selectedAi }: { selectedAi: AiModel }) {
+const GenerationFlow = memo(function GenerationFlow({ selectedAi, shouldReduceMotion }: { selectedAi: AiModel; shouldReduceMotion: boolean }) {
     const [index, setIndex] = useState(0);
 
     const handleCycle = useCallback(() => {
@@ -274,16 +283,17 @@ const GenerationFlow = memo(function GenerationFlow({ selectedAi }: { selectedAi
         <AnimatePresence mode="wait">
             <m.div
                 key={current.prompt}
-                initial={{ opacity: 0, scale: 0.98, y: 10 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, filter: "blur(8px)", scale: 1.02, y: -10 }}
-                transition={{ duration: 0.8, ease: [0.19, 1, 0.22, 1] }}
+                initial={shouldReduceMotion ? undefined : { opacity: 0, scale: 0.98, y: 10 }}
+                animate={shouldReduceMotion ? undefined : { opacity: 1, scale: 1, y: 0 }}
+                exit={shouldReduceMotion ? undefined : { opacity: 0, filter: "blur(8px)", scale: 1.02, y: -10 }}
+                transition={shouldReduceMotion ? { duration: 0 } : { duration: 0.8, ease: [0.19, 1, 0.22, 1] }}
                 className="flex flex-col items-center w-full max-w-xl gap-3 md:gap-4"
             >
                 <div className="w-full flex flex-col items-center text-center gap-1 md:gap-2">
                     <m.div
-                        initial={{ opacity: 0, scale: 0.8 }}
-                        animate={{ opacity: 1, scale: 1 }}
+                        initial={shouldReduceMotion ? undefined : { opacity: 0, scale: 0.8 }}
+                        animate={shouldReduceMotion ? undefined : { opacity: 1, scale: 1 }}
+                        transition={shouldReduceMotion ? { duration: 0 } : undefined}
                         className="w-10 h-10 md:w-12 md:h-12 mb-1 rounded-xl overflow-hidden shadow-[0_0_30px_rgba(255,255,255,0.1)] relative"
                     >
                         <Image src={EDWARD_LOGO_URL} alt="Edward generating" fill sizes="(max-width: 768px) 2.5rem, 3rem" className="object-cover" />
@@ -298,9 +308,10 @@ const GenerationFlow = memo(function GenerationFlow({ selectedAi }: { selectedAi
 
                     <TextAnimate
                         text={current.prompt}
-                        animation="fadeIn"
+                        animation={shouldReduceMotion ? undefined : "fadeIn"}
                         by="word"
-                        duration={0.6}
+                        duration={shouldReduceMotion ? 0 : 0.6}
+                        variants={shouldReduceMotion ? STATIC_TEXT_VARIANTS : undefined}
                         className="text-sm md:text-lg font-medium text-foreground/80 tracking-tight leading-snug px-4"
                     />
                 </div>
@@ -315,9 +326,9 @@ const GenerationFlow = memo(function GenerationFlow({ selectedAi }: { selectedAi
                         {keyedCodeLines.map(({ line, key }, lineIndex) => (
                             <m.div
                                 key={key}
-                                initial={{ opacity: 0, x: 5 }}
-                                animate={{ opacity: 1, x: 0 }}
-                                transition={{ delay: 0.8 + (lineIndex * 0.08), duration: 0.4 }}
+                                initial={shouldReduceMotion ? undefined : { opacity: 0, x: 5 }}
+                                animate={shouldReduceMotion ? undefined : { opacity: 1, x: 0 }}
+                                transition={shouldReduceMotion ? { duration: 0 } : { delay: 0.8 + (lineIndex * 0.08), duration: 0.4 }}
                                 className={cn(current.accent, "whitespace-pre tracking-tight flex items-start")}
                             >
                                 <span className="text-foreground/10 mr-4 select-none text-[8px] w-3 tabular-nums">{lineIndex + 1}</span>
@@ -342,10 +353,11 @@ const GenerationFlow = memo(function GenerationFlow({ selectedAi }: { selectedAi
 export const AIGenerationVisual = memo(() => {
     const [flowState, setFlowState] = useState<FlowState>("SELECT");
     const [selectedAi, setSelectedAi] = useState<AiModel | null>(null);
+    const shouldReduceMotion = useReducedMotion() ?? false;
     const handleSelect = useCallback((ai: AiModel) => {
         setSelectedAi(ai);
-        setFlowState("FUSION");
-    }, []);
+        setFlowState(shouldReduceMotion ? "GENERATE" : "FUSION");
+    }, [shouldReduceMotion]);
     const handleFusionComplete = useCallback(() => {
         setFlowState("GENERATE");
     }, []);
@@ -365,6 +377,7 @@ export const AIGenerationVisual = memo(() => {
                             key="select"
                             onSelect={handleSelect}
                             selectedAi={selectedAi}
+                            shouldReduceMotion={shouldReduceMotion}
                         />
                     )}
                     {flowState === "FUSION" && selectedAi && (
@@ -372,10 +385,11 @@ export const AIGenerationVisual = memo(() => {
                             key="fusion"
                             selectedAi={selectedAi}
                             onComplete={handleFusionComplete}
+                            shouldReduceMotion={shouldReduceMotion}
                         />
                     )}
                     {flowState === "GENERATE" && selectedAi && (
-                        <GenerationFlow key="generate" selectedAi={selectedAi} />
+                        <GenerationFlow key="generate" selectedAi={selectedAi} shouldReduceMotion={shouldReduceMotion} />
                     )}
                 </AnimatePresence>
             </div>
