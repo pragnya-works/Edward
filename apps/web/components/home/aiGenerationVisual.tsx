@@ -102,7 +102,7 @@ const MODEL_CONFIG: Record<
     },
 };
 
-const AiSelectFlow = memo(({ onSelect }: { onSelect: (ai: AiModel) => void }) => {
+const AiSelectFlow = memo(({ onSelect, selectedAi }: { onSelect: (ai: AiModel) => void; selectedAi: AiModel | null }) => {
     const [hovered, setHovered] = useState<AiModel | null>(null);
 
     return (
@@ -131,6 +131,8 @@ const AiSelectFlow = memo(({ onSelect }: { onSelect: (ai: AiModel) => void }) =>
                     return (
                         <m.button
                             key={model}
+                            aria-label={`Select ${config.label}`}
+                            aria-pressed={selectedAi === model}
                             onClick={() => onSelect(model)}
                             onMouseEnter={() => setHovered(model)}
                             onMouseLeave={() => setHovered(null)}
@@ -362,6 +364,7 @@ export const AIGenerationVisual = memo(() => {
                         <AiSelectFlow
                             key="select"
                             onSelect={handleSelect}
+                            selectedAi={selectedAi}
                         />
                     )}
                     {flowState === "FUSION" && selectedAi && (
