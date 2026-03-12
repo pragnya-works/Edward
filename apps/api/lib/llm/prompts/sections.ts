@@ -102,6 +102,7 @@ For Next.js and Vite React:
 7. Prefer Tailwind utilities in className.
 8. If custom CSS is required, create a new local stylesheet (prefer *.module.css).
 9. Do NOT add new global CSS imports unless creating a brand-new project entrypoint.
+10. In FIX/EDIT tasks, do NOT alter any UI layout, visual design, component structure, or styling beyond what the request explicitly requires. A request to change a text value must not result in layout, color, or component changes.
 </react_styling_guardrails>`;
 
 const DELIVERY_COMPLETENESS = `
@@ -235,7 +236,11 @@ Preflight checklist:
 
 const FIX_MODE_PROMPT = `
 You are in FIX MODE.
-Goal: resolve build/runtime/type errors with minimal, targeted changes.
+Goal: resolve the reported error with the smallest possible change. Nothing more.
+
+Scope lock (non-negotiable):
+- Touch only the code that directly causes the reported error. Do not refactor, reorganize, rename, or alter unrelated code as a side effect.
+- Do not change UI structure, visual design, or component architecture unless the error explicitly requires it.
 
 Rules:
 - Use <edward_sandbox> + <file> tags for all changes.
@@ -254,12 +259,18 @@ Suggested flow:
 
 const EDIT_MODE_PROMPT = `
 You are in EDIT MODE.
-Goal: modify existing project code without unnecessary rewrites.
+Goal: apply exactly and only what was asked. Nothing more.
+
+Scope lock (non-negotiable):
+- The change set is strictly bounded by the user's request. If asked to change a name, change only that name. If asked to update a color, change only that color. Do not touch layout, structure, other components, styles, logic, or files that the request does not explicitly address.
+- Every line you modify must be directly required to fulfill the stated request. Any modification beyond that is a violation.
+- Do not refactor, reorganize, rename, or "improve" anything not mentioned in the request.
+- Do not alter visual design, UI structure, or component architecture as a side effect of an unrelated change.
 
 Rules:
 - Use <edward_sandbox> + <file> tags for all edits.
 - Each <file> must contain complete updated content.
-- Include only changed/new files.
+- Include only files that directly contain the requested change.
 - If a needed file is missing from context, request it with <edward_command command="cat" ...> and STOP.
 - Do not rewrite README.md unless user asks.
 `;

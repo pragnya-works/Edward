@@ -7,8 +7,9 @@ const ANSI_ESCAPE_SEQUENCE_PATTERN = new RegExp(
   "g",
 );
 
+export const LARGE_OUTPUT_COMMANDS = new Set(["cat"]);
+
 export const RAW_OUTPUT_COMMANDS = new Set([
-  "cat",
   "head",
   "tail",
   "grep",
@@ -64,15 +65,28 @@ function collapseRepeatedLines(input: string, maxConsecutive = 3): string {
   return compacted.join("\n");
 }
 
+function stripAnsi(content: string): string {
+  return content.replace(ANSI_ESCAPE_SEQUENCE_PATTERN, "");
+}
+
+function stripAnsiAndNormalizeNewlines(content: string): string {
+  return stripAnsi(content).replace(/\r\n?/g, "\n");
+}
+
+export function stripAnsiOnly(content: string): string {
+  if (!content) {
+    return "";
+  }
+  return stripAnsi(content);
+}
+
 export function sanitizeCommandOutput(content: string): string {
   if (!content) {
     return "";
   }
 
   const bounded = truncateWithMarker(content, MAX_SANITIZE_INPUT_CHARS);
-  const withoutAnsi = bounded.replace(ANSI_ESCAPE_SEQUENCE_PATTERN, "");
-  const normalizedNewlines = withoutAnsi.replace(/\r\n?/g, "\n");
-  return collapseRepeatedLines(normalizedNewlines).trimEnd();
+  return collapseRepeatedLines(stripAnsiAndNormalizeNewlines(bounded)).trimEnd();
 }
 
 export function dedupeStdStreams(

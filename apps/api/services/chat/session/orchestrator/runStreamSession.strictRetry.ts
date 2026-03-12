@@ -12,14 +12,13 @@ import {
   type Framework,
 } from "../../../../services/planning/schemas.js";
 import type { ValidationViolation } from "../../../../services/planning/validators/postgenValidator.types.js";
+import { STRICT_RETRY_MIN_VIOLATIONS } from "../../../../utils/constants.js";
 import { logger } from "../../../../utils/logger.js";
 import type { LlmChatMessage } from "../../../../lib/llm/context.js";
 import { runAgentLoop } from "../loop/agentLoop.runner.js";
 import type { EmitMeta } from "../shared/meta.js";
 import { buildPostgenRetryPrompt } from "./postgenRetryPrompt.js";
 import type { LoopState } from "./runStreamSession.helpers.js";
-
-const STRICT_RETRY_MIN_VIOLATIONS = 5;
 
 interface StrictRetryParams {
   chatId: string;

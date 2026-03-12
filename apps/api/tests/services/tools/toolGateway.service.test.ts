@@ -1,8 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  MAX_NEVER_TRUNCATE_CHARS,
   MAX_RAW_TOOL_STDIO_CHARS,
   MAX_TOOL_STDIO_CHARS,
 } from "../../../utils/constants.js";
+import { LARGE_OUTPUT_COMMANDS } from "../../../services/tools/commandOutput.js";
 
 const { executeSandboxCommandMock } = vi.hoisted(() => ({
   executeSandboxCommandMock: vi.fn(),
@@ -136,8 +138,8 @@ describe("toolGateway command output sanitation", () => {
     const result = await executeCommandTool({
       turn: 1,
       sandboxId: "sb-1",
-      command: "cat",
-      args: ["README.md"],
+      command: "grep",
+      args: ["pattern", "file.txt"],
     });
 
     expect(result.exitCode).toBe(0);
@@ -165,6 +167,34 @@ describe("toolGateway command output sanitation", () => {
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toHaveLength(MAX_TOOL_STDIO_CHARS + 250);
     expect(result.stdout).not.toContain("...[truncated]");
+  });
+
+  it("truncates large-output commands at the never-truncate boundary", async () => {
+    const command = LARGE_OUTPUT_COMMANDS.values().next().value;
+    expect(command).toBeDefined();
+    if (!command) {
+      throw new Error("Expected LARGE_OUTPUT_COMMANDS to contain at least one command");
+    }
+
+    executeSandboxCommandMock.mockResolvedValue({
+      exitCode: 0,
+      stdout: "x".repeat(MAX_NEVER_TRUNCATE_CHARS + 5_000),
+      stderr: "",
+    });
+
+    const result = await executeCommandTool({
+      turn: 1,
+      sandboxId: "sb-1",
+      command,
+      args: ["README.md"],
+    });
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain("...[truncated]");
+    expect(result.stdout.length).toBeLessThanOrEqual(
+      MAX_NEVER_TRUNCATE_CHARS + 20,
+    );
+    expect(result.stderr).toBe("");
   });
 
   it("pre-truncates oversized output before repeated-line sanitization", async () => {

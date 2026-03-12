@@ -8,6 +8,7 @@ import { logger } from "../../utils/logger.js";
 import { executeSandboxCommand } from "../sandbox/command.service.js";
 import { searchTavilyBasic } from "../websearch/tavily.search.js";
 import {
+  MAX_NEVER_TRUNCATE_CHARS,
   MAX_RAW_TOOL_STDIO_CHARS,
   MAX_TOOL_STDIO_CHARS,
   MAX_WEB_SEARCH_SNIPPET_CHARS,
@@ -15,9 +16,11 @@ import {
   TOOL_GATEWAY_TIMEOUT_MS,
 } from "../../utils/constants.js";
 import {
+  LARGE_OUTPUT_COMMANDS,
   RAW_OUTPUT_COMMANDS,
   dedupeStdStreams,
   sanitizeCommandOutput,
+  stripAnsiOnly,
   truncateWithMarker,
 } from "./commandOutput.js";
 
@@ -206,6 +209,13 @@ export async function executeCommandTool(params: {
         command: params.command,
         args: params.args,
       });
+      if (LARGE_OUTPUT_COMMANDS.has(params.command)) {
+        return {
+          exitCode: raw.exitCode ?? 0,
+          stdout: truncateWithMarker(stripAnsiOnly(raw.stdout ?? ""), MAX_NEVER_TRUNCATE_CHARS),
+          stderr: truncateWithMarker(stripAnsiOnly(raw.stderr ?? ""), MAX_NEVER_TRUNCATE_CHARS),
+        };
+      }
       if (RAW_OUTPUT_COMMANDS.has(params.command)) {
         return {
           exitCode: raw.exitCode ?? 0,

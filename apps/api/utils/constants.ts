@@ -75,7 +75,15 @@ export const MAX_RAW_TOOL_STDIO_CHARS = parsePositiveInt(
   "MAX_RAW_TOOL_STDIO_CHARS",
   64_000,
 );
+export const MAX_NEVER_TRUNCATE_CHARS = parsePositiveInt(
+  "MAX_NEVER_TRUNCATE_CHARS",
+  100_000,
+);
 export const MAX_WEB_SEARCH_SNIPPET_CHARS = 700;
+export const STRICT_RETRY_MIN_VIOLATIONS = parsePositiveInt(
+  "STRICT_RETRY_MIN_VIOLATIONS",
+  4,
+);
 export const TOOL_GATEWAY_TIMEOUT_MS = parsePositiveInt(
   "TOOL_GATEWAY_TIMEOUT_MS",
   45_000,

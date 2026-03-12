@@ -21,6 +21,7 @@ import { type createTurnBudgetState } from "./budgets.js";
 import { type createTurnEventState } from "./events.js";
 
 const EDWARD_TAG_PATTERN = /<edward_/i;
+const THINKING_TAG_PATTERN = /<Thinking>/i;
 const MAX_NO_PROGRESS_CONTINUATIONS = 1;
 const MIN_CONVERSATIONAL_RESPONSE_LENGTH = 20;
 
@@ -278,7 +279,8 @@ export async function resolveTurnOutcome(
 
   const isConversationalReply =
     params.turnRawResponse.trim().length >= MIN_CONVERSATIONAL_RESPONSE_LENGTH &&
-    !EDWARD_TAG_PATTERN.test(params.turnRawResponse);
+    !EDWARD_TAG_PATTERN.test(params.turnRawResponse) &&
+    !THINKING_TAG_PATTERN.test(params.turnRawResponse);
   if (isConversationalReply) {
     emitTurnCompleteMeta(params.emitMeta, params.agentTurn, 0);
     return {
