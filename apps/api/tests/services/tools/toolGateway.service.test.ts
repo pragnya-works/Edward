@@ -170,7 +170,11 @@ describe("toolGateway command output sanitation", () => {
   });
 
   it("truncates large-output commands at the never-truncate boundary", async () => {
-    const command = Array.from(LARGE_OUTPUT_COMMANDS)[0];
+    const command = LARGE_OUTPUT_COMMANDS.values().next().value;
+    expect(command).toBeDefined();
+    if (!command) {
+      throw new Error("Expected LARGE_OUTPUT_COMMANDS to contain at least one command");
+    }
 
     executeSandboxCommandMock.mockResolvedValue({
       exitCode: 0,
