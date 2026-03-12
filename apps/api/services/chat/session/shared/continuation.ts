@@ -249,7 +249,13 @@ function buildPromptWithCaps(
   const toolBudget =
     availableForTools <= 0
       ? 0
-      : Math.max(caps.toolTotalCharsMin, Math.min(caps.toolTotalCharsTarget, availableForTools));
+      : Math.min(
+          availableForTools,
+          Math.max(
+            Math.min(caps.toolTotalCharsMin, availableForTools),
+            Math.min(caps.toolTotalCharsTarget, availableForTools),
+          ),
+        );
   const formattedResults = compactToolResultsForContinuation(
     toolResults,
     toolBudget,

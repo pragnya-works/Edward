@@ -73,8 +73,8 @@ const MODEL_CONFIG: Record<
     openai: {
         label: "OpenAI",
         baseClasses: "bg-white/[0.03] border-white/[0.08] hover:bg-white/[0.06] hover:shadow-[inset_0_1px_1px_rgba(255,255,255,0.25),0_8px_30px_rgba(0,0,0,0.12)]",
-        activeClasses: "border-white/20 shadow-[inset_0_1px_1px_rgba(255,255,255,0.3),0_0_40px_rgba(255,255,255,0.08)] scale-[1.03]",
-        inactiveClasses: "opacity-40 grayscale scale-95",
+        activeClasses: "border-white/20 shadow-[inset_0_1px_1px_rgba(255,255,255,0.3),0_0_40px_rgba(255,255,255,0.08)]",
+        inactiveClasses: "opacity-40 grayscale",
         labelClasses: "text-foreground",
         blurColor: "rgba(255,255,255,0.15)",
         icon: OpenAI,
@@ -83,8 +83,8 @@ const MODEL_CONFIG: Record<
     gemini: {
         label: "Gemini",
         baseClasses: "bg-white/[0.03] border-white/[0.08] hover:bg-white/[0.06] hover:shadow-[inset_0_1px_1px_rgba(255,255,255,0.25),0_8px_30px_rgba(0,0,0,0.12)]",
-        activeClasses: "border-[#3186FF]/30 shadow-[inset_0_1px_1px_rgba(255,255,255,0.3),0_0_40px_rgba(49,134,255,0.15)] scale-[1.03]",
-        inactiveClasses: "opacity-40 grayscale scale-95",
+        activeClasses: "border-[#3186FF]/30 shadow-[inset_0_1px_1px_rgba(255,255,255,0.3),0_0_40px_rgba(49,134,255,0.15)]",
+        inactiveClasses: "opacity-40 grayscale",
         labelClasses: "text-[#3186FF]",
         blurColor: "rgba(49,134,255,0.3)",
         icon: Gemini,
@@ -93,8 +93,8 @@ const MODEL_CONFIG: Record<
     anthropic: {
         label: "Claude",
         baseClasses: "bg-[#D97757]/[0.04] border-white/[0.08] hover:bg-[#D97757]/[0.08] hover:shadow-[inset_0_1px_1px_rgba(255,255,255,0.2),0_8px_30px_rgba(217,119,87,0.18)]",
-        activeClasses: "border-[#D97757]/40 shadow-[inset_0_1px_1px_rgba(255,255,255,0.25),0_0_40px_rgba(217,119,87,0.2)] scale-[1.03]",
-        inactiveClasses: "opacity-40 grayscale scale-95",
+        activeClasses: "border-[#D97757]/40 shadow-[inset_0_1px_1px_rgba(255,255,255,0.25),0_0_40px_rgba(217,119,87,0.2)]",
+        inactiveClasses: "opacity-40 grayscale",
         labelClasses: "text-[#D97757]",
         blurColor: "rgba(217,119,87,0.3)",
         icon: ClaudeAI,
@@ -111,6 +111,7 @@ const STATIC_TEXT_VARIANTS = {
 
 const AiSelectFlow = memo(({ onSelect, selectedAi, shouldReduceMotion }: { onSelect: (ai: AiModel) => void; selectedAi: AiModel | null; shouldReduceMotion: boolean }) => {
     const [hovered, setHovered] = useState<AiModel | null>(null);
+    const isMotionSafe = !shouldReduceMotion;
 
     return (
         <m.div
@@ -148,11 +149,14 @@ const AiSelectFlow = memo(({ onSelect, selectedAi, shouldReduceMotion }: { onSel
                             animate={shouldReduceMotion ? undefined : { opacity: 1, y: 0 }}
                             transition={shouldReduceMotion ? { duration: 0 } : { delay: 0.2 + (index * 0.12), duration: 0.45 }}
                             className={cn(
-                                "relative flex aspect-square w-full flex-col items-center justify-center rounded-[1.15rem] border px-2 py-2.5 transition-all duration-500 sm:px-3 sm:py-3",
+                                "relative flex aspect-square w-full flex-col items-center justify-center rounded-[1.15rem] border px-2 py-2.5 sm:px-3 sm:py-3",
                                 "shadow-[inset_0_1px_1px_rgba(255,255,255,0.15)]",
+                                isMotionSafe ? "transition-all duration-500" : "",
                                 config.baseClasses,
                                 isHovered ? config.activeClasses : "",
-                                isDimmed ? config.inactiveClasses : ""
+                                isDimmed ? config.inactiveClasses : "",
+                                isMotionSafe && isHovered ? "scale-[1.03]" : "",
+                                isMotionSafe && isDimmed ? "scale-95" : ""
                             )}
                         >
                             <div className="relative flex h-8 w-8 items-center justify-center sm:h-10 sm:w-10 md:h-11 md:w-11">
@@ -160,14 +164,18 @@ const AiSelectFlow = memo(({ onSelect, selectedAi, shouldReduceMotion }: { onSel
                                     initial={shouldReduceMotion ? undefined : { opacity: 0, scale: 0.9 }}
                                     animate={shouldReduceMotion ? undefined : { opacity: 1, scale: 1 }}
                                     transition={shouldReduceMotion ? { duration: 0 } : { delay: 0.4 + (index * 0.12), duration: 0.45 }}
-                                    className="absolute inset-0 transition-all duration-300"
+                                    className={cn(
+                                        "absolute inset-0",
+                                        isMotionSafe ? "transition-all duration-300" : ""
+                                    )}
                                 >
                                     <Icon className={cn("h-full w-full", config.iconClassName)} />
                                 </m.div>
                             </div>
                             <span
                                 className={cn(
-                                    "mt-2 text-center text-[7px] font-bold uppercase tracking-[0.16em] transition-all duration-300 sm:text-[8px] md:text-[9px]",
+                                    "mt-2 text-center text-[7px] font-bold uppercase tracking-[0.16em] sm:text-[8px] md:text-[9px]",
+                                    isMotionSafe ? "transition-all duration-300" : "",
                                     config.labelClasses,
                                     hovered === null ? "opacity-85" : isHovered ? "opacity-100" : "opacity-45"
                                 )}
@@ -354,6 +362,7 @@ export const AIGenerationVisual = memo(() => {
     const [flowState, setFlowState] = useState<FlowState>("SELECT");
     const [selectedAi, setSelectedAi] = useState<AiModel | null>(null);
     const shouldReduceMotion = useReducedMotion() ?? false;
+    const isMotionSafe = !shouldReduceMotion;
     const handleSelect = useCallback((ai: AiModel) => {
         setSelectedAi(ai);
         setFlowState(shouldReduceMotion ? "GENERATE" : "FUSION");
@@ -370,7 +379,12 @@ export const AIGenerationVisual = memo(() => {
                 <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,var(--color-primary)_0%,transparent_40%)] opacity-[0.3]" />
             </div>
 
-            <div className="relative flex h-full w-full flex-col items-center justify-start overflow-hidden px-3 pt-4 transition-all duration-700 group-hover:scale-[1.03] md:px-4 md:pt-6">
+            <div
+                className={cn(
+                    "relative flex h-full w-full flex-col items-center justify-start overflow-hidden px-3 pt-4 md:px-4 md:pt-6",
+                    isMotionSafe ? "transition-all duration-700 group-hover:scale-[1.03]" : ""
+                )}
+            >
                 <AnimatePresence mode="wait">
                     {flowState === "SELECT" && (
                         <AiSelectFlow

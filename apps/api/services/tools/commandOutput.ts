@@ -65,15 +65,19 @@ function collapseRepeatedLines(input: string, maxConsecutive = 3): string {
   return compacted.join("\n");
 }
 
+function stripAnsi(content: string): string {
+  return content.replace(ANSI_ESCAPE_SEQUENCE_PATTERN, "");
+}
+
 function stripAnsiAndNormalizeNewlines(content: string): string {
-  return content.replace(ANSI_ESCAPE_SEQUENCE_PATTERN, "").replace(/\r\n?/g, "\n");
+  return stripAnsi(content).replace(/\r\n?/g, "\n");
 }
 
 export function stripAnsiOnly(content: string): string {
   if (!content) {
     return "";
   }
-  return stripAnsiAndNormalizeNewlines(content);
+  return stripAnsi(content);
 }
 
 export function sanitizeCommandOutput(content: string): string {
