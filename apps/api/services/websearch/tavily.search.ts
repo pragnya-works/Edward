@@ -34,6 +34,7 @@ function truncate(text: string, maxLength: number): string {
 export async function searchTavilyBasic(
   query: string,
   maxResults = 5,
+  signal?: AbortSignal,
 ): Promise<TavilySearchOutput> {
   const apiKey = config.webSearch.tavilyApiKey;
   if (!apiKey) {
@@ -43,6 +44,9 @@ export async function searchTavilyBasic(
   }
 
   const controller = new AbortController();
+  const combinedSignal = signal
+    ? AbortSignal.any([signal, controller.signal])
+    : controller.signal;
   const timer = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
 
   try {
@@ -59,7 +63,7 @@ export async function searchTavilyBasic(
         include_answer: true,
         include_raw_content: false,
       }),
-      signal: controller.signal,
+      signal: combinedSignal,
     });
 
     if (!response.ok) {

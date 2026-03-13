@@ -41,6 +41,9 @@ describe('composePrompt', () => {
     expect(prompt).toContain(
       `Hard limit: each emitted <file> must be at most ${MAX_EMITTED_FILE_LINES} total lines.`,
     );
+    expect(prompt).toContain(
+      "If a requested change would push one file beyond that limit, split the work into smaller components/hooks/utils/styles instead of overloading one file.",
+    );
     expect(prompt).not.toContain('<skill:react-performance>');
 
     const approxTokens = estimatePromptTokensApprox(prompt);
@@ -75,6 +78,9 @@ describe('composePrompt', () => {
     });
 
     expect(prompt).toContain('<skill:strict-compliance>');
+    expect(prompt).toContain(
+      `Keep each emitted file under ${MAX_EMITTED_FILE_LINES} lines; if a file is getting large, split it into smaller modules instead of overcoding one file.`,
+    );
   });
 
   it('adds expanded design pack for design-heavy generation requests', async () => {

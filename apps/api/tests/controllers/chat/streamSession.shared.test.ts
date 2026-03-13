@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildAgentContinuationPrompt } from "../../../services/chat/session/shared/continuation.js";
 import { MAX_AGENT_CONTINUATION_PROMPT_CHARS } from "../../../utils/constants.js";
+import { MAX_EMITTED_FILE_LINES } from "../../../lib/llm/prompts/sections.js";
 
 describe("buildAgentContinuationPrompt", () => {
   it("returns non-truncated prompt for small payloads", () => {
@@ -18,6 +19,9 @@ describe("buildAgentContinuationPrompt", () => {
     expect(result.prompt).toContain("ORIGINAL REQUEST");
     expect(result.prompt).toContain("TOOL RESULTS");
     expect(result.prompt).toContain("Do not ask the user to run commands");
+    expect(result.prompt).toContain(
+      `Never overcode a single file: keep each emitted <file> at or below ${MAX_EMITTED_FILE_LINES} total lines.`,
+    );
   });
 
   it("keeps continuation prompt within budget for oversized payloads", () => {

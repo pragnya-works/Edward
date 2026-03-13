@@ -144,7 +144,7 @@ function validateCommandArgs(command: string, args: string[]): void {
 export async function executeSandboxCommand(
   sandboxId: string,
   params: { command: string; args: string[] },
-  options?: { timeout?: number },
+  options?: { timeout?: number; signal?: AbortSignal },
 ): Promise<ExecResult> {
   const sandbox = await getSandboxState(sandboxId);
   if (!sandbox) {
@@ -179,6 +179,19 @@ export async function executeSandboxCommand(
   }
 
   try {
+    if (options?.signal) {
+      return await execCommand(
+        container,
+        [params.command, ...params.args],
+        false,
+        options.timeout ?? SANDBOX_COMMAND_TIMEOUT_MS,
+        "node",
+        CONTAINER_WORKDIR,
+        undefined,
+        options.signal,
+      );
+    }
+
     return await execCommand(
       container,
       [params.command, ...params.args],

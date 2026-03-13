@@ -21,10 +21,3 @@ export function sanitizeCommandOutput(content: string): string {
 
   return stripAnsiAndNormalizeNewlines(content).trimEnd();
 }
-
-export function dedupeStdStreams(
-  stdout: string,
-  stderr: string,
-): { stdout: string; stderr: string } {
-  return { stdout, stderr };
-}

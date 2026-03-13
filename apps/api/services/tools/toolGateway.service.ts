@@ -22,11 +22,11 @@ interface ToolTimeoutError extends Error {
 }
 
 function createToolTimeoutError(timeoutMs: number): ToolTimeoutError {
-  const error = new Error(
-    `Tool timed out after ${timeoutMs}ms`,
-  ) as ToolTimeoutError;
+  const error = Object.assign(
+    new Error(`Tool timed out after ${timeoutMs}ms`),
+    { timeoutMs },
+  );
   error.name = TOOL_TIMEOUT_ERROR_NAME;
-  error.timeoutMs = timeoutMs;
   return error;
 }
 
@@ -51,24 +51,26 @@ function buildIdempotencyKey(
 }
 
 async function withTimeout<T>(
-  promise: Promise<T>,
+  execute: (signal: AbortSignal) => Promise<T>,
   timeoutMs: number,
 ): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
-    const timer = setTimeout(() => {
+  const controller = new AbortController();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      controller.abort();
       reject(createToolTimeoutError(timeoutMs));
     }, timeoutMs);
-
-    promise
-      .then((value) => {
-        clearTimeout(timer);
-        resolve(value);
-      })
-      .catch((error) => {
-        clearTimeout(timer);
-        reject(error);
-      });
   });
+
+  try {
+    return await Promise.race([execute(controller.signal), timeoutPromise]);
+  } finally {
+    if (timer) {
+      clearTimeout(timer);
+    }
+  }
 }
 
 interface ExecuteToolGatewayParams<TOutput> {
@@ -76,7 +78,7 @@ interface ExecuteToolGatewayParams<TOutput> {
   turn: number;
   toolName: string;
   input: Record<string, unknown>;
-  execute: () => Promise<TOutput>;
+  execute: (signal: AbortSignal) => Promise<TOutput>;
   timeoutMs?: number;
   retryAttempts?: number;
 }
@@ -120,7 +122,7 @@ export async function executeToolWithGateway<TOutput>(
 
   for (let attempt = 1; attempt <= retryAttempts; attempt++) {
     try {
-      const output = await withTimeout(params.execute(), timeoutMs);
+      const output = await withTimeout(params.execute, timeoutMs);
       const durationMs = Math.max(0, Date.now() - start);
       logger.debug(
         {
@@ -206,11 +208,15 @@ export async function executeCommandTool(params: {
       command: params.command,
       args: params.args,
     },
-    execute: async () => {
-      const raw = await executeSandboxCommand(params.sandboxId, {
-        command: params.command,
-        args: params.args,
-      });
+    execute: async (signal) => {
+      const raw = await executeSandboxCommand(
+        params.sandboxId,
+        {
+          command: params.command,
+          args: params.args,
+        },
+        { signal },
+      );
       return {
         exitCode: raw.exitCode ?? 0,
         stdout: stripAnsiOnly(raw.stdout ?? ""),
@@ -246,8 +252,12 @@ export async function executeWebSearchTool(params: {
       query: params.query,
       maxResults: params.maxResults,
     },
-    execute: async () => {
-      const raw = await searchTavilyBasic(params.query, params.maxResults);
+    execute: async (signal) => {
+      const raw = await searchTavilyBasic(
+        params.query,
+        params.maxResults,
+        signal,
+      );
       return {
         query: raw.query,
         answer: raw.answer,

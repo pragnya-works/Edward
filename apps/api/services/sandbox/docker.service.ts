@@ -46,6 +46,7 @@ export async function execCommand(
   user?: string,
   workingDir?: string,
   env?: string[],
+  signal?: AbortSignal,
 ): Promise<ExecResult> {
   await ensureContainerRunning(container);
 
@@ -75,13 +76,36 @@ export async function execCommand(
       settled = true;
       reject(error);
     };
+    let abortHandler: (() => void) | null = null;
+    const cleanup = () => {
+      if (signal && abortHandler) {
+        signal.removeEventListener("abort", abortHandler);
+        abortHandler = null;
+      }
+    };
 
     const timeout = setTimeout(() => {
       stream.destroy();
+      cleanup();
       rejectOnce(
         new Error(`Command timeout after ${timeoutMs}ms: ${cmd.join(" ")}`),
       );
     }, timeoutMs);
+    if (signal?.aborted) {
+      clearTimeout(timeout);
+      cleanup();
+      rejectOnce(new Error(`Command aborted: ${cmd.join(" ")}`));
+      return;
+    }
+    if (signal) {
+      abortHandler = () => {
+        clearTimeout(timeout);
+        stream.destroy(new Error(`Command aborted: ${cmd.join(" ")}`));
+        cleanup();
+        rejectOnce(new Error(`Command aborted: ${cmd.join(" ")}`));
+      };
+      signal.addEventListener("abort", abortHandler, { once: true });
+    }
 
     const stdoutStream = new Writable({
       write(
@@ -112,6 +136,7 @@ export async function execCommand(
         return;
       }
       clearTimeout(timeout);
+      cleanup();
       stdoutStream.end();
       stderrStream.end();
       try {
@@ -128,6 +153,7 @@ export async function execCommand(
 
     stream.on("error", (err) => {
       clearTimeout(timeout);
+      cleanup();
       rejectOnce(err instanceof Error ? err : new Error(String(err)));
     });
   });

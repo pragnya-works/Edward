@@ -199,6 +199,7 @@ Rules:
 10. In GENERATE mode, always emit required framework entry files in <edward_sandbox>, even if unchanged from template defaults.
 11. Close with </edward_sandbox> then emit <edward_done />.
 12. Hard limit: each emitted <file> must be at most ${MAX_EMITTED_FILE_LINES} total lines.
+13. If a requested change would push one file beyond that limit, split the work into smaller components/hooks/utils/styles instead of overloading one file.
 </edward_sandbox_format>`;
 
 const CODE_BLOCKS = `

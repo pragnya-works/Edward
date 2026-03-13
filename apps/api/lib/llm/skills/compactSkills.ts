@@ -1,3 +1,5 @@
+import { MAX_EMITTED_FILE_LINES } from "../prompts/sections.js";
+
 export const RESPONSIVE_BREAKPOINTS = Object.freeze({
   MOBILE_MAX: 767,
   TABLET_MIN: 768,
@@ -133,6 +135,7 @@ Production completeness rules (non-negotiable):
 - No stub functions: const fn = () => {}, onClick={() => {}}, // TODO, // implement are forbidden.
 - Primary user journeys must work end-to-end before finishing output.
 - Scale files to the task: multi-feature apps require separate files per feature/domain.
+- Do not collapse multi-feature UI into one giant file; once a file approaches ${MAX_EMITTED_FILE_LINES} lines, extract child components/hooks/utils instead of continuing to grow it.
 - Ensure imports resolve and code is syntactically valid.
 - Treat responsive layout breakage as incomplete delivery for these required breakpoints: mobile (<= ${RESPONSIVE_BREAKPOINTS.MOBILE_MAX}px), tablet (${RESPONSIVE_BREAKPOINTS.TABLET_MIN}-${RESPONSIVE_BREAKPOINTS.TABLET_MAX}px), desktop (${RESPONSIVE_BREAKPOINTS.DESKTOP_MIN}-${RESPONSIVE_BREAKPOINTS.LAPTOP_MIN - 1}px), laptop (${RESPONSIVE_BREAKPOINTS.LAPTOP_MIN}-${RESPONSIVE_BREAKPOINTS.ULTRA_WIDE_MIN - 1}px), and ultra-wide (>= ${RESPONSIVE_BREAKPOINTS.ULTRA_WIDE_MIN}px).
 </skill:code-quality-compact>
@@ -147,6 +150,7 @@ Strict compliance mode:
 - Never emit markdown fences inside <file> blocks.
 - Ensure all required framework entry points are present for generate mode.
 - Ensure imported npm packages are declared in <edward_install> when needed.
+- Keep each emitted file under ${MAX_EMITTED_FILE_LINES} lines; if a file is getting large, split it into smaller modules instead of overcoding one file.
 - If uncertain about a file, use <edward_command command="cat" ...> and STOP before editing.
 </skill:strict-compliance>
 `;
