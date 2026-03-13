@@ -177,7 +177,6 @@ export async function runAgentLoop(
     const {
       fullRawResponse: streamedRawResponse,
       turnRawResponse,
-      responseSizeExceededThisTurn,
       toolResultsThisTurn,
       budgetState,
       turnState,
@@ -243,7 +242,6 @@ export async function runAgentLoop(
       emitMeta,
       budgetState,
       turnState,
-      responseSizeExceededThisTurn,
       toolResultsThisTurn,
       totalToolCallsInRun,
       fullRawResponse,

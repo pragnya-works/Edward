@@ -4,8 +4,6 @@ import { createLogger } from "../../../utils/logger.js";
 import { downloadFile } from "../../storage.service.js";
 import { buildS3Key } from "../../storage/key.utils.js";
 import {
-  MAX_FILES,
-  MAX_TOTAL_BYTES,
   PRIORITY_FILES,
   PRIORITY_FILE_SET,
   SANDBOX_EXCLUDED_DIRS,
@@ -75,28 +73,19 @@ export async function readProjectFilesFromSnapshot(
 
     for (const rel of PRIORITY_FILES) {
       if (validPaths.includes(rel)) selected.push(rel);
-      if (selected.length >= MAX_FILES) break;
     }
 
-    if (selected.length < MAX_FILES) {
-      const remaining = validPaths
-        .filter((p) => !PRIORITY_FILE_SET.has(p))
-        .sort((a, b) => a.localeCompare(b));
-      selected.push(...remaining.slice(0, MAX_FILES - selected.length));
-    }
+    const remaining = validPaths
+      .filter((p) => !PRIORITY_FILE_SET.has(p))
+      .sort((a, b) => a.localeCompare(b));
+    selected.push(...remaining);
 
     const files = new Map<string, string>();
-    let totalBytes = 0;
     for (const relPath of selected) {
       const value = rawFiles[relPath];
       if (typeof value !== "string" || value.length === 0) continue;
 
-      const contentBytes = Buffer.byteLength(value, "utf8");
-      if (totalBytes + contentBytes > MAX_TOTAL_BYTES) continue;
-
       files.set(relPath, value);
-      totalBytes += contentBytes;
-      if (totalBytes >= MAX_TOTAL_BYTES) break;
     }
 
     await setSnapshotCacheEntry(cacheKey, files);

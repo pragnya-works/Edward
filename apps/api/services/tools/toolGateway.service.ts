@@ -8,20 +8,11 @@ import { logger } from "../../utils/logger.js";
 import { executeSandboxCommand } from "../sandbox/command.service.js";
 import { searchTavilyBasic } from "../websearch/tavily.search.js";
 import {
-  MAX_NEVER_TRUNCATE_CHARS,
-  MAX_RAW_TOOL_STDIO_CHARS,
-  MAX_TOOL_STDIO_CHARS,
-  MAX_WEB_SEARCH_SNIPPET_CHARS,
   TOOL_GATEWAY_RETRY_ATTEMPTS,
   TOOL_GATEWAY_TIMEOUT_MS,
 } from "../../utils/constants.js";
 import {
-  LARGE_OUTPUT_COMMANDS,
-  RAW_OUTPUT_COMMANDS,
-  dedupeStdStreams,
-  sanitizeCommandOutput,
   stripAnsiOnly,
-  truncateWithMarker,
 } from "./commandOutput.js";
 
 const TOOL_TIMEOUT_ERROR_NAME = "ToolTimeoutError";
@@ -31,7 +22,9 @@ interface ToolTimeoutError extends Error {
 }
 
 function createToolTimeoutError(timeoutMs: number): ToolTimeoutError {
-  const error = new Error(`Tool timed out after ${timeoutMs}ms`) as ToolTimeoutError;
+  const error = new Error(
+    `Tool timed out after ${timeoutMs}ms`,
+  ) as ToolTimeoutError;
   error.name = TOOL_TIMEOUT_ERROR_NAME;
   error.timeoutMs = timeoutMs;
   return error;
@@ -57,7 +50,10 @@ function buildIdempotencyKey(
   return `${toolName}:${turn}:${digest.slice(0, 20)}`;
 }
 
-async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+async function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const timer = setTimeout(() => {
       reject(createToolTimeoutError(timeoutMs));
@@ -89,7 +85,10 @@ export async function executeToolWithGateway<TOutput>(
   params: ExecuteToolGatewayParams<TOutput>,
 ): Promise<TOutput> {
   const timeoutMs = params.timeoutMs ?? TOOL_GATEWAY_TIMEOUT_MS;
-  const retryAttempts = Math.max(1, params.retryAttempts ?? TOOL_GATEWAY_RETRY_ATTEMPTS);
+  const retryAttempts = Math.max(
+    1,
+    params.retryAttempts ?? TOOL_GATEWAY_RETRY_ATTEMPTS,
+  );
   const idempotencyKey = buildIdempotencyKey(
     params.runId,
     params.turn,
@@ -98,7 +97,10 @@ export async function executeToolWithGateway<TOutput>(
   );
 
   if (params.runId) {
-    const cached = await getRunToolCallByIdempotencyKey(params.runId, idempotencyKey);
+    const cached = await getRunToolCallByIdempotencyKey(
+      params.runId,
+      idempotencyKey,
+    );
     if (cached?.status === "succeeded" && cached.output) {
       return cached.output as TOutput;
     }
@@ -209,27 +211,10 @@ export async function executeCommandTool(params: {
         command: params.command,
         args: params.args,
       });
-      if (LARGE_OUTPUT_COMMANDS.has(params.command)) {
-        return {
-          exitCode: raw.exitCode ?? 0,
-          stdout: truncateWithMarker(stripAnsiOnly(raw.stdout ?? ""), MAX_NEVER_TRUNCATE_CHARS),
-          stderr: truncateWithMarker(stripAnsiOnly(raw.stderr ?? ""), MAX_NEVER_TRUNCATE_CHARS),
-        };
-      }
-      if (RAW_OUTPUT_COMMANDS.has(params.command)) {
-        return {
-          exitCode: raw.exitCode ?? 0,
-          stdout: truncateWithMarker(raw.stdout ?? "", MAX_RAW_TOOL_STDIO_CHARS),
-          stderr: truncateWithMarker(raw.stderr ?? "", MAX_RAW_TOOL_STDIO_CHARS),
-        };
-      }
-      const stdout = sanitizeCommandOutput(raw.stdout ?? "");
-      const stderr = sanitizeCommandOutput(raw.stderr ?? "");
-      const deduped = dedupeStdStreams(stdout, stderr, raw.exitCode ?? 0);
       return {
         exitCode: raw.exitCode ?? 0,
-        stdout: truncateWithMarker(deduped.stdout, MAX_TOOL_STDIO_CHARS),
-        stderr: truncateWithMarker(deduped.stderr, MAX_TOOL_STDIO_CHARS),
+        stdout: stripAnsiOnly(raw.stdout ?? ""),
+        stderr: stripAnsiOnly(raw.stderr ?? ""),
       };
     },
   });
@@ -265,13 +250,11 @@ export async function executeWebSearchTool(params: {
       const raw = await searchTavilyBasic(params.query, params.maxResults);
       return {
         query: raw.query,
-        answer: raw.answer
-          ? truncateWithMarker(raw.answer, 1_500)
-          : undefined,
+        answer: raw.answer,
         results: raw.results.map((item) => ({
           title: item.title,
           url: item.url,
-          snippet: truncateWithMarker(item.snippet, MAX_WEB_SEARCH_SNIPPET_CHARS),
+          snippet: item.snippet,
         })),
       };
     },

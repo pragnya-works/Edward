@@ -8,10 +8,6 @@ import {
 import { subscribeToRedisChannel } from "../../lib/redisPubSub.js";
 import type { AuthenticatedRequest } from "../../middleware/auth.js";
 import { logger } from "../../utils/logger.js";
-import {
-  MAX_SSE_QUEUE_BYTES,
-  MAX_SSE_QUEUE_EVENTS,
-} from "../../utils/constants.js";
 import { getRunEventChannel, type RunEventEnvelope } from "../runs/runEvents.service.js";
 import {
   configureSSEBackpressure,
@@ -24,13 +20,6 @@ const HEARTBEAT_INTERVAL_MS = 15_000;
 const REPLAY_HEARTBEAT_INTERVAL_MS = 10_000;
 const MAX_REPLAY_BATCH = 500;
 const MAX_LAST_EVENT_SEQ = 50_000_000;
-const MAX_BUFFERED_LIVE_EVENTS = 2_000;
-const MAX_BUFFERED_LIVE_EVENT_BYTES = 2 * 1024 * 1024;
-
-interface BufferedLiveEvent {
-  envelope: RunEventEnvelope;
-  payloadBytes: number;
-}
 
 function parseLastEventSeq(raw: unknown): number {
   if (typeof raw !== "string" || raw.length === 0) {
@@ -92,8 +81,7 @@ export async function streamRunEventsFromPersistence({
   let lastSeq = readLastEventId(req, explicitLastEventId);
   let terminalEventSeen = false;
   let replaying = true;
-  const bufferedLiveEvents = new Map<number, BufferedLiveEvent>();
-  let bufferedLiveEventBytes = 0;
+  const bufferedLiveEvents = new Map<number, RunEventEnvelope>();
 
   const closeStream = async (
     options?: { sendDone?: boolean },
@@ -150,29 +138,19 @@ export async function streamRunEventsFromPersistence({
   };
 
   const flushBufferedLiveEvents = async (): Promise<boolean> => {
-    for (const [seq, item] of bufferedLiveEvents) {
+    for (const [seq] of bufferedLiveEvents) {
       if (seq > lastSeq) {
         continue;
       }
       bufferedLiveEvents.delete(seq);
-      bufferedLiveEventBytes = Math.max(
-        0,
-        bufferedLiveEventBytes - item.payloadBytes,
-      );
     }
 
     const pending = Array.from(bufferedLiveEvents.values())
-      .filter((item) => item.envelope.seq > lastSeq)
-      .sort((a, b) => a.envelope.seq - b.envelope.seq);
+      .filter((envelope) => envelope.seq > lastSeq)
+      .sort((a, b) => a.seq - b.seq);
 
-    for (const item of pending) {
-      const envelope = item.envelope;
-      if (bufferedLiveEvents.delete(envelope.seq)) {
-        bufferedLiveEventBytes = Math.max(
-          0,
-          bufferedLiveEventBytes - item.payloadBytes,
-        );
-      }
+    for (const envelope of pending) {
+      bufferedLiveEvents.delete(envelope.seq);
       lastSeq = envelope.seq;
       const ok = emitPersistedEvent(envelope.id, envelope.event);
       if (!ok) {
@@ -195,8 +173,6 @@ export async function streamRunEventsFromPersistence({
   }
 
   configureSSEBackpressure(res, {
-    maxQueueBytes: MAX_SSE_QUEUE_BYTES,
-    maxQueueEvents: MAX_SSE_QUEUE_EVENTS,
     onSlowClient: () => {
       void closeStream({ sendDone: false });
     },
@@ -215,33 +191,7 @@ export async function streamRunEventsFromPersistence({
 
       if (replaying) {
         if (!bufferedLiveEvents.has(envelope.seq)) {
-          const payloadBytes = Buffer.byteLength(payload);
-          if (
-            bufferedLiveEvents.size >= MAX_BUFFERED_LIVE_EVENTS ||
-            bufferedLiveEventBytes + payloadBytes > MAX_BUFFERED_LIVE_EVENT_BYTES
-          ) {
-            logger.warn(
-              {
-                runId,
-                replayLastSeq: lastSeq,
-                bufferedEvents: bufferedLiveEvents.size,
-                bufferedBytes: bufferedLiveEventBytes,
-                incomingEventSeq: envelope.seq,
-                incomingPayloadBytes: payloadBytes,
-                maxBufferedEvents: MAX_BUFFERED_LIVE_EVENTS,
-                maxBufferedBytes: MAX_BUFFERED_LIVE_EVENT_BYTES,
-              },
-              "Run stream replay buffer overflowed; closing stream to force clean resume",
-            );
-            void closeStream({ sendDone: false });
-            return;
-          }
-
-          bufferedLiveEvents.set(envelope.seq, {
-            envelope,
-            payloadBytes,
-          });
-          bufferedLiveEventBytes += payloadBytes;
+          bufferedLiveEvents.set(envelope.seq, envelope);
         }
         return;
       }

@@ -31,28 +31,6 @@ describe("Post-Generation Validator", () => {
     ).toBe(true);
   });
 
-  test("should fail when a generated file exceeds 200 lines", () => {
-    const oversizedFile = Array.from(
-      { length: 201 },
-      (_, index) => `const line${index + 1} = ${index + 1};`,
-    ).join("\n");
-
-    const output = {
-      mode: "generate" as const,
-      files: new Map([["src/App.tsx", oversizedFile]]),
-      declaredPackages: [],
-    };
-
-    const result = validateGeneratedOutput(output);
-
-    expect(result.valid).toBe(false);
-    expect(
-      result.violations.some(
-        (violation) => violation.type === "file-line-limit-exceeded",
-      ),
-    ).toBe(true);
-  });
-
   test("should validate with Next.js rules when declared framework is vite-react but Next.js entrypoints are emitted", () => {
     const output = {
       framework: "vite-react",

@@ -3,8 +3,6 @@ import { downloadFile } from "../../storage.service.js";
 import { buildS3Key } from "../../storage/key.utils.js";
 import { BUCKET_NAME, s3Client } from "../../storage/storage.config.js";
 import {
-  MAX_FILES,
-  MAX_TOTAL_BYTES,
   PRIORITY_FILES,
   SANDBOX_EXCLUDED_DIRS,
   TEXT_EXTENSIONS,
@@ -59,19 +57,14 @@ export async function readProjectFilesFromLegacySources(
   const selected: string[] = [];
   for (const rel of PRIORITY_FILES) {
     if (allRelPaths.includes(rel)) selected.push(rel);
-    if (selected.length >= MAX_FILES) break;
   }
 
-  if (selected.length < MAX_FILES) {
-    const remaining = allRelPaths
-      .filter((p) => !selected.includes(p))
-      .sort((a, b) => a.localeCompare(b));
-    selected.push(...remaining.slice(0, MAX_FILES - selected.length));
-  }
+  const remaining = allRelPaths
+    .filter((p) => !selected.includes(p))
+    .sort((a, b) => a.localeCompare(b));
+  selected.push(...remaining);
 
-  let totalBytes = 0;
   for (const relPath of selected) {
-    if (totalBytes >= MAX_TOTAL_BYTES) break;
     const s3Key = buildS3Key(userId, chatId, `sources/${relPath}`);
     const stream = await downloadFile(s3Key);
     if (!stream) continue;
@@ -79,11 +72,7 @@ export async function readProjectFilesFromLegacySources(
     const content = await readUtf8Stream(stream);
     if (!content) continue;
 
-    const contentBytes = Buffer.byteLength(content, "utf8");
-    if (totalBytes + contentBytes > MAX_TOTAL_BYTES) continue;
-
     files.set(relPath, content);
-    totalBytes += contentBytes;
   }
 
   return files;

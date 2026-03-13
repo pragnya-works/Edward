@@ -162,7 +162,7 @@ describe("streamRunEventsFromPersistence", () => {
     expect(configureSSEBackpressureMock).toHaveBeenCalledTimes(1);
   });
 
-  it("closes stream when replay buffer overflows from live events", async () => {
+  it("keeps buffered live replay events instead of closing the stream", async () => {
     const redisSub = createRedisSubMock();
     createRedisClientMock.mockReturnValue(redisSub);
 
@@ -223,10 +223,9 @@ describe("streamRunEventsFromPersistence", () => {
     await streamPromise;
 
     expect(sendSSEDoneMock).not.toHaveBeenCalled();
-    expect(res.end).toHaveBeenCalledTimes(1);
-    await vi.waitFor(() => {
-      expect(redisSub.unsubscribe).toHaveBeenCalledWith("edward:run-events:run-1");
-    });
+    expect(res.end).not.toHaveBeenCalled();
+    expect(sendSSEEventWithIdMock).toHaveBeenCalledTimes(2001);
+    expect(redisSub.unsubscribe).not.toHaveBeenCalled();
   });
 
   it("replays from explicit last-event-id and flushes buffered live events in sequence", async () => {

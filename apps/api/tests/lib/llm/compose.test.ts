@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { MAX_GENERATED_FILE_LINES } from '../../../services/planning/validators/postgenValidator.constants.js';
+import { MAX_EMITTED_FILE_LINES } from '../../../lib/llm/prompts/sections.js';
 
 vi.mock('../../../services/sandbox/templates/template.registry.js', () => ({
   getTemplateConfig: vi.fn((framework: string) => {
@@ -39,7 +39,7 @@ describe('composePrompt', () => {
     expect(prompt).toContain('Required project files in generate mode:');
     expect(prompt).toContain('- README.md');
     expect(prompt).toContain(
-      `Each emitted <file> must be <= ${MAX_GENERATED_FILE_LINES} total lines.`,
+      `Hard limit: each emitted <file> must be at most ${MAX_EMITTED_FILE_LINES} total lines.`,
     );
     expect(prompt).not.toContain('<skill:react-performance>');
 

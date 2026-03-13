@@ -88,11 +88,10 @@ describe("diagnostics parser and report", () => {
     expect(report.userFacing?.probableCause.length).toBeGreaterThan(0);
   });
 
-  it("compresses very large raw output into a bounded payload", async () => {
+  it("preserves very large raw output in full", async () => {
     const oversized = `${"x".repeat(9_000)}\n${"y".repeat(9_000)}`;
     const report = await createErrorReport("ctr-2", oversized);
 
-    expect(report.rawOutput.length).toBeLessThan(10_000);
-    expect(report.rawOutput).toContain("... (output truncated) ...");
+    expect(report.rawOutput).toBe(oversized);
   });
 });

@@ -1,8 +1,4 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  MAX_RAW_TOOL_STDIO_CHARS,
-  MAX_TOOL_STDIO_CHARS,
-} from "../../../utils/constants.js";
 
 const { executeSandboxCommandMock } = vi.hoisted(() => ({
   executeSandboxCommandMock: vi.fn(),
@@ -21,14 +17,17 @@ vi.mock("../../../services/websearch/tavily.search.js", () => ({
   searchTavilyBasic: vi.fn(),
 }));
 
-import { executeCommandTool } from "../../../services/tools/toolGateway.service.js";
+import {
+  executeCommandTool,
+  executeWebSearchTool,
+} from "../../../services/tools/toolGateway.service.js";
 
 describe("toolGateway command output sanitation", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it("strips ANSI escape sequences and deduplicates mirrored stdout/stderr", async () => {
+  it("strips ANSI escape sequences without dropping mirrored stdout/stderr", async () => {
     const noisyOutput = [
       "\u001b[31m./src/store/useCart.ts:4:1\u001b[39m",
       "Export default doesn't exist in target module",
@@ -52,13 +51,14 @@ describe("toolGateway command output sanitation", () => {
     });
 
     expect(result.exitCode).toBe(1);
-    expect(result.stdout).toBe("");
+    expect(result.stdout).toContain("./src/store/useCart.ts:4:1");
+    expect(result.stdout).toContain("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^");
     expect(result.stderr).toContain("./src/store/useCart.ts:4:1");
     expect(result.stderr).not.toContain("\u001b[");
-    expect(result.stderr).toContain("...[line repeated 1 more times]");
+    expect(result.stderr).toContain("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^");
   });
 
-  it("keeps mirrored output on stdout for successful commands", async () => {
+  it("keeps mirrored output on both streams for successful commands", async () => {
     const mirroredOutput = "\u001b[32mBuild completed successfully\u001b[39m";
 
     executeSandboxCommandMock.mockResolvedValue({
@@ -76,7 +76,7 @@ describe("toolGateway command output sanitation", () => {
 
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("Build completed successfully");
-    expect(result.stderr).toBe("");
+    expect(result.stderr).toBe("Build completed successfully");
   });
 
   it("preserves raw output for file-read commands", async () => {
@@ -102,7 +102,7 @@ describe("toolGateway command output sanitation", () => {
     expect(result.stderr).toBe("");
   });
 
-  it("bounds very large sanitized outputs with truncation markers", async () => {
+  it("returns very large command output in full", async () => {
     const longOutput = Array.from({ length: 800 }, (_, index) =>
       `line-${index}-${"x".repeat(20)}`,
     ).join("\n");
@@ -121,15 +121,15 @@ describe("toolGateway command output sanitation", () => {
     });
 
     expect(result.exitCode).toBe(0);
-    expect(result.stdout).toContain("...[truncated]");
-    expect(result.stdout.length).toBeLessThanOrEqual(MAX_TOOL_STDIO_CHARS + 20);
+    expect(result.stdout).toBe(longOutput);
     expect(result.stderr).toBe("");
   });
 
-  it("bounds raw-output commands with truncation markers", async () => {
+  it("returns large raw-output commands in full", async () => {
+    const stdout = "a".repeat(64_500);
     executeSandboxCommandMock.mockResolvedValue({
       exitCode: 0,
-      stdout: "a".repeat(MAX_RAW_TOOL_STDIO_CHARS + 500),
+      stdout,
       stderr: "",
     });
 
@@ -141,17 +141,15 @@ describe("toolGateway command output sanitation", () => {
     });
 
     expect(result.exitCode).toBe(0);
-    expect(result.stdout).toContain("...[truncated]");
-    expect(result.stdout.length).toBeLessThanOrEqual(
-      MAX_RAW_TOOL_STDIO_CHARS + 20,
-    );
+    expect(result.stdout).toBe(stdout);
     expect(result.stderr).toBe("");
   });
 
-  it("does not truncate raw command output at the sanitized-command limit", async () => {
+  it("does not truncate cat output at any prior sanitized-command limit", async () => {
+    const stdout = "x".repeat(6_250);
     executeSandboxCommandMock.mockResolvedValue({
       exitCode: 0,
-      stdout: "x".repeat(MAX_TOOL_STDIO_CHARS + 250),
+      stdout,
       stderr: "",
     });
 
@@ -163,11 +161,11 @@ describe("toolGateway command output sanitation", () => {
     });
 
     expect(result.exitCode).toBe(0);
-    expect(result.stdout).toHaveLength(MAX_TOOL_STDIO_CHARS + 250);
+    expect(result.stdout).toBe(stdout);
     expect(result.stdout).not.toContain("...[truncated]");
   });
 
-  it("pre-truncates oversized output before repeated-line sanitization", async () => {
+  it("preserves repeated lines instead of collapsing them", async () => {
     const repeatedLineCount = 60_000;
     const oversized = `${"duplicate-line\n".repeat(repeatedLineCount)}`;
 
@@ -184,12 +182,34 @@ describe("toolGateway command output sanitation", () => {
       args: ["build"],
     });
 
-    const repeatedLineMarker = result.stdout.match(
-      /\.\.\.\[line repeated (\d+) more times\]/,
-    );
-    expect(repeatedLineMarker).not.toBeNull();
-    expect(Number(repeatedLineMarker?.[1] ?? "0")).toBeLessThan(
-      repeatedLineCount - 3,
-    );
+    expect(result.stdout).toBe(oversized);
+    expect(result.stdout.match(/duplicate-line/g)?.length).toBe(repeatedLineCount);
+  });
+
+  it("returns full web search answers and snippets", async () => {
+    const { searchTavilyBasic } = await import("../../../services/websearch/tavily.search.js");
+    const answer = "answer ".repeat(400);
+    const snippet = "snippet ".repeat(300);
+
+    vi.mocked(searchTavilyBasic).mockResolvedValue({
+      query: "latest docs",
+      answer,
+      results: [
+        {
+          title: "Docs",
+          url: "https://example.com/docs",
+          snippet,
+        },
+      ],
+    });
+
+    const result = await executeWebSearchTool({
+      turn: 1,
+      query: "latest docs",
+      maxResults: 5,
+    });
+
+    expect(result.answer).toBe(answer);
+    expect(result.results[0]?.snippet).toBe(snippet);
   });
 });

@@ -5,7 +5,6 @@ import { ExecResult } from "./types.service.js";
 import path from "path";
 import { config } from "../../app.config.js";
 import { createLogger } from "../../utils/logger.js";
-import { SANDBOX_EXEC_MAX_CAPTURE_BYTES } from "../../utils/constants.js";
 
 const logger = createLogger('DOCKER_SANDBOX');
 
@@ -63,8 +62,6 @@ export async function execCommand(
 
   const stdoutChunks: string[] = [];
   const stderrChunks: string[] = [];
-  let stdoutBytes = 0;
-  let stderrBytes = 0;
 
   const result = await new Promise<ExecResult>((resolve, reject) => {
     let settled = false;
@@ -86,45 +83,13 @@ export async function execCommand(
       );
     }, timeoutMs);
 
-    const failForOutputOverflow = (
-      streamName: "stdout" | "stderr",
-      currentBytes: number,
-      nextChunkBytes: number,
-    ) => {
-      const err = new Error(
-        `Command output exceeded safe capture limit (${SANDBOX_EXEC_MAX_CAPTURE_BYTES} bytes) while reading ${streamName}. ` +
-          "Narrow the command output (e.g., use head/tail/grep).",
-      );
-      logger.warn(
-        {
-          command: cmd[0],
-          args: cmd.slice(1),
-          stream: streamName,
-          currentBytes,
-          nextChunkBytes,
-          maxCaptureBytes: SANDBOX_EXEC_MAX_CAPTURE_BYTES,
-        },
-        "Sandbox command output exceeded capture limit",
-      );
-      clearTimeout(timeout);
-      stream.destroy(err);
-      rejectOnce(err);
-    };
-
     const stdoutStream = new Writable({
       write(
         chunk: Buffer | string,
         _enc: BufferEncoding,
         cb: (error?: Error | null) => void,
       ) {
-        const chunkBuffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
-        if (stdoutBytes + chunkBuffer.length > SANDBOX_EXEC_MAX_CAPTURE_BYTES) {
-          failForOutputOverflow("stdout", stdoutBytes, chunkBuffer.length);
-          cb();
-          return;
-        }
-        stdoutChunks.push(chunkBuffer.toString());
-        stdoutBytes += chunkBuffer.length;
+        stdoutChunks.push(Buffer.isBuffer(chunk) ? chunk.toString() : chunk);
         cb();
       },
     });
@@ -135,14 +100,7 @@ export async function execCommand(
         _enc: BufferEncoding,
         cb: (error?: Error | null) => void,
       ) {
-        const chunkBuffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
-        if (stderrBytes + chunkBuffer.length > SANDBOX_EXEC_MAX_CAPTURE_BYTES) {
-          failForOutputOverflow("stderr", stderrBytes, chunkBuffer.length);
-          cb();
-          return;
-        }
-        stderrChunks.push(chunkBuffer.toString());
-        stderrBytes += chunkBuffer.length;
+        stderrChunks.push(Buffer.isBuffer(chunk) ? chunk.toString() : chunk);
         cb();
       },
     });

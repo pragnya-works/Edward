@@ -3,7 +3,6 @@ import { GENERATED_OUTPUT_FRAMEWORK } from './postgenValidator.constants.js';
 export const VALIDATION_VIOLATION_TYPE = {
   MISSING_ENTRY_POINT: 'missing-entry-point',
   MISSING_PROJECT_FILE: 'missing-project-file',
-  FILE_LINE_LIMIT_EXCEEDED: 'file-line-limit-exceeded',
   IMPORT_PLACEMENT: 'import-placement',
   LOGIC_QUALITY: 'logic-quality',
   ORPHANED_IMPORT: 'orphaned-import',

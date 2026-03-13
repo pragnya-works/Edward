@@ -21,29 +21,6 @@ import {
   buildUserFacingDiagnosis,
 } from "./analyzer.js";
 
-function compressBuildOutput(
-  output: string,
-  maxBytes: number = 8000,
-  headBytes: number = 2000,
-): string {
-  if (!output) return "";
-  const buf = Buffer.from(output, "utf8");
-  if (buf.byteLength <= maxBytes) return output;
-
-  const head = buf.subarray(0, Math.min(headBytes, buf.byteLength)).toString(
-    "utf8",
-  );
-  const tail = buf
-    .subarray(Math.max(0, buf.byteLength - (maxBytes - headBytes)))
-    .toString("utf8");
-
-  return [
-    head,
-    "\n... (output truncated) ...\n",
-    tail,
-  ].join("");
-}
-
 function normalizePath(p: string): string {
   return p.replace(/\\/g, "/").replace(/^(?:\.\/)+/, "");
 }
@@ -259,7 +236,6 @@ export async function createErrorReport(
     "Error report created",
   );
 
-  const rawOutputCompressed = compressBuildOutput(rawOutput, 8000, 2000);
   const processedAt = new Date().toISOString();
   const duration = Date.now() - startTime;
 
@@ -278,7 +254,7 @@ export async function createErrorReport(
     rootCause,
     framework,
     command,
-    rawOutput: rawOutputCompressed,
+    rawOutput,
     processedAt,
     duration,
   };

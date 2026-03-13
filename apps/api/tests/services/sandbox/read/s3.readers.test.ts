@@ -107,4 +107,34 @@ describe("s3.readers", () => {
       }),
     );
   });
+
+  it("reads every snapshot file without a file-count cap", async () => {
+    const files = Object.fromEntries(
+      Array.from({ length: 550 }, (_, index) => [
+        `src/file-${index}.ts`,
+        `export const value${index} = ${index};`,
+      ]),
+    );
+    const snapshotPayload = {
+      version: 1,
+      generatedAt: new Date().toISOString(),
+      fileCount: Object.keys(files).length,
+      files,
+    };
+    const gzipped = zlib.gzipSync(JSON.stringify(snapshotPayload));
+
+    mockRefs.downloadFile.mockImplementation(async (key: string) => {
+      if (key.endsWith("source_snapshot.json.gz")) {
+        return Readable.from([gzipped]);
+      }
+      return null;
+    });
+
+    const { readProjectFilesFromS3 } = await loadReaders();
+    const snapshotFiles = await readProjectFilesFromS3("user-1", "chat-1");
+
+    expect(snapshotFiles.size).toBe(550);
+    expect(snapshotFiles.get("src/file-0.ts")).toBe("export const value0 = 0;");
+    expect(snapshotFiles.get("src/file-549.ts")).toBe("export const value549 = 549;");
+  });
 });
