@@ -1,8 +1,3 @@
-export const MAX_TOTAL_BYTES = 5 * 1024 * 1024;
-export const MAX_FILES = 500;
-export const MAX_FILE_BYTES = 512 * 1024;
-export const MAX_NON_PRIORITY_FILES = 2_000;
-export const MAX_NON_PRIORITY_BYTES = 20 * 1024 * 1024;
 export const MAX_SNAPSHOT_CACHE_ENTRIES = 500;
 
 export const SANDBOX_EXCLUDED_DIRS = [

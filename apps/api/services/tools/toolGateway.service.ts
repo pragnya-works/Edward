@@ -6,23 +6,16 @@ import {
 import { ensureError } from "../../utils/error.js";
 import { logger } from "../../utils/logger.js";
 import { executeSandboxCommand } from "../sandbox/command.service.js";
-import { searchTavilyBasic } from "../websearch/tavily.search.js";
 import {
-  MAX_NEVER_TRUNCATE_CHARS,
-  MAX_RAW_TOOL_STDIO_CHARS,
-  MAX_TOOL_STDIO_CHARS,
-  MAX_WEB_SEARCH_SNIPPET_CHARS,
+  MAX_TAVILY_SNIPPET_LENGTH,
+  searchTavilyBasic,
+  truncateTavilyText,
+} from "../websearch/tavily.search.js";
+import {
   TOOL_GATEWAY_RETRY_ATTEMPTS,
   TOOL_GATEWAY_TIMEOUT_MS,
 } from "../../utils/constants.js";
-import {
-  LARGE_OUTPUT_COMMANDS,
-  RAW_OUTPUT_COMMANDS,
-  dedupeStdStreams,
-  sanitizeCommandOutput,
-  stripAnsiOnly,
-  truncateWithMarker,
-} from "./commandOutput.js";
+import { stripAnsiOnly } from "./commandOutput.js";
 
 const TOOL_TIMEOUT_ERROR_NAME = "ToolTimeoutError";
 
@@ -31,9 +24,11 @@ interface ToolTimeoutError extends Error {
 }
 
 function createToolTimeoutError(timeoutMs: number): ToolTimeoutError {
-  const error = new Error(`Tool timed out after ${timeoutMs}ms`) as ToolTimeoutError;
+  const error = Object.assign(
+    new Error(`Tool timed out after ${timeoutMs}ms`),
+    { timeoutMs },
+  );
   error.name = TOOL_TIMEOUT_ERROR_NAME;
-  error.timeoutMs = timeoutMs;
   return error;
 }
 
@@ -57,22 +52,27 @@ function buildIdempotencyKey(
   return `${toolName}:${turn}:${digest.slice(0, 20)}`;
 }
 
-async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
-    const timer = setTimeout(() => {
+async function withTimeout<T>(
+  execute: (signal: AbortSignal) => Promise<T>,
+  timeoutMs: number,
+): Promise<T> {
+  const controller = new AbortController();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      controller.abort();
       reject(createToolTimeoutError(timeoutMs));
     }, timeoutMs);
-
-    promise
-      .then((value) => {
-        clearTimeout(timer);
-        resolve(value);
-      })
-      .catch((error) => {
-        clearTimeout(timer);
-        reject(error);
-      });
   });
+
+  try {
+    return await Promise.race([execute(controller.signal), timeoutPromise]);
+  } finally {
+    if (timer) {
+      clearTimeout(timer);
+    }
+  }
 }
 
 interface ExecuteToolGatewayParams<TOutput> {
@@ -80,7 +80,8 @@ interface ExecuteToolGatewayParams<TOutput> {
   turn: number;
   toolName: string;
   input: Record<string, unknown>;
-  execute: () => Promise<TOutput>;
+  execute: (signal: AbortSignal) => Promise<TOutput>;
+  validateOutput: (value: unknown) => value is TOutput;
   timeoutMs?: number;
   retryAttempts?: number;
 }
@@ -89,7 +90,10 @@ export async function executeToolWithGateway<TOutput>(
   params: ExecuteToolGatewayParams<TOutput>,
 ): Promise<TOutput> {
   const timeoutMs = params.timeoutMs ?? TOOL_GATEWAY_TIMEOUT_MS;
-  const retryAttempts = Math.max(1, params.retryAttempts ?? TOOL_GATEWAY_RETRY_ATTEMPTS);
+  const retryAttempts = Math.max(
+    1,
+    params.retryAttempts ?? TOOL_GATEWAY_RETRY_ATTEMPTS,
+  );
   const idempotencyKey = buildIdempotencyKey(
     params.runId,
     params.turn,
@@ -98,9 +102,24 @@ export async function executeToolWithGateway<TOutput>(
   );
 
   if (params.runId) {
-    const cached = await getRunToolCallByIdempotencyKey(params.runId, idempotencyKey);
+    const cached = await getRunToolCallByIdempotencyKey(
+      params.runId,
+      idempotencyKey,
+    );
     if (cached?.status === "succeeded" && cached.output) {
-      return cached.output as TOutput;
+      if (params.validateOutput(cached.output)) {
+        return cached.output;
+      }
+
+      logger.warn(
+        {
+          runId: params.runId,
+          toolName: params.toolName,
+          turn: params.turn,
+          idempotencyKey,
+        },
+        "Ignoring cached tool output because it failed runtime validation",
+      );
     }
 
     await upsertRunToolCall({
@@ -118,7 +137,7 @@ export async function executeToolWithGateway<TOutput>(
 
   for (let attempt = 1; attempt <= retryAttempts; attempt++) {
     try {
-      const output = await withTimeout(params.execute(), timeoutMs);
+      const output = await withTimeout(params.execute, timeoutMs);
       const durationMs = Math.max(0, Date.now() - start);
       logger.debug(
         {
@@ -188,6 +207,19 @@ export interface CommandToolOutput {
   stderr: string;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function isCommandToolOutput(value: unknown): value is CommandToolOutput {
+  return (
+    isRecord(value) &&
+    typeof value.exitCode === "number" &&
+    typeof value.stdout === "string" &&
+    typeof value.stderr === "string"
+  );
+}
+
 export async function executeCommandTool(params: {
   runId?: string;
   turn: number;
@@ -204,32 +236,20 @@ export async function executeCommandTool(params: {
       command: params.command,
       args: params.args,
     },
-    execute: async () => {
-      const raw = await executeSandboxCommand(params.sandboxId, {
-        command: params.command,
-        args: params.args,
-      });
-      if (LARGE_OUTPUT_COMMANDS.has(params.command)) {
-        return {
-          exitCode: raw.exitCode ?? 0,
-          stdout: truncateWithMarker(stripAnsiOnly(raw.stdout ?? ""), MAX_NEVER_TRUNCATE_CHARS),
-          stderr: truncateWithMarker(stripAnsiOnly(raw.stderr ?? ""), MAX_NEVER_TRUNCATE_CHARS),
-        };
-      }
-      if (RAW_OUTPUT_COMMANDS.has(params.command)) {
-        return {
-          exitCode: raw.exitCode ?? 0,
-          stdout: truncateWithMarker(raw.stdout ?? "", MAX_RAW_TOOL_STDIO_CHARS),
-          stderr: truncateWithMarker(raw.stderr ?? "", MAX_RAW_TOOL_STDIO_CHARS),
-        };
-      }
-      const stdout = sanitizeCommandOutput(raw.stdout ?? "");
-      const stderr = sanitizeCommandOutput(raw.stderr ?? "");
-      const deduped = dedupeStdStreams(stdout, stderr, raw.exitCode ?? 0);
+    validateOutput: isCommandToolOutput,
+    execute: async (signal) => {
+      const raw = await executeSandboxCommand(
+        params.sandboxId,
+        {
+          command: params.command,
+          args: params.args,
+        },
+        { signal },
+      );
       return {
         exitCode: raw.exitCode ?? 0,
-        stdout: truncateWithMarker(deduped.stdout, MAX_TOOL_STDIO_CHARS),
-        stderr: truncateWithMarker(deduped.stderr, MAX_TOOL_STDIO_CHARS),
+        stdout: stripAnsiOnly(raw.stdout ?? ""),
+        stderr: stripAnsiOnly(raw.stderr ?? ""),
       };
     },
   });
@@ -247,6 +267,27 @@ export interface WebSearchToolOutput {
   results: WebSearchToolResultItem[];
 }
 
+function isWebSearchToolResultItem(
+  value: unknown,
+): value is WebSearchToolResultItem {
+  return (
+    isRecord(value) &&
+    typeof value.title === "string" &&
+    typeof value.url === "string" &&
+    typeof value.snippet === "string"
+  );
+}
+
+function isWebSearchToolOutput(value: unknown): value is WebSearchToolOutput {
+  return (
+    isRecord(value) &&
+    typeof value.query === "string" &&
+    (value.answer === undefined || typeof value.answer === "string") &&
+    Array.isArray(value.results) &&
+    value.results.every((item) => isWebSearchToolResultItem(item))
+  );
+}
+
 export async function executeWebSearchTool(params: {
   runId?: string;
   turn: number;
@@ -261,17 +302,22 @@ export async function executeWebSearchTool(params: {
       query: params.query,
       maxResults: params.maxResults,
     },
-    execute: async () => {
-      const raw = await searchTavilyBasic(params.query, params.maxResults);
+    validateOutput: isWebSearchToolOutput,
+    execute: async (signal) => {
+      const raw = await searchTavilyBasic(
+        params.query,
+        params.maxResults,
+        signal,
+      );
       return {
         query: raw.query,
         answer: raw.answer
-          ? truncateWithMarker(raw.answer, 1_500)
+          ? truncateTavilyText(raw.answer, MAX_TAVILY_SNIPPET_LENGTH)
           : undefined,
         results: raw.results.map((item) => ({
           title: item.title,
           url: item.url,
-          snippet: truncateWithMarker(item.snippet, MAX_WEB_SEARCH_SNIPPET_CHARS),
+          snippet: item.snippet,
         })),
       };
     },

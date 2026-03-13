@@ -199,6 +199,7 @@ Rules:
 10. In GENERATE mode, always emit required framework entry files in <edward_sandbox>, even if unchanged from template defaults.
 11. Close with </edward_sandbox> then emit <edward_done />.
 12. Hard limit: each emitted <file> must be at most ${MAX_EMITTED_FILE_LINES} total lines.
+13. If a requested change would push one file beyond that limit, split the work into smaller components/hooks/utils/styles instead of overloading one file.
 </edward_sandbox_format>`;
 
 const CODE_BLOCKS = `
@@ -230,8 +231,7 @@ Preflight checklist:
 11. For Next.js, keep Open Graph/Twitter images wired to STATIC_OG_IMAGE_URL from src/lib/seo.
 12. For Vite React/Vanilla index.html, set both og:image and twitter:image to https://assets.pragnyaa.in/home/OG.png (no stock/external random image URLs).
 13. For Vite React/Vanilla index.html, canonical href must be an absolute http(s) URL (never "/", "./", or relative-only paths).
-14. Hard limit: each emitted <file> must be at most ${MAX_EMITTED_FILE_LINES} total lines.
-15. Treat full responsive behavior as a release blocker: do not finish with layouts that break on small, medium, or large screens.
+14. Treat full responsive behavior as a release blocker: do not finish with layouts that break on small, medium, or large screens.
 </quick_reference>`;
 
 const FIX_MODE_PROMPT = `

@@ -4,8 +4,6 @@ import { getSandboxState } from "./state.service.js";
 import { executeSandboxCommand } from "./command.service.js";
 import type { SandboxInstance } from "./types.service.js";
 import {
-  MAX_FILES,
-  MAX_TOTAL_BYTES,
   PRIORITY_FILES,
   SANDBOX_EXCLUDED_DIRS,
   TEXT_EXTENSIONS,
@@ -149,29 +147,19 @@ export async function readAllProjectFiles(
   for (const rel of PRIORITY_FILES) {
     const fullPath = relToFull.get(rel);
     if (fullPath) selected.push(fullPath);
-    if (selected.length >= MAX_FILES) break;
   }
 
-  if (selected.length < MAX_FILES) {
-    const remaining = allPaths
-      .filter((path) => !selected.includes(path))
-      .sort((a, b) => toRelPath(a).localeCompare(toRelPath(b)));
-    selected.push(...remaining.slice(0, MAX_FILES - selected.length));
-  }
+  const remaining = allPaths
+    .filter((path) => !selected.includes(path))
+    .sort((a, b) => toRelPath(a).localeCompare(toRelPath(b)));
+  selected.push(...remaining);
 
-  let totalBytes = 0;
   for (const fullPath of selected) {
-    if (totalBytes >= MAX_TOTAL_BYTES) break;
-
     const content = await readSandboxFile(sandboxId, fullPath, sandbox);
     if (!content) continue;
 
-    const contentBytes = Buffer.byteLength(content, "utf8");
-    if (totalBytes + contentBytes > MAX_TOTAL_BYTES) continue;
-
     const relPath = toRelPath(fullPath);
     files.set(relPath, content);
-    totalBytes += contentBytes;
   }
 
   return files;
@@ -185,19 +173,11 @@ export async function readSpecificFiles(
   const sandbox = await getSandboxState(sandboxId);
   if (!sandbox) return files;
 
-  let totalBytes = 0;
-
   for (const filePath of filePaths) {
-    if (totalBytes >= MAX_TOTAL_BYTES) break;
-
     const content = await readSandboxFile(sandboxId, filePath, sandbox);
     if (!content) continue;
 
-    const contentBytes = Buffer.byteLength(content, "utf8");
-    if (totalBytes + contentBytes > MAX_TOTAL_BYTES) continue;
-
     files.set(filePath, content);
-    totalBytes += contentBytes;
   }
 
   return files;

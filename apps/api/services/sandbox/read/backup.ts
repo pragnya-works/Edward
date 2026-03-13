@@ -4,11 +4,6 @@ import { Readable } from "stream";
 import { downloadFile } from "../../storage.service.js";
 import { buildS3Key } from "../../storage/key.utils.js";
 import {
-  MAX_FILE_BYTES,
-  MAX_FILES,
-  MAX_NON_PRIORITY_BYTES,
-  MAX_NON_PRIORITY_FILES,
-  MAX_TOTAL_BYTES,
   PRIORITY_FILES,
   PRIORITY_FILE_SET,
   SANDBOX_EXCLUDED_DIRS,
@@ -108,7 +103,6 @@ export async function readProjectFilesFromBackupArchive(
 
   const priorityCandidates = new Map<string, string>();
   const regularCandidates = new Map<string, string>();
-  let regularCandidateBytes = 0;
 
   await processBackupArchive({
     stream,
@@ -136,11 +130,6 @@ export async function readProjectFilesFromBackupArchive(
       fileStream.on("data", (chunk) => chunks.push(chunk));
       fileStream.on("end", () => {
         const content = Buffer.concat(chunks);
-        if (content.length > MAX_FILE_BYTES) {
-          next();
-          return;
-        }
-
         const textContent = content.toString("utf8");
         if (PRIORITY_FILE_SET.has(relPath)) {
           priorityCandidates.set(relPath, textContent);
@@ -148,19 +137,7 @@ export async function readProjectFilesFromBackupArchive(
           return;
         }
 
-        if (regularCandidates.size >= MAX_NON_PRIORITY_FILES) {
-          next();
-          return;
-        }
-
-        const contentBytes = Buffer.byteLength(textContent, "utf8");
-        if (regularCandidateBytes + contentBytes > MAX_NON_PRIORITY_BYTES) {
-          next();
-          return;
-        }
-
         regularCandidates.set(relPath, textContent);
-        regularCandidateBytes += contentBytes;
         next();
       });
       fileStream.on("error", reject);
@@ -170,28 +147,19 @@ export async function readProjectFilesFromBackupArchive(
   const selected: string[] = [];
   for (const rel of PRIORITY_FILES) {
     if (priorityCandidates.has(rel)) selected.push(rel);
-    if (selected.length >= MAX_FILES) break;
   }
 
-  if (selected.length < MAX_FILES) {
-    const remaining = Array.from(regularCandidates.keys())
-      .filter((p) => !PRIORITY_FILE_SET.has(p))
-      .sort((a, b) => a.localeCompare(b));
-    selected.push(...remaining.slice(0, MAX_FILES - selected.length));
-  }
+  const remaining = Array.from(regularCandidates.keys())
+    .filter((p) => !PRIORITY_FILE_SET.has(p))
+    .sort((a, b) => a.localeCompare(b));
+  selected.push(...remaining);
 
-  let totalBytes = 0;
   for (const relPath of selected) {
-    if (totalBytes >= MAX_TOTAL_BYTES) break;
     const content =
       priorityCandidates.get(relPath) ?? regularCandidates.get(relPath);
     if (!content) continue;
 
-    const contentBytes = Buffer.byteLength(content, "utf8");
-    if (totalBytes + contentBytes > MAX_TOTAL_BYTES) continue;
-
     files.set(relPath, content);
-    totalBytes += contentBytes;
   }
 
   return files;

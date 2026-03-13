@@ -7,24 +7,17 @@ import {
   type StreamEvent,
 } from "@edward/shared/streamEvents";
 
-const DEFAULT_MAX_QUEUE_BYTES = 512 * 1024;
-const DEFAULT_MAX_QUEUE_EVENTS = 512;
-
 interface SSEWriterState {
   res: Response;
   queue: string[];
   queueBytes: number;
   backpressured: boolean;
   ending: boolean;
-  maxQueueBytes: number;
-  maxQueueEvents: number;
-  onSlowClient?: () => void;
-  overflowed: boolean;
 }
 
 interface SSEBackpressureConfig {
-  maxQueueBytes: number;
-  maxQueueEvents: number;
+  maxQueueBytes?: number;
+  maxQueueEvents?: number;
   onSlowClient?: () => void;
 }
 
@@ -32,7 +25,7 @@ const WRITER_STATE = new WeakMap<Response, SSEWriterState>();
 
 function createWriterState(
   res: Response,
-  config?: Partial<SSEBackpressureConfig>,
+  _config?: Partial<SSEBackpressureConfig>,
 ): SSEWriterState {
   const state: SSEWriterState = {
     res,
@@ -40,10 +33,6 @@ function createWriterState(
     queueBytes: 0,
     backpressured: false,
     ending: false,
-    maxQueueBytes: config?.maxQueueBytes ?? DEFAULT_MAX_QUEUE_BYTES,
-    maxQueueEvents: config?.maxQueueEvents ?? DEFAULT_MAX_QUEUE_EVENTS,
-    onSlowClient: config?.onSlowClient,
-    overflowed: false,
   };
 
   if (typeof res.on === "function") {
@@ -80,10 +69,6 @@ function getWriterState(res: Response): SSEWriterState {
 }
 
 function flushQueue(state: SSEWriterState): void {
-  if (state.overflowed) {
-    return;
-  }
-
   while (state.queue.length > 0) {
     const next = state.queue[0];
     if (!next) break;
@@ -108,20 +93,8 @@ function flushQueue(state: SSEWriterState): void {
   state.backpressured = false;
 }
 
-function markOverflow(state: SSEWriterState): void {
-  if (state.overflowed) {
-    return;
-  }
-
-  state.overflowed = true;
-  state.queue = [];
-  state.queueBytes = 0;
-  state.backpressured = false;
-  state.onSlowClient?.();
-}
-
 function enqueueWrite(state: SSEWriterState, data: string): boolean {
-  if (state.res.writableEnded || !state.res.writable || state.overflowed) {
+  if (state.res.writableEnded || !state.res.writable) {
     return false;
   }
 
@@ -135,15 +108,8 @@ function enqueueWrite(state: SSEWriterState, data: string): boolean {
     return true;
   }
 
-  const nextBytes = state.queueBytes + payloadBytes;
-  const nextEvents = state.queue.length + 1;
-  if (nextBytes > state.maxQueueBytes || nextEvents > state.maxQueueEvents) {
-    markOverflow(state);
-    return false;
-  }
-
   state.queue.push(data);
-  state.queueBytes = nextBytes;
+  state.queueBytes += payloadBytes;
   return true;
 }
 
@@ -153,9 +119,6 @@ export function configureSSEBackpressure(
 ): void {
   const existing = WRITER_STATE.get(res);
   if (existing) {
-    existing.maxQueueBytes = config.maxQueueBytes ?? existing.maxQueueBytes;
-    existing.maxQueueEvents = config.maxQueueEvents ?? existing.maxQueueEvents;
-    existing.onSlowClient = config.onSlowClient ?? existing.onSlowClient;
     return;
   }
 

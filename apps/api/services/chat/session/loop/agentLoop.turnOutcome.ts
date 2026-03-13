@@ -6,9 +6,7 @@ import {
   MAX_AGENT_CONTINUATION_PROMPT_CHARS,
   MAX_AGENT_TOOL_CALLS_PER_RUN,
   MAX_AGENT_TOOL_CALLS_PER_TURN,
-  MAX_AGENT_TOOL_RESULT_PAYLOAD_CHARS,
   MAX_AGENT_TURNS,
-  MAX_RESPONSE_SIZE,
 } from "../../../../utils/constants.js";
 import { logger } from "../../../../utils/logger.js";
 import type { LlmChatMessage } from "../../../../lib/llm/context.js";
@@ -96,7 +94,6 @@ export interface ResolveTurnOutcomeParams {
   emitMeta: EmitMeta;
   budgetState: ReturnType<typeof createTurnBudgetState>;
   turnState: ReturnType<typeof createTurnEventState>;
-  responseSizeExceededThisTurn: boolean;
   toolResultsThisTurn: AgentToolResult[];
   totalToolCallsInRun: number;
   fullRawResponse: string;
@@ -121,20 +118,6 @@ export async function resolveTurnOutcome(
   params: ResolveTurnOutcomeParams,
 ): Promise<ResolveTurnOutcomeResult> {
   const codeOutputDetected = params.turnState.codeOutputDetectedThisTurn;
-
-  if (params.responseSizeExceededThisTurn) {
-    sendSSEError(params.res, "Response exceeded maximum size limit", {
-      code: "response_size_exceeded",
-      details: { maxBytes: MAX_RESPONSE_SIZE, turn: params.agentTurn },
-    });
-    emitTurnCompleteMeta(params.emitMeta, params.agentTurn, params.toolResultsThisTurn.length);
-    return {
-      action: "break",
-      loopStopReason: AgentLoopStopReason.RESPONSE_SIZE_EXCEEDED,
-      agentMessages: params.agentMessages,
-      noProgressContinuations: params.noProgressContinuations,
-    };
-  }
 
   if (params.budgetState.toolBudgetExceededThisTurn) {
     sendSSEError(
@@ -175,27 +158,6 @@ export async function resolveTurnOutcome(
     return {
       action: "break",
       loopStopReason: AgentLoopStopReason.RUN_TOOL_BUDGET_EXCEEDED,
-      agentMessages: params.agentMessages,
-      noProgressContinuations: params.noProgressContinuations,
-    };
-  }
-
-  if (params.budgetState.toolPayloadExceededThisTurn) {
-    sendSSEError(
-      params.res,
-      `Tool result payload exceeded per-turn limit (${MAX_AGENT_TOOL_RESULT_PAYLOAD_CHARS} chars)`,
-      {
-        code: "tool_payload_budget_exceeded",
-        details: {
-          limitChars: MAX_AGENT_TOOL_RESULT_PAYLOAD_CHARS,
-          turn: params.agentTurn,
-        },
-      },
-    );
-    emitTurnCompleteMeta(params.emitMeta, params.agentTurn, params.toolResultsThisTurn.length);
-    return {
-      action: "break",
-      loopStopReason: AgentLoopStopReason.TOOL_PAYLOAD_BUDGET_EXCEEDED,
       agentMessages: params.agentMessages,
       noProgressContinuations: params.noProgressContinuations,
     };

@@ -1,6 +1,7 @@
 import { MAX_AGENT_CONTINUATION_PROMPT_CHARS } from "../../../../utils/constants.js";
 import { formatToolResults } from "../../command.utils.js";
 import type { AgentToolResult } from "@edward/shared/streamToolResults";
+import { MAX_EMITTED_FILE_LINES } from "../../../../lib/llm/prompts/sections.js";
 
 const RESPONSE_BLOCK_PATTERN = /<Response>([\s\S]*?)<\/Response>/gi;
 const FILE_BLOCK_PATTERN = /<file\b[^>]*path="([^"]+)"[^>]*>([\s\S]*?)<\/file>/gi;
@@ -220,6 +221,8 @@ ${formattedResults}
 
 Continue with valid Edward tags only.
 If you write files, emit <edward_sandbox> with complete <file> blocks and end with <edward_done />.
+Never overcode a single file: keep each emitted <file> at or below ${MAX_EMITTED_FILE_LINES} total lines.
+If a change is growing too large, split it into child components/hooks/utils/styles instead of extending one file further.
 Execute commands/installs/verification yourself using Edward tags whenever possible.
 Do not ask the user to run commands or install packages unless blocked by external constraints.
 Do not stop at narration-only output.`;

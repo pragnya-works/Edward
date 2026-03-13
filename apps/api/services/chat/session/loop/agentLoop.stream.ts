@@ -9,9 +9,6 @@ import type { LlmChatMessage } from "../../../../lib/llm/context.js";
 import type {
   PromptProfile as PromptProfileType,
 } from "../../../../lib/llm/prompts/sections.js";
-import {
-  MAX_RESPONSE_SIZE,
-} from "../../../../utils/constants.js";
 import { ensureError } from "../../../../utils/error.js";
 import { logger } from "../../../../utils/logger.js";
 import { sendSSERecoverableError } from "../../../../services/sse-utils/service.js";
@@ -60,7 +57,6 @@ export interface ExecuteAgentTurnStreamParams {
 export interface ExecuteAgentTurnStreamResult {
   fullRawResponse: string;
   turnRawResponse: string;
-  responseSizeExceededThisTurn: boolean;
   toolResultsThisTurn: AgentToolResult[];
   budgetState: ReturnType<typeof createTurnBudgetState>;
   turnState: ReturnType<typeof createTurnEventState>;
@@ -79,7 +75,6 @@ export async function executeAgentTurnStream(
   );
   let fullRawResponse = params.fullRawResponse;
   let turnRawResponse = "";
-  let responseSizeExceededThisTurn = false;
   let outputTokensThisTurn: number | undefined;
   const parserContext = {
     workflow: params.workflow,
@@ -122,11 +117,6 @@ export async function executeAgentTurnStream(
 
       for await (const chunk of stream) {
         if (params.abortController.signal.aborted) {
-          break;
-        }
-
-        if (fullRawResponse.length + chunk.length > MAX_RESPONSE_SIZE) {
-          responseSizeExceededThisTurn = true;
           break;
         }
 
@@ -185,21 +175,18 @@ export async function executeAgentTurnStream(
     }
   }
 
-  if (!responseSizeExceededThisTurn) {
-    await processParserEvents({
-      events: parser.flush(),
-      turnState,
-      budgetState,
-      toolResultsThisTurn,
-      context: parserContext,
-    });
-  }
+  await processParserEvents({
+    events: parser.flush(),
+    turnState,
+    budgetState,
+    toolResultsThisTurn,
+    context: parserContext,
+  });
   await params.installTaskQueue.waitForIdle();
 
   return {
     fullRawResponse,
     turnRawResponse,
-    responseSizeExceededThisTurn,
     toolResultsThisTurn,
     budgetState,
     turnState,

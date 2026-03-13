@@ -3,6 +3,7 @@ import {
   type ChatAction as ChatActionType,
 } from "../../../../services/planning/schemas.js";
 import type { ValidationViolation } from "../../../../services/planning/validators/postgenValidator.types.js";
+import { MAX_EMITTED_FILE_LINES } from "../../../../lib/llm/prompts/sections.js";
 
 interface BuildPostgenRetryPromptOptions {
   originalUserRequest: string;
@@ -38,6 +39,8 @@ export function buildPostgenRetryPrompt(
     "",
     modeInstruction,
     "Use <edward_sandbox> and complete <file> contents for each modified file.",
+    `Keep every emitted <file> at or below ${MAX_EMITTED_FILE_LINES} total lines.`,
+    "If a file is becoming too large, split the fix across smaller helper/component/hook/style files instead of overloading one file.",
     "Do not include markdown fences inside file content.",
     "Finish with <edward_done />.",
   ].join("\n");

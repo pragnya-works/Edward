@@ -37,11 +37,6 @@ export const NPM_PACKAGE_REGEX =
   /^(?:@[a-z0-9-][a-z0-9-._]*\/)?[a-z0-9-][a-z0-9-._]*$/;
 export const MAX_DEPENDENCIES = 50;
 export const MAX_PACKAGE_NAME_LENGTH = 214;
-export const MAX_RESPONSE_SIZE = 10 * 1024 * 1024;
-export const MAX_STREAM_DURATION_MS = parsePositiveInt(
-  "MAX_STREAM_DURATION_MS",
-  20 * 60 * 1000,
-);
 export const MAX_AGENT_TURNS = parsePositiveInt("MAX_AGENT_TURNS", 12);
 export const MAX_AGENT_TOOL_CALLS_PER_TURN = parsePositiveInt(
   "MAX_AGENT_TOOL_CALLS_PER_TURN",
@@ -66,15 +61,6 @@ export const MAX_AGENT_CONTINUATION_PROMPT_CHARS = parsePositiveInt(
   "MAX_AGENT_CONTINUATION_PROMPT_CHARS",
   14_000,
 );
-export const MAX_AGENT_TOOL_RESULT_PAYLOAD_CHARS = parsePositiveInt(
-  "MAX_AGENT_TOOL_RESULT_PAYLOAD_CHARS",
-  180_000,
-);
-export const MAX_TOOL_STDIO_CHARS = parsePositiveInt("MAX_TOOL_STDIO_CHARS", 6_000);
-export const MAX_RAW_TOOL_STDIO_CHARS = parsePositiveInt(
-  "MAX_RAW_TOOL_STDIO_CHARS",
-  64_000,
-);
 export const MAX_NEVER_TRUNCATE_CHARS = parsePositiveInt(
   "MAX_NEVER_TRUNCATE_CHARS",
   100_000,
@@ -91,10 +77,6 @@ export const TOOL_GATEWAY_TIMEOUT_MS = parsePositiveInt(
 export const SANDBOX_COMMAND_TIMEOUT_MS = parsePositiveInt(
   "SANDBOX_COMMAND_TIMEOUT_MS",
   45_000,
-);
-export const SANDBOX_EXEC_MAX_CAPTURE_BYTES = parsePositiveInt(
-  "SANDBOX_EXEC_MAX_CAPTURE_BYTES",
-  64 * 1024 * 1024,
 );
 export const TOOL_GATEWAY_RETRY_ATTEMPTS = parsePositiveInt(
   "TOOL_GATEWAY_RETRY_ATTEMPTS",
@@ -141,8 +123,6 @@ export const RUN_TERMINAL_STATUS_POLL_INTERVAL_MS = parsePositiveInt(
   "RUN_TERMINAL_STATUS_POLL_INTERVAL_MS",
   2_000,
 );
-export const MAX_SSE_QUEUE_BYTES = 768 * 1024;
-export const MAX_SSE_QUEUE_EVENTS = 700;
 export const CLEANUP_INTERVAL_MS = 60 * 1000;
 export const WORKER_GRACEFUL_SHUTDOWN_TIMEOUT_MS = parsePositiveInt(
   "WORKER_GRACEFUL_SHUTDOWN_TIMEOUT_MS",

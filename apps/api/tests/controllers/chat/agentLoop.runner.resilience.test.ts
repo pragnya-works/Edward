@@ -40,17 +40,14 @@ vi.mock("../../../services/chat/session/loop/budgets.js", () => ({
   createTurnBudgetState: vi.fn(() => ({
     toolBudgetExceededThisTurn: false,
     toolRunBudgetExceededThisTurn: false,
-    toolPayloadExceededThisTurn: false,
   })),
   hasAnyTurnBudgetExceeded: vi.fn(
     (state: {
       toolBudgetExceededThisTurn: boolean;
       toolRunBudgetExceededThisTurn: boolean;
-      toolPayloadExceededThisTurn: boolean;
     }) =>
       state.toolBudgetExceededThisTurn ||
-      state.toolRunBudgetExceededThisTurn ||
-      state.toolPayloadExceededThisTurn,
+      state.toolRunBudgetExceededThisTurn,
   ),
 }));
 

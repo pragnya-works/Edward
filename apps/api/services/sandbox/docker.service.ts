@@ -5,15 +5,65 @@ import { ExecResult } from "./types.service.js";
 import path from "path";
 import { config } from "../../app.config.js";
 import { createLogger } from "../../utils/logger.js";
-import { SANDBOX_EXEC_MAX_CAPTURE_BYTES } from "../../utils/constants.js";
 
-const logger = createLogger('DOCKER_SANDBOX');
+const logger = createLogger("DOCKER_SANDBOX");
 
 const docker = new Docker();
 const getPrewarmImage = () => config.docker.prewarmImage;
 export const CONTAINER_WORKDIR = "/home/node/edward";
 export const SANDBOX_LABEL = "com.edward.sandbox";
 const EXEC_TIMEOUT_MS = 10000;
+export const DEFAULT_MAX_OUTPUT_BYTES = 1_000_000;
+
+interface OutputAccumulator {
+  chunks: string[];
+  totalBytes: number;
+  truncated: boolean;
+}
+
+function appendOutputChunk(
+  accumulator: OutputAccumulator,
+  chunk: Buffer | string,
+  maxOutputBytes: number | null,
+): void {
+  const normalizedChunk = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+
+  if (maxOutputBytes == null) {
+    accumulator.chunks.push(normalizedChunk.toString());
+    accumulator.totalBytes += normalizedChunk.byteLength;
+    return;
+  }
+
+  if (accumulator.totalBytes >= maxOutputBytes) {
+    accumulator.truncated = true;
+    return;
+  }
+
+  const remainingBytes = maxOutputBytes - accumulator.totalBytes;
+  const nextChunk =
+    normalizedChunk.byteLength > remainingBytes
+      ? normalizedChunk.subarray(0, remainingBytes)
+      : normalizedChunk;
+
+  accumulator.chunks.push(nextChunk.toString());
+  accumulator.totalBytes += nextChunk.byteLength;
+
+  if (nextChunk.byteLength < normalizedChunk.byteLength) {
+    accumulator.truncated = true;
+  }
+}
+
+function finalizeOutput(
+  accumulator: OutputAccumulator,
+  maxOutputBytes: number | null,
+): string {
+  const output = accumulator.chunks.join("");
+  if (!accumulator.truncated || maxOutputBytes == null) {
+    return output;
+  }
+
+  return `${output}\n...[truncated after ${maxOutputBytes} bytes]`;
+}
 
 export async function pingDocker(): Promise<boolean> {
   try {
@@ -47,6 +97,8 @@ export async function execCommand(
   user?: string,
   workingDir?: string,
   env?: string[],
+  signal?: AbortSignal,
+  maxOutputBytes: number | null = DEFAULT_MAX_OUTPUT_BYTES,
 ): Promise<ExecResult> {
   await ensureContainerRunning(container);
 
@@ -61,10 +113,16 @@ export async function execCommand(
 
   const stream = await exec.start({ hijack: true });
 
-  const stdoutChunks: string[] = [];
-  const stderrChunks: string[] = [];
-  let stdoutBytes = 0;
-  let stderrBytes = 0;
+  const stdoutChunks: OutputAccumulator = {
+    chunks: [],
+    totalBytes: 0,
+    truncated: false,
+  };
+  const stderrChunks: OutputAccumulator = {
+    chunks: [],
+    totalBytes: 0,
+    truncated: false,
+  };
 
   const result = await new Promise<ExecResult>((resolve, reject) => {
     let settled = false;
@@ -78,38 +136,36 @@ export async function execCommand(
       settled = true;
       reject(error);
     };
+    let abortHandler: (() => void) | null = null;
+    const cleanup = () => {
+      if (signal && abortHandler) {
+        signal.removeEventListener("abort", abortHandler);
+        abortHandler = null;
+      }
+    };
 
     const timeout = setTimeout(() => {
       stream.destroy();
+      cleanup();
       rejectOnce(
         new Error(`Command timeout after ${timeoutMs}ms: ${cmd.join(" ")}`),
       );
     }, timeoutMs);
-
-    const failForOutputOverflow = (
-      streamName: "stdout" | "stderr",
-      currentBytes: number,
-      nextChunkBytes: number,
-    ) => {
-      const err = new Error(
-        `Command output exceeded safe capture limit (${SANDBOX_EXEC_MAX_CAPTURE_BYTES} bytes) while reading ${streamName}. ` +
-          "Narrow the command output (e.g., use head/tail/grep).",
-      );
-      logger.warn(
-        {
-          command: cmd[0],
-          args: cmd.slice(1),
-          stream: streamName,
-          currentBytes,
-          nextChunkBytes,
-          maxCaptureBytes: SANDBOX_EXEC_MAX_CAPTURE_BYTES,
-        },
-        "Sandbox command output exceeded capture limit",
-      );
+    if (signal?.aborted) {
       clearTimeout(timeout);
-      stream.destroy(err);
-      rejectOnce(err);
-    };
+      cleanup();
+      rejectOnce(new Error(`Command aborted: ${cmd.join(" ")}`));
+      return;
+    }
+    if (signal) {
+      abortHandler = () => {
+        clearTimeout(timeout);
+        stream.destroy(new Error(`Command aborted: ${cmd.join(" ")}`));
+        cleanup();
+        rejectOnce(new Error(`Command aborted: ${cmd.join(" ")}`));
+      };
+      signal.addEventListener("abort", abortHandler, { once: true });
+    }
 
     const stdoutStream = new Writable({
       write(
@@ -117,14 +173,7 @@ export async function execCommand(
         _enc: BufferEncoding,
         cb: (error?: Error | null) => void,
       ) {
-        const chunkBuffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
-        if (stdoutBytes + chunkBuffer.length > SANDBOX_EXEC_MAX_CAPTURE_BYTES) {
-          failForOutputOverflow("stdout", stdoutBytes, chunkBuffer.length);
-          cb();
-          return;
-        }
-        stdoutChunks.push(chunkBuffer.toString());
-        stdoutBytes += chunkBuffer.length;
+        appendOutputChunk(stdoutChunks, chunk, maxOutputBytes);
         cb();
       },
     });
@@ -135,14 +184,7 @@ export async function execCommand(
         _enc: BufferEncoding,
         cb: (error?: Error | null) => void,
       ) {
-        const chunkBuffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
-        if (stderrBytes + chunkBuffer.length > SANDBOX_EXEC_MAX_CAPTURE_BYTES) {
-          failForOutputOverflow("stderr", stderrBytes, chunkBuffer.length);
-          cb();
-          return;
-        }
-        stderrChunks.push(chunkBuffer.toString());
-        stderrBytes += chunkBuffer.length;
+        appendOutputChunk(stderrChunks, chunk, maxOutputBytes);
         cb();
       },
     });
@@ -154,14 +196,15 @@ export async function execCommand(
         return;
       }
       clearTimeout(timeout);
+      cleanup();
       stdoutStream.end();
       stderrStream.end();
       try {
         const { ExitCode } = await exec.inspect();
         resolveOnce({
           exitCode: ExitCode ?? -1,
-          stdout: stdoutChunks.join(""),
-          stderr: stderrChunks.join(""),
+          stdout: finalizeOutput(stdoutChunks, maxOutputBytes),
+          stderr: finalizeOutput(stderrChunks, maxOutputBytes),
         });
       } catch (err) {
         rejectOnce(err instanceof Error ? err : new Error(String(err)));
@@ -170,6 +213,7 @@ export async function execCommand(
 
     stream.on("error", (err) => {
       clearTimeout(timeout);
+      cleanup();
       rejectOnce(err instanceof Error ? err : new Error(String(err)));
     });
   });
@@ -284,7 +328,7 @@ export async function createContainer(
     await disconnectFromNetwork(container.id);
     await verifyNetworkIsolation(container.id);
   } catch (error) {
-    await container.remove({ force: true }).catch(() => { });
+    await container.remove({ force: true }).catch(() => {});
     throw new Error(
       `Failed to isolate sandbox container from network: ${error instanceof Error ? error.message : String(error)}`,
     );

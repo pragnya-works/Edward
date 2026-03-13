@@ -2,10 +2,6 @@ import type { Response } from "express";
 import { ParserEventType } from "@edward/shared/streamEvents";
 import { subscribeToRedisChannel } from "../../../lib/redisPubSub.js";
 import type { AuthenticatedRequest } from "../../../middleware/auth.js";
-import {
-  MAX_SSE_QUEUE_BYTES,
-  MAX_SSE_QUEUE_EVENTS,
-} from "../../../utils/constants.js";
 import { ensureError } from "../../../utils/error.js";
 import { logger } from "../../../utils/logger.js";
 import {
@@ -111,8 +107,6 @@ export async function streamBuildEvents(
     sseStarted = true;
 
     configureSSEBackpressure(res, {
-      maxQueueBytes: MAX_SSE_QUEUE_BYTES,
-      maxQueueEvents: MAX_SSE_QUEUE_EVENTS,
     });
 
     const channel = `edward:build-status:${context.chatId}`;

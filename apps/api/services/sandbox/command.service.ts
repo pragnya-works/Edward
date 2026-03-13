@@ -43,7 +43,13 @@ function isWithinWorkdir(resolvedPath: string): boolean {
 function hasDisallowedControlChars(value: string): boolean {
   for (let index = 0; index < value.length; index += 1) {
     const code = value.charCodeAt(index);
-    if ((code >= 0 && code <= 8) || code === 11 || code === 12 || (code >= 14 && code <= 31) || code === 127) {
+    if (
+      (code >= 0 && code <= 8) ||
+      code === 11 ||
+      code === 12 ||
+      (code >= 14 && code <= 31) ||
+      code === 127
+    ) {
       return true;
     }
   }
@@ -144,14 +150,18 @@ function validateCommandArgs(command: string, args: string[]): void {
 export async function executeSandboxCommand(
   sandboxId: string,
   params: { command: string; args: string[] },
-  options?: { timeout?: number },
+  options?: { timeout?: number; signal?: AbortSignal },
 ): Promise<ExecResult> {
   const sandbox = await getSandboxState(sandboxId);
   if (!sandbox) {
     throw new Error(`Sandbox not found: ${sandboxId}`);
   }
 
-  if (!SANDBOX_ALLOWED_COMMANDS.includes(params.command as (typeof SANDBOX_ALLOWED_COMMANDS)[number])) {
+  if (
+    !SANDBOX_ALLOWED_COMMANDS.includes(
+      params.command as (typeof SANDBOX_ALLOWED_COMMANDS)[number],
+    )
+  ) {
     throw new Error(`Command '${params.command}' is not allowed.`);
   }
 
@@ -186,6 +196,8 @@ export async function executeSandboxCommand(
       options?.timeout ?? SANDBOX_COMMAND_TIMEOUT_MS,
       "node",
       CONTAINER_WORKDIR,
+      undefined,
+      options?.signal,
     );
   } catch (error) {
     logger.error(
