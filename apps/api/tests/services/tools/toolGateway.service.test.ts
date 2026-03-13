@@ -13,9 +13,16 @@ vi.mock("../../../services/sandbox/command.service.js", () => ({
   executeSandboxCommand: executeSandboxCommandMock,
 }));
 
-vi.mock("../../../services/websearch/tavily.search.js", () => ({
-  searchTavilyBasic: vi.fn(),
-}));
+vi.mock("../../../services/websearch/tavily.search.js", async () => {
+  const actual = await vi.importActual<
+    typeof import("../../../services/websearch/tavily.search.js")
+  >("../../../services/websearch/tavily.search.js");
+
+  return {
+    ...actual,
+    searchTavilyBasic: vi.fn(),
+  };
+});
 
 import {
   executeCommandTool,
@@ -25,6 +32,65 @@ import {
 describe("toolGateway command output sanitation", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  it("returns cached command output only when it passes runtime validation", async () => {
+    const { getRunToolCallByIdempotencyKey } = await import("@edward/auth");
+    vi.mocked(getRunToolCallByIdempotencyKey).mockResolvedValue({
+      status: "succeeded",
+      output: {
+        exitCode: 0,
+        stdout: "cached stdout",
+        stderr: "cached stderr",
+      },
+    } as Awaited<ReturnType<typeof getRunToolCallByIdempotencyKey>>);
+
+    const result = await executeCommandTool({
+      runId: "run-1",
+      turn: 1,
+      sandboxId: "sb-1",
+      command: "pnpm",
+      args: ["build"],
+    });
+
+    expect(result).toEqual({
+      exitCode: 0,
+      stdout: "cached stdout",
+      stderr: "cached stderr",
+    });
+    expect(executeSandboxCommandMock).not.toHaveBeenCalled();
+  });
+
+  it("falls back to live execution when cached command output is invalid", async () => {
+    const { getRunToolCallByIdempotencyKey } = await import("@edward/auth");
+    vi.mocked(getRunToolCallByIdempotencyKey).mockResolvedValue({
+      status: "succeeded",
+      output: {
+        exitCode: 0,
+        stdout: 42,
+        stderr: "cached stderr",
+      },
+    } as Awaited<ReturnType<typeof getRunToolCallByIdempotencyKey>>);
+    executeSandboxCommandMock.mockResolvedValue({
+      exitCode: 0,
+      stdout: "fresh stdout",
+      stderr: "fresh stderr",
+    });
+
+    const result = await executeCommandTool({
+      runId: "run-1",
+      turn: 1,
+      sandboxId: "sb-1",
+      command: "pnpm",
+      args: ["build"],
+    });
+
+    expect(result).toEqual({
+      exitCode: 0,
+      stdout: "fresh stdout",
+      stderr: "fresh stderr",
+    });
+    expect(executeSandboxCommandMock).toHaveBeenCalledOnce();
   });
 
   it("strips ANSI escape sequences without dropping mirrored stdout/stderr", async () => {
@@ -103,8 +169,9 @@ describe("toolGateway command output sanitation", () => {
   });
 
   it("returns very large command output in full", async () => {
-    const longOutput = Array.from({ length: 800 }, (_, index) =>
-      `line-${index}-${"x".repeat(20)}`,
+    const longOutput = Array.from(
+      { length: 800 },
+      (_, index) => `line-${index}-${"x".repeat(20)}`,
     ).join("\n");
 
     executeSandboxCommandMock.mockResolvedValue({
@@ -183,11 +250,14 @@ describe("toolGateway command output sanitation", () => {
     });
 
     expect(result.stdout).toBe(oversized);
-    expect(result.stdout.match(/duplicate-line/g)?.length).toBe(repeatedLineCount);
+    expect(result.stdout.match(/duplicate-line/g)?.length).toBe(
+      repeatedLineCount,
+    );
   });
 
-  it("returns full web search answers and snippets", async () => {
-    const { searchTavilyBasic } = await import("../../../services/websearch/tavily.search.js");
+  it("truncates long web search answers while preserving mapped snippets", async () => {
+    const { searchTavilyBasic } =
+      await import("../../../services/websearch/tavily.search.js");
     const answer = "answer ".repeat(400);
     const snippet = "snippet ".repeat(300);
 
@@ -209,7 +279,9 @@ describe("toolGateway command output sanitation", () => {
       maxResults: 5,
     });
 
-    expect(result.answer).toBe(answer);
+    expect(result.answer).toBeDefined();
+    expect(result.answer!.length).toBeLessThanOrEqual(320);
+    expect(result.answer).toMatch(/\.\.\.$/);
     expect(result.results[0]?.snippet).toBe(snippet);
   });
 });

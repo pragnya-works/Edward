@@ -1,6 +1,4 @@
-import {
-  MetaPhase,
-} from "@edward/shared/streamEvents";
+import { MetaPhase } from "@edward/shared/streamEvents";
 import { composePrompt } from "../../../../lib/llm/compose.js";
 import { PromptProfile } from "../../../../lib/llm/prompts/sections.js";
 import {
@@ -13,10 +11,7 @@ import {
   type Framework,
 } from "../../../../services/planning/schemas.js";
 import { runAgentLoop } from "../loop/agentLoop.runner.js";
-import {
-  createMetaEmitter,
-  type EmitMeta,
-} from "../shared/meta.js";
+import { createMetaEmitter, type EmitMeta } from "../shared/meta.js";
 import { resolveFramework } from "./frameworkResolution.js";
 import { prepareBaseMessages } from "./messagePreparation.js";
 import { setupStreamGuards } from "./streamGuards.js";
@@ -80,7 +75,6 @@ export async function runStreamSession(
   const abortController = new AbortController();
   const streamGuards = setupStreamGuards({
     req,
-    res,
     chatId,
     runId,
     abortController,

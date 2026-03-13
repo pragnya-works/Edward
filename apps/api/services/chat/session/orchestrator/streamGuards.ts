@@ -1,4 +1,3 @@
-import type { Response } from "express";
 import { StreamTerminationReason } from "@edward/shared/streamEvents";
 import type { AuthenticatedRequest } from "../../../../middleware/auth.js";
 import { logger } from "../../../../utils/logger.js";
@@ -16,7 +15,6 @@ function readStreamGuardTimeoutMs(): number {
 
 interface SetupStreamGuardsParams {
   req: AuthenticatedRequest;
-  res: Response;
   chatId: string;
   runId: string;
   abortController: AbortController;
@@ -78,14 +76,15 @@ export function setupStreamGuards(
       abortStream(StreamTerminationReason.CLIENT_DISCONNECT);
     } else {
       externalAbortHandler = () => {
-        logger.info({ chatId, runId }, "External abort signal received - cancelling stream");
+        logger.info(
+          { chatId, runId },
+          "External abort signal received - cancelling stream",
+        );
         abortStream(StreamTerminationReason.CLIENT_DISCONNECT);
       };
-      externalSignal.addEventListener(
-        "abort",
-        externalAbortHandler,
-        { once: true },
-      );
+      externalSignal.addEventListener("abort", externalAbortHandler, {
+        once: true,
+      });
     }
   }
 
@@ -96,15 +95,15 @@ export function setupStreamGuards(
         clearTimeout(timeoutId);
         timeoutId = null;
       }
-      if (
-        requestCloseHandler &&
-        typeof req.removeListener === "function"
-      ) {
+      if (requestCloseHandler && typeof req.removeListener === "function") {
         req.removeListener("close", requestCloseHandler);
         requestCloseHandler = null;
       }
       if (abortControllerHandler) {
-        abortController.signal.removeEventListener("abort", abortControllerHandler);
+        abortController.signal.removeEventListener(
+          "abort",
+          abortControllerHandler,
+        );
         abortControllerHandler = null;
       }
       if (externalSignal && externalAbortHandler) {

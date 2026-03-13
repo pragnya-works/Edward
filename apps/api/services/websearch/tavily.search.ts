@@ -1,7 +1,7 @@
 import { config } from "../../app.config.js";
 
 const DEFAULT_TIMEOUT_MS = 10_000;
-const MAX_SNIPPET_LENGTH = 320;
+export const MAX_TAVILY_SNIPPET_LENGTH = 320;
 
 interface TavilyResultItem {
   title?: string;
@@ -26,9 +26,42 @@ export interface TavilySearchOutput {
   results: TavilySearchOutputItem[];
 }
 
-function truncate(text: string, maxLength: number): string {
+export function truncateTavilyText(text: string, maxLength: number): string {
   if (text.length <= maxLength) return text;
   return `${text.slice(0, maxLength - 3)}...`;
+}
+
+function anyAbortSignal(signals: AbortSignal[]): {
+  signal: AbortSignal;
+  cleanup: () => void;
+} {
+  const controller = new AbortController();
+  const listeners = new Map<AbortSignal, () => void>();
+
+  const cleanup = () => {
+    for (const [signal, listener] of listeners) {
+      signal.removeEventListener("abort", listener);
+    }
+    listeners.clear();
+  };
+
+  for (const signal of signals) {
+    if (signal.aborted) {
+      controller.abort(signal.reason);
+      return { signal: controller.signal, cleanup };
+    }
+  }
+
+  for (const signal of signals) {
+    const listener = () => {
+      cleanup();
+      controller.abort(signal.reason);
+    };
+    listeners.set(signal, listener);
+    signal.addEventListener("abort", listener, { once: true });
+  }
+
+  return { signal: controller.signal, cleanup };
 }
 
 export async function searchTavilyBasic(
@@ -44,9 +77,10 @@ export async function searchTavilyBasic(
   }
 
   const controller = new AbortController();
-  const combinedSignal = signal
-    ? AbortSignal.any([signal, controller.signal])
-    : controller.signal;
+  const combinedSignalHandle = signal
+    ? anyAbortSignal([signal, controller.signal])
+    : null;
+  const combinedSignal = combinedSignalHandle?.signal ?? controller.signal;
   const timer = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
 
   try {
@@ -79,7 +113,10 @@ export async function searchTavilyBasic(
         {
           title,
           url,
-          snippet: truncate(item.content?.trim() ?? "", MAX_SNIPPET_LENGTH),
+          snippet: truncateTavilyText(
+            item.content?.trim() ?? "",
+            MAX_TAVILY_SNIPPET_LENGTH,
+          ),
         },
       ];
     });
@@ -91,5 +128,6 @@ export async function searchTavilyBasic(
     };
   } finally {
     clearTimeout(timer);
+    combinedSignalHandle?.cleanup();
   }
 }

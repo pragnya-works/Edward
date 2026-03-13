@@ -6,13 +6,64 @@ import path from "path";
 import { config } from "../../app.config.js";
 import { createLogger } from "../../utils/logger.js";
 
-const logger = createLogger('DOCKER_SANDBOX');
+const logger = createLogger("DOCKER_SANDBOX");
 
 const docker = new Docker();
 const getPrewarmImage = () => config.docker.prewarmImage;
 export const CONTAINER_WORKDIR = "/home/node/edward";
 export const SANDBOX_LABEL = "com.edward.sandbox";
 const EXEC_TIMEOUT_MS = 10000;
+export const DEFAULT_MAX_OUTPUT_BYTES = 1_000_000;
+
+interface OutputAccumulator {
+  chunks: string[];
+  totalBytes: number;
+  truncated: boolean;
+}
+
+function appendOutputChunk(
+  accumulator: OutputAccumulator,
+  chunk: Buffer | string,
+  maxOutputBytes: number | null,
+): void {
+  const normalizedChunk = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+
+  if (maxOutputBytes == null) {
+    accumulator.chunks.push(normalizedChunk.toString());
+    accumulator.totalBytes += normalizedChunk.byteLength;
+    return;
+  }
+
+  if (accumulator.totalBytes >= maxOutputBytes) {
+    accumulator.truncated = true;
+    return;
+  }
+
+  const remainingBytes = maxOutputBytes - accumulator.totalBytes;
+  const nextChunk =
+    normalizedChunk.byteLength > remainingBytes
+      ? normalizedChunk.subarray(0, remainingBytes)
+      : normalizedChunk;
+
+  accumulator.chunks.push(nextChunk.toString());
+  accumulator.totalBytes += nextChunk.byteLength;
+
+  if (nextChunk.byteLength < normalizedChunk.byteLength) {
+    accumulator.truncated = true;
+  }
+}
+
+function finalizeOutput(
+  accumulator: OutputAccumulator,
+  maxOutputBytes: number | null,
+): string {
+  const output = accumulator.chunks.join("");
+  if (!accumulator.truncated || maxOutputBytes == null) {
+    return output;
+  }
+
+  return `${output}\n...[truncated after ${maxOutputBytes} bytes]`;
+}
 
 export async function pingDocker(): Promise<boolean> {
   try {
@@ -47,6 +98,7 @@ export async function execCommand(
   workingDir?: string,
   env?: string[],
   signal?: AbortSignal,
+  maxOutputBytes: number | null = DEFAULT_MAX_OUTPUT_BYTES,
 ): Promise<ExecResult> {
   await ensureContainerRunning(container);
 
@@ -61,8 +113,16 @@ export async function execCommand(
 
   const stream = await exec.start({ hijack: true });
 
-  const stdoutChunks: string[] = [];
-  const stderrChunks: string[] = [];
+  const stdoutChunks: OutputAccumulator = {
+    chunks: [],
+    totalBytes: 0,
+    truncated: false,
+  };
+  const stderrChunks: OutputAccumulator = {
+    chunks: [],
+    totalBytes: 0,
+    truncated: false,
+  };
 
   const result = await new Promise<ExecResult>((resolve, reject) => {
     let settled = false;
@@ -113,7 +173,7 @@ export async function execCommand(
         _enc: BufferEncoding,
         cb: (error?: Error | null) => void,
       ) {
-        stdoutChunks.push(Buffer.isBuffer(chunk) ? chunk.toString() : chunk);
+        appendOutputChunk(stdoutChunks, chunk, maxOutputBytes);
         cb();
       },
     });
@@ -124,7 +184,7 @@ export async function execCommand(
         _enc: BufferEncoding,
         cb: (error?: Error | null) => void,
       ) {
-        stderrChunks.push(Buffer.isBuffer(chunk) ? chunk.toString() : chunk);
+        appendOutputChunk(stderrChunks, chunk, maxOutputBytes);
         cb();
       },
     });
@@ -143,8 +203,8 @@ export async function execCommand(
         const { ExitCode } = await exec.inspect();
         resolveOnce({
           exitCode: ExitCode ?? -1,
-          stdout: stdoutChunks.join(""),
-          stderr: stderrChunks.join(""),
+          stdout: finalizeOutput(stdoutChunks, maxOutputBytes),
+          stderr: finalizeOutput(stderrChunks, maxOutputBytes),
         });
       } catch (err) {
         rejectOnce(err instanceof Error ? err : new Error(String(err)));
@@ -268,7 +328,7 @@ export async function createContainer(
     await disconnectFromNetwork(container.id);
     await verifyNetworkIsolation(container.id);
   } catch (error) {
-    await container.remove({ force: true }).catch(() => { });
+    await container.remove({ force: true }).catch(() => {});
     throw new Error(
       `Failed to isolate sandbox container from network: ${error instanceof Error ? error.message : String(error)}`,
     );

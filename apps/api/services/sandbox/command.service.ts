@@ -43,7 +43,13 @@ function isWithinWorkdir(resolvedPath: string): boolean {
 function hasDisallowedControlChars(value: string): boolean {
   for (let index = 0; index < value.length; index += 1) {
     const code = value.charCodeAt(index);
-    if ((code >= 0 && code <= 8) || code === 11 || code === 12 || (code >= 14 && code <= 31) || code === 127) {
+    if (
+      (code >= 0 && code <= 8) ||
+      code === 11 ||
+      code === 12 ||
+      (code >= 14 && code <= 31) ||
+      code === 127
+    ) {
       return true;
     }
   }
@@ -151,7 +157,11 @@ export async function executeSandboxCommand(
     throw new Error(`Sandbox not found: ${sandboxId}`);
   }
 
-  if (!SANDBOX_ALLOWED_COMMANDS.includes(params.command as (typeof SANDBOX_ALLOWED_COMMANDS)[number])) {
+  if (
+    !SANDBOX_ALLOWED_COMMANDS.includes(
+      params.command as (typeof SANDBOX_ALLOWED_COMMANDS)[number],
+    )
+  ) {
     throw new Error(`Command '${params.command}' is not allowed.`);
   }
 
@@ -179,19 +189,6 @@ export async function executeSandboxCommand(
   }
 
   try {
-    if (options?.signal) {
-      return await execCommand(
-        container,
-        [params.command, ...params.args],
-        false,
-        options.timeout ?? SANDBOX_COMMAND_TIMEOUT_MS,
-        "node",
-        CONTAINER_WORKDIR,
-        undefined,
-        options.signal,
-      );
-    }
-
     return await execCommand(
       container,
       [params.command, ...params.args],
@@ -199,6 +196,8 @@ export async function executeSandboxCommand(
       options?.timeout ?? SANDBOX_COMMAND_TIMEOUT_MS,
       "node",
       CONTAINER_WORKDIR,
+      undefined,
+      options?.signal,
     );
   } catch (error) {
     logger.error(

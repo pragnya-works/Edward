@@ -64,6 +64,8 @@ describe("executeSandboxCommand", () => {
       expect.any(Number),
       "node",
       expect.any(String),
+      undefined,
+      undefined,
     );
   });
 

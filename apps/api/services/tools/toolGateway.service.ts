@@ -6,14 +6,16 @@ import {
 import { ensureError } from "../../utils/error.js";
 import { logger } from "../../utils/logger.js";
 import { executeSandboxCommand } from "../sandbox/command.service.js";
-import { searchTavilyBasic } from "../websearch/tavily.search.js";
+import {
+  MAX_TAVILY_SNIPPET_LENGTH,
+  searchTavilyBasic,
+  truncateTavilyText,
+} from "../websearch/tavily.search.js";
 import {
   TOOL_GATEWAY_RETRY_ATTEMPTS,
   TOOL_GATEWAY_TIMEOUT_MS,
 } from "../../utils/constants.js";
-import {
-  stripAnsiOnly,
-} from "./commandOutput.js";
+import { stripAnsiOnly } from "./commandOutput.js";
 
 const TOOL_TIMEOUT_ERROR_NAME = "ToolTimeoutError";
 
@@ -79,6 +81,7 @@ interface ExecuteToolGatewayParams<TOutput> {
   toolName: string;
   input: Record<string, unknown>;
   execute: (signal: AbortSignal) => Promise<TOutput>;
+  validateOutput: (value: unknown) => value is TOutput;
   timeoutMs?: number;
   retryAttempts?: number;
 }
@@ -104,7 +107,19 @@ export async function executeToolWithGateway<TOutput>(
       idempotencyKey,
     );
     if (cached?.status === "succeeded" && cached.output) {
-      return cached.output as TOutput;
+      if (params.validateOutput(cached.output)) {
+        return cached.output;
+      }
+
+      logger.warn(
+        {
+          runId: params.runId,
+          toolName: params.toolName,
+          turn: params.turn,
+          idempotencyKey,
+        },
+        "Ignoring cached tool output because it failed runtime validation",
+      );
     }
 
     await upsertRunToolCall({
@@ -192,6 +207,19 @@ export interface CommandToolOutput {
   stderr: string;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function isCommandToolOutput(value: unknown): value is CommandToolOutput {
+  return (
+    isRecord(value) &&
+    typeof value.exitCode === "number" &&
+    typeof value.stdout === "string" &&
+    typeof value.stderr === "string"
+  );
+}
+
 export async function executeCommandTool(params: {
   runId?: string;
   turn: number;
@@ -208,6 +236,7 @@ export async function executeCommandTool(params: {
       command: params.command,
       args: params.args,
     },
+    validateOutput: isCommandToolOutput,
     execute: async (signal) => {
       const raw = await executeSandboxCommand(
         params.sandboxId,
@@ -238,6 +267,27 @@ export interface WebSearchToolOutput {
   results: WebSearchToolResultItem[];
 }
 
+function isWebSearchToolResultItem(
+  value: unknown,
+): value is WebSearchToolResultItem {
+  return (
+    isRecord(value) &&
+    typeof value.title === "string" &&
+    typeof value.url === "string" &&
+    typeof value.snippet === "string"
+  );
+}
+
+function isWebSearchToolOutput(value: unknown): value is WebSearchToolOutput {
+  return (
+    isRecord(value) &&
+    typeof value.query === "string" &&
+    (value.answer === undefined || typeof value.answer === "string") &&
+    Array.isArray(value.results) &&
+    value.results.every((item) => isWebSearchToolResultItem(item))
+  );
+}
+
 export async function executeWebSearchTool(params: {
   runId?: string;
   turn: number;
@@ -252,6 +302,7 @@ export async function executeWebSearchTool(params: {
       query: params.query,
       maxResults: params.maxResults,
     },
+    validateOutput: isWebSearchToolOutput,
     execute: async (signal) => {
       const raw = await searchTavilyBasic(
         params.query,
@@ -260,7 +311,9 @@ export async function executeWebSearchTool(params: {
       );
       return {
         query: raw.query,
-        answer: raw.answer,
+        answer: raw.answer
+          ? truncateTavilyText(raw.answer, MAX_TAVILY_SNIPPET_LENGTH)
+          : undefined,
         results: raw.results.map((item) => ({
           title: item.title,
           url: item.url,
