@@ -5,44 +5,10 @@ Edward is an AI-assisted web app builder. The product combines a Next.js fronten
 ## Product Demo
 
 <p align="center">
-  <a href="./public/videos/edward.mp4">
-    <img src="./public/videos/posters/edward.jpg" alt="Edward full product walkthrough" width="100%" />
+  <a href="https://www.youtube.com/watch?v=zIBuOmr92_s">
+    <img src="https://img.youtube.com/vi/zIBuOmr92_s/hqdefault.jpg" alt="Watch the demo" width="700" />
   </a>
 </p>
-
-<p align="center">
-  <strong><a href="./public/videos/edward.mp4">Watch the full Edward walkthrough</a></strong><br />
-  4m 45s · 1280×720 · 15.2 MB
-</p>
-
-<table>
-  <tr>
-    <td width="50%">
-      <a href="./public/videos/edward-nova.mp4">
-        <img src="./public/videos/posters/edward-nova.jpg" alt="Edward Nova demo" />
-      </a>
-      <br />
-      <strong><a href="./public/videos/edward-nova.mp4">Edward Nova</a></strong>
-      <br />
-      A focused client-only coding workspace demo.
-      <br />
-      33s · 1280×734 · 1.9 MB
-    </td>
-    <td width="50%">
-      <a href="./public/videos/portfolio.mp4">
-        <img src="./public/videos/posters/portfolio.jpg" alt="Portfolio build demo" />
-      </a>
-      <br />
-      <strong><a href="./public/videos/portfolio.mp4">Portfolio Build</a></strong>
-      <br />
-      Prompt-to-preview generation of a polished portfolio site.
-      <br />
-      21s · 1280×720 · 1.4 MB
-    </td>
-  </tr>
-</table>
-
-Direct files: [Full walkthrough](./public/videos/edward.mp4) · [Edward Nova](./public/videos/edward-nova.mp4) · [Portfolio Build](./public/videos/portfolio.mp4)
 
 ## What This Repo Contains
 
