@@ -6,7 +6,7 @@ Edward is an AI-assisted web app builder. The product combines a Next.js fronten
 
 <p align="center">
   <a href="https://www.youtube.com/watch?v=zIBuOmr92_s">
-    <img src="https://img.youtube.com/vi/zIBuOmr92_s/hqdefault.jpg" alt="Watch the demo" width="700" />
+    <img src="https://res.cloudinary.com/duhbdm1sx/image/upload/v1777439615/edward_h3gzyg.png" alt="Watch the demo" width="700" />
   </a>
 </p>
 
