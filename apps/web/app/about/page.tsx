@@ -7,7 +7,7 @@ const aboutCanonicalUrl = getCanonicalUrl("/about");
 
 const description = SITE_DESCRIPTION;
 
-export const revalidate = 3600;
+export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "About",

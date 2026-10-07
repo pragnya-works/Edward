@@ -1,6 +1,8 @@
 import type { MetadataRoute } from "next";
 import { SITE_DESCRIPTION } from "@/lib/site";
 
+export const dynamic = "force-dynamic";
+
 export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "Edward",

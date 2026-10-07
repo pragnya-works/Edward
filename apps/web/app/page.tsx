@@ -1,6 +1,6 @@
 import Home from "@/components/home/home";
 
-export const revalidate = 3600;
+export const dynamic = "force-dynamic";
 
 export default function Page() {
   return <Home />;

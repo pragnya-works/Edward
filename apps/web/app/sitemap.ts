@@ -15,6 +15,8 @@ const STATIC_ROUTES: StaticRoute[] = [
   { path: "/terms", changeFrequency: "yearly", priority: 0.3 },
 ];
 
+export const dynamic = "force-dynamic";
+
 export default function sitemap(): MetadataRoute.Sitemap {
   const now = new Date();
   const entries: MetadataRoute.Sitemap = [];

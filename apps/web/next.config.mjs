@@ -57,15 +57,16 @@ const nextConfig = {
   async headers() {
     return [
       {
-        // Public HTML, robots.txt and sitemap.xml must revalidate at the edge
-        // so a copy change is never served from a stale cache. Hashed build
-        // assets under _next stay immutable and are excluded.
+        // Public responses must not be stored. Versioned Next.js assets
+        // retain their normal cache policy.
         source: "/:path((?!_next/static|_next/image).*)",
         headers: [
           {
             key: "Cache-Control",
-            value: "public, max-age=0, must-revalidate",
+            value: "no-store",
           },
+          { key: "CDN-Cache-Control", value: "no-store" },
+          { key: "Vercel-CDN-Cache-Control", value: "no-store" },
         ],
       },
     ];

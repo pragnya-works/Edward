@@ -8,7 +8,7 @@ import { ChangelogMetrics } from "@/components/changelog/metrics";
 import { AlertCircle, CheckCircle2, FolderGit, Hammer } from "lucide-react";
 import { getCanonicalUrl, STATIC_OG_IMAGE_URL } from "@/lib/seo/siteUrl";
 
-export const revalidate = 3600;
+export const dynamic = "force-dynamic";
 const changelogCanonicalUrl = getCanonicalUrl("/changelog");
 
 export const metadata: Metadata = {
