@@ -44,6 +44,22 @@ if (process.env.NEXT_PUBLIC_SENTRY_DSN && !hasValidSentryTunnel) {
 }
 
 const nextConfig = {
+  async headers() {
+    return [
+      {
+        // Public HTML, robots.txt and sitemap.xml must revalidate at the edge
+        // so a copy change is never served from a stale cache. Hashed build
+        // assets under _next stay immutable and are excluded.
+        source: "/:path((?!_next/static|_next/image).*)",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "public, max-age=0, must-revalidate",
+          },
+        ],
+      },
+    ];
+  },
   transpilePackages: ["@edward/ui", "@shadergradient/react"],
   experimental: {
     optimizePackageImports: ["lucide-react"],

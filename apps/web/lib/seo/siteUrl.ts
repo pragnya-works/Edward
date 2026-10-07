@@ -1,4 +1,9 @@
 export const STATIC_OG_IMAGE_URL = "https://assets.pragnyaa.in/home/OG.png";
+// Must match the origin Vercel actually serves. If the primary domain is
+// switched to edwardd.app, change this to "https://edwardd.app" in the same
+// commit, otherwise canonicals and the www->apex redirect disagree.
+const PRODUCTION_SITE_URL = "https://www.edwardd.app";
+
 
 function parseSiteUrl(input: string | undefined): URL | null {
   const value = input?.trim();
@@ -22,8 +27,10 @@ function parseSiteUrl(input: string | undefined): URL | null {
 }
 
 export function getSiteUrl(): URL | null {
-  return parseSiteUrl(
-    process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_APP_URL,
+  return (
+    parseSiteUrl(
+      process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_APP_URL,
+    ) ?? new URL(PRODUCTION_SITE_URL)
   );
 }
 

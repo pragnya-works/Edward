@@ -1,10 +1,6 @@
 import { Metadata } from "next";
 import { Suspense, type ComponentType, type ReactNode } from "react";
-import {
-  LinearFetchError,
-  getLinearIssues,
-  sortIssues,
-} from "@/lib/linear";
+import { getLinearIssues, sortIssues } from "@/lib/linear";
 import { ChangelogHeader } from "@/components/changelog/header";
 import { IssueCardSkeleton } from "@/components/changelog/issueCard";
 import { ChangelogViewer } from "@/components/changelog/changelogViewer";
@@ -42,7 +38,7 @@ function ChangelogSkeleton() {
   );
 }
 
-function ErrorState({ error }: { error: LinearFetchError }) {
+function ErrorState() {
   return (
     <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
       <div className="w-12 h-12 rounded-full bg-destructive/10 flex items-center justify-center mb-4">
@@ -52,9 +48,7 @@ function ErrorState({ error }: { error: LinearFetchError }) {
         Unable to Load Changelog
       </h3>
       <p className="text-sm text-muted-foreground max-w-sm">
-        {error === LinearFetchError.MISSING_API_KEY
-          ? "Please configure the LINEAR_API_KEY environment variable."
-          : "There was an error connecting to Linear. Please try again later."}
+        The changelog is not available right now. Please try again later.
       </p>
     </div>
   );
@@ -104,7 +98,7 @@ function ChangelogSection({
 async function ChangelogContent() {
   const { issues, error } = await getLinearIssues();
 
-  if (error) return <ErrorState error={error} />;
+  if (error) return <ErrorState />;
   if (issues.length === 0) return <EmptyState />;
 
   const inProgressIssues: typeof issues = [];

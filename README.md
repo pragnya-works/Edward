@@ -1,7 +1,34 @@
 # Edward
 
-Edward is an AI-assisted web app builder. The product combines a Next.js frontend, an Express API, a background worker, and Docker-backed sandboxes so a user can describe a product in chat, generate code, iterate on files, preview the result, and sync work back to GitHub.
+Edward is an AI software development platform for generating, running, previewing,
+iterating on, and shipping web applications from natural-language instructions.
+Describe the app you want, Edward plans the change, writes the code, runs it in an
+isolated sandbox, and serves a live preview you can keep refining.
 
+## Identity
+
+| | |
+|---|---|
+| Product | Edward |
+| Website | https://edwardd.app |
+| Founder | Shubhojeet Bera |
+| Public launch | January 2026 |
+| Operator | Pragnya Works |
+| Contact | founder@edwardd.app |
+| Repository | https://github.com/pragnya-works/Edward |
+
+Edward is the name of the product. The service is operated by Pragnya Works.
+
+Edward uses a BYOK model. Users connect a model provider with their own API key.
+Supported providers are Anthropic Claude, OpenAI, and Gemini. Edward supports
+Claude through Anthropic's API alongside other supported model providers.
+
+## Architecture
+
+Postgres stores users, chats, runs, builds, and auth data. Redis backs the BullMQ
+queues. Docker is required because sandbox sessions and generated-app builds run in
+containers created through the Docker API. Users authenticate with GitHub and then
+supply their own model API key inside the app.
 ## What This Repo Contains
 
 - `apps/web`: Next.js 16 app-router frontend, auth routes, chat UI, preview UI, changelog UI
@@ -17,9 +44,6 @@ Edward is an AI-assisted web app builder. The product combines a Next.js fronten
 - The web app runs on `http://localhost:3000`.
 - The API runs on `http://localhost:8000`.
 - The API worker processes build and agent jobs from Redis-backed BullMQ queues.
-- Postgres stores users, chats, runs, builds, and auth data.
-- Docker is required locally because sandbox sessions and generated-app builds depend on containerized execution.
-- Users authenticate with GitHub and then provide their own model API key inside the app for OpenAI or Gemini-backed generation.
 
 ## Prerequisites
 
@@ -178,7 +202,7 @@ Open:
 ### 7. First-run checklist
 
 - Sign in with GitHub.
-- Add your OpenAI or Gemini API key in the product UI.
+- Add your Anthropic, OpenAI, or Gemini API key in the product UI.
 - Start a chat and generate a project.
 
 ## Required Vs Optional Integrations

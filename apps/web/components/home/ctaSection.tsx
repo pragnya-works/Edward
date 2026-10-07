@@ -46,13 +46,13 @@ export function CTASection() {
                     >
                         <AnimatedShinyText className="inline-flex items-center justify-center gap-2 px-4 py-1.5 text-sm font-medium transition ease-out hover:text-neutral-600 hover:duration-300 hover:dark:text-neutral-400">
                             <span>🚀</span>
-                            <span>Start building today</span>
+                            <span>Get started</span>
                             <ArrowRight className="ml-1 size-3.5 transition-transform duration-300 ease-in-out group-hover/badge:translate-x-0.5" />
                         </AnimatedShinyText>
                     </div>
-                    <h2 className="mb-6 text-3xl font-bold tracking-tight md:text-5xl">Ready to ship your <br /> next big thing?</h2>
+                    <h2 className="mb-6 text-3xl font-bold tracking-tight md:text-5xl">Describe what you want to build.</h2>
                     <p className="mb-10 text-lg text-muted-foreground max-w-xl mx-auto">
-                        Experience the fastest way to build modern frontend applications with Edward&apos;s AI-driven workflow.
+                        Sign in with GitHub, connect a model provider with your own API key, and start a project. Edward supports Claude through Anthropic&apos;s API alongside OpenAI and Gemini.
                     </p>
                     <div className="flex flex-col sm:flex-row justify-center gap-4">
                         <Button
@@ -60,7 +60,7 @@ export function CTASection() {
                             className="bg-primary rounded-full text-primary-foreground hover:bg-primary/90 h-12 px-8 text-base"
                             onClick={handleGetStarted}
                         >
-                            Get Started for Free
+                            Sign in with GitHub
                         </Button>
                     </div>
                 </div>

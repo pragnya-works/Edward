@@ -12,6 +12,7 @@ import {
   getSiteUrl,
   STATIC_OG_IMAGE_URL,
 } from "@/lib/seo/siteUrl"
+import { structuredData } from "@/lib/seo/structuredData"
 
 const fontSans = Geist({
   subsets: ["latin"],
@@ -104,6 +105,10 @@ export default function RootLayout({
       <body
         className={`${fontSans.variable} ${fontMono.variable} font-sans antialiased `}
       >
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+        />
         <Providers>
           <ConditionalSidebarLayout>
             <Navbar />

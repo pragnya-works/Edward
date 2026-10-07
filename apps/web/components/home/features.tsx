@@ -4,10 +4,96 @@ import React, { memo, useState, useEffect, useRef } from "react";
 import dynamic from "next/dynamic";
 import { BentoCard, BentoGrid } from "@edward/ui/components/bento-grid";
 import { DottedMap } from "@edward/ui/components/dotted-map";
-import { LineShadowText } from "@edward/ui/components/line-shadow-text";
 import { m, useReducedMotion } from "motion/react";
 import { useTabVisibility } from "@edward/ui/hooks/useTabVisibility";
+import { LineShadowText } from "@edward/ui/components/line-shadow-text";
 import { FadeInOnScroll } from "./fadeInOnScroll";
+
+const FasterText = memo(({ shadowColor, word }: { shadowColor: string; word: string }) => {
+    return (
+        <m.span
+            initial="initial"
+            whileHover="active"
+            className="group relative inline-block cursor-default"
+        >
+            <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-12 pointer-events-none overflow-hidden">
+                {["trace-a", "trace-b", "trace-c"].map((traceId, traceIndex) => (
+                    <m.div
+                        key={traceId}
+                        variants={{
+                            initial: { x: "-120%", opacity: 0 },
+                            active: {
+                                x: ["120%", "-120%"],
+                                opacity: [0, 0.4, 0],
+                                transition: {
+                                    duration: 0.3,
+                                    repeat: Infinity,
+                                    delay: traceIndex * 0.1,
+                                    ease: "linear"
+                                }
+                            }
+                        }}
+                        style={{ top: `${20 + traceIndex * 30}%` }}
+                        className="absolute w-full h-[0.5px] bg-primary/30"
+                    />
+                ))}
+            </div>
+
+            <m.span
+                className="relative inline-block"
+                variants={{
+                    initial: { y: 0, x: 0, scale: 1, rotate: 0 },
+                    active: {
+                        y: [0, -3, -2.5, -3.2, -3],
+                        x: [0, 1.2, -1.2, 1, -1, 0],
+                        scale: 1.05,
+                        rotate: [0, 1.5, -1.5, 1.5, 0],
+                        transition: {
+                            y: { duration: 0.1, ease: "easeOut" },
+                            x: { duration: 0.06, repeat: Infinity, ease: "linear" },
+                            rotate: { duration: 0.08, repeat: Infinity, ease: "linear" },
+                            scale: { duration: 0.2, ease: "circOut" }
+                        }
+                    }
+                }}
+            >
+                <LineShadowText
+                    className="italic transition-all duration-300 group-hover:text-primary group-hover:brightness-125"
+                    shadowColor={shadowColor}
+                >
+                    {word}
+                </LineShadowText>
+                <m.div
+                    variants={{
+                        initial: { opacity: 0, scale: 0.8 },
+                        active: {
+                            opacity: [0, 0.3, 0.15],
+                            scale: [0.8, 1.2, 1],
+                            transition: {
+                                opacity: { duration: 0.2 },
+                                scale: { duration: 1.5, repeat: Infinity, ease: "easeInOut" }
+                            }
+                        }
+                    }}
+                    className="absolute -inset-2 bg-primary/10 blur-xl rounded-full -z-10"
+                />
+            </m.span>
+
+            <m.div
+                variants={{
+                    initial: { width: "0%", opacity: 0 },
+                    active: {
+                        width: ["0%", "100%", "90%"],
+                        opacity: [0, 0.8, 0.6],
+                        transition: { duration: 0.3, ease: "circOut" }
+                    }
+                }}
+                className="absolute -bottom-1 left-1/2 -translate-x-1/2 h-[1px] bg-gradient-to-r from-transparent via-primary to-transparent"
+            />
+        </m.span>
+    );
+});
+FasterText.displayName = "FasterText";
 
 const AIGenerationVisual = dynamic(
     () => import("./aiGenerationVisual").then((mod) => mod.AIGenerationVisual),
@@ -111,117 +197,36 @@ TerminalBackground.displayName = "TerminalBackground";
 
 const features = [
     {
-        name: "AI-Powered Generation",
-        description: "Describe your vision and watch Edward turn your ideas into functional, beautiful React components.",
+        name: "Code generation",
+        description:
+            "Describe the app you want and Edward writes the components, styles, and wiring behind it.",
         className: "md:col-span-2",
         background: <AIGenerationVisual />,
     },
     {
         name: "Instant Preview",
-        description: "See instant updates as you refine your prompt - what you see is what you get.",
+        description:
+            "Every change runs in a sandbox and shows up in the preview as you iterate.",
         className: "md:col-span-1",
         background: <PreviewBackground />,
     },
     {
-        name: "Instant Repository Sync",
-        description: "Connect and sync your GitHub repository instantly.",
+        name: "GitHub sync",
+        description:
+            "Connect a repository and push the project back when the code is ready.",
         className: "md:col-span-1",
         background: <GitHubSyncVisual />,
     },
     {
-        name: "Autonomous Intelligence",
-        description: "Edward plans, executes, and iterates. It doesn't just write code; it follows instructions to completion across your entire project.",
+        name: "Works across your project",
+        description:
+            "Edward plans the change first, then edits the files it needs to touch and finishes the job.",
         className: "md:col-span-2",
         background: <TerminalBackground />,
     },
 ];
 
 
-const FasterText = memo(({ shadowColor }: { shadowColor: string }) => {
-    return (
-        <m.span
-            initial="initial"
-            whileHover="active"
-            className="group relative inline-block cursor-default"
-        >
-            <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-12 pointer-events-none overflow-hidden">
-                {["trace-a", "trace-b", "trace-c"].map((traceId, traceIndex) => (
-                    <m.div
-                        key={traceId}
-                        variants={{
-                            initial: { x: "-120%", opacity: 0 },
-                            active: {
-                                x: ["120%", "-120%"],
-                                opacity: [0, 0.4, 0],
-                                transition: {
-                                    duration: 0.3,
-                                    repeat: Infinity,
-                                    delay: traceIndex * 0.1,
-                                    ease: "linear"
-                                }
-                            }
-                        }}
-                        style={{ top: `${20 + traceIndex * 30}%` }}
-                        className="absolute w-full h-[0.5px] bg-primary/30"
-                    />
-                ))}
-            </div>
-
-            <m.span
-                className="relative inline-block"
-                variants={{
-                    initial: { y: 0, x: 0, scale: 1, rotate: 0 },
-                    active: {
-                        y: [0, -3, -2.5, -3.2, -3],
-                        x: [0, 1.2, -1.2, 1, -1, 0],
-                        scale: 1.05,
-                        rotate: [0, 1.5, -1.5, 1.5, 0],
-                        transition: {
-                            y: { duration: 0.1, ease: "easeOut" },
-                            x: { duration: 0.06, repeat: Infinity, ease: "linear" },
-                            rotate: { duration: 0.08, repeat: Infinity, ease: "linear" },
-                            scale: { duration: 0.2, ease: "circOut" }
-                        }
-                    }
-                }}
-            >
-                <LineShadowText
-                    className="italic transition-all duration-300 group-hover:text-primary group-hover:brightness-125"
-                    shadowColor={shadowColor}
-                >
-                    faster
-                </LineShadowText>
-                <m.div
-                    variants={{
-                        initial: { opacity: 0, scale: 0.8 },
-                        active: {
-                            opacity: [0, 0.3, 0.15],
-                            scale: [0.8, 1.2, 1],
-                            transition: {
-                                opacity: { duration: 0.2 },
-                                scale: { duration: 1.5, repeat: Infinity, ease: "easeInOut" }
-                            }
-                        }
-                    }}
-                    className="absolute -inset-2 bg-primary/10 blur-xl rounded-full -z-10"
-                />
-            </m.span>
-
-            <m.div
-                variants={{
-                    initial: { width: "0%", opacity: 0 },
-                    active: {
-                        width: ["0%", "100%", "90%"],
-                        opacity: [0, 0.8, 0.6],
-                        transition: { duration: 0.3, ease: "circOut" }
-                    }
-                }}
-                className="absolute -bottom-1 left-1/2 -translate-x-1/2 h-[1px] bg-gradient-to-r from-transparent via-primary to-transparent"
-            />
-        </m.span>
-    );
-});
-FasterText.displayName = "FasterText";
 
 
 export function Features() {
@@ -232,13 +237,13 @@ export function Features() {
                 <div className="my-10 md:my-20 flex flex-col items-center justify-center text-center">
                     <FadeInOnScroll>
                         <h2 className="mb-4 md:mb-6 text-2xl font-bold tracking-tight text-foreground md:text-4xl lg:text-5xl">
-                            Everything you need to ship{" "}
-                            <FasterText shadowColor="var(--foreground)" />
+                            From prompt to running{" "}
+                            <FasterText shadowColor="var(--foreground)" word="preview" />
                         </h2>
                     </FadeInOnScroll>
                     <FadeInOnScroll delay={0.1}>
                         <p className="max-w-2xl text-sm md:text-base lg:text-lg text-muted-foreground leading-relaxed">
-                            Edward streamlines the entire development journey, seamlessly transforming your vision into functional, interactive applications.
+                            From the first instruction to a running preview, and then as many changes as you want on top of it.
                         </p>
                     </FadeInOnScroll>
                 </div>

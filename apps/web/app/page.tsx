@@ -1,6 +1,8 @@
 import { Metadata } from "next";
 import Home from "@/components/home/home";
 
+
+export const revalidate = 3600;
 export const metadata: Metadata = {
   title: "Edward",
   description:

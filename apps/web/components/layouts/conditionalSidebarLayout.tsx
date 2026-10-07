@@ -138,7 +138,7 @@ export default function ConditionalSidebarLayout({
 
   return (
     <>
-      {!shouldShowSessionLoader ? content : null}
+      {content}
       {overlayVisible && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-[oklch(0.145_0_0)]"
