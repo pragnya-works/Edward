@@ -77,8 +77,16 @@ export default function AboutPage() {
 
         <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
           Shubhojeet Bera founded Edward, and the product first launched in
-          January 2026. Pragnya Works operates it. Edward is the product name,
-          not a separate company.
+          January 2026. It is operated by{" "}
+          <a
+            href="https://www.pragnyaa.in/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-foreground underline underline-offset-4 hover:text-primary transition-colors"
+          >
+            Pragnya Works
+          </a>
+          . Edward is the product name, not a separate company.
         </p>
 
         <section className="mt-12">

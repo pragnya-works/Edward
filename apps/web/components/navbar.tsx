@@ -26,6 +26,7 @@ export default function Navbar() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const pathname = usePathname();
   const isChangelogPage = pathname === "/changelog";
+  const isAboutPage = pathname === "/about";
   const isChatConversationRoute = pathname.startsWith("/chat/");
 
   const handleSignIn = async () => {
@@ -63,6 +64,25 @@ export default function Navbar() {
                     >
                       <span className="text-foreground hover:text-muted-foreground transition-colors">
                         Changelog
+                      </span>
+                    </Link>
+                  </m.div>
+                )}
+              </AnimatePresence>
+              <AnimatePresence>
+                {visible && !isAboutPage && (
+                  <m.div
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -10 }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    <Link
+                      href="/about"
+                      className="relative z-20 mr-4 flex items-center space-x-2 px-2 py-1 text-sm font-normal text-foreground"
+                    >
+                      <span className="text-foreground hover:text-muted-foreground transition-colors">
+                        About
                       </span>
                     </Link>
                   </m.div>
@@ -117,6 +137,13 @@ export default function Navbar() {
             onClick={() => setIsMobileMenuOpen(false)}
           >
             Changelog
+          </Link>
+          <Link
+            href="/about"
+            className="text-lg font-medium hover:text-primary transition-colors px-2"
+            onClick={() => setIsMobileMenuOpen(false)}
+          >
+            About
           </Link>
           <NavbarButton
             variant="primary"

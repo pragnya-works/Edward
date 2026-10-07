@@ -26,9 +26,9 @@ const fontMono = Geist_Mono({
 
 const siteUrl = getSiteUrl()
 const canonicalHomeUrl = getCanonicalUrl("/")
-const defaultTitle = "Edward - AI Web App Builder"
+const defaultTitle = "Edward: AI software development platform"
 const defaultDescription =
-  "Create stunning apps and websites by chatting with Edward."
+  "AI software development platform founded in January 2026 by Shubhojeet Bera and operated by Pragnya Works. Build, run, preview and iterate on web apps using Claude, OpenAI or Gemini."
 
 export const metadata: Metadata = {
   metadataBase: siteUrl ?? undefined,
