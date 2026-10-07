@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { getCanonicalUrl, STATIC_OG_IMAGE_URL } from "@/lib/seo/siteUrl";
+import { CONTACT_EMAIL } from "@/lib/site";
 
 const aboutCanonicalUrl = getCanonicalUrl("/about");
 
@@ -56,8 +57,8 @@ const DETAILS = [
   },
   {
     label: "Contact",
-    href: "mailto:founder@edwardd.app",
-    value: "founder@edwardd.app",
+    href: `mailto:${CONTACT_EMAIL}`,
+    value: CONTACT_EMAIL,
   },
 ];
 

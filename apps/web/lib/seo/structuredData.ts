@@ -1,7 +1,9 @@
-const SITE_URL = "https://edwardd.app";
-const REPOSITORY_URL = "https://github.com/pragnya-works/Edward";
-const CONTACT_EMAIL = "founder@edwardd.app";
+import { CONTACT_EMAIL, REPOSITORY_URL } from "@/lib/site";
+import { getSiteUrl } from "@/lib/seo/siteUrl";
 
+// Entity ids follow the origin the site actually canonicalises to, so the
+// graph stays stable and matches the canonical URLs in the page metadata.
+const SITE_URL = getSiteUrl()?.origin ?? "https://edwardd.app";
 // Every URL below was verified to resolve. Do not add an identity here that
 // has not been checked, because a sameAs pointing at a page that does not
 // exist works against the entity it is meant to support.

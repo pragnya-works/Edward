@@ -1,5 +1,6 @@
 import { Metadata } from "next";
 import { getCanonicalUrl, STATIC_OG_IMAGE_URL } from "@/lib/seo/siteUrl";
+import { CONTACT_EMAIL } from "@/lib/site";
 
 const termsCanonicalUrl = getCanonicalUrl("/terms");
 
@@ -247,10 +248,10 @@ const SECTIONS: { heading: string; body: React.ReactNode }[] = [
           <li>
             <span className="text-foreground/90 font-medium">Email:</span>{" "}
             <a
-              href="mailto:founder@edwardd.app"
+              href={`mailto:${CONTACT_EMAIL}`}
               className="text-foreground underline underline-offset-4 hover:text-primary transition-colors"
             >
-              founder@edwardd.app
+              {CONTACT_EMAIL}
             </a>
           </li>
           <li>

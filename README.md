@@ -14,7 +14,7 @@ isolated sandbox, and serves a live preview you can keep refining.
 | Founder | Shubhojeet Bera |
 | Public launch | January 2026 |
 | Operator | Pragnya Works |
-| Contact | founder@edwardd.app |
+| Contact | shubhojeet@edwardd.app |
 | Repository | https://github.com/pragnya-works/Edward |
 
 Edward is the name of the product. The service is operated by Pragnya Works.
