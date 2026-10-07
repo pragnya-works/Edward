@@ -55,7 +55,7 @@ export async function validateImageUrl(
       signal: abortController.signal,
       maxRedirects: 4,
       accept: "image/*",
-      userAgent: "EdwardBot/1.0 (+https://www.pragnyaa.in)",
+      userAgent: "EdwardBot/1.0 (+https://edwardd.app)",
     });
 
     if (!response.ok) {

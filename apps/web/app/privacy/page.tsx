@@ -9,7 +9,7 @@ const LAST_UPDATED = "October 7, 2026";
 export const metadata: Metadata = {
   title: "Privacy Policy",
   description:
-    "How Pragnya Works, the operator of Edward, handles account data, prompts, generated code, and API keys.",
+    "How Edward handles account data, prompts, generated code, and API keys.",
 
   alternates: {
     canonical: "/privacy",
@@ -21,7 +21,7 @@ export const metadata: Metadata = {
   twitter: {
     title: "Privacy Policy | Edward",
     description:
-      "How Pragnya Works, the operator of Edward, handles account data, prompts, generated code, and API keys.",
+      "How Edward handles account data, prompts, generated code, and API keys.",
     images: [STATIC_OG_IMAGE_URL],
   },
 };
@@ -34,8 +34,8 @@ const SECTIONS: { heading: string; body: React.ReactNode }[] = [
     body: (
       <>
         <p>
-          Edward is an AI software development platform. It is operated by
-          Pragnya Works, which is the party responsible for the data described
+          Edward is an AI software development platform. Pragnya Works is the
+          legal operator responsible for the data described
           in this policy. Wherever this policy says &ldquo;we&rdquo;, it means
           Pragnya Works. &ldquo;Edward&rdquo; and &ldquo;the service&rdquo; mean
           the product at{" "}
@@ -290,7 +290,7 @@ const SECTIONS: { heading: string; body: React.ReactNode }[] = [
         <p>Edward questions, privacy requests, and support all go to:</p>
         <ul className="list-none space-y-1">
           <li>
-            <span className="text-foreground/90 font-medium">Operator:</span>{" "}
+            <span className="text-foreground/90 font-medium">Legal operator:</span>{" "}
             Pragnya Works
           </li>
           <li>

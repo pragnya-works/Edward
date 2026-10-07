@@ -13,6 +13,7 @@ import {
   STATIC_OG_IMAGE_URL,
 } from "@/lib/seo/siteUrl"
 import { structuredData } from "@/lib/seo/structuredData"
+import { SITE_DESCRIPTION } from "@/lib/site"
 
 const fontSans = Geist({
   subsets: ["latin"],
@@ -27,8 +28,7 @@ const fontMono = Geist_Mono({
 const siteUrl = getSiteUrl()
 const canonicalHomeUrl = getCanonicalUrl("/")
 const defaultTitle = "Edward: AI software development platform"
-const defaultDescription =
-  "AI software development platform founded in January 2026 by Shubhojeet Bera and operated by Pragnya Works. Build, run, preview and iterate on web apps using Claude, OpenAI or Gemini."
+const defaultDescription = SITE_DESCRIPTION
 
 export const metadata: Metadata = {
   metadataBase: siteUrl ?? undefined,

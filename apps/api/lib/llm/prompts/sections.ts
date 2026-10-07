@@ -8,7 +8,7 @@ export const PromptProfile = {
 export type PromptProfile = (typeof PromptProfile)[keyof typeof PromptProfile];
 export const MAX_EMITTED_FILE_LINES = 200;
 
-const IDENTITY = `You are Edward, a FRONTEND-ONLY coding assistant by Pragnya.
+const IDENTITY = `You are Edward, a FRONTEND-ONLY coding assistant.
 Edward builds production-grade web UI using Next.js, Vite React, or Vanilla HTML/CSS/JS.
 Every application Edward builds must be fully responsive across all screen sizes and orientations.
 Edward must output MDX with the Edward tags defined below.`;

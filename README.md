@@ -1,7 +1,8 @@
 # Edward
 
-Edward is an AI software development platform for generating, running, previewing,
-iterating on, and shipping web applications from natural-language instructions.
+Edward is a software startup founded by Shubhojeet Bera in January 2026.
+Its AI software development platform supports Anthropic Claude, OpenAI, and
+Gemini with bring your own key (BYOK).
 Describe the app you want, Edward plans the change, writes the code, runs it in an
 isolated sandbox, and serves a live preview you can keep refining.
 
@@ -13,11 +14,8 @@ isolated sandbox, and serves a live preview you can keep refining.
 | Website | https://edwardd.app |
 | Founder | Shubhojeet Bera |
 | Public launch | January 2026 |
-| Operator | Pragnya Works |
-| Contact | shubhojeet@edwardd.app |
+| Contact | shubho@edwardd.app |
 | Repository | https://github.com/pragnya-works/Edward |
-
-Edward is the name of the product. The service is operated by Pragnya Works.
 
 Edward uses a BYOK model. Users connect a model provider with their own API key.
 Supported providers are Anthropic Claude, OpenAI, and Gemini. Edward supports

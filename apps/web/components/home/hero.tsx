@@ -4,6 +4,7 @@ import AuthenticatedPromptbar from "@/components/authenticatedPromptbar"
 import { useSession } from "@/lib/auth-client";
 import { FlipWords } from "@edward/ui/components/ui/flipWords";
 import { cn } from "@edward/ui/lib/utils";
+import { SITE_DESCRIPTION } from "@/lib/site";
 
 export function Hero() {
   const { data: session } = useSession();
@@ -38,9 +39,7 @@ export function Hero() {
         </h1>
 
         <p className="mb-12 text-center text-base leading-normal text-muted-foreground md:text-lg lg:text-xl max-w-xl">
-          Describe what you want to build. Edward plans the changes, writes the
-          code, runs it in an isolated sandbox, and shows you a live preview you
-          can keep refining.
+          {SITE_DESCRIPTION}
         </p>
 
         <div className="w-full mt-2">
@@ -50,4 +49,3 @@ export function Hero() {
     </div>
   );
 }
-

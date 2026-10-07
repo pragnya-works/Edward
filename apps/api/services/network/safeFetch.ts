@@ -47,7 +47,7 @@ async function fetchPinned(
         headers: {
           accept: options.accept ?? "*/*",
           "user-agent":
-            options.userAgent ?? "EdwardBot/1.0 (+https://www.pragnyaa.in)",
+            options.userAgent ?? "EdwardBot/1.0 (+https://edwardd.app)",
           "accept-encoding": "identity",
           host: url.host,
           ...(options.headers ?? {}),

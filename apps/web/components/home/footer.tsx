@@ -27,8 +27,7 @@ export function Footer() {
 
             <div className="mx-auto max-w-6xl mt-16 pt-8 border-t border-border flex flex-col md:flex-row justify-between items-center gap-4">
                 <div className="text-sm text-muted-foreground">
-                    © {new Date().getFullYear()} Edward. Operated by Pragnya
-                    Works. Founded by Shubhojeet Bera in January 2026.
+                    © {new Date().getFullYear()} Edward.
                 </div>
                 <div className="flex flex-wrap gap-6">
                     <Link href="/about" className="text-sm text-muted-foreground hover:text-foreground transition-colors">About</Link>

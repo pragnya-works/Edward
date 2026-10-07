@@ -44,6 +44,16 @@ if (process.env.NEXT_PUBLIC_SENTRY_DSN && !hasValidSentryTunnel) {
 }
 
 const nextConfig = {
+  async redirects() {
+    return [
+      {
+        source: "/:path*",
+        has: [{ type: "host", value: "www.edwardd.app" }],
+        destination: "https://edwardd.app/:path*",
+        permanent: true,
+      },
+    ];
+  },
   async headers() {
     return [
       {

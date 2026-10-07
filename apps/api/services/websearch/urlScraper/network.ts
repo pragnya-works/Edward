@@ -27,7 +27,7 @@ export async function scrapeUrl(url: string): Promise<UrlScrapeResult> {
       maxRedirects: 4,
       accept: "text/html, text/plain, application/json, application/xml",
       userAgent:
-        "EdwardBot/1.0 (+https://www.pragnyaa.in; URL context fetcher)",
+        "EdwardBot/1.0 (+https://edwardd.app; URL context fetcher)",
     });
 
     if (!response.ok) {

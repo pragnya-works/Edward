@@ -1,12 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { getCanonicalUrl, STATIC_OG_IMAGE_URL } from "@/lib/seo/siteUrl";
-import { CONTACT_EMAIL } from "@/lib/site";
+import { CONTACT_EMAIL, SITE_DESCRIPTION } from "@/lib/site";
 
 const aboutCanonicalUrl = getCanonicalUrl("/about");
 
-const description =
-  "Edward is an AI software development platform founded by Shubhojeet Bera in January 2026 and operated by Pragnya Works. It supports Claude through Anthropic's API alongside OpenAI and Gemini.";
+const description = SITE_DESCRIPTION;
 
 export const revalidate = 3600;
 
@@ -44,7 +43,6 @@ const DETAILS = [
   { label: "What it is", value: "AI software development platform" },
   { label: "Founder", value: "Shubhojeet Bera" },
   { label: "Public launch", value: "January 2026" },
-  { label: "Operator", value: "Pragnya Works" },
   {
     label: "Official website",
     href: "https://edwardd.app",
@@ -71,23 +69,7 @@ export default function AboutPage() {
         </h1>
 
         <p className="mt-6 text-base md:text-lg leading-relaxed text-muted-foreground">
-          Edward is an AI software development platform for generating, running,
-          previewing, iterating on, and shipping web applications from
-          natural-language instructions.
-        </p>
-
-        <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
-          Shubhojeet Bera founded Edward, and the product first launched in
-          January 2026. It is operated by{" "}
-          <a
-            href="https://www.pragnyaa.in/"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-foreground underline underline-offset-4 hover:text-primary transition-colors"
-          >
-            Pragnya Works
-          </a>
-          . Edward is the product name, not a separate company.
+          {SITE_DESCRIPTION}
         </p>
 
         <section className="mt-12">
@@ -106,8 +88,8 @@ export default function AboutPage() {
             Model providers
           </h2>
           <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
-            Edward supports Claude through Anthropic&apos;s API alongside other
-            supported model providers. You connect a provider with your own API
+            Edward supports Claude through Anthropic&apos;s API alongside OpenAI
+            and Gemini. You connect a provider with your own API
             key, which means requests go straight from your key to that provider
             and your provider bills you directly.
           </p>

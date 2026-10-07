@@ -9,7 +9,7 @@ const LAST_UPDATED = "October 7, 2026";
 export const metadata: Metadata = {
   title: "Terms and Conditions",
   description:
-    "The terms governing your use of Edward, the AI software development platform operated by Pragnya Works.",
+    "The terms governing your use of Edward, the AI software development platform.",
 
   alternates: {
     canonical: "/terms",
@@ -21,7 +21,7 @@ export const metadata: Metadata = {
   twitter: {
     title: "Terms and Conditions | Edward",
     description:
-      "The terms governing your use of Edward, the AI software development platform operated by Pragnya Works.",
+      "The terms governing your use of Edward, the AI software development platform.",
     images: [STATIC_OG_IMAGE_URL],
   },
 };
@@ -42,10 +42,9 @@ const SECTIONS: { heading: string; body: React.ReactNode }[] = [
           >
             https://edwardd.app
           </a>{" "}
-          (the &ldquo;service&rdquo;). Edward is operated by Pragnya Works, the
-          party that provides the service. &ldquo;We&rdquo;, &ldquo;us&rdquo; and
-          &ldquo;our&rdquo; mean Pragnya Works. Edward is the name of the product,
-          not a separate legal company.
+          (the &ldquo;service&rdquo;). Pragnya Works is the legal operator and the
+          party that provides the service under these terms. &ldquo;We&rdquo;,
+          &ldquo;us&rdquo; and &ldquo;our&rdquo; mean Pragnya Works.
         </p>
         <p>
           By using the service you agree to these terms. If you do not agree,
@@ -242,7 +241,7 @@ const SECTIONS: { heading: string; body: React.ReactNode }[] = [
         <p>Questions about these terms go to:</p>
         <ul className="list-none space-y-1">
           <li>
-            <span className="text-foreground/90 font-medium">Operator:</span>{" "}
+            <span className="text-foreground/90 font-medium">Legal operator:</span>{" "}
             Pragnya Works
           </li>
           <li>
