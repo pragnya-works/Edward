@@ -4,6 +4,6 @@
 export const CONTACT_EMAIL = "shubho@edwardd.app";
 
 export const SITE_DESCRIPTION =
-  "Edward is a software startup founded by Shubhojeet Bera in January 2026. Its AI software development platform supports Anthropic Claude, OpenAI, and Gemini with bring your own key (BYOK).";
+  "Orchestrate complex web systems and stunning interfaces through high fidelity conversational engineering.";
 
 export const REPOSITORY_URL = "https://github.com/pragnya-works/Edward";
