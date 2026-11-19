@@ -332,6 +332,10 @@ pnpm --filter api quality:gates
 - If previews or published assets fail, your AWS / CloudFront / Cloudflare settings are either missing or intentionally stubbed. The app can still be developed locally, but those flows will not be production-complete.
 - If you only need frontend work, run `pnpm --filter web dev`, but auth, API-backed chat, and sandbox flows still require the backend stack for end-to-end testing.
 
+## Revival
+
+Edward is being brought back to life with Devin Bots. First work order: unit tests for the sandbox write-behind flush pipeline (apps/api/services/sandbox/write), then teardown-time drain so TTL cleanup never eats unflushed user code.
+
 ## Notes
 
 - Workspace task orchestration lives in `turbo.json`.
