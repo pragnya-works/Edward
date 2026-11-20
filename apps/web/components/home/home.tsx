@@ -2,6 +2,7 @@
 
 import { ShaderGradientBackground } from "@/components/home/shaderGradient";
 import { Hero } from "@/components/home/hero";
+import { ProductShowreel } from "@/components/home/productShowreel";
 import { Features } from "@/components/home/features";
 import { CTASection } from "@/components/home/ctaSection";
 import { Footer } from "@/components/home/footer";
@@ -170,7 +171,8 @@ export default function Home() {
                     "linear-gradient(to bottom, transparent, black 400px, black)",
                 }}
               />
-              <div className="relative z-10">
+              <div className="relative z-10 [&>#features]:pt-16 md:[&>#features]:pt-20">
+                <ProductShowreel />
                 <Features />
                 <CTASection />
                 <Footer />
