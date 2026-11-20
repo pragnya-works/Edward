@@ -39,20 +39,23 @@ export function CTASection() {
                 <div className="absolute bottom-0 left-0 translate-y-1/2 -translate-x-1/2 w-96 h-96 bg-purple-500/10 rounded-full blur-[100px] pointer-events-none" />
 
                 <div className="relative z-10">
-                    <div
+                    <a
+                        href="https://github.com/pragnya-works/Edward"
+                        target="_blank"
+                        rel="noopener noreferrer"
                         className={cn(
                             "group/badge inline-flex rounded-full border border-black/5 bg-neutral-100 text-base transition-all ease-in hover:cursor-pointer hover:bg-neutral-200 dark:border-white/5 dark:bg-neutral-900 dark:hover:bg-neutral-800 mb-6"
                         )}
                     >
                         <AnimatedShinyText className="inline-flex items-center justify-center gap-2 px-4 py-1.5 text-sm font-medium transition ease-out hover:text-neutral-600 hover:duration-300 hover:dark:text-neutral-400">
                             <span>🚀</span>
-                            <span>Start building today</span>
+                            <span>Explore Edward</span>
                             <ArrowRight className="ml-1 size-3.5 transition-transform duration-300 ease-in-out group-hover/badge:translate-x-0.5" />
                         </AnimatedShinyText>
-                    </div>
-                    <h2 className="mb-6 text-3xl font-bold tracking-tight md:text-5xl">Ready to ship your <br /> next big thing?</h2>
+                    </a>
+                    <h2 className="mb-6 text-3xl font-bold tracking-tight md:text-5xl">See the agent <br /> at work</h2>
                     <p className="mb-10 text-lg text-muted-foreground max-w-xl mx-auto">
-                        Experience the fastest way to build modern frontend applications with Edward&apos;s AI-driven workflow.
+                        Start a conversation to try the agent, follow its progress, and inspect the generated project.
                     </p>
                     <div className="flex flex-col sm:flex-row justify-center gap-4">
                         <Button
@@ -60,7 +63,7 @@ export function CTASection() {
                             className="bg-primary rounded-full text-primary-foreground hover:bg-primary/90 h-12 px-8 text-base"
                             onClick={handleGetStarted}
                         >
-                            Get Started for Free
+                            Try Edward
                         </Button>
                     </div>
                 </div>

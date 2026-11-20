@@ -111,26 +111,26 @@ TerminalBackground.displayName = "TerminalBackground";
 
 const features = [
     {
-        name: "AI-Powered Generation",
-        description: "Describe your vision and watch Edward turn your ideas into functional, beautiful React components.",
+        name: "Agent Runtime",
+        description: "A custom agent loop turns model responses into file changes and tool actions. The illustration is simulated.",
         className: "md:col-span-2",
         background: <AIGenerationVisual />,
     },
     {
-        name: "Instant Preview",
-        description: "See instant updates as you refine your prompt - what you see is what you get.",
+        name: "Sandbox Builds",
+        description: "Generated projects are built in Docker sandboxes and can be published for preview.",
         className: "md:col-span-1",
         background: <PreviewBackground />,
     },
     {
-        name: "Instant Repository Sync",
-        description: "Connect and sync your GitHub repository instantly.",
+        name: "GitHub Sync",
+        description: "Connect a repository and sync generated project files to a branch.",
         className: "md:col-span-1",
         background: <GitHubSyncVisual />,
     },
     {
-        name: "Autonomous Intelligence",
-        description: "Edward plans, executes, and iterates. It doesn't just write code; it follows instructions to completion across your entire project.",
+        name: "Runs and Streaming",
+        description: "Follow agent runs as they progress, and replay saved events after reconnecting.",
         className: "md:col-span-2",
         background: <TerminalBackground />,
     },
@@ -189,7 +189,7 @@ const FasterText = memo(({ shadowColor }: { shadowColor: string }) => {
                     className="italic transition-all duration-300 group-hover:text-primary group-hover:brightness-125"
                     shadowColor={shadowColor}
                 >
-                    faster
+                    inside
                 </LineShadowText>
                 <m.div
                     variants={{
@@ -232,13 +232,16 @@ export function Features() {
                 <div className="my-10 md:my-20 flex flex-col items-center justify-center text-center">
                     <FadeInOnScroll>
                         <h2 className="mb-4 md:mb-6 text-2xl font-bold tracking-tight text-foreground md:text-4xl lg:text-5xl">
-                            Everything you need to ship{" "}
+                            A look at what happens{" "}
                             <FasterText shadowColor="var(--foreground)" />
                         </h2>
                     </FadeInOnScroll>
                     <FadeInOnScroll delay={0.1}>
                         <p className="max-w-2xl text-sm md:text-base lg:text-lg text-muted-foreground leading-relaxed">
-                            Edward streamlines the entire development journey, seamlessly transforming your vision into functional, interactive applications.
+                            Follow a prompt through the agent, sandbox, and build pipeline. Each part was built to make the system easier to understand.
+                        </p>
+                        <p className="mt-2 text-sm text-muted-foreground">
+                            The visuals below are simulated examples, not live runs.
                         </p>
                     </FadeInOnScroll>
                 </div>

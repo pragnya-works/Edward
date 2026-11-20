@@ -56,7 +56,7 @@ export async function checkSubdomainAvailability(
     const userId = getAuthenticatedUserId(req);
     const parsed = CheckSubdomainQuerySchema.safeParse(req.query);
     if (!parsed.success) {
-      sendError(res, HttpStatus.BAD_REQUEST, parsed.error.errors[0]?.message ?? "Invalid query");
+      sendError(res, HttpStatus.BAD_REQUEST, parsed.error.issues[0]?.message ?? "Invalid query");
       return;
     }
 
@@ -95,7 +95,7 @@ export async function updateChatSubdomain(
 
     const parsed = UpdateSubdomainBodySchema.safeParse(req.body);
     if (!parsed.success) {
-      sendError(res, HttpStatus.BAD_REQUEST, parsed.error.errors[0]?.message ?? "Invalid body");
+      sendError(res, HttpStatus.BAD_REQUEST, parsed.error.issues[0]?.message ?? "Invalid body");
       return;
     }
 

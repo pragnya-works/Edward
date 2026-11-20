@@ -41,7 +41,7 @@ export const GitHubSyncVisual = memo(() => {
                     className="mt-6 flex items-center gap-2 border border-white/10 bg-white/[0.04] px-3.5 py-1.5 rounded-full backdrop-blur-md shadow-[0_4px_12px_rgba(0,0,0,0.3)] transition-[background-color,border-color] hover:bg-white/[0.06] hover:border-white/20 shrink-0"
                 >
                     <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_12px_rgba(16,185,129,0.8)] animate-pulse" />
-                    <span className="text-[10px] font-mono font-medium uppercase tracking-[0.2em] text-white/80">Continuous Sync</span>
+                    <span className="text-[10px] font-mono font-medium uppercase tracking-[0.2em] text-white/80">GitHub Sync</span>
                 </m.div>
             </div>
             <div className="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-background via-background/80 to-transparent pointer-events-none z-20" />

@@ -2,9 +2,9 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Edward - AI Web App Builder",
+    name: "Edward - AI Agent Engineering Project",
     short_name: "Edward",
-    description: "Build and ship production-ready apps by chatting with Edward.",
+    description: "An AI app builder exploring agent orchestration, sandbox execution, and streaming.",
     start_url: "/",
     display: "standalone",
     background_color: "#ffffff",

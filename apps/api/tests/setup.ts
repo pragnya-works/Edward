@@ -64,14 +64,18 @@ vi.mock("../lib/redis.js", () => {
 });
 
 vi.mock("bullmq", () => ({
-  Queue: vi.fn().mockImplementation(() => ({
-    add: vi.fn().mockResolvedValue({ id: "test-job-id" }),
-    close: vi.fn().mockResolvedValue(undefined),
-  })),
-  Worker: vi.fn().mockImplementation(() => ({
-    on: vi.fn(),
-    close: vi.fn().mockResolvedValue(undefined),
-  })),
+  Queue: vi.fn().mockImplementation(function () {
+    return {
+      add: vi.fn().mockResolvedValue({ id: "test-job-id" }),
+      close: vi.fn().mockResolvedValue(undefined),
+    };
+  }),
+  Worker: vi.fn().mockImplementation(function () {
+    return {
+      on: vi.fn(),
+      close: vi.fn().mockResolvedValue(undefined),
+    };
+  }),
   Job: vi.fn(),
 }));
 
@@ -106,47 +110,51 @@ vi.mock("@edward/auth", async () => {
 });
 
 vi.mock("dockerode", () => ({
-  default: vi.fn().mockImplementation(() => ({
-    createContainer: vi.fn().mockResolvedValue({
-      id: "test-container-id",
-      start: vi.fn().mockResolvedValue(undefined),
-      exec: vi.fn().mockResolvedValue({
-        start: vi.fn().mockResolvedValue({
-          on: vi.fn(),
+  default: vi.fn().mockImplementation(function () {
+    return {
+      createContainer: vi.fn().mockResolvedValue({
+        id: "test-container-id",
+        start: vi.fn().mockResolvedValue(undefined),
+        exec: vi.fn().mockResolvedValue({
+          start: vi.fn().mockResolvedValue({
+            on: vi.fn(),
+          }),
+        }),
+        remove: vi.fn().mockResolvedValue(undefined),
+        inspect: vi.fn().mockResolvedValue({
+          State: { Running: true },
         }),
       }),
-      remove: vi.fn().mockResolvedValue(undefined),
-      inspect: vi.fn().mockResolvedValue({
-        State: { Running: true },
+      getContainer: vi.fn().mockReturnValue({
+        inspect: vi.fn().mockResolvedValue({
+          State: { Running: true },
+        }),
+        remove: vi.fn().mockResolvedValue(undefined),
       }),
-    }),
-    getContainer: vi.fn().mockReturnValue({
-      inspect: vi.fn().mockResolvedValue({
-        State: { Running: true },
-      }),
-      remove: vi.fn().mockResolvedValue(undefined),
-    }),
-    listContainers: vi.fn().mockResolvedValue([]),
-  })),
+      listContainers: vi.fn().mockResolvedValue([]),
+    };
+  }),
 }));
 
 vi.mock("@aws-sdk/client-s3", () => ({
-  S3Client: vi.fn().mockImplementation(() => ({
-    send: vi.fn().mockResolvedValue({}),
-  })),
+  S3Client: vi.fn().mockImplementation(function () {
+    return {
+      send: vi.fn().mockResolvedValue({}),
+    };
+  }),
   ListObjectsV2Command: vi.fn(),
   GetObjectCommand: vi.fn(),
   DeleteObjectsCommand: vi.fn(),
 }));
 
 vi.mock("@aws-sdk/lib-storage", () => ({
-  Upload: vi.fn().mockImplementation(() => ({
-    done: vi
-      .fn()
-      .mockResolvedValue({
+  Upload: vi.fn().mockImplementation(function () {
+    return {
+      done: vi.fn().mockResolvedValue({
         Location: "https://test-bucket.s3.amazonaws.com/test-key",
       }),
-  })),
+    };
+  }),
 }));
 
 vi.mock("../utils/logger.js", () => ({

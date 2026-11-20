@@ -31,7 +31,7 @@ export function validateRequest(schema: ZodSchema) {
       if (error instanceof ZodError) {
         res.status(HttpStatus.BAD_REQUEST).json({
           error: ERROR_MESSAGES.VALIDATION_ERROR,
-          details: error.errors.map(function formatError(err) {
+          details: error.issues.map(function formatError(err) {
             return {
               path: err.path,
               message: err.message,

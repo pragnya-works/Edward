@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Handle preview build orchestration inside sandbox containers: output detection,
+Orchestrate preview builds inside sandbox containers, including output detection,
 fallback SPA runtime generation, base-path injection, and upload preparation.
 
 ## Public API
@@ -14,14 +14,12 @@ fallback SPA runtime generation, base-path injection, and upload preparation.
 
 ## Build Flow
 
-1. Detect framework/output location from sandbox project state.
-2. Execute unified build path or fallback path.
-3. Apply base-path/runtime adjustments needed for preview hosting.
-4. Return build metadata for upload/publication stages.
+1. Detect the framework and output location from the sandbox project state.
+2. Execute the unified build or fallback path.
+3. Apply base-path and runtime adjustments needed for preview hosting.
+4. Return build metadata for the upload and publication stages.
 
 ## Common Failure Modes
-
-Use this list for first-pass triage when preview builds fail.
 
 - No valid build output directory detected
 - Framework-specific output mismatch (expected vs produced artifacts)

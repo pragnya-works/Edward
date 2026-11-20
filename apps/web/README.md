@@ -1,6 +1,8 @@
 # `apps/web`
 
-Next.js frontend for Edward (App Router). This app renders the UI, streams chat/build state, and hosts auth route handlers.
+Next.js frontend for Edward's agent engineering project. It provides a way to explore the backend through chat, streamed run and build state, and the sandbox workspace. The app also hosts auth route handlers.
+
+See the [project overview](../../README.md) for the first-principles goal and production-readiness limitations.
 
 ## Key Directories
 

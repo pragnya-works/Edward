@@ -65,9 +65,8 @@ const ShaderGradientCanvas = dynamic<ShaderCanvasProps>(
   { ssr: false }
 )
 
-const ShaderGradient = dynamic(
-  () => import("@shadergradient/react").then((mod) => mod.ShaderGradient),
-  { ssr: false }
+const ShaderGradient = React.lazy(
+  () => import("@shadergradient/react").then((mod) => ({ default: mod.ShaderGradient }))
 )
 
 const FALLBACK_GRADIENT_STYLE = {

@@ -92,10 +92,10 @@ export function RecentProjects() {
                 {index === 1 && (
                   <div className="relative z-10 flex flex-col items-center justify-center h-full px-4 text-center">
                     <h3 className="bg-gradient-to-r from-blue-400 via-violet-400 to-blue-400 bg-clip-text text-base font-semibold tracking-tight text-transparent sm:text-lg">
-                      Your workspace awaits
+                      Your projects
                     </h3>
                     <p className="mt-1.5 text-xs sm:text-sm leading-relaxed text-muted-foreground/50 max-w-[220px]">
-                      Start a conversation above to ship your first project
+                      Start a conversation above to create your first project
                     </p>
                   </div>
                 )}

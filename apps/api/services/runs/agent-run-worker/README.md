@@ -2,8 +2,8 @@
 
 ## Purpose
 
-Process queued `AGENT_RUN` jobs end-to-end: admission checks, stream-session
-execution, event persistence, status publication, and terminal finalization.
+Process queued `AGENT_RUN` jobs, including admission checks, stream-session
+execution, event persistence, status publication, and finalization.
 
 ## Public API
 
@@ -15,14 +15,12 @@ execution, event persistence, status publication, and terminal finalization.
 
 ## Job Flow
 
-1. Validate run state and load run context.
-2. Execute stream session for the run.
-3. Persist run events and publish progress/status.
-4. Finalize run state (completed/failed/aborted) with terminal safeguards.
+1. Validate the run state and load its context.
+2. Execute the stream session for the run.
+3. Persist run events and publish progress and status.
+4. Finalize the run state (completed, failed, or aborted) with terminal safeguards.
 
 ## Common Failure Modes
-
-Use this list for first-pass triage when agent-run jobs misbehave.
 
 - Missing/stale run context for queued run id
 - Duplicate terminal transitions from concurrent/retried jobs

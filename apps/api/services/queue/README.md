@@ -2,8 +2,7 @@
 
 ## Purpose
 
-Execute asynchronous workloads (build, backup, agent-run) via BullMQ with
-clear handler boundaries.
+Execute asynchronous build, backup, and agent-run workloads with BullMQ.
 
 ## Public API
 
@@ -14,14 +13,12 @@ clear handler boundaries.
 
 ## Request/Job Flow
 
-1. API/service enqueues validated payload.
-2. `queue.worker.ts` parses payload and dispatches by `JobType`.
-3. Handler performs side effects (DB, sandbox, publish events).
-4. Worker lifecycle hooks handle logs/failures/shutdown.
+1. The API or service enqueues a validated payload.
+2. `queue.worker.ts` parses the payload and dispatches it by `JobType`.
+3. The handler performs side effects (DB, sandbox, publish events).
+4. Worker lifecycle hooks handle logs, failures, and shutdown.
 
 ## Common Failure Modes
-
-Use this list for first-pass triage when background jobs fail.
 
 - Redis/BullMQ unavailable
 - Build job timeout

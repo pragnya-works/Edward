@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const refs = vi.hoisted(() => {
   const handlers = new Map<string, (...args: unknown[]) => void>();
-  const closeMock = vi.fn((callback: () => void) => callback());
+  const closeMock = vi.fn((callback: (error?: Error) => void) => callback());
   const listenMock = vi.fn((_port: number, callback: () => void) => {
     void callback();
     return {
@@ -21,7 +21,11 @@ const refs = vi.hoisted(() => {
     shutdownRedisPubSub: vi.fn(async () => undefined),
     redisQuit: vi.fn(async () => undefined),
     registerProcessHandlerOnce: vi.fn(
-      (key: string, _signal: string, callback: (...args: unknown[]) => void) => {
+      (
+        key: string,
+        _signal: string,
+        callback: (...args: unknown[]) => void,
+      ) => {
         refs.handlers.set(key, callback);
       },
     ),
@@ -163,6 +167,25 @@ describe("server.http bootstrap", () => {
 
     await vi.waitFor(() => {
       expect(processExitSpy).toHaveBeenCalledWith(0);
+    });
+  });
+
+  it("exits with code 1 when the HTTP server fails to close", async () => {
+    const processExitSpy = vi
+      .spyOn(process, "exit")
+      .mockImplementation((() => undefined) as never);
+    const closeError = new Error("close failed");
+    refs.closeMock.mockImplementationOnce((callback) => callback(closeError));
+
+    await import("../server.http.js");
+    refs.handlers.get("api:SIGTERM")?.();
+
+    await vi.waitFor(() => {
+      expect(refs.logger.error).toHaveBeenCalledWith(
+        closeError,
+        "Error during shutdown",
+      );
+      expect(processExitSpy).toHaveBeenCalledWith(1);
     });
   });
 

@@ -2,8 +2,8 @@
 
 ## Purpose
 
-Provision runtime containers, read/write project files, build/upload previews,
-and cleanup lifecycle resources.
+Provision runtime containers, read and write project files, build and upload
+previews, and clean up lifecycle resources.
 
 ## Public API
 
@@ -15,14 +15,12 @@ and cleanup lifecycle resources.
 
 ## Request Flow
 
-1. A chat/run requires sandbox access.
-2. Lifecycle layer provisions or reuses a sandbox.
-3. Read/write/build operations run in sandbox context.
-4. Cleanup and backup jobs keep state durable.
+1. A chat or run requires sandbox access.
+2. The lifecycle layer provisions or reuses a sandbox.
+3. Read, write, and build operations run in the sandbox.
+4. Cleanup and backup jobs attempt to preserve state and release resources.
 
 ## Common Failure Modes
-
-Use this list for first-pass triage when sandbox operations fail.
 
 - Docker/container inspect/create failures
 - Restore/build timeouts

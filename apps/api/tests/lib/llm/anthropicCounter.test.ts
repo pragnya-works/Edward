@@ -6,11 +6,13 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@anthropic-ai/sdk", () => ({
-  default: vi.fn().mockImplementation(() => ({
-    messages: {
-      countTokens: mocks.countTokensMock,
-    },
-  })),
+  default: vi.fn().mockImplementation(function () {
+    return {
+      messages: {
+        countTokens: mocks.countTokensMock,
+      },
+    };
+  }),
 }));
 
 describe("countAnthropicInputTokens", () => {

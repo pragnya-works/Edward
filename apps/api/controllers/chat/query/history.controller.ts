@@ -91,7 +91,7 @@ export async function getRecentChats(
       sendStandardError(
         res,
         HttpStatus.BAD_REQUEST,
-        parsedQuery.error.errors[0]?.message ??
+        parsedQuery.error.issues[0]?.message ??
           'Query parameter "limit"/"offset" must be non-negative integers',
       );
       return;

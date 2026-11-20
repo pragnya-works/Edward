@@ -59,7 +59,7 @@ describe('validateRequest middleware', () => {
       details: expect.arrayContaining([
         expect.objectContaining({
           path: ['body', 'name'],
-          message: expect.stringContaining('String must contain at least 1 character(s)'),
+          message: 'Too small: expected string to have >=1 characters',
         }),
       ]),
     });

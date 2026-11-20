@@ -6,7 +6,7 @@ import "./globals.css";
 const siteUrl = getSiteUrl();
 const canonicalUrl = getCanonicalUrl("/");
 const title = "Edward App";
-const description = "A production-ready web application built with Edward AI.";
+const description = "A web application built with Edward.";
 
 export const metadata: Metadata = {
   metadataBase: siteUrl ?? undefined,
