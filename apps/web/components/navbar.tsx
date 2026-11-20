@@ -16,13 +16,14 @@ import { signIn } from "@/lib/auth-client";
 import { Skeleton } from "@edward/ui/components/skeleton";
 import { LoginModal } from "@edward/ui/components/ui/loginModal";
 import { useSession } from "@/lib/auth-client";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { AnimatePresence, m } from "motion/react";
 import { GitHub } from "@edward/ui/components/icons/github";
 
 export default function Navbar() {
   const { data: session, isPending } = useSession();
   const [showLoginModal, setShowLoginModal] = useState(false);
+  const mobileToggleRef = useRef<HTMLSpanElement>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const pathname = usePathname();
   const isChangelogPage = pathname === "/changelog";
@@ -92,10 +93,12 @@ export default function Navbar() {
         >
           <MobileNavHeader>
             <NavbarLogo />
-            <MobileNavToggle
-              isOpen={isMobileMenuOpen}
-              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-            />
+            <span ref={mobileToggleRef}>
+              <MobileNavToggle
+                isOpen={isMobileMenuOpen}
+                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              />
+            </span>
           </MobileNavHeader>
 
           <MobileNavMenu
@@ -112,6 +115,7 @@ export default function Navbar() {
             <NavbarButton
               variant="primary"
               onClick={() => {
+                mobileToggleRef.current?.querySelector("button")?.focus();
                 setIsMobileMenuOpen(false);
                 setShowLoginModal(true);
               }}

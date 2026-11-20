@@ -161,14 +161,6 @@ export const config = {
   },
 
   aws: {
-    accessKeyId: validateEnvVar(
-      "AWS_ACCESS_KEY_ID",
-      process.env.AWS_ACCESS_KEY_ID,
-    ),
-    secretAccessKey: validateEnvVar(
-      "AWS_SECRET_ACCESS_KEY",
-      process.env.AWS_SECRET_ACCESS_KEY,
-    ),
     region: process.env.AWS_REGION || "us-east-1",
     s3Bucket: validateEnvVar("AWS_BUCKET_NAME", process.env.AWS_BUCKET_NAME),
     s3CdnBucket: validateEnvVar("AWS_CDN_BUCKET_NAME", process.env.AWS_CDN_BUCKET_NAME),

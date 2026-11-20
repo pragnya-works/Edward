@@ -82,14 +82,14 @@ needs monitoring, alerting, backup and restore procedures, and a security review
 
 ## Prerequisites
 
-- Node.js `20.19+` in the 20.x line, `22.12+` in the 22.x line, or `24+` (CI uses Node.js 22)
+- Node.js `22.12+` in the 22.x line or `24+` (CI uses Node.js 22)
 - `pnpm` `12.21.0` or compatible `12.x`
 - Docker Desktop or another local Docker runtime
 - Postgres `15+` or `16+`
 - Redis `7+`
 - A GitHub OAuth app for local sign-in
 
-Recommended bootstrap:
+Recommended bootstrap (install Corepack 0.34.5 or later compatible with your Node version first):
 
 ```bash
 corepack enable

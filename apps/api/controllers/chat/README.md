@@ -18,8 +18,9 @@ SSE wiring.
 
 1. Route validation and auth middleware run.
 2. The controller resolves access and request context.
-3. The controller delegates orchestration to services or use cases, including
-   the stream runtime in `services/chat/session/*`.
+3. The controller delegates to services or use cases. Streaming runs are queued
+   for `services/runs/agent-run-worker/*`, which invokes the stream runtime in
+   `services/chat/session/*`.
 4. The controller maps the result to a JSON or SSE response.
 
 ## Common Failure Modes

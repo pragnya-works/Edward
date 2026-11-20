@@ -17,7 +17,9 @@ a claim that Edward operates as a live service.
 
 1. Create workflow state and persist it.
 2. `advanceWorkflow` executes the current step with a retry policy.
-3. The step runner applies a phase lock and delegates to the step implementation.
+3. The step runner locks `resolve:<state.id>` for `RESOLVE_PACKAGES`. The
+   `BUILD` implementation locks `build:<sandboxId>`; `ANALYZE` and
+   `INSTALL_PACKAGES` run without a phase lock.
 4. The engine updates the workflow history, current step, and status, then persists the transitions.
 
 ## Common Failure Modes
