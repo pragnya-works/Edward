@@ -45,7 +45,7 @@ const TERMS_AND_CONDITIONS_CONTENT = (
           </p>
 
           <p className="mt-4 text-sm text-muted-foreground/50">
-            Last Updated: February 28, 2026
+            Last Updated: November 20, 2026
           </p>
         </div>
 
@@ -58,6 +58,9 @@ const TERMS_AND_CONDITIONS_CONTENT = (
             <p>
               Welcome to <strong className="text-foreground">Edward</strong> (&ldquo;Company&rdquo;, &ldquo;we&rdquo;,
               &ldquo;our&rdquo;, &ldquo;us&rdquo;)!
+            </p>
+            <p>
+              Edward is an experimental engineering project, not a production-ready service.
             </p>
             <p>
               These Terms of Service (&ldquo;Terms&rdquo;, &ldquo;Terms of Service&rdquo;) govern your use of our

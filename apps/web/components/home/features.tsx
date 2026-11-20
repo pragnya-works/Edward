@@ -112,7 +112,7 @@ TerminalBackground.displayName = "TerminalBackground";
 const features = [
     {
         name: "Agent Runtime",
-        description: "A custom agent loop turns model responses into file changes and tool actions.",
+        description: "A custom agent loop turns model responses into file changes and tool actions. The illustration is simulated.",
         className: "md:col-span-2",
         background: <AIGenerationVisual />,
     },
@@ -239,6 +239,9 @@ export function Features() {
                     <FadeInOnScroll delay={0.1}>
                         <p className="max-w-2xl text-sm md:text-base lg:text-lg text-muted-foreground leading-relaxed">
                             Follow a prompt through the agent, sandbox, and build pipeline. Each part was built to make the system easier to understand.
+                        </p>
+                        <p className="mt-2 text-sm text-muted-foreground">
+                            The visuals below are simulated examples, not live runs.
                         </p>
                     </FadeInOnScroll>
                 </div>

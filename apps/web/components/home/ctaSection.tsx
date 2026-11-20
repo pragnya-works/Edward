@@ -39,7 +39,10 @@ export function CTASection() {
                 <div className="absolute bottom-0 left-0 translate-y-1/2 -translate-x-1/2 w-96 h-96 bg-purple-500/10 rounded-full blur-[100px] pointer-events-none" />
 
                 <div className="relative z-10">
-                    <div
+                    <a
+                        href="https://github.com/pragnya-works/Edward"
+                        target="_blank"
+                        rel="noopener noreferrer"
                         className={cn(
                             "group/badge inline-flex rounded-full border border-black/5 bg-neutral-100 text-base transition-all ease-in hover:cursor-pointer hover:bg-neutral-200 dark:border-white/5 dark:bg-neutral-900 dark:hover:bg-neutral-800 mb-6"
                         )}
@@ -49,7 +52,7 @@ export function CTASection() {
                             <span>Explore Edward</span>
                             <ArrowRight className="ml-1 size-3.5 transition-transform duration-300 ease-in-out group-hover/badge:translate-x-0.5" />
                         </AnimatedShinyText>
-                    </div>
+                    </a>
                     <h2 className="mb-6 text-3xl font-bold tracking-tight md:text-5xl">See the agent <br /> at work</h2>
                     <p className="mb-10 text-lg text-muted-foreground max-w-xl mx-auto">
                         Start a conversation to try the agent, follow its progress, and inspect the generated project.

@@ -177,7 +177,7 @@ export const ParserEventSchema = z.discriminatedUnion("type", [
     type: z.literal(ParserEventType.ERROR),
     message: z.string(),
     code: z.string().optional(),
-    details: z.record(z.unknown()).optional(),
+    details: z.record(z.string(), z.unknown()).optional(),
     severity: z.enum(["fatal", "recoverable"]).optional(),
   }),
   z.object({

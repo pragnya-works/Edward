@@ -45,7 +45,7 @@ const PRIVACY_POLICY_CONTENT = (
           </p>
 
           <p className="mt-4 text-sm text-muted-foreground/50">
-            Last Updated: February 28, 2026
+            Last Updated: November 20, 2026
           </p>
         </div>
 
@@ -83,8 +83,11 @@ const PRIVACY_POLICY_CONTENT = (
               information:
             </p>
             <ul className="list-disc pl-6 space-y-1">
-              <li>Full name</li>
-              <li>Email address</li>
+              <li>Your GitHub profile name and email address</li>
+              <li>Session information, including IP address and user agent</li>
+              <li>Prompts, conversations, uploaded files, and generated project content</li>
+              <li>Model provider API keys you choose to add</li>
+              <li>GitHub account and authorization information used for sign-in and repository sync</li>
             </ul>
           </section>
 
@@ -180,6 +183,12 @@ const PRIVACY_POLICY_CONTENT = (
               These third-party service providers have their own privacy policies
               addressing how they use such information.
             </p>
+            <p>
+              GitHub handles sign-in and repository sync. When you run a prompt,
+              Edward sends the relevant conversation and project context to the
+              model provider you select. Generated files may also be stored with
+              configured storage and preview providers.
+            </p>
           </section>
 
           <section className="space-y-4">
@@ -187,24 +196,15 @@ const PRIVACY_POLICY_CONTENT = (
               4. Data Security
             </h2>
             <p>
-              The security of your personal information is important to us. We
-              implement appropriate technical and organizational security
-              measures to protect your personal information against unauthorized
-              access, alteration, disclosure, or destruction.
+              Edward uses authentication and encrypts model provider API keys
+              before storing them. The security of a deployment also depends on
+              its configuration, infrastructure, and how its encryption key is
+              protected.
             </p>
-            <p>These measures include:</p>
-            <ul className="list-disc pl-6 space-y-1">
-              <li>Encryption of data in transit using SSL/TLS</li>
-              <li>Secure servers and databases</li>
-              <li>Regular security assessments</li>
-              <li>Access controls and authentication</li>
-              <li>Employee training on data protection</li>
-            </ul>
             <p>
-              However, please note that no method of transmission over the
-              Internet or method of electronic storage is 100% secure. While we
-              strive to use commercially acceptable means to protect your
-              personal information, we cannot guarantee its absolute security.
+              Edward is an experimental project and has not been established as
+              production-ready. No security measure can guarantee absolute
+              protection.
             </p>
           </section>
 

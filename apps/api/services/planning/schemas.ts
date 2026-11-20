@@ -40,7 +40,7 @@ export const PackageInfoSchema = z.object({
     version: z.string(),
     valid: z.boolean(),
     error: z.string().optional(),
-    peerDependencies: z.record(z.string()).optional()
+    peerDependencies: z.record(z.string(), z.string()).optional()
 });
 
 export const IntentAnalysisSchema = z.object({

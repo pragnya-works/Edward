@@ -58,7 +58,7 @@ Define which source wins for each piece of state. Test slow and duplicated event
 
 ### Sandboxes
 
-[Sandbox provisioning](apps/api/services/sandbox/lifecycle/provisioning.ts) manages containers; [Docker configuration](apps/api/services/sandbox/docker.service.ts) sets a non-root user and resource limits. Provisioning starts the container, then disconnects and verifies networking. The [build orchestrator](apps/api/services/sandbox/builder/unified-build/orchestrator.ts) reconnects networking for build-related work.
+[Sandbox provisioning](apps/api/services/sandbox/lifecycle/provisioning.ts) manages containers; [Docker configuration](apps/api/services/sandbox/docker.service.ts) sets a non-root user and resource limits. Provisioning starts the container, then disconnects and verifies networking. The [install phase](apps/api/services/planning/workflow/steps/executeInstallPhase.ts) and [build orchestrator](apps/api/services/sandbox/builder/unified-build/orchestrator.ts) reconnect networking for their work. Their [disconnect helper](apps/api/services/sandbox/utils.service.ts) logs failures without propagating them, so a container may remain connected.
 
 Separate containers and configured resource limits provide a place to inspect generated files and builds. They do not by themselves prove safe multi-tenant isolation. Docker configuration and the host remain part of the security boundary. Dependency installation and build scripts execute untrusted code, and network access during builds expands exposure. Provisioning, recovery, cleanup, and backup also require operational work.
 
@@ -74,7 +74,7 @@ Define separate states for compilation, asset publication, and preview availabil
 
 ### Source persistence and GitHub sync
 
-Sandbox code has [backup and restore paths](apps/api/services/sandbox/backup.service.ts). [GitHub sync](packages/octokit/index.ts) uses a manifest to track managed files, compares blob hashes, preserves unmanaged paths, and performs a non-force branch update. The manifest lets sync distinguish managed files from unrelated remote files.
+Sandbox code has [backup and restore paths](apps/api/services/sandbox/backup.service.ts). [GitHub sync](packages/octokit/index.ts) uses a manifest to track managed files, compares blob hashes, and performs a non-force branch update. Sync does not delete unmanaged paths, but a generated file can overwrite an unmanaged remote file at the same path.
 
 A backup attempt is not a verified restore. The [storage upload helper](apps/api/services/storage.service.ts) returns a failure result rather than throwing, but the backup path does not inspect that result before marking a backup as present. Backup and restore also log and swallow exceptions. Sync must contend with manifest state, concurrent GitHub changes, API failures, and large repository trees. It reads a recursive tree without checking its truncation flag, so large-tree behavior needs investigation before treating the result as complete.
 
@@ -92,9 +92,9 @@ Review least-privilege GitHub scopes, secret access and rotation, logging and re
 
 The project combines Next.js, an Express API, workers, Postgres, Redis, Docker, and cloud-backed preview components. [API test configuration](apps/api/vitest.config.ts) excludes several infrastructure paths from coverage, and [test setup](apps/api/tests/setup.ts) mocks external dependencies.
 
-The separate components expose asynchronous jobs, isolation, persistence, and streaming. Unit tests can exercise application behavior without running the full stack each time. Local setup and debugging cross process boundaries, however, and mocked unit tests cannot prove real service integration. [API configuration](apps/api/app.config.ts) reduces the BullMQ Redis URL to host and port, so URL credentials, TLS, and database selection should not be assumed to reach that connection. Cloud and credential configuration also constrain deployment choices.
+The separate components expose asynchronous jobs, isolation, persistence, and streaming. Unit tests can exercise application behavior without running the full stack each time. Local setup and debugging cross process boundaries, however, and mocked unit tests cannot prove real service integration. [API configuration](apps/api/app.config.ts) reduces the Redis URL to host and port for both BullMQ and the [application Redis clients](apps/api/lib/redis.ts); URL credentials, TLS, and database selection are not applied. Cloud and credential configuration also constrain deployment choices.
 
-Start with a repeatable local integration environment and a small real-service test suite. Add Docker, Postgres, and Redis integration tests; a sandbox-to-preview smoke test with isolated cloud resources where needed; migration and restore tests; and failure injection. Make queue connection configuration support the deployment's actual authentication and TLS requirements. Keep fast unit tests, but do not treat a coverage percentage as a substitute for integration checks.
+Start with a repeatable local integration environment and a small real-service test suite. Add Docker, Postgres, and Redis integration tests; a sandbox-to-preview smoke test with isolated cloud resources where needed; migration and restore tests; and failure injection. Make all Redis connection configuration support the deployment's actual authentication and TLS requirements. Keep fast unit tests, but do not treat a coverage percentage as a substitute for integration checks.
 
 ## A practical revival sequence
 

@@ -33,8 +33,20 @@ export function Hero() {
         </FadeInOnScroll>
 
         <FadeInOnScroll delay={0.2}>
-          <p className="mb-12 text-center text-base leading-normal text-muted-foreground md:text-lg lg:text-xl max-w-xl">
+          <p className="mb-4 text-center text-base leading-normal text-muted-foreground md:text-lg lg:text-xl max-w-xl">
             An AI app builder made to explore agent orchestration, sandbox builds, and streaming from first principles.
+          </p>
+          <p className="mb-12 text-center text-sm leading-relaxed text-muted-foreground max-w-xl">
+            Edward is an experimental project, not a production-ready service.{" "}
+            <a
+              href="https://github.com/pragnya-works/Edward#production-readiness"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline underline-offset-4 hover:text-foreground"
+            >
+              Read the limitations
+            </a>
+            .
           </p>
         </FadeInOnScroll>
 

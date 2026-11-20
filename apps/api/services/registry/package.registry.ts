@@ -11,8 +11,8 @@ const FETCH_TIMEOUT_MS = 5000;
 const NpmPackageSchema = z.object({
     name: z.string(),
     'dist-tags': z.object({ latest: z.string() }).passthrough(),
-    versions: z.record(z.object({
-        peerDependencies: z.record(z.string()).optional()
+    versions: z.record(z.string(), z.object({
+        peerDependencies: z.record(z.string(), z.string()).optional()
     }).passthrough())
 });
 
@@ -21,7 +21,7 @@ const ValidationResultSchema = z.object({
     valid: z.boolean(),
     version: z.string().optional(),
     error: z.string().optional(),
-    peerDependencies: z.record(z.string()).optional()
+    peerDependencies: z.record(z.string(), z.string()).optional()
 });
 
 type ValidationResult = z.infer<typeof ValidationResultSchema>;

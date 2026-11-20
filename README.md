@@ -65,12 +65,13 @@ Some limitations to keep in mind:
   uploaded or no preview URL was resolved. Check preview availability separately.
 - Worker timeouts report failure but do not cancel the underlying build or
   backup operation. The operation may continue to produce side effects.
-- BullMQ's Redis connection configuration extracts only host and port from
-  `REDIS_URL`. Do not assume credentials, TLS, or a database number in the URL
-  are applied to that connection.
-- Sandboxes execute generated code. Containers have resource limits and normally
-  run without a network connection, but builds temporarily reconnect networking.
-  Review isolation, dependency execution, and egress controls for your threat model.
+- The BullMQ and application Redis clients use only the host and port extracted
+  from `REDIS_URL`. Credentials, TLS, and database selection in the URL are not
+  applied to those connections.
+- Sandboxes execute generated code. Networking is disconnected after provisioning
+  and reconnected for dependency installation and builds. A failed disconnect is
+  logged but can leave a container connected. Review isolation, dependency
+  execution, and egress controls for your threat model.
 - API coverage excludes several infrastructure paths, and its test setup mocks
   external services. Passing the test suite does not verify end-to-end behavior
   against real Postgres, Redis, Docker, or cloud services.
@@ -81,7 +82,7 @@ needs monitoring, alerting, backup and restore procedures, and a security review
 
 ## Prerequisites
 
-- Node.js `20+`
+- Node.js `20.19+` in the 20.x line, `22.12+` in the 22.x line, or `24+` (CI uses Node.js 22)
 - `pnpm` `12.21.0` or compatible `12.x`
 - Docker Desktop or another local Docker runtime
 - Postgres `15+` or `16+`
@@ -131,9 +132,23 @@ cp apps/web/.env.example apps/web/.env.local
 cp apps/api/.env.example apps/api/.env
 ```
 
-Fill in the values described in the examples. The API validates its AWS
-credentials at startup even when previews are not configured; placeholder
-credentials do not make AWS-backed operations work.
+Fill in the values described in the examples. Use the same `BETTER_AUTH_SECRET`
+in both env files, and use a separate 64-character hex key for `ENCRYPTION_KEY`.
+Generate them with:
+
+```bash
+openssl rand -base64 32
+openssl rand -hex 32
+```
+
+Use the first output for `BETTER_AUTH_SECRET` and the second for `ENCRYPTION_KEY`.
+Keep both secrets private.
+
+The API requires AWS access-key environment variables at startup even when
+previews are not configured. Placeholder credentials do not make AWS-backed
+operations work and can take precedence over role credentials. Use valid
+credentials for AWS-backed operations; the current validation does not support
+relying on a role alone.
 
 ### 4. Run database migrations
 

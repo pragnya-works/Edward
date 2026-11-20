@@ -30,32 +30,38 @@ vi.mock("@edward/shared/constants", () => {
 });
 
 vi.mock("openai", () => ({
-  default: vi.fn().mockImplementation(() => ({
-    responses: {
-      create: mocks.responsesCreateMock,
-    },
-    completions: {
-      create: mocks.completionsCreateMock,
-    },
-  })),
+  default: vi.fn().mockImplementation(function () {
+    return {
+      responses: {
+        create: mocks.responsesCreateMock,
+      },
+      completions: {
+        create: mocks.completionsCreateMock,
+      },
+    };
+  }),
 }));
 
 vi.mock("@google/genai", () => ({
-  GoogleGenAI: vi.fn().mockImplementation(() => ({
-    models: {
-      generateContentStream: mocks.geminiModelsGenerateContentStreamMock,
-      generateContent: mocks.geminiModelsGenerateContentMock,
-    },
-  })),
+  GoogleGenAI: vi.fn().mockImplementation(function () {
+    return {
+      models: {
+        generateContentStream: mocks.geminiModelsGenerateContentStreamMock,
+        generateContent: mocks.geminiModelsGenerateContentMock,
+      },
+    };
+  }),
 }));
 
 vi.mock("@anthropic-ai/sdk", () => ({
-  default: vi.fn().mockImplementation(() => ({
-    messages: {
-      create: mocks.anthropicMessagesCreateMock,
-      countTokens: vi.fn(),
-    },
-  })),
+  default: vi.fn().mockImplementation(function () {
+    return {
+      messages: {
+        create: mocks.anthropicMessagesCreateMock,
+        countTokens: vi.fn(),
+      },
+    };
+  }),
 }));
 
 vi.mock("../../../lib/llm/compose.js", () => ({

@@ -113,6 +113,10 @@ export function LoginModal({ isOpen, onClose, onSignIn, onError }: LoginModalPro
                     transition={{ delay: 0.3 }}
                     className="px-6 py-6"
                   >
+                    <p className="mb-4 text-sm text-muted-foreground leading-relaxed">
+                      Edward is an experimental project. GitHub sign-in requests
+                      the <code>repo</code> and <code>user</code> permissions.
+                    </p>
                     <Button
                       type="button"
                       onClick={handleLogin}

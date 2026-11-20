@@ -13,7 +13,7 @@ export async function getWorkflow(id: string): Promise<WorkflowState | null> {
     const parsed = WorkflowStateSchema.safeParse(JSON.parse(data));
     if (!parsed.success) {
       logger.warn(
-        { workflowId: id, parseErrors: parsed.error.errors },
+        { workflowId: id, parseErrors: parsed.error.issues },
         "Invalid workflow schema, deleting corrupted data",
       );
       await redis.del(`${WORKFLOW_PREFIX}${id}`).catch(() => {});
