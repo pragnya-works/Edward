@@ -82,7 +82,7 @@ needs monitoring, alerting, backup and restore procedures, and a security review
 ## Prerequisites
 
 - Node.js `20+`
-- `pnpm` `10.4.1` or compatible `10.x`
+- `pnpm` `12.21.0` or compatible `12.x`
 - Docker Desktop or another local Docker runtime
 - Postgres `15+` or `16+`
 - Redis `7+`
@@ -92,7 +92,7 @@ Recommended bootstrap:
 
 ```bash
 corepack enable
-corepack prepare pnpm@10.4.1 --activate
+corepack prepare pnpm@12.21.0 --activate
 pnpm install
 ```
 
