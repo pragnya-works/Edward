@@ -2,9 +2,10 @@
 
 ## Purpose
 
-Provide a stateful, retry-aware workflow engine for planning phases:
-`ANALYZE`, `RESOLVE_PACKAGES`, `INSTALL_PACKAGES`, `BUILD`, `DEPLOY`,
-`RECOVER`.
+Edward's application-built workflow engine maintains state and handles retries
+for the planning phases: `ANALYZE`, `RESOLVE_PACKAGES`, `INSTALL_PACKAGES`,
+`BUILD`, `DEPLOY`, and `RECOVER`. These names describe implementation steps, not
+a claim that Edward operates as a live service.
 
 ## Public API
 
@@ -15,13 +16,11 @@ Provide a stateful, retry-aware workflow engine for planning phases:
 ## Flow
 
 1. Create workflow state and persist it.
-2. `advanceWorkflow` executes current step with retry policy.
-3. Step runner applies phase lock and delegates to step implementation.
-4. Engine updates workflow history/current step/status and persists transitions.
+2. `advanceWorkflow` executes the current step with a retry policy.
+3. The step runner applies a phase lock and delegates to the step implementation.
+4. The engine updates the workflow history, current step, and status, then persists the transitions.
 
 ## Common Failure Modes
-
-Use this list for first-pass triage when workflow progress stalls.
 
 - Workflow lock acquisition failure (`resolve:*` / `build:*`)
 - Missing or stale sandbox state during install/build

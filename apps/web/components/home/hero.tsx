@@ -8,7 +8,7 @@ import { FadeInOnScroll } from "./fadeInOnScroll";
 
 export function Hero() {
   const { data: session } = useSession();
-  const words = ["better", "modern", "minimalist", "awesome", "simple"];
+  const words = ["agent", "sandbox", "preview"];
   const isAuth = !!session?.user;
 
   return (
@@ -22,19 +22,19 @@ export function Hero() {
       <div className="flex w-full max-w-3xl flex-col items-center">
         <FadeInOnScroll delay={0.1} className="w-full flex justify-center">
           <h1 className="mb-5 text-center font-bold leading-[1.1] tracking-tight text-foreground text-3xl md:text-5xl lg:text-6xl select-none">
-            Ask {isAuth ? (
+            Explore {isAuth ? (
               <span className="bg-gradient-to-r from-sky-400 to-indigo-500 bg-clip-text text-transparent">Edward</span>
             ) : (
               "Edward"
-            )} to ship <br />
+            )}&apos;s <br />
             <FlipWords className={isAuth ? "italic font-normal" : "italic"} words={words} />
-            web apps.
+            systems.
           </h1>
         </FadeInOnScroll>
 
         <FadeInOnScroll delay={0.2}>
           <p className="mb-12 text-center text-base leading-normal text-muted-foreground md:text-lg lg:text-xl max-w-xl">
-            Orchestrate complex web systems and stunning interfaces through high-fidelity conversational engineering.
+            An AI app builder made to explore agent orchestration, sandbox builds, and streaming from first principles.
           </p>
         </FadeInOnScroll>
 

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Handle chat HTTP delivery concerns: auth, validation, response mapping, and
+Handle chat HTTP delivery, including auth, validation, response mapping, and
 SSE wiring.
 
 ## Public API
@@ -16,15 +16,13 @@ SSE wiring.
 
 ## Request Flow
 
-1. Route validation + auth middleware execute.
-2. Controller resolves access and request context.
-3. Controller delegates orchestration to services/use-cases (including stream
-   runtime in `services/chat/session/*`).
-4. Controller maps result to JSON/SSE response.
+1. Route validation and auth middleware run.
+2. The controller resolves access and request context.
+3. The controller delegates orchestration to services or use cases, including
+   the stream runtime in `services/chat/session/*`.
+4. The controller maps the result to a JSON or SSE response.
 
 ## Common Failure Modes
-
-Use this list for first-pass triage when chat endpoints fail.
 
 - Missing/invalid chat or run identifiers
 - Ownership/read-access failures

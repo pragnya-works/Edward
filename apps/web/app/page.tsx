@@ -4,7 +4,7 @@ import Home from "@/components/home/home";
 export const metadata: Metadata = {
   title: "Edward",
   description:
-    "Edward helps you design and ship modern web experiences with AI-assisted workflows.",
+    "Explore an AI app builder with a custom agent runtime, sandbox builds, and streamed runs.",
 };
 
 export default function Page() {

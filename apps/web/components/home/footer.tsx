@@ -18,8 +18,7 @@ export function Footer() {
                         <span className="text-2xl font-bold tracking-tighter text-foreground">Edward.</span>
                     </div>
                     <p className="text-muted-foreground max-w-xs text-sm leading-relaxed">
-                        The AI-powered web application builder for the next generation of developers.
-                        Build, ship, and scale with ease.
+                        An AI app builder exploring agent systems, sandbox execution, and streaming from first principles.
                     </p>
                 </div>
             </FadeInOnScroll>

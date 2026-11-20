@@ -1,6 +1,6 @@
 # `@edward/auth`
 
-Shared authentication and persistence package for Edward.
+Shared authentication and persistence package for Edward's agent engineering project. It uses Better Auth and Drizzle rather than implementing authentication or the database from scratch. See the [project overview](../../README.md) for the scope of the first-principles work.
 
 This directory owns auth setup (`better-auth`), Drizzle schema, and DB helpers for chats/messages/builds/runs.
 

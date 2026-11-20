@@ -1,6 +1,8 @@
 # apps/api
 
-TypeScript + Express backend for Edward.
+TypeScript and Express backend for Edward's first-principles agent engineering project. The application implements its own agent loop, workflow, tool handling, and run orchestration while using libraries such as BullMQ and provider SDKs for infrastructure and model access.
+
+The focus is on understanding these systems, not claiming a live service or production-scale operation. See the [project overview](../../README.md) for scope and readiness limitations.
 
 ## Runtime Entrypoints
 

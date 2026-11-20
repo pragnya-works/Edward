@@ -25,9 +25,9 @@ const fontMono = Geist_Mono({
 
 const siteUrl = getSiteUrl()
 const canonicalHomeUrl = getCanonicalUrl("/")
-const defaultTitle = "Edward - AI Web App Builder"
+const defaultTitle = "Edward - AI Agent Engineering Project"
 const defaultDescription =
-  "Create stunning apps and websites by chatting with Edward."
+  "An AI app builder exploring agent orchestration, sandbox execution, and streaming from first principles."
 
 export const metadata: Metadata = {
   metadataBase: siteUrl ?? undefined,
