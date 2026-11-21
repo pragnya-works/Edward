@@ -63,7 +63,6 @@ const refs = vi.hoisted(() => {
       refs.corsOptions = options;
       return "cors-middleware";
     }),
-    cookieParserMock: vi.fn(() => "cookie-parser-middleware"),
     helmetMock: vi.fn(() => "helmet-middleware"),
     apiKeyRouter: "api-key-router",
     chatRouter: "chat-router",
@@ -87,10 +86,6 @@ vi.mock("express", () => ({
 
 vi.mock("cors", () => ({
   default: refs.corsMock,
-}));
-
-vi.mock("cookie-parser", () => ({
-  default: refs.cookieParserMock,
 }));
 
 vi.mock("helmet", () => ({
