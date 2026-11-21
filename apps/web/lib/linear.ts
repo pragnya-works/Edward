@@ -1,6 +1,5 @@
 import { cache } from "react";
 import { LinearClient, PaginationOrderBy } from "@linear/sdk";
-import { captureException } from "@sentry/nextjs";
 
 export interface ChangelogIssue {
   id: string;
@@ -81,7 +80,7 @@ export const getLinearIssues = cache(async (): Promise<FetchIssuesResult> => {
 
     return { issues: formattedIssues, error: null };
   } catch (error) {
-    captureException(error);
+    console.error(error);
     return { issues: [], error: LinearFetchError.CONNECTION_FAILED };
   }
 });

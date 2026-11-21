@@ -10,7 +10,6 @@ import { useChatWorkspaceContext } from "@/components/chat/chatWorkspaceContext"
 import { buildFileTree } from "@/components/chat/editor/fileTree";
 import { FileTreeView } from "@/components/chat/editor/fileTreeItem";
 import { useSandboxDataFetchers } from "@/hooks/server-state/useSandboxData";
-import { captureException } from "@sentry/nextjs";
 
 export function SandboxFileSidebar() {
   const { chatId } = useChatWorkspaceContext();
@@ -57,7 +56,7 @@ export function SandboxFileSidebar() {
         requestSeq === refreshRequestSeqRef.current &&
         latestChatIdRef.current === chatId
       ) {
-        captureException(error);
+        console.error(error);
       }
     } finally {
       if (requestSeq === refreshRequestSeqRef.current) {

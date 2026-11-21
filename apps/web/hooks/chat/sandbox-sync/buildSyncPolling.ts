@@ -12,7 +12,6 @@ import {
   BUILD_POLL_MAX_ATTEMPTS,
   type BuildStatusPayload,
 } from "@/hooks/chat/sandbox-sync/buildSyncTypes";
-import { captureException } from "@sentry/nextjs";
 
 interface PollBuildStatusForChatParams {
   chatId: string;
@@ -148,7 +147,7 @@ export async function pollBuildStatusForChat({
     if (!isCurrentRoute(chatId, epoch)) {
       return;
     }
-    captureException(error);
+    console.error(error);
     setBuildStatus(BuildStatus.FAILED);
     setBuildError(
       error instanceof Error

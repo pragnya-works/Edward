@@ -1,4 +1,3 @@
-import { withSentryConfig } from "@sentry/nextjs";
 /** @type {import('next').NextConfig} */
 const cdnHostname = (() => {
   try {
@@ -9,38 +8,6 @@ const cdnHostname = (() => {
     return null;
   }
 })();
-
-const SENTRY_SAAS_HOST_REGEX = /^o\d+\.ingest(?:\.[a-z]{2})?\.sentry\.io$/;
-const NUMERIC_PROJECT_ID_REGEX = /^\d+$/;
-
-function hasValidSentryTunnelDsn(rawDsn) {
-  if (!rawDsn) {
-    return false;
-  }
-
-  try {
-    const parsed = new URL(rawDsn);
-    if (!parsed.username || !SENTRY_SAAS_HOST_REGEX.test(parsed.host)) {
-      return false;
-    }
-
-    const pathSegments = parsed.pathname.split("/").filter(Boolean);
-    const projectId = pathSegments[pathSegments.length - 1] ?? "";
-    return NUMERIC_PROJECT_ID_REGEX.test(projectId);
-  } catch {
-    return false;
-  }
-}
-
-const hasValidSentryTunnel = hasValidSentryTunnelDsn(
-  process.env.NEXT_PUBLIC_SENTRY_DSN,
-);
-
-if (process.env.NEXT_PUBLIC_SENTRY_DSN && !hasValidSentryTunnel) {
-  console.warn(
-    "[Sentry] NEXT_PUBLIC_SENTRY_DSN is invalid for tunnel routing. Disabled /monitoring tunnel to prevent ProjectId rejections.",
-  );
-}
 
 const nextConfig = {
   transpilePackages: ["@edward/ui", "@shadergradient/react"],
@@ -83,17 +50,4 @@ const nextConfig = {
   },
 };
 
-export default withSentryConfig(nextConfig, {
-  org: "pragnya-7w",
-  project: "edward-web",
-  silent: !process.env.CI,
-  widenClientFileUpload: true,
-  tunnelRoute: hasValidSentryTunnel ? "/monitoring" : undefined,
-
-  webpack: {
-    automaticVercelMonitors: true,
-    treeshake: {
-      removeDebugLogging: true,
-    },
-  },
-});
+export default nextConfig;

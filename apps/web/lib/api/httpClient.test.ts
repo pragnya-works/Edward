@@ -2,13 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { RATE_LIMIT_SCOPE } from "@/lib/rateLimit/scopes";
 
 const refs = vi.hoisted(() => ({
-  captureMessage: vi.fn(),
   recordRateLimitCooldown: vi.fn(),
   syncRateLimitQuotaSnapshot: vi.fn(),
-}));
-
-vi.mock("@sentry/nextjs", () => ({
-  captureMessage: refs.captureMessage,
 }));
 
 vi.mock("@/lib/rateLimit/state.operations", () => ({

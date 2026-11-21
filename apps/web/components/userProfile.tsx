@@ -29,7 +29,6 @@ import {
 import { useSidebar } from "@edward/ui/components/sidebar";
 import { cn } from "@edward/ui/lib/utils";
 import { useMobileViewport } from "@edward/ui/hooks/useMobileViewport";
-import { captureException } from "@sentry/nextjs";
 import { toast } from "@edward/ui/components/sonner";
 import { Badge } from "@edward/ui/components/badge";
 import { useRateLimitScope } from "@/hooks/rateLimit/useRateLimitScope";
@@ -150,8 +149,7 @@ export default function UserProfile() {
     try {
       await signOut();
       router.push("/");
-    } catch (error) {
-      captureException(error);
+    } catch {
       toast.error("Sign-out failed, please try again");
     }
   }

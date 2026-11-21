@@ -4,7 +4,6 @@ import { type ReactNode, useEffect } from "react";
 import { AlertCircle } from "lucide-react";
 import { Button } from "@edward/ui/components/button";
 import { ErrorBoundary } from "react-error-boundary";
-import { captureException } from "@sentry/nextjs";
 
 interface SandboxErrorBoundaryProps {
     children: ReactNode;
@@ -115,7 +114,7 @@ export function SandboxErrorBoundary({ children, fallback }: SandboxErrorBoundar
                 return;
             }
 
-            captureException(event.reason);
+            console.error(event.reason);
         };
 
         window.addEventListener("unhandledrejection", handleUnhandledRejection);
@@ -133,9 +132,6 @@ export function SandboxErrorBoundary({ children, fallback }: SandboxErrorBoundar
                     fallback={fallback}
                 />
             )}
-            onError={(error, errorInfo) => {
-                captureException(error, { extra: { componentStack: errorInfo.componentStack } });
-            }}
         >
             {children}
         </ErrorBoundary>

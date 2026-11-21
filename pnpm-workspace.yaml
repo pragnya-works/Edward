@@ -23,8 +23,6 @@ overrides:
 allowBuilds:
   # The package's preinstall script is a no-op.
   "@google/genai": false
-  # Downloads the sentry-cli binary used for source map uploads.
-  "@sentry/cli": true
   # Postinstall only prints the core-js funding banner.
   core-js-pure: false
   # Optional ssh2 native accelerator; ssh2 has a pure-JS fallback.

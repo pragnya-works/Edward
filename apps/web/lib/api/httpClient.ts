@@ -12,7 +12,6 @@ import {
   recordRateLimitCooldown,
   syncRateLimitQuotaSnapshot,
 } from "@/lib/rateLimit/state.operations";
-import { captureMessage } from "@sentry/nextjs";
 
 interface ApiErrorBase extends Error {
   status: number;
@@ -51,10 +50,9 @@ const GITHUB_DAILY_LIMIT =
   RATE_LIMIT_POLICY_BY_SCOPE[RATE_LIMIT_SCOPE.GITHUB_DAILY].max;
 
 if (!process.env.NEXT_PUBLIC_API_URL) {
-  captureMessage(
+  console.warn(
     `NEXT_PUBLIC_API_URL is not defined, using default: ${DEFAULT_API_URL}. ` +
       "Please set NEXT_PUBLIC_API_URL in your environment variables for production.",
-    "warning",
   );
 }
 

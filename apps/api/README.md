@@ -71,4 +71,4 @@ pnpm --filter api quality:gates
 - `DOCKER_REGISTRY_BASE` is required for worker template resolution.
 - `PREWARM_SANDBOX_IMAGE` is required when sandbox containers are created.
 - `CLOUDFLARE_*` and `PREVIEW_ROOT_DOMAIN` are only needed for subdomain preview routing.
-- `SENTRY_DSN` and `TAVILY_API_KEY` are optional.
+- `TAVILY_API_KEY` is optional.
