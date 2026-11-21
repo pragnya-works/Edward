@@ -1,8 +1,6 @@
 import express, { NextFunction, Request, Response } from "express";
 import cors from "cors";
-import cookieParser from "cookie-parser";
 import helmet from "helmet";
-import { captureException } from "../../utils/sentry.js";
 import { apiKeyRouter } from "../../routes/apiKey.routes.js";
 import { chatRouter } from "../../routes/chat.routes.js";
 import { githubRouter } from "../../routes/github.routes.js";
@@ -68,7 +66,6 @@ export function createHttpApp(params: CreateHttpAppParams): express.Express {
   );
 
   app.use(securityTelemetryMiddleware);
-  app.use(cookieParser());
   app.use(express.json({ limit: "1mb" }));
   app.use(express.urlencoded({ extended: true, limit: "1mb" }));
 
@@ -100,7 +97,6 @@ export function createHttpApp(params: CreateHttpAppParams): express.Express {
     void _next;
     const error = ensureError(err);
     logger.error(error);
-    captureException(error);
     res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
       error: isProd ? ERROR_MESSAGES.INTERNAL_SERVER_ERROR : error.message,
       timestamp: new Date().toISOString(),

@@ -34,9 +34,6 @@ const refs = vi.hoisted(() => {
       error: vi.fn(),
       fatal: vi.fn(),
     },
-    sentry: {
-      captureException: vi.fn(),
-    },
     config: {
       server: {
         port: 9999,
@@ -51,10 +48,6 @@ const refs = vi.hoisted(() => {
     },
   };
 });
-
-vi.mock("../utils/sentry.js", () => ({
-  captureException: refs.sentry.captureException,
-}));
 
 vi.mock("../services/sandbox/lifecycle/control.js", () => ({
   initSandboxService: refs.initSandboxService,
@@ -205,7 +198,6 @@ describe("server.http bootstrap", () => {
         { reason: "boom" },
         "Unhandled Rejection",
       );
-      expect(refs.sentry.captureException).toHaveBeenCalledWith("boom");
       expect(refs.closeMock).toHaveBeenCalledTimes(1);
       expect(processExitSpy).toHaveBeenCalledWith(1);
     });

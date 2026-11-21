@@ -23,10 +23,7 @@
         "GITHUB_CLIENT_ID",
         "GITHUB_CLIENT_SECRET",
         "NEXT_PUBLIC_BETTER_AUTH_URL",
-        "NEXT_PUBLIC_API_URL",
-        "NEXT_PUBLIC_SENTRY_DSN",
-        "SENTRY_ORG",
-        "SENTRY_AUTH_TOKEN"
+        "NEXT_PUBLIC_API_URL"
       ]
     },
     "@edward/auth#build": {
@@ -84,8 +81,7 @@
         "TRUST_PROXY",
         "PREWARM_SANDBOX_IMAGE",
         "DOCKER_REGISTRY_BASE",
-        "REDIS_URL",
-        "SENTRY_DSN"
+        "REDIS_URL"
       ]
     },
     "typecheck": {

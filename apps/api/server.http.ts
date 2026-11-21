@@ -1,6 +1,4 @@
 import "dotenv/config";
-import "./utils/sentry.js";
-import { captureException } from "./utils/sentry.js";
 import {
   initSandboxService,
   shutdownSandboxService,
@@ -103,12 +101,10 @@ registerProcessHandlerOnce("api:SIGTERM", "SIGTERM", () => {
 
 registerProcessHandlerOnce("api:uncaughtException", "uncaughtException", (error) => {
   logger.fatal(error, "Uncaught Exception");
-  captureException(error);
   void handleGracefulShutdown("uncaughtException", 1);
 });
 
 registerProcessHandlerOnce("api:unhandledRejection", "unhandledRejection", (reason) => {
   logger.fatal({ reason }, "Unhandled Rejection");
-  captureException(reason);
   void handleGracefulShutdown("unhandledRejection", 1);
 });

@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import Link from "next/link";
 import { AnimatePresence, LazyMotion, domAnimation, m } from "motion/react";
 import { X } from "lucide-react";
 import { GitHub } from "@edward/ui/components/icons/github";
@@ -139,24 +138,6 @@ export function LoginModal({ isOpen, onClose, onSignIn, onError }: LoginModalPro
                         </span>
                       )}
                     </Button>
-
-                    <p className="mt-6 text-xs text-muted-foreground/80 text-center leading-relaxed">
-                      By logging in, you agree to our{" "}
-                      <Link
-                        href="/terms"
-                        className="font-medium text-foreground/90 underline underline-offset-2 hover:text-foreground"
-                      >
-                        Terms
-                      </Link>{" "}
-                      and{" "}
-                      <Link
-                        href="/privacy"
-                        className="font-medium text-foreground/90 underline underline-offset-2 hover:text-foreground"
-                      >
-                        Privacy Policy
-                      </Link>
-                      .
-                    </p>
                   </m.div>
                 </div>
 

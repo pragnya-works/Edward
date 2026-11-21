@@ -63,11 +63,7 @@ const refs = vi.hoisted(() => {
       refs.corsOptions = options;
       return "cors-middleware";
     }),
-    cookieParserMock: vi.fn(() => "cookie-parser-middleware"),
     helmetMock: vi.fn(() => "helmet-middleware"),
-    sentry: {
-      captureException: vi.fn(),
-    },
     apiKeyRouter: "api-key-router",
     chatRouter: "chat-router",
     githubRouter: "github-router",
@@ -92,16 +88,8 @@ vi.mock("cors", () => ({
   default: refs.corsMock,
 }));
 
-vi.mock("cookie-parser", () => ({
-  default: refs.cookieParserMock,
-}));
-
 vi.mock("helmet", () => ({
   default: refs.helmetMock,
-}));
-
-vi.mock("../../../utils/sentry.js", () => ({
-  captureException: refs.sentry.captureException,
 }));
 
 vi.mock("../../../routes/apiKey.routes.js", () => ({
@@ -223,7 +211,6 @@ describe("createHttpApp", () => {
     const errorStatus = vi.fn(() => ({ json: vi.fn() }));
     errorHandler(new Error("boom"), {}, { status: errorStatus }, vi.fn());
     expect(refs.logger.error).toHaveBeenCalledTimes(1);
-    expect(refs.sentry.captureException).toHaveBeenCalledTimes(1);
     expect(errorStatus).toHaveBeenCalledWith(500);
   });
 

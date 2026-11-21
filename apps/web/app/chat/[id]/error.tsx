@@ -1,19 +1,13 @@
 "use client";
 
-import { useEffect } from "react";
 import { AlertCircle } from "lucide-react";
-import * as Sentry from "@sentry/nextjs";
 
 interface ErrorProps {
   error: Error & { digest?: string };
   reset: () => void;
 }
 
-export default function Error({ error, reset }: ErrorProps) {
-  useEffect(() => {
-    Sentry.captureException(error);
-  }, [error]);
-
+export default function Error({ reset }: ErrorProps) {
   return (
     <div className="flex h-full min-h-[60vh] flex-col items-center justify-center px-4 text-center">
       <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10">

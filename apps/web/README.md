@@ -41,11 +41,9 @@ Common keys:
 - `NEXT_PUBLIC_ASSETS_URL`
 - `NEXT_PUBLIC_CDN_URL` (optional `next/image` remote host allow-list)
 - `LINEAR_API_KEY` (optional changelog integration)
-- `NEXT_PUBLIC_SENTRY_DSN` (optional runtime Sentry DSN)
-- `SENTRY_AUTH_TOKEN` (optional production source-map upload token)
 
 ## Integration Notes
 
 - Auth handler is in `app/api/auth/[...all]/route.ts` via `@edward/auth`.
 - Shared UI/styles come from `@edward/ui`.
-- Sentry + image remote patterns are configured in `next.config.mjs`.
+- Image remote patterns are configured in `next.config.mjs`.

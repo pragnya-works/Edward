@@ -28,8 +28,6 @@ export function Footer() {
                     © {new Date().getFullYear()} Edward by <Link className="hover:underline" href="https://pragnyaa.in" target="_blank" rel="noopener noreferrer">Pragnya.</Link> All rights reserved.
                 </div>
                 <div className="flex gap-6">
-                    <Link href="/privacy" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Privacy</Link>
-                    <Link href="/terms" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Terms</Link>
                     <Link href="https://github.com/pragnya-works/Edward" target="_blank" rel="noopener noreferrer" className="text-sm text-muted-foreground hover:text-foreground transition-colors">GitHub</Link>
                 </div>
             </FadeInOnScroll>
