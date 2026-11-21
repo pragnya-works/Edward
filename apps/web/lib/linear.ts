@@ -1,5 +1,6 @@
 import { cache } from "react";
 import { LinearClient, PaginationOrderBy } from "@linear/sdk";
+import { logger } from "@/lib/logger";
 
 export interface ChangelogIssue {
   id: string;
@@ -80,7 +81,7 @@ export const getLinearIssues = cache(async (): Promise<FetchIssuesResult> => {
 
     return { issues: formattedIssues, error: null };
   } catch (error) {
-    console.error(error);
+    logger.error("linear", "Failed to fetch changelog issues", error);
     return { issues: [], error: LinearFetchError.CONNECTION_FAILED };
   }
 });

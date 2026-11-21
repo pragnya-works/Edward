@@ -4,6 +4,7 @@ import { type ReactNode, useEffect } from "react";
 import { AlertCircle } from "lucide-react";
 import { Button } from "@edward/ui/components/button";
 import { ErrorBoundary } from "react-error-boundary";
+import { logger } from "@/lib/logger";
 
 interface SandboxErrorBoundaryProps {
     children: ReactNode;
@@ -114,7 +115,7 @@ export function SandboxErrorBoundary({ children, fallback }: SandboxErrorBoundar
                 return;
             }
 
-            console.error(event.reason);
+            logger.error("sandbox", "Unhandled promise rejection", event.reason);
         };
 
         window.addEventListener("unhandledrejection", handleUnhandledRejection);
